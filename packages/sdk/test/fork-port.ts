@@ -7,7 +7,11 @@ export function localTestPort() {
     server.on('error', reject)
     server.listen(0, '127.0.0.1', () => {
       const address = server.address()
-      if (address === null || typeof address === 'string') { server.close(); reject(new Error('No local test port')); return }
+      if (address === null || typeof address === 'string') {
+        server.close()
+        reject(new Error('No local test port'))
+        return
+      }
       server.close(() => resolve(address.port))
     })
   })

@@ -24,13 +24,17 @@ export interface DripDeps {
   readonly relaySend?: (request: RelayRequest) => Promise<Hex>
 }
 
-export type DripOutcome = { status: 'sent'; txHash: Hex } | { status: 'skipped' | 'failed' | 'already' | 'unavailable'; reason: string }
+export type DripOutcome =
+  | { status: 'sent'; txHash: Hex }
+  | { status: 'skipped' | 'failed' | 'already' | 'unavailable'; reason: string }
 
 export async function dripOnce(deps: DripDeps, input: { boardId: string; address: Address }): Promise<DripOutcome> {
   if (deps.network !== 'monad-testnet') return { status: 'unavailable', reason: 'drips are testnet only' }
-  if (!/^0x[0-9a-fA-F]{64}$/.test(deps.relayKey) || deps.rpcUrl === '' || deps.relaySend === undefined) return { status: 'unavailable', reason: 'no relay configured' }
+  if (!/^0x[0-9a-fA-F]{64}$/.test(deps.relayKey) || deps.rpcUrl === '' || deps.relaySend === undefined)
+    return { status: 'unavailable', reason: 'no relay configured' }
   const existing = await dripState(deps.sql, input.boardId, input.address)
-  if (existing !== undefined && existing.status !== 'reserved' && existing.status !== 'failed') return { status: 'already', reason: existing.status }
+  if (existing !== undefined && existing.status !== 'reserved' && existing.status !== 'failed')
+    return { status: 'already', reason: existing.status }
   const ctx = sdk.context(deps.network, 'main', deps.rpcUrl)
   const relay = privateKeyToAccount(deps.relayKey as Hex)
   // A reservation without a hash is either in flight or lost: the recipient's balance decides, never a resend on faith.
@@ -44,10 +48,14 @@ export async function dripOnce(deps: DripDeps, input: { boardId: string; address
   }
   const token = [...crypto.getRandomValues(new Uint8Array(8))].map((b) => b.toString(16).padStart(2, '0')).join('')
   if (existing?.status === 'failed') await dripFinish(deps.sql, input.boardId, input.address, 'failed', null)
-  const own = existing?.status === 'failed' ? true : await dripReserve(deps.sql, input.boardId, input.address, token, deps.now())
+  const own =
+    existing?.status === 'failed' ? true : await dripReserve(deps.sql, input.boardId, input.address, token, deps.now())
   if (!own) return { status: 'skipped', reason: 'another sign-in reserved it' }
   try {
-    const [balance, relayBalance] = await Promise.all([ctx.publicClient.getBalance({ address: input.address }), ctx.publicClient.getBalance({ address: relay.address })])
+    const [balance, relayBalance] = await Promise.all([
+      ctx.publicClient.getBalance({ address: input.address }),
+      ctx.publicClient.getBalance({ address: relay.address }),
+    ])
     if (balance >= parseEther(DRIP_MON)) {
       await dripFinish(deps.sql, input.boardId, input.address, 'skipped', null)
       return { status: 'skipped', reason: `already holds ${formatEther(balance)} MON` }
@@ -56,7 +64,13 @@ export async function dripOnce(deps: DripDeps, input: { boardId: string; address
       await dripFinish(deps.sql, input.boardId, input.address, 'skipped', null)
       return { status: 'skipped', reason: 'the relay is low on MON' }
     }
-    const txHash = await deps.relaySend({ key: `drip:${input.boardId}:${input.address.toLowerCase()}`, to: input.address, data: '0x', value: parseEther(DRIP_MON).toString(), gas: '30000' })
+    const txHash = await deps.relaySend({
+      key: `drip:${input.boardId}:${input.address.toLowerCase()}`,
+      to: input.address,
+      data: '0x',
+      value: parseEther(DRIP_MON).toString(),
+      gas: '30000',
+    })
     await dripFinish(deps.sql, input.boardId, input.address, 'sent', txHash)
     return { status: 'sent', txHash }
   } catch (e) {

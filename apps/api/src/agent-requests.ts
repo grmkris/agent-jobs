@@ -12,7 +12,12 @@ export interface AgentManagementRequest {
   readonly ip?: string
 }
 
-export function managementRequest(env: BoardCall['env'], request: AgentRouteRequest, bearer: string | undefined, headers: Readonly<Record<string, string | undefined>>): AgentManagementRequest {
+export function managementRequest(
+  env: BoardCall['env'],
+  request: AgentRouteRequest,
+  bearer: string | undefined,
+  headers: Readonly<Record<string, string | undefined>>,
+): AgentManagementRequest {
   const ip = headers['cf-connecting-ip']
   const privyToken = headers['x-privy-token']
   return {
@@ -24,13 +29,17 @@ export function managementRequest(env: BoardCall['env'], request: AgentRouteRequ
   }
 }
 
-export function operatorRequest(request: AgentManagementRequest, operator: Address, action: {
-  readonly agentId: string
-  readonly tool: string
-  readonly args: Record<string, unknown>
-  readonly key: string
-  readonly boardId?: string | undefined
-}): AgentExecuteRequest {
+export function operatorRequest(
+  request: AgentManagementRequest,
+  operator: Address,
+  action: {
+    readonly agentId: string
+    readonly tool: string
+    readonly args: Record<string, unknown>
+    readonly key: string
+    readonly boardId?: string | undefined
+  },
+): AgentExecuteRequest {
   return {
     env: { ...request.env, boardId: action.boardId ?? request.env.boardId },
     tool: action.tool,
@@ -43,13 +52,22 @@ export function operatorRequest(request: AgentManagementRequest, operator: Addre
   }
 }
 
-export function tenantAgentRequest(request: AgentExecuteRequest, address: Address, tool: string, args: Record<string, unknown>): BoardCall {
+export function tenantAgentRequest(
+  request: AgentExecuteRequest,
+  address: Address,
+  tool: string,
+  args: Record<string, unknown>,
+): BoardCall {
   return {
     tool,
     args,
     env: request.env,
     caller: address,
-    agentAuth: { agentId: request.agentId, resource: request.resource, ...(request.operator === undefined ? {} : { operator: true }) },
+    agentAuth: {
+      agentId: request.agentId,
+      resource: request.resource,
+      ...(request.operator === undefined ? {} : { operator: true }),
+    },
     ...(request.ip === undefined ? {} : { ip: request.ip }),
     ...(request.bearer === undefined ? {} : { bearer: request.bearer }),
   }

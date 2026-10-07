@@ -3,7 +3,15 @@ import { Check } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Item, ItemActions } from './ui/item.tsx'
 
-export function Switch({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
+export function Switch({
+  checked,
+  onChange,
+  label,
+}: {
+  checked: boolean
+  onChange: (v: boolean) => void
+  label: string
+}) {
   return (
     <button
       type="button"
@@ -15,7 +23,10 @@ export function Switch({ checked, onChange, label }: { checked: boolean; onChang
     >
       <span
         aria-hidden
-        className={cn('relative h-[31px] w-[51px] rounded-full transition-colors duration-200', checked ? 'bg-success-text' : 'bg-accent')}
+        className={cn(
+          'relative h-[31px] w-[51px] rounded-full transition-colors duration-200',
+          checked ? 'bg-success-text' : 'bg-accent',
+        )}
       >
         <span
           className={cn(
@@ -27,7 +38,6 @@ export function Switch({ checked, onChange, label }: { checked: boolean; onChang
     </button>
   )
 }
-
 
 export function KV({ label, children, note }: { label: ReactNode; children: ReactNode; note?: ReactNode }) {
   return (
@@ -43,10 +53,14 @@ export function KV({ label, children, note }: { label: ReactNode; children: Reac
   )
 }
 
-
 export function Mark({ tone }: { tone: 'ok' | 'warn' | 'bad' | 'wait' | 'none' }) {
   if (tone === 'wait')
-    return <span aria-hidden className="size-6 shrink-0 animate-spin rounded-full border-[2.5px] border-accent border-t-primary" />
+    return (
+      <span
+        aria-hidden
+        className="size-6 shrink-0 animate-spin rounded-full border-[2.5px] border-accent border-t-primary"
+      />
+    )
   return (
     <span
       aria-hidden

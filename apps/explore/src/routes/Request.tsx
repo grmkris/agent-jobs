@@ -11,7 +11,15 @@ import { useParams } from '@tanstack/react-router'
 import { Check, ChevronLeft, TriangleAlert } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { parseUnits } from 'viem'
-import { type DeliverableKind, type DeliverableSpec, type Quote, type QuoteRequest, type TxRequest, currentBoardId, tool } from '../api.ts'
+import {
+  type DeliverableKind,
+  type DeliverableSpec,
+  type Quote,
+  type QuoteRequest,
+  type TxRequest,
+  currentBoardId,
+  tool,
+} from '../api.ts'
 import { BoardLink, boardRoutes, useBoardNavigate } from '../components/BoardLink.tsx'
 import { humanAmount, relative } from '../format.ts'
 import { KV, Mark, Switch } from '../components/controls.tsx'
@@ -120,8 +128,17 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
   const mine = me !== undefined && creator !== undefined && creator.toLowerCase() === me
   // Keep the handoff button mounted during refresh. Its sheet validates a fresh owner list before showing any
   // instruction; unmounting it on every fetch would make its own useManagedAgents subscription refetch in a loop.
-  const ownedPublisher = managed.isSuccess && !managed.isError ? managed.data?.agents.find(agent =>
-    agent.state === 'active' && agent.agent_id !== null && agent.address !== null && creator !== undefined && agent.address.toLowerCase() === creator.toLowerCase()) : undefined
+  const ownedPublisher =
+    managed.isSuccess && !managed.isError
+      ? managed.data?.agents.find(
+          (agent) =>
+            agent.state === 'active' &&
+            agent.agent_id !== null &&
+            agent.address !== null &&
+            creator !== undefined &&
+            agent.address.toLowerCase() === creator.toLowerCase(),
+        )
+      : undefined
   const pendingTask = picked?.taskId ?? quotes.data?.picked ?? r?.taskId ?? null
   const pickedTask = useQuery({
     queryKey: ['quote-picked-task', boardId, pendingTask],
@@ -210,7 +227,7 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
     ) : (
       <Badge variant="neutral">Quotes closed</Badge>
     )
-  const posterAgent = r === undefined ? null : r.creatorAgentId ?? posters.get(r.creator.toLowerCase()) ?? null
+  const posterAgent = r === undefined ? null : (r.creatorAgentId ?? posters.get(r.creator.toLowerCase()) ?? null)
   const quotesCount = r?.quotesCount ?? 0
 
   return (
@@ -226,19 +243,44 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
       <PageTitle sub={status}>{r?.title ?? 'Quote request'}</PageTitle>
 
       {r !== undefined && pendingTask === null && (
-        <section aria-label="Quoting" className="grid gap-5 rounded-2xl bg-card p-5 ring-1 ring-foreground/10 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center sm:gap-10">
+        <section
+          aria-label="Quoting"
+          className="grid gap-5 rounded-2xl bg-card p-5 ring-1 ring-foreground/10 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center sm:gap-10"
+        >
           <div className="grid gap-1">
             <span className="text-ui text-muted-foreground">{open ? 'Quotes close in' : 'Quotes closed'}</span>
-            {open ? <RollingCountdown to={r.quoteDeadline} size="display" passed="closed" /> : <span className="text-lg font-medium"><When at={r.quoteDeadline} show="time" /></span>}
+            {open ? (
+              <RollingCountdown to={r.quoteDeadline} size="display" passed="closed" />
+            ) : (
+              <span className="text-lg font-medium">
+                <When at={r.quoteDeadline} show="time" />
+              </span>
+            )}
           </div>
           <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-3">
             <div className="grid gap-0.5">
               <dt className="text-ui text-muted-foreground">Budget</dt>
               <dd className="font-medium tabular-nums">
-                {r.budget === undefined ? 'Open to quotes' : <>Up to <TokenAmount value={r.budget.max} token={r.budget.token} /></>}
+                {r.budget === undefined ? (
+                  'Open to quotes'
+                ) : (
+                  <>
+                    Up to <TokenAmount value={r.budget.max} token={r.budget.token} />
+                  </>
+                )}
               </dd>
-              {r.budgetCovered === true && <dd className="inline-flex items-center gap-1 text-ui text-success-text"><Check aria-hidden className="size-3.5" />Covered</dd>}
-              {r.budgetCovered === false && <dd className="inline-flex items-center gap-1 text-ui text-warning-text"><TriangleAlert aria-hidden className="size-3.5" />Not covered</dd>}
+              {r.budgetCovered === true && (
+                <dd className="inline-flex items-center gap-1 text-ui text-success-text">
+                  <Check aria-hidden className="size-3.5" />
+                  Covered
+                </dd>
+              )}
+              {r.budgetCovered === false && (
+                <dd className="inline-flex items-center gap-1 text-ui text-warning-text">
+                  <TriangleAlert aria-hidden className="size-3.5" />
+                  Not covered
+                </dd>
+              )}
             </div>
             <div className="grid gap-0.5">
               <dt className="text-ui text-muted-foreground">Quotes</dt>
@@ -247,9 +289,20 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
             </div>
             <div className="col-span-2 grid gap-0.5 sm:col-span-1">
               <dt className="text-ui text-muted-foreground">Posted</dt>
-              <dd className="font-medium">{r.createdAt === undefined ? '—' : postedJustNow(r.createdAt, now) ? 'Just now' : relative(r.createdAt, now)}</dd>
+              <dd className="font-medium">
+                {r.createdAt === undefined
+                  ? '—'
+                  : postedJustNow(r.createdAt, now)
+                    ? 'Just now'
+                    : relative(r.createdAt, now)}
+              </dd>
               <dd className="text-ui text-muted-foreground">
-                by {posterAgent !== null ? <AgentLabel id={posterAgent} /> : <span className="font-mono text-xs">{shortAddress(r.creator)}</span>}
+                by{' '}
+                {posterAgent !== null ? (
+                  <AgentLabel id={posterAgent} />
+                ) : (
+                  <span className="font-mono text-xs">{shortAddress(r.creator)}</span>
+                )}
               </dd>
             </div>
           </dl>
@@ -263,7 +316,9 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
           <Empty>
             <EmptyHeader>
               <EmptyTitle>This request is closed</EmptyTitle>
-              <EmptyDescription>Requests stay listed for a week after quoting closes or a quote is picked.</EmptyDescription>
+              <EmptyDescription>
+                Requests stay listed for a week after quoting closes or a quote is picked.
+              </EmptyDescription>
             </EmptyHeader>
           </Empty>
         )
@@ -272,7 +327,9 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
           <Section title="The job">
             <ItemGroup>
               <Item>
-                <span className="py-1 text-sm leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]">{r.brief}</span>
+                <span className="py-1 text-sm leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]">
+                  {r.brief}
+                </span>
               </Item>
               {r.acceptanceCriteria.length > 0 && (
                 <Item>
@@ -291,10 +348,14 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
 
           <Section title="Terms">
             <ItemGroup>
-              <KV label={r.budget === undefined ? 'Accepted tokens' : 'Paid in'}>{r.tokens.map(symbolOf).join(', ')}</KV>
+              <KV label={r.budget === undefined ? 'Accepted tokens' : 'Paid in'}>
+                {r.tokens.map(symbolOf).join(', ')}
+              </KV>
               {r.budget !== undefined && (
                 <KV label="Budget">
-                  <span className="inline-flex items-center gap-1 whitespace-nowrap">Up to <TokenAmount value={r.budget.max} token={r.budget.token} /></span>
+                  <span className="inline-flex items-center gap-1 whitespace-nowrap">
+                    Up to <TokenAmount value={r.budget.max} token={r.budget.token} />
+                  </span>
                 </KV>
               )}
               <KV label="Quotes close">
@@ -344,16 +405,23 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
           title={list.length > 0 ? 'Your quote' : 'Quotes'}
           note="Quotes are private: only the requester sees all of them. Agents quote over the board's MCP server with submit_quote."
         >
-          {ownedPublisher !== undefined && creator !== undefined && <div className="mb-3 rounded-xl bg-primary/8 p-3">
-            <p className="text-sm leading-snug text-muted-foreground">This request belongs to your hosted publisher, so the browser wallet cannot pick its private quotes.</p>
-            <CreateWithAgent context="pick" requestId={requestId} publisherAddress={creator}>Choose with your agent</CreateWithAgent>
-          </div>}
+          {ownedPublisher !== undefined && creator !== undefined && (
+            <div className="mb-3 rounded-xl bg-primary/8 p-3">
+              <p className="text-sm leading-snug text-muted-foreground">
+                This request belongs to your hosted publisher, so the browser wallet cannot pick its private quotes.
+              </p>
+              <CreateWithAgent context="pick" requestId={requestId} publisherAddress={creator}>
+                Choose with your agent
+              </CreateWithAgent>
+            </div>
+          )}
           {list.length === 0 ? (
             <Empty>
               <EmptyHeader>
                 <EmptyTitle>Quotes are private</EmptyTitle>
                 <EmptyDescription>
-                  Only the requester sees the quotes on this request. An agent quotes over MCP; its own quote then shows here.
+                  Only the requester sees the quotes on this request. An agent quotes over MCP; its own quote then shows
+                  here.
                 </EmptyDescription>
               </EmptyHeader>
             </Empty>
@@ -376,14 +444,21 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
                   </ItemMedia>
                   <ItemContent className="min-w-0 flex-1">
                     <span className="block">
-                      {picked !== null ? `You picked Worker #${picked.quote.agentId}'s quote of ${price}` : 'You picked a quote'}
+                      {picked !== null
+                        ? `You picked Worker #${picked.quote.agentId}'s quote of ${price}`
+                        : 'You picked a quote'}
                     </span>
                     <ItemDescription className="block text-ui text-muted-foreground">
-                      {jobId !== null ? `Published as job #${jobId}.` : 'Not published yet: publish it to lock the reward in escrow.'}
+                      {jobId !== null
+                        ? `Published as job #${jobId}.`
+                        : 'Not published yet: publish it to lock the reward in escrow.'}
                     </ItemDescription>
                   </ItemContent>
                   {jobId !== null ? (
-                    <BoardLink target={boardRoutes().job(jobId)} className={cn(textLinkClass, 'shrink-0 font-semibold')}>
+                    <BoardLink
+                      target={boardRoutes().job(jobId)}
+                      className={cn(textLinkClass, 'shrink-0 font-semibold')}
+                    >
                       Open job
                     </BoardLink>
                   ) : (
@@ -406,8 +481,8 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
             note={
               r !== undefined ? (
                 <>
-                  Every quote delivers by <When at={r.deliveryDeadline} show="time" />. The record is each agent&apos;s jobs on this
-                  deployment, from chain records.
+                  Every quote delivers by <When at={r.deliveryDeadline} show="time" />. The record is each agent&apos;s
+                  jobs on this deployment, from chain records.
                 </>
               ) : undefined
             }
@@ -420,7 +495,11 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
                 </EmptyHeader>
               </Empty>
             ) : (
-              <QuoteComparison quotes={list} record={record} onPick={pendingTask === null && writesOpen ? choose : undefined} />
+              <QuoteComparison
+                quotes={list}
+                record={record}
+                onPick={pendingTask === null && writesOpen ? choose : undefined}
+              />
             )}
           </Section>
         </>
@@ -436,8 +515,13 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
           picking === null ? undefined : (
             <>
               This fixes the job at{' '}
-              <TokenAmount value={null} token={picking.token} text={humanAmount(picking.amount, picking.symbol)} className="font-semibold text-foreground" /> and closes
-              the other quotes. Your wallet then publishes it, which locks that amount in escrow.
+              <TokenAmount
+                value={null}
+                token={picking.token}
+                text={humanAmount(picking.amount, picking.symbol)}
+                className="font-semibold text-foreground"
+              />{' '}
+              and closes the other quotes. Your wallet then publishes it, which locks that amount in escrow.
             </>
           )
         }
@@ -453,7 +537,12 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
                 <span className="min-w-0 flex-1">
                   <span className="block font-medium">Approve a running-cost budget</span>
                   <span className="block text-ui text-muted-foreground">
-                    Asked: <TokenAmount value={null} token={picking.expectedCosts.token} text={humanAmount(picking.expectedCosts.amount, picking.expectedCosts.symbol)} />
+                    Asked:{' '}
+                    <TokenAmount
+                      value={null}
+                      token={picking.expectedCosts.token}
+                      text={humanAmount(picking.expectedCosts.amount, picking.expectedCosts.symbol)}
+                    />
                     {picking.expectedCosts.note !== '' && ` · ${picking.expectedCosts.note}`}
                   </span>
                 </span>
@@ -472,9 +561,9 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
                 </label>
               )}
               <p className="text-ui leading-snug text-muted-foreground">
-                Separate from the price, and only if you approve it here: the agent may draw up to this cap from your wallet into its own
-                for running costs, until the delivery deadline. You may approve less than it asked. Nothing is locked; you grant it on the
-                job page once the agent has started, and can revoke it.
+                Separate from the price, and only if you approve it here: the agent may draw up to this cap from your
+                wallet into its own for running costs, until the delivery deadline. You may approve less than it asked.
+                Nothing is locked; you grant it on the job page once the agent has started, and can revoke it.
               </p>
             </div>
           ) : (
@@ -490,21 +579,26 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
       {sheet && publish !== null && (
         <Section title={price === null ? 'Publish the job' : `Publish and lock ${price}`}>
           <p className="-mt-2 leading-snug text-muted-foreground">
-            Your wallet sends these in order. The reward and your deposit at risk are locked in escrow when the publish step confirms; nothing moves
-            before that.
+            Your wallet sends these in order. The reward and your deposit at risk are locked in escrow when the publish
+            step confirms; nothing moves before that.
           </p>
           {picked !== null && picked.screening !== null && (
             <p className="text-sm text-muted-foreground">
-              Screening: <span className="font-semibold text-foreground">{verdictText(picked.screening.verdict)}</span> (advice only; it
-              never blocks publishing).
+              Screening: <span className="font-semibold text-foreground">{verdictText(picked.screening.verdict)}</span>{' '}
+              (advice only; it never blocks publishing).
             </p>
           )}
           {publish !== null && (
-            <TxSteps key={publish.taskId} taskId={publish.taskId} txs={publish.txs} onDone={() => void published(publish.taskId)} />
+            <TxSteps
+              key={publish.taskId}
+              taskId={publish.taskId}
+              txs={publish.txs}
+              onDone={() => void published(publish.taskId)}
+            />
           )}
           <p className="text-ui leading-snug text-muted-foreground">
-            Next, on the job page: confirm {picked === null ? 'the agent' : `Worker #${picked.quote.agentId}`} (a signature, no transaction).
-            Once it has started, you grant any running-cost budget there.
+            Next, on the job page: confirm {picked === null ? 'the agent' : `Worker #${picked.quote.agentId}`} (a
+            signature, no transaction). Once it has started, you grant any running-cost budget there.
           </p>
         </Section>
       )}
@@ -513,7 +607,17 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
 }
 
 /** One quote as a row: who, their record, the price and what else they declared. */
-function QuoteRow({ q, record, lowest, onPick }: { q: Quote; record: string; lowest: boolean; onPick?: (() => void) | undefined }) {
+function QuoteRow({
+  q,
+  record,
+  lowest,
+  onPick,
+}: {
+  q: Quote
+  record: string
+  lowest: boolean
+  onPick?: (() => void) | undefined
+}) {
   return (
     <Item className={cn('items-start py-3')}>
       <ItemMedia>
@@ -524,7 +628,12 @@ function QuoteRow({ q, record, lowest, onPick }: { q: Quote; record: string; low
           <BoardLink target={boardRoutes().agent(q.agentId)} className="truncate font-medium">
             <AgentLabel id={q.agentId} />
           </BoardLink>
-          <TokenAmount value={null} token={q.token} text={humanAmount(q.amount, q.symbol)} className="shrink-0 font-semibold" />
+          <TokenAmount
+            value={null}
+            token={q.token}
+            text={humanAmount(q.amount, q.symbol)}
+            className="shrink-0 font-semibold"
+          />
         </span>
         <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-ui text-muted-foreground">
           {record}
@@ -532,7 +641,12 @@ function QuoteRow({ q, record, lowest, onPick }: { q: Quote; record: string; low
         </span>
         {q.expectedCosts !== null && (
           <span className="text-ui text-muted-foreground">
-            + running costs up to <TokenAmount value={null} token={q.expectedCosts.token} text={humanAmount(q.expectedCosts.amount, q.expectedCosts.symbol)} />
+            + running costs up to{' '}
+            <TokenAmount
+              value={null}
+              token={q.expectedCosts.token}
+              text={humanAmount(q.expectedCosts.amount, q.expectedCosts.symbol)}
+            />
             {q.expectedCosts.note !== '' && ` · ${q.expectedCosts.note}`}
           </span>
         )}
@@ -586,17 +700,29 @@ function QuoteComparison({
             </header>
             <div className="grid gap-1">
               <span className="flex flex-wrap items-center gap-2">
-                <TokenAmount value={null} token={q.token} text={humanAmount(q.amount, q.symbol)} className="text-xl leading-tight font-bold tracking-tight whitespace-normal [overflow-wrap:anywhere]" />
+                <TokenAmount
+                  value={null}
+                  token={q.token}
+                  text={humanAmount(q.amount, q.symbol)}
+                  className="text-xl leading-tight font-bold tracking-tight whitespace-normal [overflow-wrap:anywhere]"
+                />
                 {lowest.has(q.quoteId) && <Badge variant="success">Lowest</Badge>}
               </span>
               {q.expectedCosts !== null && (
                 <span className="text-ui text-muted-foreground">
-                  + running costs up to <TokenAmount value={null} token={q.expectedCosts.token} text={humanAmount(q.expectedCosts.amount, q.expectedCosts.symbol)} />
+                  + running costs up to{' '}
+                  <TokenAmount
+                    value={null}
+                    token={q.expectedCosts.token}
+                    text={humanAmount(q.expectedCosts.amount, q.expectedCosts.symbol)}
+                  />
                   {q.expectedCosts.note !== '' && ` · ${q.expectedCosts.note}`}
                 </span>
               )}
             </div>
-            {q.note !== '' && <p className="text-sm leading-snug text-muted-foreground [overflow-wrap:anywhere]">{q.note}</p>}
+            {q.note !== '' && (
+              <p className="text-sm leading-snug text-muted-foreground [overflow-wrap:anywhere]">{q.note}</p>
+            )}
             {onPick !== undefined && (
               <Button variant="secondary" onClick={() => onPick(q)} className="mt-auto">
                 Pick this quote

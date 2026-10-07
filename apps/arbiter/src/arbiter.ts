@@ -31,7 +31,13 @@ export interface ArbiterDeps {
 }
 
 export type Outcome =
-  | { readonly taskId: string; readonly result: 'ruled'; readonly forWorker: boolean; readonly slashLoser: boolean; readonly txHash: string | null }
+  | {
+      readonly taskId: string
+      readonly result: 'ruled'
+      readonly forWorker: boolean
+      readonly slashLoser: boolean
+      readonly txHash: string | null
+    }
   | { readonly taskId: string; readonly result: 'skipped'; readonly why: string }
 
 interface DisputeRow {
@@ -61,15 +67,25 @@ export async function arbitrateOnce(deps: ArbiterDeps): Promise<{ lease: boolean
       outcomes.push({ taskId: d.taskId, result: 'skipped', why: (e as Error).message })
     }
   }
-  for (const o of outcomes) log(o.result === 'ruled' ? `${o.taskId}: ruled forWorker=${o.forWorker} slashLoser=${o.slashLoser} ${o.txHash ?? ''}` : `${o.taskId}: skipped (${o.why})`)
+  for (const o of outcomes)
+    log(
+      o.result === 'ruled'
+        ? `${o.taskId}: ruled forWorker=${o.forWorker} slashLoser=${o.slashLoser} ${o.txHash ?? ''}`
+        : `${o.taskId}: skipped (${o.why})`,
+    )
   return { lease: true, outcomes }
 }
 
 async function decide(deps: ArbiterDeps, d: DisputeRow, now: () => number, log: (m: string) => void): Promise<Outcome> {
   if (now() >= d.arbitrationEndsAt) return { taskId: d.taskId, result: 'skipped', why: 'the window has closed' }
-  const { bundle, bundleHash } = await deps.board.call<{ bundle: DisputeBundle; bundleHash: Hex }>('get_dispute_bundle', { taskId: d.taskId })
+  const { bundle, bundleHash } = await deps.board.call<{ bundle: DisputeBundle; bundleHash: Hex }>(
+    'get_dispute_bundle',
+    { taskId: d.taskId },
+  )
   // The evaluator must be the configured v1 pair on this network.
-  const stack = sdk.allStacks(sdk.deployment(deps.network)).find(([, s]) => s.evaluator.toLowerCase() === bundle.evaluator.toLowerCase())?.[1]
+  const stack = sdk
+    .allStacks(sdk.deployment(deps.network))
+    .find(([, s]) => s.evaluator.toLowerCase() === bundle.evaluator.toLowerCase())?.[1]
   const chainId = sdk.deployment(deps.network).chainId
   if (stack === undefined || bundle.chainId !== chainId) {
     return { taskId: d.taskId, result: 'skipped', why: 'the bundle names another chain or evaluator' }
@@ -82,19 +98,44 @@ async function decide(deps: ArbiterDeps, d: DisputeRow, now: () => number, log: 
   // re-use it and never ask the model again (R114-08). It still passes the same deterministic gate.
   const recorded = d.decision
   if (recorded !== null) {
-    const cancellation = await deps.board.call<{ resolved: boolean; nonce: string | null; transactions: sdk.TxRequest[] }>('cancel_ruling', { taskId: d.taskId })
-    if (cancellation.resolved) return { taskId: d.taskId, result: 'skipped', why: 'the dispute is already resolved on-chain' }
+    const cancellation = await deps.board.call<{
+      resolved: boolean
+      nonce: string | null
+      transactions: sdk.TxRequest[]
+    }>('cancel_ruling', { taskId: d.taskId })
+    if (cancellation.resolved)
+      return { taskId: d.taskId, result: 'skipped', why: 'the dispute is already resolved on-chain' }
     if (cancellation.transactions.length > 0) {
-      if (cancellation.nonce === null || !/^\d+$/.test(cancellation.nonce) || BigInt(cancellation.nonce) >= 2n ** 256n) {
+      if (
+        cancellation.nonce === null ||
+        !/^\d+$/.test(cancellation.nonce) ||
+        BigInt(cancellation.nonce) >= 2n ** 256n
+      ) {
         return { taskId: d.taskId, result: 'skipped', why: 'invalid ruling cancellation nonce' }
       }
-      const transaction: sdk.TxRequest = { description: 'Cancel the previous ruling authorization', chainId,
-        to: stack.evaluator, value: '0', data: encodeFunctionData({ abi: sdk.sidequestEvaluatorAbi, functionName: 'cancelRuling', args: [BigInt(cancellation.nonce)] }) }
+      const transaction: sdk.TxRequest = {
+        description: 'Cancel the previous ruling authorization',
+        chainId,
+        to: stack.evaluator,
+        value: '0',
+        data: encodeFunctionData({
+          abi: sdk.sidequestEvaluatorAbi,
+          functionName: 'cancelRuling',
+          args: [BigInt(cancellation.nonce)],
+        }),
+      }
       const offered = cancellation.transactions[0]!
-      if (cancellation.transactions.length !== 1 || offered.chainId !== chainId || offered.to.toLowerCase() !== stack.evaluator.toLowerCase() || offered.data !== transaction.data || offered.value !== '0') {
+      if (
+        cancellation.transactions.length !== 1 ||
+        offered.chainId !== chainId ||
+        offered.to.toLowerCase() !== stack.evaluator.toLowerCase() ||
+        offered.data !== transaction.data ||
+        offered.value !== '0'
+      ) {
         return { taskId: d.taskId, result: 'skipped', why: 'ruling cancellation request refused' }
       }
-      if (!deps.sendCancellation) return { taskId: d.taskId, result: 'skipped', why: 'ruling cancellation needs the arbitrator wallet' }
+      if (!deps.sendCancellation)
+        return { taskId: d.taskId, result: 'skipped', why: 'ruling cancellation needs the arbitrator wallet' }
       await deps.sendCancellation(transaction)
     }
   }
@@ -105,7 +146,9 @@ async function decide(deps: ArbiterDeps, d: DisputeRow, now: () => number, log: 
   const checked = validateProposal(bundle, raw)
   if (!checked.ok) return { taskId: d.taskId, result: 'skipped', why: `proposal refused: ${checked.error}` }
   const proposal = checked.proposal
-  log(`${d.taskId}: ${recorded === null ? 'proposal' : 're-using the recorded decision'} forWorker=${proposal.forWorker} slashLoser=${proposal.slashLoser}`)
+  log(
+    `${d.taskId}: ${recorded === null ? 'proposal' : 're-using the recorded decision'} forWorker=${proposal.forWorker} slashLoser=${proposal.slashLoser}`,
+  )
 
   const prepared = await deps.board.call<{ sign: { typedData: string } }>('prepare_ruling', {
     taskId: d.taskId,
@@ -117,7 +160,11 @@ async function decide(deps: ArbiterDeps, d: DisputeRow, now: () => number, log: 
     ...(deps.model === undefined ? {} : { model: deps.model }),
     ...(deps.promptVersion === undefined ? {} : { promptVersion: deps.promptVersion }),
   })
-  const request = checkRulingRequest(bundle, proposal, prepared.sign.typedData, { chainId, evaluator: stack.evaluator, now: now() })
+  const request = checkRulingRequest(bundle, proposal, prepared.sign.typedData, {
+    chainId,
+    evaluator: stack.evaluator,
+    now: now(),
+  })
   if (!request.ok) return { taskId: d.taskId, result: 'skipped', why: `ruling request refused: ${request.error}` }
   const signature = await deps.account.signTypedData({
     domain: sdk.evaluatorDomain(chainId, stack.evaluator),
@@ -125,6 +172,15 @@ async function decide(deps: ArbiterDeps, d: DisputeRow, now: () => number, log: 
     primaryType: 'Ruling',
     message: request.ruling,
   })
-  const submitted = await deps.board.call<{ txHash?: string; relayed: boolean }>('submit_ruling', { taskId: d.taskId, signature })
-  return { taskId: d.taskId, result: 'ruled', forWorker: proposal.forWorker, slashLoser: proposal.slashLoser, txHash: submitted.txHash ?? null }
+  const submitted = await deps.board.call<{ txHash?: string; relayed: boolean }>('submit_ruling', {
+    taskId: d.taskId,
+    signature,
+  })
+  return {
+    taskId: d.taskId,
+    result: 'ruled',
+    forWorker: proposal.forWorker,
+    slashLoser: proposal.slashLoser,
+    txHash: submitted.txHash ?? null,
+  }
 }

@@ -31,11 +31,15 @@ export function boardClient(baseUrl: string) {
   const call = async <T = any>(tool: string, args: Record<string, unknown> = {}): Promise<T> => {
     const res = await fetch(`${baseUrl}/api/${tool}`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', ...(session === undefined ? {} : { authorization: `Bearer ${session}` }) },
+      headers: {
+        'content-type': 'application/json',
+        ...(session === undefined ? {} : { authorization: `Bearer ${session}` }),
+      },
       body: JSON.stringify(args),
     })
     const body = (await res.json()) as { ok: boolean; result?: T; code?: string; message?: string; reason?: string }
-    if (!body.ok) throw new BoardApiError(body.code ?? String(res.status), body.message ?? 'request failed', body.reason)
+    if (!body.ok)
+      throw new BoardApiError(body.code ?? String(res.status), body.message ?? 'request failed', body.reason)
     return body.result as T
   }
   return {
@@ -63,7 +67,8 @@ export async function signTypedDataJson(wallet: Wallet, json: string): Promise<H
   const fields = types[parsed.primaryType] ?? []
   const message: Record<string, unknown> = { ...parsed.message }
   for (const f of fields) {
-    if (/^u?int\d*$/.test(f.type) && typeof message[f.name] === 'string') message[f.name] = BigInt(message[f.name] as string)
+    if (/^u?int\d*$/.test(f.type) && typeof message[f.name] === 'string')
+      message[f.name] = BigInt(message[f.name] as string)
   }
   const sign = wallet.signTypedData as (args: Record<string, unknown>) => Promise<Hex>
   return sign({ domain: parsed.domain, types, primaryType: parsed.primaryType, message })
@@ -77,7 +82,12 @@ export async function sendAll(
 ): Promise<Hex[]> {
   const hashes: Hex[] = []
   for (const tx of txs) {
-    const hash = await wallet.sendTransaction({ to: tx.to, data: tx.data, value: BigInt(tx.value), ...(tx.gas === undefined ? {} : { gas: BigInt(tx.gas) }) })
+    const hash = await wallet.sendTransaction({
+      to: tx.to,
+      data: tx.data,
+      value: BigInt(tx.value),
+      ...(tx.gas === undefined ? {} : { gas: BigInt(tx.gas) }),
+    })
     const receipt = await publicClient.waitForTransactionReceipt({ hash })
     if (receipt.status !== 'success') throw new Error(`${tx.description}: ${hash} reverted`)
     hashes.push(hash)

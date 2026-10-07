@@ -88,7 +88,8 @@ export function PermissionApproval({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const requested = t.type === 'erc20-token-periodic' ? t.periodAmount : t.type === 'erc20-token-allowance' ? t.amount : null
+  const requested =
+    t.type === 'erc20-token-periodic' ? t.periodAmount : t.type === 'erc20-token-allowance' ? t.amount : null
   async function run(action: () => Promise<void>) {
     setBusy(true)
     setError(null)
@@ -166,22 +167,24 @@ export function PermissionApproval({
       ) : (
         <p className="break-words text-sm leading-relaxed text-muted-foreground">
           Up to {tokenAmountText(shown !== undefined && 'amount' in shown ? shown.amount : requested!, t.token)}
-          {t.type === 'erc20-token-periodic' ? ` every ${Math.round(t.periodDuration / 3600)} h` : ' in total'} from your wallet, only to{' '}
-          {t.recipient}.
+          {t.type === 'erc20-token-periodic' ? ` every ${Math.round(t.periodDuration / 3600)} h` : ' in total'} from
+          your wallet, only to {t.recipient}.
         </p>
       )}
       <p className="text-sm leading-relaxed text-muted-foreground">
-        It ends {localTime(shown?.expiresAt ?? request.expiry)} ({relative(shown?.expiresAt ?? request.expiry)}). The chain enforces every
-        limit.
+        It ends {localTime(shown?.expiresAt ?? request.expiry)} ({relative(shown?.expiresAt ?? request.expiry)}). The
+        chain enforces every limit.
       </p>
       {review?.schedule != null && (
         <p className="text-sm leading-relaxed text-muted-foreground">
-          Periods count from {localTime(review.schedule.start)}; the first refill is {localTime(review.schedule.firstRefill)} (
-          {relative(review.schedule.firstRefill)}).
+          Periods count from {localTime(review.schedule.start)}; the first refill is{' '}
+          {localTime(review.schedule.firstRefill)} ({relative(review.schedule.firstRefill)}).
         </p>
       )}
       {request.justification !== null && (
-        <p className="break-words text-sm text-muted-foreground">Agent's reason (its own words): {request.justification}</p>
+        <p className="break-words text-sm text-muted-foreground">
+          Agent's reason (its own words): {request.justification}
+        </p>
       )}
       <p className="break-all font-mono text-micro text-muted-foreground">Operation {approval.operation_id}</p>
       {approval.status === 'pending' && review === null && request.adjustable && (
@@ -214,7 +217,9 @@ export function PermissionApproval({
         <ul className="grid gap-1 text-sm">
           {review.risks.map((risk) => (
             <li key={risk.code}>
-              <Badge variant={risk.level === 'high' ? 'destructive' : risk.level === 'medium' ? 'warning' : 'neutral'}>{risk.level}</Badge>{' '}
+              <Badge variant={risk.level === 'high' ? 'destructive' : risk.level === 'medium' ? 'warning' : 'neutral'}>
+                {risk.level}
+              </Badge>{' '}
               {risk.message}
             </li>
           ))}

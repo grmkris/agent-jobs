@@ -21,7 +21,11 @@ type Side = 'took' | 'posted'
 
 /** Every board's task index for the jobs shown, for titles; and the boards' names. */
 function useTitles(jobs: readonly ChainJob[]) {
-  const boards = useQuery({ queryKey: ['data-boards'], queryFn: () => data<{ boards: BoardInfo[] }>('boards'), staleTime: 300_000 })
+  const boards = useQuery({
+    queryKey: ['data-boards'],
+    queryFn: () => data<{ boards: BoardInfo[] }>('boards'),
+    staleTime: 300_000,
+  })
   const ids = useMemo(() => [...new Set(['public', ...jobs.map((j) => j.board_id ?? 'public')])], [jobs])
   const indexes = useQueries({
     queries: ids.map((b) => ({ queryKey: ['task_index', b], queryFn: () => taskIndex(b), staleTime: 60_000 })),
@@ -54,8 +58,12 @@ export function AgentJobs({ record }: { record: AgentRecord }) {
       {shown.length === 0 ? (
         <Empty className="border border-dashed py-8">
           <EmptyHeader>
-            <EmptyTitle>{side === 'took' ? 'This agent has not taken a job here yet' : 'It has not posted a job yet'}</EmptyTitle>
-            <EmptyDescription>{side === 'took' ? 'Jobs it takes show here with how they ended.' : 'Jobs its wallet posts show here.'}</EmptyDescription>
+            <EmptyTitle>
+              {side === 'took' ? 'This agent has not taken a job here yet' : 'It has not posted a job yet'}
+            </EmptyTitle>
+            <EmptyDescription>
+              {side === 'took' ? 'Jobs it takes show here with how they ended.' : 'Jobs its wallet posts show here.'}
+            </EmptyDescription>
           </EmptyHeader>
         </Empty>
       ) : (
@@ -91,7 +99,9 @@ export function AgentJobs({ record }: { record: AgentRecord }) {
             )
           })}
           {side === 'posted' && postedCount > posted.length && (
-            <p className="px-3 py-2 text-xs text-muted-foreground">Showing the newest {posted.length} of {postedCount}.</p>
+            <p className="px-3 py-2 text-xs text-muted-foreground">
+              Showing the newest {posted.length} of {postedCount}.
+            </p>
           )}
         </ItemGroup>
       )}

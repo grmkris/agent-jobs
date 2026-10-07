@@ -32,7 +32,13 @@ export async function screenOffer(
   now: number,
 ): Promise<Screening> {
   if (endpoint === undefined || endpoint.apiKey === '') {
-    return { verdict: 'unscreened', reasons: ['screening is not configured'], model: null, promptVersion: SCREENING_PROMPT_VERSION, at: now }
+    return {
+      verdict: 'unscreened',
+      reasons: ['screening is not configured'],
+      model: null,
+      promptVersion: SCREENING_PROMPT_VERSION,
+      at: now,
+    }
   }
   const offer = {
     title: terms.title,
@@ -43,15 +49,29 @@ export async function screenOffer(
     deliveryDeadline: terms.deliveryDeadline,
   }
   try {
-    const answer = await askJson<{ verdict?: string; reasons?: unknown }>(endpoint, SYSTEM, JSON.stringify(offer), { timeoutMs: 60_000 })
-    const verdict = answer.verdict === 'clean' || answer.verdict === 'caution' || answer.verdict === 'reject' ? answer.verdict : 'unscreened'
-    const reasons = Array.isArray(answer.reasons) ? answer.reasons.filter((r): r is string => typeof r === 'string').slice(0, 5) : []
+    const answer = await askJson<{ verdict?: string; reasons?: unknown }>(endpoint, SYSTEM, JSON.stringify(offer), {
+      timeoutMs: 60_000,
+    })
+    const verdict =
+      answer.verdict === 'clean' || answer.verdict === 'caution' || answer.verdict === 'reject'
+        ? answer.verdict
+        : 'unscreened'
+    const reasons = Array.isArray(answer.reasons)
+      ? answer.reasons.filter((r): r is string => typeof r === 'string').slice(0, 5)
+      : []
     return { verdict, reasons, model: endpoint.model, promptVersion: SCREENING_PROMPT_VERSION, at: now }
   } catch (e) {
     const failure = agentFailureReply(e, 'screening unavailable', (errorId, error) => {
       console.error(JSON.stringify({ event: 'screening-failed', errorId, ...errorDiagnostics(error) }))
     })
-    const reason = failure.errorId === undefined ? 'screening unavailable' : `screening unavailable (error ${failure.errorId})`
-    return { verdict: 'unscreened', reasons: [reason], model: endpoint.model, promptVersion: SCREENING_PROMPT_VERSION, at: now }
+    const reason =
+      failure.errorId === undefined ? 'screening unavailable' : `screening unavailable (error ${failure.errorId})`
+    return {
+      verdict: 'unscreened',
+      reasons: [reason],
+      model: endpoint.model,
+      promptVersion: SCREENING_PROMPT_VERSION,
+      at: now,
+    }
   }
 }

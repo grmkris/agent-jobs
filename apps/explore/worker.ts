@@ -59,11 +59,16 @@ async function frameAncestors(env: Env, request: Request, board: string): Promis
   let origins: string[] = []
   try {
     const url = new URL(`/b/${encodeURIComponent(board)}/api/get_board`, request.url)
-    const res = await env.API.fetch(new Request(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }))
+    const res = await env.API.fetch(
+      new Request(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }),
+    )
     const body = (await res.json()) as { ok?: boolean; result?: { board?: { allowedOrigins?: unknown } } }
     const listed = body.result?.board?.allowedOrigins
     // origin expressions only (https://host[:port], http://localhost:*); anything else is dropped, not trusted
-    if (Array.isArray(listed)) origins = listed.filter((o): o is string => typeof o === 'string' && /^https?:\/\/[a-z0-9.-]+(:(\d+|\*))?$/i.test(o))
+    if (Array.isArray(listed))
+      origins = listed.filter(
+        (o): o is string => typeof o === 'string' && /^https?:\/\/[a-z0-9.-]+(:(\d+|\*))?$/i.test(o),
+      )
   } catch {
     origins = []
   }
@@ -94,8 +99,17 @@ export default {
     const asset = await env.ASSETS.fetch(request)
     // The SPA fallback answers any unknown path with index.html; a missing file must be a 404, or iOS takes the page
     // for an icon or a manifest.
-    if (isFilePath(pathname) && !pathname.endsWith('.html') && asset.headers.get('content-type')?.startsWith('text/html')) {
-      return withHeaders(new Response('not found', { status: 404, headers: { 'content-type': 'text/plain' } }), env, request, pathname)
+    if (
+      isFilePath(pathname) &&
+      !pathname.endsWith('.html') &&
+      asset.headers.get('content-type')?.startsWith('text/html')
+    ) {
+      return withHeaders(
+        new Response('not found', { status: 404, headers: { 'content-type': 'text/plain' } }),
+        env,
+        request,
+        pathname,
+      )
     }
     let res = await withHeaders(asset, env, request, pathname)
     const guideType = startGuideType(pathname)

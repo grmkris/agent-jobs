@@ -4,16 +4,31 @@ import { pathToFileURL } from 'node:url'
 import { docsDir, siteDir } from '../site-output.mjs'
 
 export async function verifyOutput(root = siteDir()) {
-  const pages = readdirSync(join(docsDir, 'content/docs'), { recursive: true }).map(String).filter(file => /\.(md|mdx)$/.test(file)).map(file => file.replace(/\.(md|mdx)$/, ''))
-  const required = ['docs/not-found.html', 'docs/search.json', 'llms.txt', 'llms-full.txt', ...pages.flatMap(slug => [slug === 'index' ? 'docs.html' : `docs/${slug}.html`, `docs/${slug}.md`])]
+  const pages = readdirSync(join(docsDir, 'content/docs'), { recursive: true })
+    .map(String)
+    .filter((file) => /\.(md|mdx)$/.test(file))
+    .map((file) => file.replace(/\.(md|mdx)$/, ''))
+  const required = [
+    'docs/not-found.html',
+    'docs/search.json',
+    'llms.txt',
+    'llms-full.txt',
+    ...pages.flatMap((slug) => [slug === 'index' ? 'docs.html' : `docs/${slug}.html`, `docs/${slug}.md`]),
+  ]
   for (const file of required) if (!existsSync(join(root, file))) throw new Error(`Missing docs output: ${file}`)
-  for (const dir of ['docs/_assets', '__tsr/staticServerFnCache']) if (!existsSync(join(root, dir)) || readdirSync(join(root, dir)).length === 0) throw new Error(`Missing docs output: ${dir}`)
-  for (const file of readdirSync(root, { recursive: true }).map(String).filter(candidate => candidate.endsWith('.html'))) {
+  for (const dir of ['docs/_assets', '__tsr/staticServerFnCache'])
+    if (!existsSync(join(root, dir)) || readdirSync(join(root, dir)).length === 0)
+      throw new Error(`Missing docs output: ${dir}`)
+  for (const file of readdirSync(root, { recursive: true })
+    .map(String)
+    .filter((candidate) => candidate.endsWith('.html'))) {
     const html = readFileSync(join(root, file), 'utf8')
     if (!html.includes('content="sidequest-docs"')) throw new Error(`Missing docs marker: ${file}`)
     if (html.includes('$RC(') || html.includes('<template id="B:')) throw new Error(`Unresolved boundary: ${file}`)
     // Stylesheets, scripts and preloads must ship in this output, or Explore serves the page unstyled or broken.
-    for (const [, ref] of html.matchAll(/<(?:link|script)\b[^>]*\b(?:href|src)="(\/(?:docs\/_assets|assets)\/[^"?#]+)"/g)) {
+    for (const [, ref] of html.matchAll(
+      /<(?:link|script)\b[^>]*\b(?:href|src)="(\/(?:docs\/_assets|assets)\/[^"?#]+)"/g,
+    )) {
       if (!existsSync(join(root, ref))) throw new Error(`Missing referenced asset ${ref}: ${file}`)
     }
   }
@@ -35,7 +50,8 @@ export async function verifyOutput(root = siteDir()) {
     for (const page of DOCS) {
       const slug = page.slug || 'index'
       const served = readFileSync(join(root, `docs/${slug}.md`), 'utf8')
-      if (served !== page.markdown.replaceAll('https://sidequest.origin.invalid', origin)) throw new Error(`MCP Markdown parity failed: ${slug}`)
+      if (served !== page.markdown.replaceAll('https://sidequest.origin.invalid', origin))
+        throw new Error(`MCP Markdown parity failed: ${slug}`)
     }
   }
   return required

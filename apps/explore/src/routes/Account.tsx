@@ -37,7 +37,8 @@ export function AccountPage() {
         <section className="grid gap-4 rounded-2xl bg-card p-5 shadow-popover">
           <h2 className="text-xl leading-tight font-bold tracking-tight">Sign in to post and approve work</h2>
           <p className="leading-relaxed text-muted-foreground">
-            Use your email or Google. Sidequest makes you a wallet, so no browser extension is needed; you sign once to prove it is you.
+            Use your email or Google. Sidequest makes you a wallet, so no browser extension is needed; you sign once to
+            prove it is you.
           </p>
           <div>
             <PrivyLogin />
@@ -84,7 +85,9 @@ export function AccountPage() {
             <Item render={<Link to="/admin" />}>
               <ItemContent className="flex-1">
                 Admin
-                <ItemDescription className="block text-xs text-muted-foreground">You own the Safe that owns Sidequest</ItemDescription>
+                <ItemDescription className="block text-xs text-muted-foreground">
+                  You own the Safe that owns Sidequest
+                </ItemDescription>
               </ItemContent>
               <ItemActions>
                 <ChevronRight aria-hidden className="size-4 text-muted-foreground" />

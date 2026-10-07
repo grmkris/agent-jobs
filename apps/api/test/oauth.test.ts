@@ -33,19 +33,58 @@ function fixture() {
   agents.bindWallet('one', 'wallet-one', wallet)
   agents.bindRegistry('one', '10')
   for (const state of ['upgraded', 'grants-live', 'registered', 'active'] as const) agents.advance('one', state)
-  const route = (path: string, body: Record<string, unknown> = {}, query = new URLSearchParams(), method = 'POST', operator: string | undefined = owner) => oauthRoute({ sql, path, body, query, method, origin, siteOrigin: origin, now: 1000, ...(operator === undefined ? {} : { owner: operator }), revokeSubscriptions: (principal, family, now) => terminateGrantSubscriptions(d1, principal, family, now) }) as Promise<OAuthReply>
+  const route = (
+    path: string,
+    body: Record<string, unknown> = {},
+    query = new URLSearchParams(),
+    method = 'POST',
+    operator: string | undefined = owner,
+  ) =>
+    oauthRoute({
+      sql,
+      path,
+      body,
+      query,
+      method,
+      origin,
+      siteOrigin: origin,
+      now: 1000,
+      ...(operator === undefined ? {} : { owner: operator }),
+      revokeSubscriptions: (principal, family, now) => terminateGrantSubscriptions(d1, principal, family, now),
+    }) as Promise<OAuthReply>
   return { db, sql, d1, agents, route }
 }
 
 async function connection(f: ReturnType<typeof fixture>, scopes?: string[]) {
   const registered = await f.route('/oauth/register', { redirect_uris: [redirectUri], client_name: 'SQLite client' })
   const clientId = (registered.body as { client_id: string }).client_id
-  const query = new URLSearchParams({ client_id: clientId, redirect_uri: redirectUri, response_type: 'code', scope: 'sidequest:read sidequest:work sidequest:hire', resource, code_challenge_method: 'S256', code_challenge: await pkceChallenge(verifier), state: 'state-one' })
+  const query = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: redirectUri,
+    response_type: 'code',
+    scope: 'sidequest:read sidequest:work sidequest:hire',
+    resource,
+    code_challenge_method: 'S256',
+    code_challenge: await pkceChallenge(verifier),
+    state: 'state-one',
+  })
   const authorize = await f.route('/oauth/authorize', {}, query, 'GET')
   const requestId = new URL(authorize.redirect!).searchParams.get('oauth_request')!
-  const approve = await f.route(`/oauth/requests/${requestId}/approve`, { agentIds: ['one'], ...(scopes === undefined ? {} : { scopes }) })
-  const code = new URL((approve.body as { result: { redirectUrl: string } }).result.redirectUrl).searchParams.get('code')!
-  const tokenBody = { grant_type: 'authorization_code', client_id: clientId, redirect_uri: redirectUri, resource, code, code_verifier: verifier }
+  const approve = await f.route(`/oauth/requests/${requestId}/approve`, {
+    agentIds: ['one'],
+    ...(scopes === undefined ? {} : { scopes }),
+  })
+  const code = new URL((approve.body as { result: { redirectUrl: string } }).result.redirectUrl).searchParams.get(
+    'code',
+  )!
+  const tokenBody = {
+    grant_type: 'authorization_code',
+    client_id: clientId,
+    redirect_uri: redirectUri,
+    resource,
+    code,
+    code_verifier: verifier,
+  }
   return { clientId, tokenBody, requestId, query }
 }
 
@@ -53,7 +92,13 @@ test('one-agent OAuth code is bound to PKCE, client, redirect and exact tenant r
   const f = fixture()
   try {
     const c = await connection(f)
-    for (const change of [{ resource: `${origin}/mcp` }, { client_id: 'other' }, { redirect_uri: 'http://127.0.0.1:3211/callback' }, { code_verifier: 'b'.repeat(43) }]) expect((await f.route('/oauth/token', { ...c.tokenBody, ...change })).status).toBe(400)
+    for (const change of [
+      { resource: `${origin}/mcp` },
+      { client_id: 'other' },
+      { redirect_uri: 'http://127.0.0.1:3211/callback' },
+      { code_verifier: 'b'.repeat(43) },
+    ])
+      expect((await f.route('/oauth/token', { ...c.tokenBody, ...change })).status).toBe(400)
     const reply = await f.route('/oauth/token', c.tokenBody)
     expect(reply.status).toBe(200)
     const tokens = reply.body as Tokens
@@ -61,7 +106,9 @@ test('one-agent OAuth code is bound to PKCE, client, redirect and exact tenant r
     expect(await resolveOAuth(f.sql, tokens.access_token, `${origin}/mcp`, 1000)).toBeUndefined()
     expect((await f.route('/oauth/token', c.tokenBody)).status).toBe(400)
     expect((await f.route(`/oauth/requests/${c.requestId}/approve`, { agentIds: ['one'] })).status).toBe(400)
-  } finally { f.db.close() }
+  } finally {
+    f.db.close()
+  }
 })
 
 test('refresh rotates; replay revokes every token in the connection, including the rotated token', async () => {
@@ -75,29 +122,64 @@ test('refresh rotates; replay revokes every token in the connection, including t
     expect((await f.route('/oauth/token', input)).status).toBe(400)
     expect(await resolveOAuth(f.sql, second.access_token, resource, 1000)).toBeUndefined()
     expect(await resolveOAuth(f.sql, first.access_token, resource, 1000)).toBeUndefined()
-  } finally { f.db.close() }
+  } finally {
+    f.db.close()
+  }
 })
 
-test.each(['access', 'refresh-replay'])('disconnect %s stops callbacks under that OAuth family', async kind => {
+test.each(['access', 'refresh-replay'])('disconnect %s stops callbacks under that OAuth family', async (kind) => {
   const f = fixture()
   try {
     const c = await connection(f)
     const tokens = (await f.route('/oauth/token', c.tokenBody)).body as Tokens
     const grant = (await resolveOAuth(f.sql, tokens.access_token, resource, 1000))!
     const events = new McpEvents(f.d1, 'monad-testnet', { now: () => 1000, fetch: echoWebhookChallenge })
-    const subscription = await events.handle('events/subscribe', { name: 'sidequest.inbox', delivery: { mode: 'webhook', url: 'https://8.8.8.8/callback', secret: `whsec_${btoa('a'.repeat(32))}` } }, grant)
+    const subscription = await events.handle(
+      'events/subscribe',
+      {
+        name: 'sidequest.inbox',
+        delivery: { mode: 'webhook', url: 'https://8.8.8.8/callback', secret: `whsec_${btoa('a'.repeat(32))}` },
+      },
+      grant,
+    )
     if (kind === 'access') await f.route('/oauth/revoke', { token: tokens.access_token, client_id: c.clientId })
     else {
-      const input = { grant_type: 'refresh_token', client_id: c.clientId, resource, refresh_token: tokens.refresh_token }
+      const input = {
+        grant_type: 'refresh_token',
+        client_id: c.clientId,
+        resource,
+        refresh_token: tokens.refresh_token,
+      }
       await f.route('/oauth/token', input)
       await f.route('/oauth/token', input)
     }
-    expect(f.sql.all('SELECT status FROM event_subscriptions WHERE id=?', String(subscription.id))).toEqual([{ status: 'terminated' }])
+    expect(f.sql.all('SELECT status FROM event_subscriptions WHERE id=?', String(subscription.id))).toEqual([
+      { status: 'terminated' },
+    ])
     // Even a stale in-memory grant cannot resubscribe or resume a row after disconnect.
-    await expect(events.handle('events/subscribe', { name: 'sidequest.inbox', delivery: { mode: 'webhook', url: 'https://8.8.8.8/callback', secret: `whsec_${btoa('a'.repeat(32))}` } }, grant)).rejects.toMatchObject({ code: -32003 })
-    await f.d1.batch([stmt("UPDATE event_subscriptions SET status='active', next_attempt_at=0 WHERE id=?", String(subscription.id))])
-    expect(await deliverWebhooks(f.d1, 'monad-testnet', 1001, { fetch: async () => { throw new Error('must not deliver') } })).toEqual({ posts: 0, subscriptions: 0 })
-  } finally { f.db.close() }
+    await expect(
+      events.handle(
+        'events/subscribe',
+        {
+          name: 'sidequest.inbox',
+          delivery: { mode: 'webhook', url: 'https://8.8.8.8/callback', secret: `whsec_${btoa('a'.repeat(32))}` },
+        },
+        grant,
+      ),
+    ).rejects.toMatchObject({ code: -32003 })
+    await f.d1.batch([
+      stmt("UPDATE event_subscriptions SET status='active', next_attempt_at=0 WHERE id=?", String(subscription.id)),
+    ])
+    expect(
+      await deliverWebhooks(f.d1, 'monad-testnet', 1001, {
+        fetch: async () => {
+          throw new Error('must not deliver')
+        },
+      }),
+    ).toEqual({ posts: 0, subscriptions: 0 })
+  } finally {
+    f.db.close()
+  }
 })
 
 test('revoked agents cannot use or refresh an OAuth token and consent cannot grant several agents', async () => {
@@ -107,10 +189,20 @@ test('revoked agents cannot use or refresh an OAuth token and consent cannot gra
     const tokens = (await f.route('/oauth/token', c.tokenBody)).body as Tokens
     f.agents.advance('one', 'revoked')
     expect(await resolveOAuth(f.sql, tokens.access_token, resource, 1000)).toBeUndefined()
-    expect((await f.route('/oauth/token', { grant_type: 'refresh_token', client_id: c.clientId, resource, refresh_token: tokens.refresh_token })).status).toBe(400)
-  } finally { f.db.close() }
+    expect(
+      (
+        await f.route('/oauth/token', {
+          grant_type: 'refresh_token',
+          client_id: c.clientId,
+          resource,
+          refresh_token: tokens.refresh_token,
+        })
+      ).status,
+    ).toBe(400)
+  } finally {
+    f.db.close()
+  }
 })
-
 
 test('operator consent narrows the token scopes and cannot widen the requested authority', async () => {
   const f = fixture()
@@ -120,22 +212,45 @@ test('operator consent narrows the token scopes and cannot widen the requested a
     expect((await resolveOAuth(f.sql, tokens.access_token, resource, 1000))?.scopes).toEqual(['sidequest:read'])
     const next = await f.route('/oauth/authorize', {}, c.query, 'GET')
     const requestId = new URL(next.redirect!).searchParams.get('oauth_request')!
-    expect((await f.route(`/oauth/requests/${requestId}/approve`, { agentIds: ['one'], scopes: ['arbitrary:write'] })).status).toBe(400)
-  } finally { f.db.close() }
+    expect(
+      (await f.route(`/oauth/requests/${requestId}/approve`, { agentIds: ['one'], scopes: ['arbitrary:write'] }))
+        .status,
+    ).toBe(400)
+  } finally {
+    f.db.close()
+  }
 })
 
 test('consent identifies each requesting client and exact callback', async () => {
   const f = fixture()
   try {
-    const first = await f.route('/oauth/register', { redirect_uris: ['http://127.0.0.1:3210/callback'], client_name: 'First editor' })
-    const second = await f.route('/oauth/register', { redirect_uris: ['http://127.0.0.1:3211/callback'], client_name: 'Second editor' })
-    for (const [registered, callback, name] of [[first, 'http://127.0.0.1:3210/callback', 'First editor'], [second, 'http://127.0.0.1:3211/callback', 'Second editor']] as const) {
+    const first = await f.route('/oauth/register', {
+      redirect_uris: ['http://127.0.0.1:3210/callback'],
+      client_name: 'First editor',
+    })
+    const second = await f.route('/oauth/register', {
+      redirect_uris: ['http://127.0.0.1:3211/callback'],
+      client_name: 'Second editor',
+    })
+    for (const [registered, callback, name] of [
+      [first, 'http://127.0.0.1:3210/callback', 'First editor'],
+      [second, 'http://127.0.0.1:3211/callback', 'Second editor'],
+    ] as const) {
       const clientId = (registered.body as { client_id: string }).client_id
-      const query = new URLSearchParams({ client_id: clientId, redirect_uri: callback, response_type: 'code', resource, code_challenge_method: 'S256', code_challenge: await pkceChallenge(verifier) })
+      const query = new URLSearchParams({
+        client_id: clientId,
+        redirect_uri: callback,
+        response_type: 'code',
+        resource,
+        code_challenge_method: 'S256',
+        code_challenge: await pkceChallenge(verifier),
+      })
       const authorize = await f.route('/oauth/authorize', {}, query, 'GET')
       const requestId = new URL(authorize.redirect!).searchParams.get('oauth_request')!
       const consent = await f.route(`/oauth/requests/${requestId}`, {}, new URLSearchParams(), 'GET')
       expect(consent.body).toMatchObject({ result: { request: { clientId, clientName: name, redirectUri: callback } } })
     }
-  } finally { f.db.close() }
+  } finally {
+    f.db.close()
+  }
 })

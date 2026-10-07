@@ -4,7 +4,10 @@ import { registerTokens } from './format.ts'
 
 const six = '0x00000000000000000000000000000000000000a6'
 const eighteen = '0x00000000000000000000000000000000000000b8'
-registerTokens([{ address: six, symbol: 'SIX', decimals: 6 }, { address: eighteen, symbol: 'EIGHTEEN', decimals: 18 }])
+registerTokens([
+  { address: six, symbol: 'SIX', decimals: 6 },
+  { address: eighteen, symbol: 'EIGHTEEN', decimals: 18 },
+])
 
 describe('agent profile numbers', () => {
   it('counts success over settled jobs only, and shows a rate from the third', () => {
@@ -47,14 +50,32 @@ describe('agent profile numbers', () => {
     expect(isNew({ agent: { jobs: 1 } })).toBe(false)
   })
 
-  it("lists what the owner should act on, most urgent first, and nothing when all is well", () => {
-    const calm = { pendingApprovals: 0, taken: [], posted: [], allowances: [], revoked: false, onchainDisabled: false, now: 100 }
+  it('lists what the owner should act on, most urgent first, and nothing when all is well', () => {
+    const calm = {
+      pendingApprovals: 0,
+      taken: [],
+      posted: [],
+      allowances: [],
+      revoked: false,
+      onchainDisabled: false,
+      now: 100,
+    }
     expect(needsYou(calm)).toEqual([])
     const busy = needsYou({
       pendingApprovals: 2,
-      taken: [{ job_id: '7', status: 'active', delivery_deadline: 50 }, { job_id: '8', status: 'active', delivery_deadline: 500 }, { job_id: '9', status: 'submitted', delivery_deadline: 50 }],
-      posted: [{ job_id: '11', status: 'submitted' }, { job_id: '12', status: 'open' }],
-      allowances: [{ token: '0xa', left: '10', limit: '100' }, { token: '0xb', left: '50', limit: '100' }],
+      taken: [
+        { job_id: '7', status: 'active', delivery_deadline: 50 },
+        { job_id: '8', status: 'active', delivery_deadline: 500 },
+        { job_id: '9', status: 'submitted', delivery_deadline: 50 },
+      ],
+      posted: [
+        { job_id: '11', status: 'submitted' },
+        { job_id: '12', status: 'open' },
+      ],
+      allowances: [
+        { token: '0xa', left: '10', limit: '100' },
+        { token: '0xb', left: '50', limit: '100' },
+      ],
       revoked: true,
       onchainDisabled: false,
       now: 100,
@@ -68,7 +89,11 @@ describe('agent profile numbers', () => {
     ])
     expect(needsYou({ ...calm, revoked: true, onchainDisabled: true })).toEqual([])
     // VV2-032: an approved operation that did not finish needs the owner too, right after waiting decisions.
-    expect(needsYou({ ...calm, pendingApprovals: 1, unfinishedApprovals: 2, revoked: true })).toEqual([{ kind: 'approvals', count: 1 }, { kind: 'unfinished', count: 2 }, { kind: 'revocation' }])
+    expect(needsYou({ ...calm, pendingApprovals: 1, unfinishedApprovals: 2, revoked: true })).toEqual([
+      { kind: 'approvals', count: 1 },
+      { kind: 'unfinished', count: 2 },
+      { kind: 'revocation' },
+    ])
   })
 
   it('says since when as a day, with the year only when it is not this one', () => {

@@ -59,7 +59,9 @@ export interface ActionJob {
     | undefined
 }
 
-type Pending = { kind: 'approve' | 'reject' | 'cancel' | 'settle' | 'dispute' } | { kind: 'select'; applicationId: string; agentId: string }
+type Pending =
+  | { kind: 'approve' | 'reject' | 'cancel' | 'settle' | 'dispute' }
+  | { kind: 'select'; applicationId: string; agentId: string }
 
 const TOOL: Record<string, string> = {
   approve: 'approve_work',
@@ -131,7 +133,9 @@ export function JobActions({
   const paid = charge === null ? reward : amount(charge.net, job.token)
   const worker = roles.includes('worker')
   const canDispute = worker && phase.key === 'rejected-pending'
-  const bar: JobAction[] = phase.actions.filter((a) => a === 'approve' || a === 'reject' || a === 'cancel' || a === 'settle')
+  const bar: JobAction[] = phase.actions.filter(
+    (a) => a === 'approve' || a === 'reject' || a === 'cancel' || a === 'settle',
+  )
 
   const close = () => {
     setPending(null)
@@ -154,7 +158,8 @@ export function JobActions({
 
   const go = async () => {
     if (pending === null || txs !== null) return
-    if (!sourceAvailable) return setError('The job details are unavailable right now, so nothing can be sent. Retry them above.')
+    if (!sourceAvailable)
+      return setError('The job details are unavailable right now, so nothing can be sent. Retry them above.')
     if (address === undefined || !signedIn) return setError('Sign in first: only a signed-in wallet can send this.')
     setBusy(true)
     setError(null)
@@ -209,7 +214,9 @@ export function JobActions({
           ? 'Cancel the job'
           : (SETTLE_LABEL[phase.timeout ?? ''] ?? 'Release what is left in escrow')
   const settleOnly = afterSignIn.every((a) => a === 'settle')
-  const signInLabel = settleOnly ? `Sign in to ${label('settle').replace(/^./, (c) => c.toLowerCase())}` : 'Sign in to act on this job'
+  const signInLabel = settleOnly
+    ? `Sign in to ${label('settle').replace(/^./, (c) => c.toLowerCase())}`
+    : 'Sign in to act on this job'
 
   return (
     <>
@@ -281,7 +288,11 @@ export function JobActions({
         <ItemGroup>
           <Item>
             <ItemContent className="flex-1">{agent} receives</ItemContent>
-            <TokenAmount value={charge === null ? job.reward : charge.net} token={job.token} className="font-semibold" />
+            <TokenAmount
+              value={charge === null ? job.reward : charge.net}
+              token={job.token}
+              className="font-semibold"
+            />
           </Item>
           {charge !== null && (
             <Item>
@@ -321,7 +332,8 @@ export function JobActions({
         title="Reject this work?"
         description={
           <>
-            {agent} can dispute {job.disputeSeconds !== null ? `within ${span(job.disputeSeconds)}` : 'within the dispute window'}. Nothing
+            {agent} can dispute{' '}
+            {job.disputeSeconds !== null ? `within ${span(job.disputeSeconds)}` : 'within the dispute window'}. Nothing
             moves before then, and you can still approve instead.
           </>
         }
@@ -485,14 +497,18 @@ function Applications({
 }) {
   const { address } = useAccount()
   const selected = new Set(
-    job.selection?.filter((selection) => selection.state === 'signed').map((selection) => selection.applicationId) ?? [],
+    job.selection?.filter((selection) => selection.state === 'signed').map((selection) => selection.applicationId) ??
+      [],
   )
   const apps = useQuery({
     queryKey: ['applications', job.boardId, job.taskId, address, signedIn],
     queryFn: () =>
-      boardApi(job.boardId).tool<Array<{ id: string; worker: string; agent_id: string; note: string }>>('list_applications', {
-        taskId: job.taskId,
-      }),
+      boardApi(job.boardId).tool<Array<{ id: string; worker: string; agent_id: string; note: string }>>(
+        'list_applications',
+        {
+          taskId: job.taskId,
+        },
+      ),
     enabled: signedIn && address !== undefined,
     refetchInterval: 15_000,
   })
@@ -509,7 +525,9 @@ function Applications({
         : [],
     ),
   )
-  const list = (apps.data ?? []).toSorted((a, b) => Number(hiredBefore.has(b.agent_id)) - Number(hiredBefore.has(a.agent_id)))
+  const list = (apps.data ?? []).toSorted(
+    (a, b) => Number(hiredBefore.has(b.agent_id)) - Number(hiredBefore.has(a.agent_id)),
+  )
   return (
     <Section
       title={`Applications${list.length > 0 ? ` · ${list.length}` : ''}`}

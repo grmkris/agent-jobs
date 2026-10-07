@@ -24,13 +24,13 @@ Pass `view=jobs` for the board job list or `view=task&taskId=...` for one job. T
 
 The iframe sends public lifecycle messages:
 
-| Event | Payload |
-| --- | --- |
-| `ready` | selected view |
-| `resize` | document height |
-| `signed-in` | wallet address |
+| Event                                                      | Payload                        |
+| ---------------------------------------------------------- | ------------------------------ |
+| `ready`                                                    | selected view                  |
+| `resize`                                                   | document height                |
+| `signed-in`                                                | wallet address                 |
 | `approved`, `rejected`, `cancelled`, `disputed`, `settled` | task id and public action data |
-| `error` | public error code and message |
+| `error`                                                    | public error code and message  |
 
 Each message has `source: "sidequest"`, version `1`, board slug and event type. The widget currently posts to its parent with a wildcard target; validate `event.source` and the expected board before acting on a message. The `allowedOrigins` setting controls who can frame the widget and receive browser responses.
 

@@ -9,7 +9,12 @@ export const LIVE_WINDOW_SECONDS = 600
  * Working while a job of its is under way; live with a fresh heartbeat or an MCP call in the last ten minutes;
  * otherwise idle. Liveness is activity, never a promise to take work.
  */
-export function agentStatus(input: { working: boolean; heartbeat?: 'fresh' | 'stale' | 'unknown'; lastMcpCallAt?: number | null; now: number }): AgentLiveness {
+export function agentStatus(input: {
+  working: boolean
+  heartbeat?: 'fresh' | 'stale' | 'unknown'
+  lastMcpCallAt?: number | null
+  now: number
+}): AgentLiveness {
   if (input.working) return 'working'
   if (input.heartbeat === 'fresh') return 'live'
   const last = input.lastMcpCallAt
@@ -27,7 +32,7 @@ function fnv(text: string): number {
 export function orbPalette(agentId: string): [string, string, string, string] {
   const seed = fnv(agentId)
   const hue = seed % 360
-  const turn = 28 + (seed >>> 9) % 24
+  const turn = 28 + ((seed >>> 9) % 24)
   return [
     `hsl(${hue}, 72%, 56%)`,
     `hsl(${(hue + turn) % 360}, 78%, 64%)`,

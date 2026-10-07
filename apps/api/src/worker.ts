@@ -8,7 +8,20 @@ import * as Layer from 'effect/Layer'
 import * as Redacted from 'effect/Redacted'
 import * as HttpServerRequest from 'effect/http/HttpServerRequest'
 import * as HttpServerResponse from 'effect/http/HttpServerResponse'
-import { BoardError, parseHostedAdmission, PUBLIC_BOARD_ID, SPONSOR_OBJECT_NAME, sponsorToolNames, SessionDesk, type TenantConfig, type TenantToken, type RelayRequest, failureFromReply, isAllowedOrigin, publicTenant } from '@sidequest/board'
+import {
+  BoardError,
+  parseHostedAdmission,
+  PUBLIC_BOARD_ID,
+  SPONSOR_OBJECT_NAME,
+  sponsorToolNames,
+  SessionDesk,
+  type TenantConfig,
+  type TenantToken,
+  type RelayRequest,
+  failureFromReply,
+  isAllowedOrigin,
+  publicTenant,
+} from '@sidequest/board'
 import { admissionDrainBinding, runtimeSecret } from './prod-config.ts'
 import { type AsyncSql, agentsOfWallet, fromD1, indexStatus, listAgents, networkStats } from '@sidequest/indexer'
 import * as sdk from '@sidequest/sdk'
@@ -21,7 +34,16 @@ import { dripOnce } from './drip.ts'
 import { claimFaucet, faucetChain } from './faucet.ts'
 import { Manifests } from './manifests.ts'
 import { rpcUrlForNetwork } from './network.ts'
-import { dripState, getBoard, jobsOfBoard, jobsWithBoards, jobWithBoard, listBoards, migrateRegistry, recordOffer } from './registry.ts'
+import {
+  dripState,
+  getBoard,
+  jobsOfBoard,
+  jobsWithBoards,
+  jobWithBoard,
+  listBoards,
+  migrateRegistry,
+  recordOffer,
+} from './registry.ts'
 import { boardView, tenantArgs, tenantTools } from './tools-tenant.ts'
 import DirectoryObject, { directoryObjectName } from './directory-object.ts'
 import { directoryTools, migrateDirectory, runDirectoryTool } from './directory.ts'
@@ -88,7 +110,9 @@ export default class Api extends Cloudflare.Worker<Api>()(
       DIRECTORY_DATABASE: Database,
       NETWORK: stageProfile()?.network ?? process.env.SIDEQUEST_NETWORK ?? 'monad-testnet',
       PUBLIC_ORIGIN: stageProfile()?.origin ?? 'http://localhost:5173',
-      RELAY_ADDRESS: stageProfile()?.relay ?? sdk.deployment((process.env.SIDEQUEST_NETWORK ?? 'monad-testnet') as sdk.Network).relay,
+      RELAY_ADDRESS:
+        stageProfile()?.relay ??
+        sdk.deployment((process.env.SIDEQUEST_NETWORK ?? 'monad-testnet') as sdk.Network).relay,
       TELEGRAM_BOT_USERNAME: stageProfile()?.telegram.botUsername ?? '',
       DEPLOY_STAGE: process.env.SIDEQUEST_STAGE ?? 'local',
       MONAD_RPC_URL: Redacted.make(rpcUrlForNetwork() || 'unset'),
@@ -132,12 +156,18 @@ export default class Api extends Cloudflare.Worker<Api>()(
         const stage = yield* Config.String('DEPLOY_STAGE')
         const telegramSecret = yield* secret('TELEGRAM_WEBHOOK_SECRET')
         const telegramToken = yield* secret('TELEGRAM_BOT_TOKEN')
-        if (network === 'monad-mainnet' && stage !== 'prod') return HttpServerResponse.jsonUnsafe({ ok: false, code: 'unavailable', message: 'production stage mismatch' }, { status: 503 })
+        if (network === 'monad-mainnet' && stage !== 'prod')
+          return HttpServerResponse.jsonUnsafe(
+            { ok: false, code: 'unavailable', message: 'production stage mismatch' },
+            { status: 503 },
+          )
         const rpcUrl = yield* secret('MONAD_RPC_URL')
         const relayKey = yield* secret('RELAY_PRIVATE_KEY')
         if (url.pathname === '/x402/demo' && request.method === 'GET') {
           if (network !== 'monad-testnet') return HttpServerResponse.text('not found', { status: 404 })
-          const reply = yield* Effect.promise(() => x402Demo(url.href, request.headers['payment-signature'], { deployment: sdk.deployment(network) }))
+          const reply = yield* Effect.promise(() =>
+            x402Demo(url.href, request.headers['payment-signature'], { deployment: sdk.deployment(network) }),
+          )
           return HttpServerResponse.jsonUnsafe(reply.body, { status: reply.status, headers: reply.headers })
         }
         const deployment = sdk.deployment(network)
@@ -147,9 +177,14 @@ export default class Api extends Cloudflare.Worker<Api>()(
 
         if (url.pathname === '/telegram/webhook' && request.method === 'POST') {
           const supplied = request.headers['x-telegram-bot-api-secret-token'] ?? null
-          if (telegramSecret === '' || supplied !== telegramSecret) return HttpServerResponse.jsonUnsafe({ ok: false }, { status: 401 })
+          if (telegramSecret === '' || supplied !== telegramSecret)
+            return HttpServerResponse.jsonUnsafe({ ok: false }, { status: 401 })
           let body: unknown
-          try { body = JSON.parse(yield* request.text) } catch { return HttpServerResponse.jsonUnsafe({ ok: false }, { status: 400 }) }
+          try {
+            body = JSON.parse(yield* request.text)
+          } catch {
+            return HttpServerResponse.jsonUnsafe({ ok: false }, { status: 400 })
+          }
           const result = yield* Effect.promise(async () => {
             await migrateTelegram(sql)
             return handleTelegramWebhook(sql, network, body, supplied, telegramSecret, now())
@@ -195,7 +230,8 @@ export default class Api extends Cloudflare.Worker<Api>()(
         yield* boards.getByName(SPONSOR_OBJECT_NAME).management({ kind: 'migrate' })
 
         const tenant = yield* Effect.promise(async (): Promise<TenantConfig | undefined> => {
-          if (boardId === PUBLIC_BOARD_ID) return publicTenant(deployment, await Promise.all(deployment.rewardTokens.map(tokenInfo)))
+          if (boardId === PUBLIC_BOARD_ID)
+            return publicTenant(deployment, await Promise.all(deployment.rewardTokens.map(tokenInfo)))
           const cached = boardCache.get(boardId)
           if (cached !== undefined && cached.at + BOARD_CACHE_SECONDS > now()) return cached.config
           const config = (await getBoard(sql, boardId))?.config
@@ -205,7 +241,8 @@ export default class Api extends Cloudflare.Worker<Api>()(
         const origin = request.headers.origin
         const allowed = tenant === undefined ? false : isAllowedOrigin(tenant, origin, url.host)
         const cors = corsHeaders(origin, allowed)
-        const json = (body: unknown, status = 200, headers: Record<string, string> = {}) => jsonResponse(body, { status, headers: { ...cors, ...headers } })
+        const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
+          jsonResponse(body, { status, headers: { ...cors, ...headers } })
 
         if (request.method === 'OPTIONS') return HttpServerResponse.empty({ status: 204, headers: cors })
         if (tenant === undefined) return json({ ok: false, code: 'not-found', message: `no board "${boardId}"` }, 404)
@@ -225,9 +262,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
             }
           })
 
-        const admission = parseHostedAdmission(
-          yield* Config.String('PROD_ADMISSION_DRAIN'),
-        )
+        const admission = parseHostedAdmission(yield* Config.String('PROD_ADMISSION_DRAIN'))
         const env: BoardCall['env'] = {
           network,
           boardId: tenant.id,
@@ -249,19 +284,40 @@ export default class Api extends Cloudflare.Worker<Api>()(
           },
         }
         const relaySend = async (relayRequest: RelayRequest): Promise<Hex> => {
-          const reply = JSON.parse(await Effect.runPromise(boards.getByName(SPONSOR_OBJECT_NAME).relay({ env, request: relayRequest }))) as BoardReply
+          const reply = JSON.parse(
+            await Effect.runPromise(boards.getByName(SPONSOR_OBJECT_NAME).relay({ env, request: relayRequest })),
+          ) as BoardReply
           if (!reply.ok) throw failureFromReply(reply)
           return reply.result as Hex
         }
         const bearer = request.headers.authorization?.replace(/^Bearer\s+/i, '') || undefined
         const ip = request.headers['cf-connecting-ip']
-        const directoryCall = (tool: string, args: Record<string, unknown>, mcpSession?: string, caller?: string) => runDirectoryTool({
-          sql, network, rpcUrl, audience: url.origin,
-          call: async (id, req) => JSON.parse(await yieldlessDirectoryCall(id, { ...req, admission: { boardId: tenant.id, bearer, mcpSession, caller, ip } })),
-          activity: async (agentIds) => JSON.parse(await Effect.runPromise(boards.getByName(SPONSOR_OBJECT_NAME).managedActivity({ agentIds }))),
-        }, tool, args)
+        const directoryCall = (tool: string, args: Record<string, unknown>, mcpSession?: string, caller?: string) =>
+          runDirectoryTool(
+            {
+              sql,
+              network,
+              rpcUrl,
+              audience: url.origin,
+              call: async (id, req) =>
+                JSON.parse(
+                  await yieldlessDirectoryCall(id, {
+                    ...req,
+                    admission: { boardId: tenant.id, bearer, mcpSession, caller, ip },
+                  }),
+                ),
+              activity: async (agentIds) =>
+                JSON.parse(
+                  await Effect.runPromise(boards.getByName(SPONSOR_OBJECT_NAME).managedActivity({ agentIds })),
+                ),
+            },
+            tool,
+            args,
+          )
         const yieldlessDirectoryCall = async (id: string, req: import('./directory-object.ts').DirectoryCall) =>
-          Effect.runPromise(directory.getByName(directoryObjectName(chainId, deployment.identity, url.origin, id)).call(req))
+          Effect.runPromise(
+            directory.getByName(directoryObjectName(chainId, deployment.identity, url.origin, id)).call(req),
+          )
 
         /**
          * Calls one tool: sign-in and registry tools in the Worker, everything else in the board's Durable Object with
@@ -269,53 +325,156 @@ export default class Api extends Cloudflare.Worker<Api>()(
          */
         const call = (tool: string, args: Record<string, unknown>, mcpSession?: string, oauthCaller?: string) =>
           Effect.gen(function* () {
-            const pre = yield* Effect.promise(async (): Promise<{ reply: BoardReply } | { forward: { args: Record<string, unknown>; caller: string | undefined } }> => {
-              try {
-                const session = oauthCaller === undefined ? await desk.resolve({ bearer, mcpSession }) : { address: oauthCaller as Address, origin: url.origin, boardId: tenant.id }
-                // Board tools are limited inside the DO, so direct RPC cannot bypass the counters.
-                // Worker-local tools, including sign-in, use exactly the same reserved object.
-                if (tool === 'auth_challenge' || tool === 'auth_login' || tool === 'prepare_agent_profile' || tool === 'testnet_faucet' || Object.hasOwn(tenantTools, tool) || Object.hasOwn(telegramTools, tool)) {
-                  const rate = await enforceHostedRate(runtimeEnv as Record<string, unknown>, { network, tool, boardId: tenant.id, bearer, mcpSession, caller: session?.address, ip })
-                  if (!rate.ok) return { reply: rate }
+            const pre = yield* Effect.promise(
+              async (): Promise<
+                { reply: BoardReply } | { forward: { args: Record<string, unknown>; caller: string | undefined } }
+              > => {
+                try {
+                  const session =
+                    oauthCaller === undefined
+                      ? await desk.resolve({ bearer, mcpSession })
+                      : { address: oauthCaller as Address, origin: url.origin, boardId: tenant.id }
+                  // Board tools are limited inside the DO, so direct RPC cannot bypass the counters.
+                  // Worker-local tools, including sign-in, use exactly the same reserved object.
+                  if (
+                    tool === 'auth_challenge' ||
+                    tool === 'auth_login' ||
+                    tool === 'prepare_agent_profile' ||
+                    tool === 'testnet_faucet' ||
+                    Object.hasOwn(tenantTools, tool) ||
+                    Object.hasOwn(telegramTools, tool)
+                  ) {
+                    const rate = await enforceHostedRate(runtimeEnv as Record<string, unknown>, {
+                      network,
+                      tool,
+                      boardId: tenant.id,
+                      bearer,
+                      mcpSession,
+                      caller: session?.address,
+                      ip,
+                    })
+                    if (!rate.ok) return { reply: rate }
+                  }
+                  if (tool === 'auth_challenge') {
+                    return {
+                      reply: {
+                        ok: true,
+                        result: await desk.challenge({
+                          address: String(args.address ?? ''),
+                          domain: siweDomain,
+                          uri: siweUri,
+                          chainId,
+                          boardId: tenant.id,
+                        }),
+                      },
+                    }
+                  }
+                  if (tool === 'auth_login') {
+                    const r = await desk.login({
+                      message: String(args.message ?? ''),
+                      signature: String(args.signature ?? ''),
+                      boardId: tenant.id,
+                      domainAllowed,
+                    })
+                    if (mcpSession !== undefined) await desk.bindMcp(mcpSession, r.session)
+                    const drip =
+                      network === 'monad-testnet' && tenant.drip
+                        ? await dripOnce(
+                            { sql, network, rpcUrl, relayKey, now, relaySend },
+                            { boardId: tenant.id, address: r.address },
+                          )
+                        : undefined
+                    return {
+                      reply: {
+                        ok: true,
+                        result: { ...r, boardId: tenant.id, ...(drip === undefined ? {} : { drip }) },
+                      },
+                    }
+                  }
+                  if (tool === 'testnet_faucet') {
+                    if (session === undefined)
+                      return { reply: { ok: false, code: 'unauthenticated', message: 'Sign in to claim test tokens' } }
+                    return {
+                      reply: {
+                        ok: true,
+                        result: await claimFaucet(
+                          { sql, network, now, chain: faucetChain({ sql, network, rpcUrl, relayKey, now, relaySend }) },
+                          { address: session.address },
+                        ),
+                      },
+                    }
+                  }
+                  if (tool === 'whoami' && session !== undefined) {
+                    const drip = await dripState(sql, tenant.id, session.address)
+                    return {
+                      reply: {
+                        ok: true,
+                        result: {
+                          address: session.address,
+                          boardId: tenant.id,
+                          origin: session.origin,
+                          dripped: drip?.status ?? null,
+                        },
+                      },
+                    }
+                  }
+                  // A read of the caller's own feed in D1; hosted board admission governs board tools, not this.
+                  if (tool === 'inbox')
+                    return {
+                      reply: {
+                        ok: true,
+                        result: await feedTools.inbox.run({ sql, network, now: now() }, session?.address, args),
+                      },
+                    }
+                  const denied = hostedCallFailure(admission, network, tenant.id, tool, args, session?.address, stage)
+                  if (denied !== undefined) return { reply: { ok: false, code: 'forbidden', message: denied } }
+                  if (Object.hasOwn(directoryTools, tool))
+                    return {
+                      reply: { ok: true, result: await directoryCall(tool, args, mcpSession, session?.address) },
+                    }
+                  const telegram = telegramTools[tool]
+                  if (telegram !== undefined)
+                    return {
+                      reply: {
+                        ok: true,
+                        result: await telegram.run(
+                          {
+                            sql,
+                            network,
+                            now,
+                            configured: telegramSecret !== '' && telegramToken !== '',
+                            verify: async (input) => (reads === undefined ? false : reads.verifyMessage(input)),
+                          },
+                          session?.address,
+                          args,
+                        ),
+                      },
+                    }
+                  const registry = tenantTools[tool]
+                  if (registry !== undefined) {
+                    return {
+                      reply: {
+                        ok: true,
+                        result: await registry.run(
+                          { sql, deployment, resolveToken: tokenInfo, now },
+                          session?.address,
+                          tenant,
+                          args,
+                        ),
+                      },
+                    }
+                  }
+                  return { forward: { args: tenantArgs(tenant, tool, args), caller: session?.address } }
+                } catch (e) {
+                  return { reply: failure(e) }
                 }
-                if (tool === 'auth_challenge') {
-                  return { reply: { ok: true, result: await desk.challenge({ address: String(args.address ?? ''), domain: siweDomain, uri: siweUri, chainId, boardId: tenant.id }) } }
-                }
-                if (tool === 'auth_login') {
-                  const r = await desk.login({ message: String(args.message ?? ''), signature: String(args.signature ?? ''), boardId: tenant.id, domainAllowed })
-                  if (mcpSession !== undefined) await desk.bindMcp(mcpSession, r.session)
-                  const drip = network === 'monad-testnet' && tenant.drip ? await dripOnce({ sql, network, rpcUrl, relayKey, now, relaySend }, { boardId: tenant.id, address: r.address }) : undefined
-                  return { reply: { ok: true, result: { ...r, boardId: tenant.id, ...(drip === undefined ? {} : { drip }) } } }
-                }
-                if (tool === 'testnet_faucet') {
-                  if (session === undefined) return { reply: { ok: false, code: 'unauthenticated', message: 'Sign in to claim test tokens' } }
-                  return { reply: { ok: true, result: await claimFaucet({ sql, network, now, chain: faucetChain({ sql, network, rpcUrl, relayKey, now, relaySend }) }, { address: session.address }) } }
-                }
-                if (tool === 'whoami' && session !== undefined) {
-                  const drip = await dripState(sql, tenant.id, session.address)
-                  return { reply: { ok: true, result: { address: session.address, boardId: tenant.id, origin: session.origin, dripped: drip?.status ?? null } } }
-                }
-                // A read of the caller's own feed in D1; hosted board admission governs board tools, not this.
-                if (tool === 'inbox') return { reply: { ok: true, result: await feedTools.inbox.run({ sql, network, now: now() }, session?.address, args) } }
-                const denied = hostedCallFailure(admission, network, tenant.id, tool, args, session?.address, stage)
-                if (denied !== undefined) return { reply: { ok: false, code: 'forbidden', message: denied } }
-                if (Object.hasOwn(directoryTools, tool)) return { reply: { ok: true, result: await directoryCall(tool, args, mcpSession, session?.address) } }
-                const telegram = telegramTools[tool]
-                if (telegram !== undefined) return { reply: { ok: true, result: await telegram.run({ sql, network, now,
-                  configured: telegramSecret !== '' && telegramToken !== '', verify: async (input) => reads === undefined ? false : reads.verifyMessage(input),
-                }, session?.address, args) } }
-                const registry = tenantTools[tool]
-                if (registry !== undefined) {
-                  return { reply: { ok: true, result: await registry.run({ sql, deployment, resolveToken: tokenInfo, now }, session?.address, tenant, args) } }
-                }
-                return { forward: { args: tenantArgs(tenant, tool, args), caller: session?.address } }
-              } catch (e) {
-                return { reply: failure(e) }
-              }
-            })
+              },
+            )
             if ('reply' in pre) return pre.reply
             const reply = JSON.parse(
-              yield* boards.getByName(sponsorToolNames.has(tool) ? SPONSOR_OBJECT_NAME : tenant.id).call({ tool, args: pre.forward.args, bearer, mcpSession, caller: pre.forward.caller, ip, env }),
+              yield* boards
+                .getByName(sponsorToolNames.has(tool) ? SPONSOR_OBJECT_NAME : tenant.id)
+                .call({ tool, args: pre.forward.args, bearer, mcpSession, caller: pre.forward.caller, ip, env }),
             ) as BoardReply
             if (reply.ok && (tool === 'create_task' || tool === 'pick_quote')) {
               const r = reply.result as { taskId: string; termsHash: string; manifest?: string }
@@ -323,7 +482,9 @@ export default class Api extends Cloudflare.Worker<Api>()(
                 yield* manifests.put(`offers/${r.termsHash}.json`, r.manifest)
                 delete r.manifest
               }
-              yield* Effect.promise(() => recordOffer(sql, { boardId: tenant.id, termsHash: r.termsHash, taskId: r.taskId, now: now() }))
+              yield* Effect.promise(() =>
+                recordOffer(sql, { boardId: tenant.id, termsHash: r.termsHash, taskId: r.taskId, now: now() }),
+              )
             }
             // Selection and new-request notices are sent by the Board DO (feed-board.ts), so managed calls get them too.
             return reply
@@ -331,59 +492,157 @@ export default class Api extends Cloudflare.Worker<Api>()(
 
         // Hosted MCP OAuth is deliberately separate from the legacy website SIWE session.
         const rawBody = request.method === 'POST' ? yield* request.text : ''
-        const oauthBody: Record<string, unknown> = rawBody === '' ? {} : (() => { if (request.headers['content-type']?.includes('application/x-www-form-urlencoded')) return Object.fromEntries(new URLSearchParams(rawBody)); try { return JSON.parse(rawBody) as Record<string, unknown> } catch { return {} } })()
-        const lifecycleRequest = agentRoute(request.method, path, oauthBody) ?? approvalRoute(request.method, path, oauthBody)
+        const oauthBody: Record<string, unknown> =
+          rawBody === ''
+            ? {}
+            : (() => {
+                if (request.headers['content-type']?.includes('application/x-www-form-urlencoded'))
+                  return Object.fromEntries(new URLSearchParams(rawBody))
+                try {
+                  return JSON.parse(rawBody) as Record<string, unknown>
+                } catch {
+                  return {}
+                }
+              })()
+        const lifecycleRequest =
+          agentRoute(request.method, path, oauthBody) ?? approvalRoute(request.method, path, oauthBody)
         if (lifecycleRequest !== undefined) {
-          if (request.method === 'POST' && (origin === undefined || !allowed)) return json({ ok: false, code: 'forbidden', message: 'Agent decisions require the website origin' }, 403)
-          const reply = JSON.parse(yield* boards.getByName(SPONSOR_OBJECT_NAME).agentManage(managementRequest(env, lifecycleRequest, bearer, request.headers))) as BoardReply
-          return json(reply, reply.ok ? 200 : STATUS[reply.code] ?? 503, { 'cache-control': 'no-store' })
+          if (request.method === 'POST' && (origin === undefined || !allowed))
+            return json({ ok: false, code: 'forbidden', message: 'Agent decisions require the website origin' }, 403)
+          const reply = JSON.parse(
+            yield* boards
+              .getByName(SPONSOR_OBJECT_NAME)
+              .agentManage(managementRequest(env, lifecycleRequest, bearer, request.headers)),
+          ) as BoardReply
+          return json(reply, reply.ok ? 200 : (STATUS[reply.code] ?? 503), { 'cache-control': 'no-store' })
         }
         if (path.startsWith('/oauth/') || path.startsWith('/.well-known/oauth-')) {
-          if (origin !== undefined && origin !== url.origin) return json({ error: 'invalid_request', error_description: 'OAuth requests require the website origin' }, 403)
-          const reply = JSON.parse(yield* boards.getByName(SPONSOR_OBJECT_NAME).oauth({ env, method: request.method, path: url.pathname, query: url.searchParams.toString(), body: oauthBody, origin: url.origin, ...(bearer === undefined ? {} : { bearer }) })) as OAuthReply | null
-          if (reply !== null) return reply.redirect === undefined ? json(reply.body, reply.status, reply.headers) : HttpServerResponse.empty({ status: reply.status, headers: { ...reply.headers, location: reply.redirect } })
+          if (origin !== undefined && origin !== url.origin)
+            return json(
+              { error: 'invalid_request', error_description: 'OAuth requests require the website origin' },
+              403,
+            )
+          const reply = JSON.parse(
+            yield* boards.getByName(SPONSOR_OBJECT_NAME).oauth({
+              env,
+              method: request.method,
+              path: url.pathname,
+              query: url.searchParams.toString(),
+              body: oauthBody,
+              origin: url.origin,
+              ...(bearer === undefined ? {} : { bearer }),
+            }),
+          ) as OAuthReply | null
+          if (reply !== null)
+            return reply.redirect === undefined
+              ? json(reply.body, reply.status, reply.headers)
+              : HttpServerResponse.empty({
+                  status: reply.status,
+                  headers: { ...reply.headers, location: reply.redirect },
+                })
         }
         if (path === '/mcp') {
           const runMcp = Effect.runPromiseWith(yield* Effect.context<RuntimeContext>())
           const resource = `${url.origin}${url.pathname}`
-          const grant = JSON.parse(yield* boards.getByName(SPONSOR_OBJECT_NAME).oauthResolve({ resource, activity: true, ...(bearer === undefined ? {} : { bearer }) })) as OAuthGrant | null
-          const reply = yield* Effect.promise(() => mcpRoute({ method: request.method, pathname: url.pathname, body: oauthBody, origin: url.origin, headers: request.headers, events: new McpEvents(sql, network),
-            ...(grant === null ? {} : { grant }), tools: Object.fromEntries(Object.entries({ ...tools, ...tenantTools, ...directoryTools, ...agentTools, ...feedTools }).filter(([name]) => grant !== null && permittedTool(grant, name) && networkTool(network, name))),
-            call: async (tool, args, agentId) => {
-              if (['list_boards', 'get_board', 'list_directory', 'get_directory_agent', 'whoami', 'inbox'].includes(tool)) return runMcp(call(tool, args, undefined, grant!.address))
-              const result = JSON.parse(await Effect.runPromise(boards.getByName(SPONSOR_OBJECT_NAME).agentExecute({ env, tool, args: tenantArgs(tenant, tool, args), agentId, resource, ...(ip === undefined ? {} : { ip }), ...(bearer === undefined ? {} : { bearer }) }))) as BoardReply
-              return result
-            },
-          }))
-          return reply.status === 204 || reply.status === 202 ? HttpServerResponse.empty({ status: reply.status, headers: { ...cors, ...reply.headers } }) : json(reply.body, reply.status, reply.headers)
+          const grant = JSON.parse(
+            yield* boards
+              .getByName(SPONSOR_OBJECT_NAME)
+              .oauthResolve({ resource, activity: true, ...(bearer === undefined ? {} : { bearer }) }),
+          ) as OAuthGrant | null
+          const reply = yield* Effect.promise(() =>
+            mcpRoute({
+              method: request.method,
+              pathname: url.pathname,
+              body: oauthBody,
+              origin: url.origin,
+              headers: request.headers,
+              events: new McpEvents(sql, network),
+              ...(grant === null ? {} : { grant }),
+              tools: Object.fromEntries(
+                Object.entries({ ...tools, ...tenantTools, ...directoryTools, ...agentTools, ...feedTools }).filter(
+                  ([name]) => grant !== null && permittedTool(grant, name) && networkTool(network, name),
+                ),
+              ),
+              call: async (tool, args, agentId) => {
+                if (
+                  ['list_boards', 'get_board', 'list_directory', 'get_directory_agent', 'whoami', 'inbox'].includes(
+                    tool,
+                  )
+                )
+                  return runMcp(call(tool, args, undefined, grant!.address))
+                const result = JSON.parse(
+                  await Effect.runPromise(
+                    boards.getByName(SPONSOR_OBJECT_NAME).agentExecute({
+                      env,
+                      tool,
+                      args: tenantArgs(tenant, tool, args),
+                      agentId,
+                      resource,
+                      ...(ip === undefined ? {} : { ip }),
+                      ...(bearer === undefined ? {} : { bearer }),
+                    }),
+                  ),
+                ) as BoardReply
+                return result
+              },
+            }),
+          )
+          return reply.status === 204 || reply.status === 202
+            ? HttpServerResponse.empty({ status: reply.status, headers: { ...cors, ...reply.headers } })
+            : json(reply.body, reply.status, reply.headers)
         }
         if (path.startsWith('/data/') && request.method === 'GET') {
           if (isStakingDataPath(path)) {
             const dataUrl = new URL(url)
             dataUrl.pathname = path
-            return yield* Effect.promise(() => stakingDataRoute(sql, rpcUrl === '' ? undefined : sdk.context(network, 'main', rpcUrl), dataUrl, now(), cors))
+            return yield* Effect.promise(() =>
+              stakingDataRoute(
+                sql,
+                rpcUrl === '' ? undefined : sdk.context(network, 'main', rpcUrl),
+                dataUrl,
+                now(),
+                cors,
+              ),
+            )
           }
           if (path === '/data/directory' || /^\/data\/directory\/\d{1,78}$/.test(path)) {
             const reply = yield* Effect.promise(async () => {
               try {
-                const args = path === '/data/directory'
-                  ? { ...(url.searchParams.has('after') ? { after: url.searchParams.get('after') } : {}), ...(url.searchParams.has('limit') ? { limit: Number(url.searchParams.get('limit')) } : {}) }
-                  : { agentId: path.slice('/data/directory/'.length) }
-                return { ok: true as const, result: await directoryCall(path === '/data/directory' ? 'list_directory' : 'get_directory_agent', args) }
-              } catch (error) { return failure(error) }
+                const args =
+                  path === '/data/directory'
+                    ? {
+                        ...(url.searchParams.has('after') ? { after: url.searchParams.get('after') } : {}),
+                        ...(url.searchParams.has('limit') ? { limit: Number(url.searchParams.get('limit')) } : {}),
+                      }
+                    : { agentId: path.slice('/data/directory/'.length) }
+                return {
+                  ok: true as const,
+                  result: await directoryCall(
+                    path === '/data/directory' ? 'list_directory' : 'get_directory_agent',
+                    args,
+                  ),
+                }
+              } catch (error) {
+                return failure(error)
+              }
             })
-            return json(reply.ok ? { ok: true, ...(reply.result as Record<string, unknown>) } : reply, reply.ok ? 200 : (STATUS[reply.code] ?? 503), { 'cache-control': 'no-store' })
+            return json(
+              reply.ok ? { ok: true, ...(reply.result as Record<string, unknown>) } : reply,
+              reply.ok ? 200 : (STATUS[reply.code] ?? 503),
+              { 'cache-control': 'no-store' },
+            )
           }
           const body = yield* Effect.promise(async () => {
             try {
               if (path === '/data/boards') {
                 const stored = await listBoards(sql)
                 const pub = publicTenant(deployment, await Promise.all(deployment.rewardTokens.map(tokenInfo)))
-                return { ok: true, boards: [pub, ...stored].map(config => boardView(config, deployment.relay)) }
+                return { ok: true, boards: [pub, ...stored].map((config) => boardView(config, deployment.relay)) }
               }
               if (path === '/data/jobs') {
                 const which = url.searchParams.get('board') ?? (boardId === PUBLIC_BOARD_ID ? null : boardId)
-                const jobs = which === null ? await jobsWithBoards(sql, deployment) : await jobsOfBoard(sql, deployment, which)
+                const jobs =
+                  which === null ? await jobsWithBoards(sql, deployment) : await jobsOfBoard(sql, deployment, which)
                 return { ok: true, index: await indexStatus(sql, chainId), board: which, jobs }
               }
               const m = /^\/data\/jobs\/(\d+)$/.exec(path)
@@ -393,21 +652,28 @@ export default class Api extends Cloudflare.Worker<Api>()(
               if (path === '/data/agents') {
                 const wallet = url.searchParams.get('wallet')
                 if (wallet !== null) {
-                  if (!/^0x[0-9a-fA-F]{40}$/.test(wallet)) return { ok: false, code: 'invalid', message: 'wallet must be a 0x address' }
+                  if (!/^0x[0-9a-fA-F]{40}$/.test(wallet))
+                    return { ok: false, code: 'invalid', message: 'wallet must be a 0x address' }
                   return { ok: true, wallet, agents: await agentsOfWallet(sql, chainId, wallet) }
                 }
                 const limit = Math.min(Math.max(Number(url.searchParams.get('limit')) || 200, 1), 500)
                 return { ok: true, agents: await listAgents(sql, chainId, limit) }
               }
               const agent = /^\/data\/agents\/(\d{1,78})$/.exec(path)
-              if (agent !== null) return await agentDataBody(sql, chainId, agent[1] as string, reads === undefined ? undefined : identityReads(reads, deployment.identity))
+              if (agent !== null)
+                return await agentDataBody(
+                  sql,
+                  chainId,
+                  agent[1] as string,
+                  reads === undefined ? undefined : identityReads(reads, deployment.identity),
+                )
               return { ok: false, code: 'not-found', message: 'no such data route' }
             } catch (error) {
               if (error instanceof BoardError) return { ok: false, code: error.code, message: error.message }
               return { ok: false, code: 'unavailable', message: 'the index is not built yet' }
             }
           })
-          return json(body, body.ok ? 200 : 'code' in body ? STATUS[body.code] ?? 503 : 404)
+          return json(body, body.ok ? 200 : 'code' in body ? (STATUS[body.code] ?? 503) : 404)
         }
 
         if (path === '/health') {
@@ -425,7 +691,11 @@ export default class Api extends Cloudflare.Worker<Api>()(
           const tool = path.slice('/api/'.length)
           const args = oauthBody
           const reply = yield* call(tool, args)
-          return json(reply, reply.ok ? 200 : (STATUS[reply.code] ?? 500), !reply.ok && reply.retryAfter !== undefined ? { 'retry-after': String(reply.retryAfter) } : {})
+          return json(
+            reply,
+            reply.ok ? 200 : (STATUS[reply.code] ?? 500),
+            !reply.ok && reply.retryAfter !== undefined ? { 'retry-after': String(reply.retryAfter) } : {},
+          )
         }
 
         return HttpServerResponse.text('not found', { status: 404 })

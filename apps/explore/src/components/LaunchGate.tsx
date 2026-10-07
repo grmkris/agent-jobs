@@ -48,8 +48,8 @@ export function LaunchBanner() {
   if (writesOpen) return null
   return (
     <div role="note" className="rounded-xl bg-primary/10 px-4 py-3 text-sm leading-snug text-muted-foreground">
-      <span className="font-semibold text-foreground">Launching soon.</span> You can look around; publishing, taking jobs, backing and
-      payments open at launch.
+      <span className="font-semibold text-foreground">Launching soon.</span> You can look around; publishing, taking
+      jobs, backing and payments open at launch.
       {TESTNET !== null && (
         <>
           {' '}

@@ -14,8 +14,15 @@ export interface StepLocks {
 }
 
 /** The lock spans journal reread, wallet confirmation and hash persistence. No unsafe fallback. */
-export async function withWalletStepLock<T>(locks: StepLocks | undefined, key: string, operation: () => Promise<T>): Promise<T> {
-  if (locks === undefined) throw new Error('This browser cannot safely coordinate wallet operations across tabs. Use a browser with Web Locks.')
+export async function withWalletStepLock<T>(
+  locks: StepLocks | undefined,
+  key: string,
+  operation: () => Promise<T>,
+): Promise<T> {
+  if (locks === undefined)
+    throw new Error(
+      'This browser cannot safely coordinate wallet operations across tabs. Use a browser with Web Locks.',
+    )
   return locks.request(`sidequest.wallet-step:${key}`, operation)
 }
 
@@ -30,7 +37,8 @@ export type TxStatus =
 
 export function retryAction(status: TxStatus): 'send' | 'receipt' | 'report' | 'wait' {
   if (status.at === 'confirmed' && status.reportError !== undefined) return 'report'
-  if (status.at === 'failed' && status.hash !== undefined && status.reverted !== true && status.noEffect !== true) return 'receipt'
+  if (status.at === 'failed' && status.hash !== undefined && status.reverted !== true && status.noEffect !== true)
+    return 'receipt'
   if (status.at === 'idle' || status.at === 'failed') return 'send'
   return 'wait'
 }
@@ -55,8 +63,14 @@ export interface SendSnapshot {
 }
 
 /** Check approval freshness both before and after asynchronous pre-send reads. */
-export async function guardedSnapshot(reads: Pick<ChainReads, 'nonce' | 'blockNumber'>, guard?: (() => string | null | Promise<string | null>)): Promise<SendSnapshot> {
-  const assert = async () => { const problem = await guard?.(); if (problem) throw new Error(problem) }
+export async function guardedSnapshot(
+  reads: Pick<ChainReads, 'nonce' | 'blockNumber'>,
+  guard?: () => string | null | Promise<string | null>,
+): Promise<SendSnapshot> {
+  const assert = async () => {
+    const problem = await guard?.()
+    if (problem) throw new Error(problem)
+  }
   await assert()
   const [nonce, block] = await Promise.all([reads.nonce('pending'), reads.blockNumber()])
   await assert()
@@ -67,7 +81,16 @@ export async function guardedSnapshot(reads: Pick<ChainReads, 'nonce' | 'blockNu
 export interface ChainReads {
   nonce(blockTag: 'latest' | 'pending'): Promise<number>
   blockNumber(): Promise<bigint>
-  block(number: bigint): Promise<{ transactions: ReadonlyArray<{ hash: Hex; from: string; to: string | null; input: Hex; nonce: number; value?: bigint }> }>
+  block(number: bigint): Promise<{
+    transactions: ReadonlyArray<{
+      hash: Hex
+      from: string
+      to: string | null
+      input: Hex
+      nonce: number
+      value?: bigint
+    }>
+  }>
 }
 
 /**
@@ -88,7 +111,13 @@ const same = (a: string | null, b: string) => a !== null && a.toLowerCase() === 
  * the account's new transactions is seen; the one carrying this exact call is the step. At most `maxBlocks` blocks are
  * read, after which the answer is `unknown` rather than a guess.
  */
-export async function reconcileSend(reads: ChainReads, snapshot: SendSnapshot, from: string, call: { to: string; data: Hex; value?: bigint }, maxBlocks = 240): Promise<Reconciled> {
+export async function reconcileSend(
+  reads: ChainReads,
+  snapshot: SendSnapshot,
+  from: string,
+  call: { to: string; data: Hex; value?: bigint },
+  maxBlocks = 240,
+): Promise<Reconciled> {
   let mined: number
   let pending: number
   let head: bigint
@@ -106,7 +135,12 @@ export async function reconcileSend(reads: ChainReads, snapshot: SendSnapshot, f
       for (let n = start; n <= last && seen < sent; n++) {
         for (const tx of (await reads.block(n)).transactions) {
           if (!same(tx.from, from) || tx.nonce < snapshot.nonce) continue
-          if (same(tx.to, call.to) && tx.input.toLowerCase() === call.data.toLowerCase() && (tx.value ?? 0n) === (call.value ?? 0n)) return { at: 'found', hash: tx.hash }
+          if (
+            same(tx.to, call.to) &&
+            tx.input.toLowerCase() === call.data.toLowerCase() &&
+            (tx.value ?? 0n) === (call.value ?? 0n)
+          )
+            return { at: 'found', hash: tx.hash }
           seen++
         }
       }

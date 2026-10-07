@@ -5,7 +5,11 @@ import { authorityPolicy } from './policy.ts'
 import { canonical, writablePolicy } from './policy-document.ts'
 type JsonRecord = Record<string, unknown>
 type AuthorityPolicy = ReturnType<typeof authorityPolicy>
-export interface ArchivedPins { holding: string; core: string; relay: string }
+export interface ArchivedPins {
+  holding: string
+  core: string
+  relay: string
+}
 export class SidequestPolicyPlanError extends Error {}
 
 function record(value: unknown): JsonRecord {
@@ -24,12 +28,13 @@ function address(value: unknown): string {
 
 function pinned(policy: JsonRecord, ruleName: string, source: string, field: string): JsonRecord {
   if (!Array.isArray(policy.rules)) throw new SidequestPolicyPlanError('Invalid policy rules; refusing plan')
-  const rules = policy.rules.map(record).filter(rule => rule.name === ruleName)
+  const rules = policy.rules.map(record).filter((rule) => rule.name === ruleName)
   if (rules.length !== 1 || !Array.isArray(rules[0]!.conditions)) {
     throw new SidequestPolicyPlanError('Expected one pinned rule; refusing plan')
   }
-  const conditions = rules[0]!.conditions.map(record).filter(condition =>
-    condition.field_source === source && condition.field === field)
+  const conditions = rules[0]!.conditions
+    .map(record)
+    .filter((condition) => condition.field_source === source && condition.field === field)
   if (conditions.length !== 1 || !['eq', 'in'].includes(String(conditions[0]!.operator))) {
     throw new SidequestPolicyPlanError('Expected one equality pin; refusing plan')
   }
@@ -55,9 +60,10 @@ export function sidequestPolicyPlan(live: JsonRecord, desired: AuthorityPolicy, 
     const current = pinned(before, rule!, source!, field!)
     const next = pinned(expected, rule!, source!, field!)
     const promoted = address(Array.isArray(next.value) ? next.value[0] : next.value)
-    if (old.toLowerCase() === promoted.toLowerCase()) throw new SidequestPolicyPlanError('Expected fresh deployment pins; refusing plan')
+    if (old.toLowerCase() === promoted.toLowerCase())
+      throw new SidequestPolicyPlanError('Expected fresh deployment pins; refusing plan')
     const currentValues = current.operator === 'in' && Array.isArray(current.value) ? current.value : [current.value]
-    if (!currentValues.some(value => address(value).toLowerCase() === old.toLowerCase())) {
+    if (!currentValues.some((value) => address(value).toLowerCase() === old.toLowerCase())) {
       throw new SidequestPolicyPlanError('Live policy is not the archived deployment; refusing plan')
     }
     current.operator = 'eq'
@@ -71,7 +77,9 @@ export function sidequestPolicyPlan(live: JsonRecord, desired: AuthorityPolicy, 
   }
   return {
     legacyPolicyId: live.id,
-    legacyPolicySha256: createHash('sha256').update(canonical(writablePolicy(live))).digest('hex'),
+    legacyPolicySha256: createHash('sha256')
+      .update(canonical(writablePolicy(live)))
+      .digest('hex'),
     legacyPolicyUnchanged: true,
     action: 'create-separate-policy' as const,
     changes,

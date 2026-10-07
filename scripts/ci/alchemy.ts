@@ -15,7 +15,9 @@ if ((action !== 'plan' && action !== 'drift') || (stage !== 'dev' && stage !== '
   process.exitCode = 2
 } else {
   const program = Effect.gen(function* () {
-    const credential = JSON.parse(readFileSync(resolve(homedir(), '.alchemy/credentials/default/cloudflare-state-store.json'), 'utf8')) as { url: string; authToken: string }
+    const credential = JSON.parse(
+      readFileSync(resolve(homedir(), '.alchemy/credentials/default/cloudflare-state-store.json'), 'utf8'),
+    ) as { url: string; authToken: string }
     const remote = yield* makeHttpStateStore({ ...credential, id: 'cloudflare-http' })
     // Planning must never bootstrap the shared Worker or mutate state, even during adoption.
     const readOnly: StateService = {
@@ -25,18 +27,31 @@ if ((action !== 'plan' && action !== 'drift') || (stage !== 'dev' && stage !== '
       deleteStack: () => Effect.die('state deletes are refused during planning'),
       setOutput: () => Effect.die('state writes are refused during planning'),
     }
-    const session = yield* Alchemist.open({ entrypoint: resolve(import.meta.dirname, '../../alchemy.run.ts'), stage, profile: 'default', envFile: '/dev/null' }, { adopt: adopt === '--adopt-move', updateStateStore: false })
+    const session = yield* Alchemist.open(
+      {
+        entrypoint: resolve(import.meta.dirname, '../../alchemy.run.ts'),
+        stage,
+        profile: 'default',
+        envFile: '/dev/null',
+      },
+      { adopt: adopt === '--adopt-move', updateStateStore: false },
+    )
     const context = Context.add(session.context, State, Effect.succeed(readOnly))
-    if (session.stack.name !== 'Sidequest' || session.stack.stage !== stage) return yield* Effect.die('unexpected stack identity')
+    if (session.stack.name !== 'Sidequest' || session.stack.stage !== stage)
+      return yield* Effect.die('unexpected stack identity')
     if (action === 'plan') {
       const plan = yield* Plan.make(session.stack).pipe(Effect.provide(context))
       // A create whose props wait on upstream outputs carries a deferred ownership probe: Apply reads the resource by
       // name first and adopts it when it exists. Report those so the release guard can tell them from real creates.
-      const deferredAdoption = Object.entries(plan.resources).flatMap(([fqn, node]) => node !== undefined && 'deferredAdoption' in node && node.deferredAdoption !== undefined ? [fqn] : [])
+      const deferredAdoption = Object.entries(plan.resources).flatMap(([fqn, node]) =>
+        node !== undefined && 'deferredAdoption' in node && node.deferredAdoption !== undefined ? [fqn] : [],
+      )
       return { summary: Alchemist.Stack.summarize(plan), ...Plan.describePlan(plan), deferredAdoption }
     }
     const snapshot = yield* EngineDrift.plan({ name: 'Sidequest', stage }).pipe(Effect.provide(context))
-    const drifted = Object.values(snapshot.result.resources).filter((resource) => resource.action !== 'unchanged' && resource.action !== 'skipped')
+    const drifted = Object.values(snapshot.result.resources).filter(
+      (resource) => resource.action !== 'unchanged' && resource.action !== 'skipped',
+    )
     return { drifted: drifted.length, summary: Alchemist.Stack.summarize(snapshot.plan) }
   })
   try {

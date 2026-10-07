@@ -11,8 +11,21 @@ export const docs = defineDocs({
   dir: 'content/docs',
   docs: {
     async: true,
-    schema: pageSchema.extend({ description: z.string(), mcp: z.boolean().default(true), legacy: z.boolean().default(false) }),
-    postprocess: { includeProcessedMarkdown: { output: 'function', headingIds: false, handlers: { link: (node, parent, state, info) => defaultHandlers.link!({ ...node, url: markdownUrl(node.url) }, parent, state, info) } } },
+    schema: pageSchema.extend({
+      description: z.string(),
+      mcp: z.boolean().default(true),
+      legacy: z.boolean().default(false),
+    }),
+    postprocess: {
+      includeProcessedMarkdown: {
+        output: 'function',
+        headingIds: false,
+        handlers: {
+          link: (node, parent, state, info) =>
+            defaultHandlers.link!({ ...node, url: markdownUrl(node.url) }, parent, state, info),
+        },
+      },
+    },
   },
 })
 

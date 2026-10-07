@@ -13,7 +13,15 @@ import { getBlock, getBlockNumber, getTransaction, getTransactionCount, waitForT
 import { type TxRequest, boardApi } from '../api.ts'
 import { batchGasLimit, gasLimit } from '../gas.ts'
 import { sidequest } from '../sidequest.ts'
-import { type SponsorOperation, sponsorApi, sponsorCalls, sponsorKey, sponsorable, submitFailure, useLiveSponsorship } from '../sponsor.ts'
+import {
+  type SponsorOperation,
+  sponsorApi,
+  sponsorCalls,
+  sponsorKey,
+  sponsorable,
+  submitFailure,
+  useLiveSponsorship,
+} from '../sponsor.ts'
 import { friendlyError } from '../txErrors.ts'
 import { chain, wagmiConfig, writesOpen } from '../wallet.ts'
 import { LaunchNotice } from './LaunchGate.tsx'
@@ -138,7 +146,9 @@ export function TxSteps({
   /** Use committed cross-renderer journal checkpoints under the existing step lock. */
   durableJournal?: boolean
   /** A successful receipt must prove the requested effect. A returned error proves no effect and permits retry; unreadable or conflicting proof must throw. */
-  receiptGuard?: ((receipt: Pick<TransactionReceipt, 'logs'>, steps: readonly WalletStep[]) => string | null) | undefined
+  receiptGuard?:
+    | ((receipt: Pick<TransactionReceipt, 'logs'>, steps: readonly WalletStep[]) => string | null)
+    | undefined
 }) {
   const { chainId, address } = useAccount()
   const currentAccount = useRef({ chainId, address, canSend })
@@ -152,11 +162,13 @@ export function TxSteps({
     address,
     allowSponsorship && auth.signedIn && auth.address?.toLowerCase() === address?.toLowerCase(),
   )
-  const canSponsor = allowSponsorship && zeroValue && sponsorship.live !== null && sponsorable(boardSteps, sponsorship.live, chain.id)
+  const canSponsor =
+    allowSponsorship && zeroValue && sponsorship.live !== null && sponsorable(boardSteps, sponsorship.live, chain.id)
   const { switchChainAsync } = useSwitchChain()
   const { sendTransactionAsync } = useSendTransaction()
   const key = txJournalKey(taskId, txs)
-  const loadDurable = async (required = false) => (durableJournal ? readTxJournalDurable(localStorage, key, required) : load(key, required))
+  const loadDurable = async (required = false) =>
+    durableJournal ? readTxJournalDurable(localStorage, key, required) : load(key, required)
   const persistDurable = async (r: OpRecord | null) => {
     if (durableJournal) await writeTxJournalDurable(localStorage, key, r)
     else save(key, r)
@@ -165,7 +177,10 @@ export function TxSteps({
   const [initial] = useState(() => {
     try {
       return {
-        record: load(key, requireJournal && !durableJournal) ?? { ...emptyJournal(), batch: batch !== null && txs.length > 1 },
+        record: load(key, requireJournal && !durableJournal) ?? {
+          ...emptyJournal(),
+          batch: batch !== null && txs.length > 1,
+        },
         error: null,
       }
     } catch (failure) {
@@ -182,11 +197,15 @@ export function TxSteps({
         if (record.sponsored === true && record.sponsor != null) return { at: 'uncertain', error: SPONSORED.lost }
         if (record.pending !== i) {
           const failure = record.effectFailures?.findLast((entry) => entry.index === i)
-          return failure === undefined ? { at: 'idle' } : { at: 'failed', hash: failure.hash, error: failure.error, noEffect: true }
+          return failure === undefined
+            ? { at: 'idle' }
+            : { at: 'failed', hash: failure.hash, error: failure.error, noEffect: true }
         }
         return { at: 'uncertain', checking: true, error: UNCERTAIN.checking }
       }
-      return record.recorded[i] === true && receiptGuard === undefined ? { at: 'recorded', hash: h } : { at: 'sent', hash: h }
+      return record.recorded[i] === true && receiptGuard === undefined
+        ? { at: 'recorded', hash: h }
+        : { at: 'sent', hash: h }
     }),
   )
   const [switching, setSwitching] = useState<string | null>(null)
@@ -224,7 +243,9 @@ export function TxSteps({
   const journalFailure = (failure: unknown) => {
     const error = friendlyError(failure)
     setJournalError(error)
-    setStatus((all) => all.map((entry) => (entry.at === 'recorded' || entry.at === 'sent' ? entry : { at: 'uncertain', error })))
+    setStatus((all) =>
+      all.map((entry) => (entry.at === 'recorded' || entry.at === 'sent' ? entry : { at: 'uncertain', error })),
+    )
   }
   const hasSavedJournal = () => {
     try {
@@ -296,7 +317,8 @@ export function TxSteps({
       const effectError = receiptGuard?.(receipt, r.batch ? txs : [txs[i]!])
       if (effectError) {
         const effectFailures = [...(latest.effectFailures ?? [])]
-        if (!effectFailures.some((failure) => failure.hash === hash)) effectFailures.push({ index: i, hash, error: effectError })
+        if (!effectFailures.some((failure) => failure.hash === hash))
+          effectFailures.push({ index: i, hash, error: effectError })
         const hashes = [...latest.hashes]
         hashes[i] = null
         await commit({
@@ -317,7 +339,12 @@ export function TxSteps({
         await commit({ ...latest, pending: null, snapshot: null, hashes })
       }
     } catch (e) {
-      set(i, r.pending === i ? { at: 'uncertain', error: friendlyError(e) } : { at: 'failed', hash, error: friendlyError(e) })
+      set(
+        i,
+        r.pending === i
+          ? { at: 'uncertain', error: friendlyError(e) }
+          : { at: 'failed', hash, error: friendlyError(e) },
+      )
       return
     }
     await report(i, hash, r)
@@ -447,7 +474,9 @@ export function TxSteps({
         const cleared = { ...r, sponsor: null }
         await commit(cleared)
         if (failure.kind === 'wallet')
-          await toWallet(`${failure.why[0]?.toUpperCase()}${failure.why.slice(1)}, so these go from your wallet; you pay the gas.`)
+          await toWallet(
+            `${failure.why[0]?.toUpperCase()}${failure.why.slice(1)}, so these go from your wallet; you pay the gas.`,
+          )
         else set(0, { at: 'failed', error: failure.message })
         return
       }
@@ -469,7 +498,9 @@ export function TxSteps({
       const latest = (await loadDurable(requireJournal)) ?? r
       const existing = latest.hashes[i]
       if (existing !== null && existing !== undefined && existing.toLowerCase() !== hash.toLowerCase())
-        throw new Error('The saved transaction journal changed while this receipt was being reconciled. Reconcile before continuing.')
+        throw new Error(
+          'The saved transaction journal changed while this receipt was being reconciled. Reconcile before continuing.',
+        )
       const next = {
         ...latest,
         hashes: Object.assign([...latest.hashes], { [i]: hash }),
@@ -528,7 +559,8 @@ export function TxSteps({
       await commit({ ...r, pending: null, snapshot: null })
       set(i, {
         at: 'failed',
-        error: 'Your wallet returned an error and nothing left your account, so nothing was sent. You can send it again.',
+        error:
+          'Your wallet returned an error and nothing left your account, so nothing was sent. You can send it again.',
       })
     } else {
       set(i, {
@@ -545,7 +577,10 @@ export function TxSteps({
         const latest = (await loadDurable(requireJournal)) ?? record
         syncRecord(latest)
         const hash = latest.hashes[i]
-        if (hash != null && (latest.recorded[i] !== true || (receiptGuard !== undefined && !receiptProofs.current.has(hash))))
+        if (
+          hash != null &&
+          (latest.recorded[i] !== true || (receiptGuard !== undefined && !receiptProofs.current.has(hash)))
+        )
           await settle(i, hash, latest)
         else if (latest.pending === i) await reconcile(i, latest)
       })
@@ -573,7 +608,14 @@ export function TxSteps({
 
   // The signed-in wallet's sponsorship is read after the first render: offer the relay as long as nothing has started.
   useEffect(() => {
-    if (canSponsor && record.sponsored !== true && !sponsorOff && !started && journalError === null && !hasSavedJournal()) {
+    if (
+      canSponsor &&
+      record.sponsored !== true &&
+      !sponsorOff &&
+      !started &&
+      journalError === null &&
+      !hasSavedJournal()
+    ) {
       setRecord({ ...record, sponsored: true, batch: false })
       setStatus([{ at: 'idle' }])
     }
@@ -616,7 +658,8 @@ export function TxSteps({
       return
     }
     if (authoritative.pending !== null) {
-      if (authoritative.snapshot != null && authoritative.from != null) await reconcile(authoritative.pending, authoritative)
+      if (authoritative.snapshot != null && authoritative.from != null)
+        await reconcile(authoritative.pending, authoritative)
       return
     }
     if (
@@ -734,7 +777,15 @@ export function TxSteps({
   // It waits for the sponsorship status, so a step Sidequest pays for never opens the wallet first.
   const autoStarted = useRef(false)
   useEffect(() => {
-    if (journalError !== null || !autoStart || autoStarted.current || !sponsorship.settled || started || hasSavedJournal()) return
+    if (
+      journalError !== null ||
+      !autoStart ||
+      autoStarted.current ||
+      !sponsorship.settled ||
+      started ||
+      hasSavedJournal()
+    )
+      return
     if (canSponsor && record.sponsored !== true && !sponsorOff) return
     if (record.sponsored !== true && chainId !== chain.id) return
     autoStarted.current = true
@@ -742,7 +793,9 @@ export function TxSteps({
   }, [sponsorship.settled, record.sponsored])
   const busy =
     current !== undefined &&
-    (current.at === 'signing' || current.at === 'sent' || (current.at === 'confirmed' && current.reportError === undefined))
+    (current.at === 'signing' ||
+      current.at === 'sent' ||
+      (current.at === 'confirmed' && current.reportError === undefined))
   useEffect(() => {
     onBusyChange?.(busy)
   }, [busy, onBusyChange])
@@ -871,7 +924,12 @@ export function TxSteps({
             <Item key={`${i}-${tx.description}`} className="before:left-14">
               <StepIcon n={i + 1} s={s} />
               <ItemContent className="min-w-0 flex-1">
-                <span className={cn('block text-base first-letter:uppercase', s.at === 'idle' && i !== next && 'text-muted-foreground')}>
+                <span
+                  className={cn(
+                    'block text-base first-letter:uppercase',
+                    s.at === 'idle' && i !== next && 'text-muted-foreground',
+                  )}
+                >
                   {tx.description}
                 </span>
                 {
@@ -908,7 +966,8 @@ export function TxSteps({
           size="lg"
           busy={busy}
           disabled={
-            (!canSend || (owner !== undefined && owner.toLowerCase() !== address?.toLowerCase())) && retryAction(current) === 'send'
+            (!canSend || (owner !== undefined && owner.toLowerCase() !== address?.toLowerCase())) &&
+            retryAction(current) === 'send'
           }
           onClick={() => {
             if ((current.at === 'confirmed' && current.reportError !== undefined) || retryAction(current) === 'receipt')
@@ -976,9 +1035,16 @@ function StepIcon({ n, s }: { n: number; s: Status }) {
     )
   }
   if (s.at === 'signing' || s.at === 'sent' || s.at === 'confirmed' || (s.at === 'uncertain' && s.checking === true)) {
-    return <span aria-hidden className="size-6 shrink-0 animate-spin rounded-full border-[2.5px] border-accent border-t-primary" />
+    return (
+      <span
+        aria-hidden
+        className="size-6 shrink-0 animate-spin rounded-full border-[2.5px] border-accent border-t-primary"
+      />
+    )
   }
   return (
-    <span className="grid size-6 shrink-0 place-items-center rounded-full bg-accent text-xs font-semibold text-muted-foreground">{n}</span>
+    <span className="grid size-6 shrink-0 place-items-center rounded-full bg-accent text-xs font-semibold text-muted-foreground">
+      {n}
+    </span>
   )
 }

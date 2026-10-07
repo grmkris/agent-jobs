@@ -10,31 +10,64 @@ const alice = '0x1111111111111111111111111111111111111111' as const
 const bob = '0x2222222222222222222222222222222222222222' as const
 const scout = '0x3333333333333333333333333333333333333333' as const
 const databases: DatabaseSync[] = []
-afterEach(() => { for (const db of databases.splice(0)) db.close() })
+afterEach(() => {
+  for (const db of databases.splice(0)) db.close()
+})
 
 function fixture() {
   const base = sdk.context('monad-testnet', 'main', 'http://127.0.0.1:1')
   const token = base.deployment.rewardTokens[0]!
   const balances: Record<string, bigint> = { [alice]: 500n, [bob]: 10n, [scout]: 10_000n }
   const multicall = vi.fn(async ({ contracts }: { contracts: { args: [string] }[] }) =>
-    contracts.map(c => ({ status: 'success' as const, result: balances[c.args[0].toLowerCase()] ?? 0n })))
+    contracts.map((c) => ({ status: 'success' as const, result: balances[c.args[0].toLowerCase()] ?? 0n })),
+  )
   const ctx = { ...base, publicClient: { ...base.publicClient, multicall } } as unknown as sdk.Ctx
   const hostedCreators = vi.fn(async (query: HostedCreatorQuery) => ({
     // Like hostedCreatorFacts: every queried wallet, whether named as an address or in an allowance.
-    agents: [...new Set([...query.addresses, ...query.allowances.map(a => a.address)])].filter(a => a.toLowerCase() === scout).map(address => ({ address, agentId: '2029' })),
-    allowances: query.allowances.filter(a => a.address.toLowerCase() === scout).map(a => ({ ...a, available: '250' })),
+    agents: [...new Set([...query.addresses, ...query.allowances.map((a) => a.address)])]
+      .filter((a) => a.toLowerCase() === scout)
+      .map((address) => ({ address, agentId: '2029' })),
+    allowances: query.allowances
+      .filter((a) => a.address.toLowerCase() === scout)
+      .map((a) => ({ ...a, available: '250' })),
   }))
   const clock = { now: 1000 }
-  const db = new DatabaseSync(':memory:'); databases.push(db)
+  const db = new DatabaseSync(':memory:')
+  databases.push(db)
   const sql = fromNodeSqlite(db)
-  const board = new Board(sql, { network: 'monad-testnet', contexts: { main: ctx }, domain: 'cover.test', uri: 'https://cover.test', manifestBaseUrl: 'https://cover.test/offers', now: () => clock.now, hostedCreators })
-  const request = (id: string, creator: string, max: string | null) => sql.run(
-    'INSERT INTO quote_requests (id, creator, stack, request_json, request_hash, quote_deadline, task_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-    id, creator, 'main', JSON.stringify({ creator, stack: 'main', title: id, tokens: [token], quoteDeadline: 5000, ...(max === null ? {} : { budget: { token, max } }) }), id, 5000, null, 900)
+  const board = new Board(sql, {
+    network: 'monad-testnet',
+    contexts: { main: ctx },
+    domain: 'cover.test',
+    uri: 'https://cover.test',
+    manifestBaseUrl: 'https://cover.test/offers',
+    now: () => clock.now,
+    hostedCreators,
+  })
+  const request = (id: string, creator: string, max: string | null) =>
+    sql.run(
+      'INSERT INTO quote_requests (id, creator, stack, request_json, request_hash, quote_deadline, task_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      id,
+      creator,
+      'main',
+      JSON.stringify({
+        creator,
+        stack: 'main',
+        title: id,
+        tokens: [token],
+        quoteDeadline: 5000,
+        ...(max === null ? {} : { budget: { token, max } }),
+      }),
+      id,
+      5000,
+      null,
+      900,
+    )
   return { board, multicall, hostedCreators, clock, request }
 }
 
-const byId = (rows: readonly Record<string, unknown>[]) => Object.fromEntries(rows.map(r => [r.requestId, { agent: r.creatorAgentId, covered: r.budgetCovered }]))
+const byId = (rows: readonly Record<string, unknown>[]) =>
+  Object.fromEntries(rows.map((r) => [r.requestId, { agent: r.creatorAgentId, covered: r.budgetCovered }]))
 
 it('a self-run poster is covered by its wallet, a hosted one only by its best weekly grant', async () => {
   const f = fixture()
@@ -51,7 +84,7 @@ it('a self-run poster is covered by its wallet, a hosted one only by its best we
   })
   // One balance read for the two self-run posters; none for the hosted one.
   expect(f.multicall).toHaveBeenCalledTimes(1)
-  expect(f.multicall.mock.calls[0]![0].contracts.map(c => c.args[0].toLowerCase()).toSorted()).toEqual([alice, bob])
+  expect(f.multicall.mock.calls[0]![0].contracts.map((c) => c.args[0].toLowerCase()).toSorted()).toEqual([alice, bob])
 })
 
 it('reads are cached for 30 s (poster identity for 5 min) and a failed read says null, uncached', async () => {
@@ -65,8 +98,14 @@ it('reads are cached for 30 s (poster identity for 5 min) and a failed read says
   f.clock.now += 31
   f.hostedCreators.mockRejectedValueOnce(new Error('sponsor object unavailable'))
   // The poster identities are still fresh, so Alice's balance is re-read; Scout's grant read failed: unknown, not false.
-  expect(byId(await f.board.listQuoteRequests({}))).toEqual({ alice: { agent: null, covered: true }, scout: { agent: '2029', covered: null } })
-  expect(byId(await f.board.listQuoteRequests({}))).toEqual({ alice: { agent: null, covered: true }, scout: { agent: '2029', covered: true } })
+  expect(byId(await f.board.listQuoteRequests({}))).toEqual({
+    alice: { agent: null, covered: true },
+    scout: { agent: '2029', covered: null },
+  })
+  expect(byId(await f.board.listQuoteRequests({}))).toEqual({
+    alice: { agent: null, covered: true },
+    scout: { agent: '2029', covered: true },
+  })
 })
 
 it('a poster read that hangs gives up after 4 s: the list answers with null instead of waiting', async () => {

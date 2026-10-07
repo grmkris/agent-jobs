@@ -21,11 +21,19 @@ import { chain, deployment, writesOpen } from '../wallet.ts'
 
 const KIND: Record<CollectKind, { icon: LucideIcon; title: (a: CollectAction) => string; done: string }> = {
   settle: { icon: Scale, title: (a) => `Settle job #${a.jobId ?? '?'}`, done: 'Settled' },
-  claimTopUpRefund: { icon: RotateCcw, title: (a) => `Your top-up back from job #${a.jobId ?? '?'}`, done: 'Top-up refunded' },
+  claimTopUpRefund: {
+    icon: RotateCcw,
+    title: (a) => `Your top-up back from job #${a.jobId ?? '?'}`,
+    done: 'Top-up refunded',
+  },
   withdraw: { icon: Coins, title: () => 'A payment held for you', done: 'Withdrawn to your wallet' },
   claimRefund: { icon: ReceiptText, title: (a) => `Refund from job #${a.jobId ?? '?'}`, done: 'Refunded' },
   stakeWithdraw: { icon: Hourglass, title: () => 'SIDE ready to withdraw', done: 'Withdrawn to your wallet' },
-  miningClaim: { icon: Gem, title: (a) => `Mining reward${a.epoch == null ? '' : `, epoch ${a.epoch}`}`, done: 'Claimed into your backing' },
+  miningClaim: {
+    icon: Gem,
+    title: (a) => `Mining reward${a.epoch == null ? '' : `, epoch ${a.epoch}`}`,
+    done: 'Claimed into your backing',
+  },
 }
 
 const keyOf = (a: CollectAction) =>
@@ -58,9 +66,17 @@ export function CollectSection() {
   return (
     <Section
       title="Collect"
-      action={!actions.isError && list.length > 0 ? <Badge variant="neutral" aria-label={`${list.length} to collect`}>{list.length}</Badge> : undefined}
+      action={
+        !actions.isError && list.length > 0 ? (
+          <Badge variant="neutral" aria-label={`${list.length} to collect`}>
+            {list.length}
+          </Badge>
+        ) : undefined
+      }
     >
-      {!writesOpen ? <LaunchNotice /> : actions.isLoading ? (
+      {!writesOpen ? (
+        <LaunchNotice />
+      ) : actions.isLoading ? (
         <LoadingRows rows={3} />
       ) : actions.isError ? (
         <div role="status" className="grid gap-2 rounded-xl bg-warning/14 p-4 text-sm text-warning-text">
@@ -74,7 +90,8 @@ export function CollectSection() {
           <EmptyHeader>
             <EmptyTitle>Nothing to collect</EmptyTitle>
             <EmptyDescription>
-              Settlements, refunds, backing ready to withdraw and mining rewards show up here when they are yours to claim.
+              Settlements, refunds, backing ready to withdraw and mining rewards show up here when they are yours to
+              claim.
             </EmptyDescription>
           </EmptyHeader>
         </Empty>
@@ -86,7 +103,9 @@ export function CollectSection() {
             const key = keyOf(a)
             // A mining claim is read back from its calldata (B8b): offered only as the distributor's claim for this wallet.
             const mining =
-              a.kind === 'miningClaim' ? readMiningClaim(a, { chainId: chain.id, distributor: sidequest.distributor, wallet }) : null
+              a.kind === 'miningClaim'
+                ? readMiningClaim(a, { chainId: chain.id, distributor: sidequest.distributor, wallet })
+                : null
             const refused = mining !== null && !mining.ok ? mining.problem : null
             return (
               // Siblings in the Group, so its hairlines fall between the rows.
@@ -101,7 +120,8 @@ export function CollectSection() {
                     {mining?.ok === true ? (
                       <span className="block font-medium">
                         Mining reward, epoch {String(mining.epoch)} ·{' '}
-                        <TokenAmount value={mining.amount} token={deployment.factory} className="font-semibold" />, backed when collected
+                        <TokenAmount value={mining.amount} token={deployment.factory} className="font-semibold" />,
+                        backed when collected
                       </span>
                     ) : (
                       <>
@@ -160,8 +180,8 @@ export function CollectSection() {
 
       {list.length > 0 && (
         <p className="px-4 text-ui leading-snug text-muted-foreground">
-          The contracts decide who is paid: settling a job pays out as its outcome says and releases both deposits at risk. What is yours comes to your
-          wallet.
+          The contracts decide who is paid: settling a job pays out as its outcome says and releases both deposits at
+          risk. What is yours comes to your wallet.
         </p>
       )}
     </Section>

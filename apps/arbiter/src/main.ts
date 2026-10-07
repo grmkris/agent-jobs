@@ -25,11 +25,17 @@ const env = (name: string, fallback?: string): string => {
 const network = env('NETWORK', 'monad-testnet') as sdk.Network
 if (network !== 'monad-mainnet' && network !== 'monad-testnet') throw new Error('NETWORK is not supported')
 const accounts = arbiterAccounts(sdk.deployment(network), process.env)
-const endpoint = { baseUrl: env('ARBITER_MODEL_BASE_URL'), model: env('ARBITER_MODEL'), apiKey: env('ARBITER_MODEL_API_KEY') }
+const endpoint = {
+  baseUrl: env('ARBITER_MODEL_BASE_URL'),
+  model: env('ARBITER_MODEL'),
+  apiKey: env('ARBITER_MODEL_API_KEY'),
+}
 const runner = env('ARBITER_RUNNER', `arbiter@${hostname()}`)
 const interval = Number(env('ARBITER_INTERVAL_SECONDS', '60'))
 const log = (m: string) => console.log(`[arbiter ${new Date().toISOString().slice(11, 19)}] ${m}`)
-const clients = boardUrls(process.env).flatMap(url => accounts.map(account => ({ account, board: sdk.boardClient(url) })))
+const clients = boardUrls(process.env).flatMap((url) =>
+  accounts.map((account) => ({ account, board: sdk.boardClient(url) })),
+)
 
 async function pass({ account, board }: (typeof clients)[number]) {
   await board.signIn(account)

@@ -7,7 +7,10 @@ import { requireBacking } from './sidequest.ts'
 const SIDE = 10n ** 18n
 const account = '0xe89F284d22a9280b3bab3F1c135bd7629D1a3587'
 const ctxWith = (available: bigint) =>
-  ({ deployment: { sidequest: { vault: '0x48aB9ec1d37818293Ba1F9e63a4f01C8e4a05C76' } }, publicClient: { readContract: async () => available } }) as unknown as sdk.Ctx
+  ({
+    deployment: { sidequest: { vault: '0x48aB9ec1d37818293Ba1F9e63a4f01C8e4a05C76' } },
+    publicClient: { readContract: async () => available },
+  }) as unknown as sdk.Ctx
 
 describe('requireBacking', () => {
   it('passes when the available backing covers the bond', async () => {
@@ -15,7 +18,9 @@ describe('requireBacking', () => {
   })
 
   it('refuses a short worker with the amounts and an operator retry, not an internal failure', async () => {
-    const error = await requireBacking(ctxWith(100n * SIDE), account, 200n * SIDE, 'worker').catch((failure: unknown) => failure)
+    const error = await requireBacking(ctxWith(100n * SIDE), account, 200n * SIDE, 'worker').catch(
+      (failure: unknown) => failure,
+    )
     expect(error).toBeInstanceOf(BoardError)
     const logged: string[] = []
     expect(agentFailureReply(error, 'fallback', (id) => logged.push(id))).toEqual({

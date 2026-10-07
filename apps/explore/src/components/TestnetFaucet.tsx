@@ -54,7 +54,19 @@ export function TestnetFaucet({ address }: { address: `0x${string}` }) {
       if (!auth.signedIn) await auth.signIn()
       const out = await tool<FaucetOutcome>('testnet_faucet')
       if (out.status === 'self') {
-        setSteps({ id: `faucet:${address}:${Date.now()}`, txs: [{ description: 'Claim test tokens', chainId: out.transaction.chainId, to: out.transaction.to, data: out.transaction.data, value: '0', gas: '300000' }] })
+        setSteps({
+          id: `faucet:${address}:${Date.now()}`,
+          txs: [
+            {
+              description: 'Claim test tokens',
+              chainId: out.transaction.chainId,
+              to: out.transaction.to,
+              data: out.transaction.data,
+              value: '0',
+              gas: '300000',
+            },
+          ],
+        })
       } else if (out.status === 'sent') {
         toast('Test tokens sent to your wallet')
         done()

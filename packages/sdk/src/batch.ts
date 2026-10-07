@@ -70,7 +70,9 @@ export async function delegationOf(reads: Pick<Reads, 'getCode'>, account: Addre
 
 /** The ERC-7579 batch `execute` calldata for the board's transactions, in order. */
 export function batchCalldata(txs: readonly TxRequest[]): Hex {
-  const executions = encodeAbiParameters(executionsAbi, [txs.map((t) => ({ target: t.to, value: BigInt(t.value), callData: t.data }))])
+  const executions = encodeAbiParameters(executionsAbi, [
+    txs.map((t) => ({ target: t.to, value: BigInt(t.value), callData: t.data })),
+  ])
   return encodeFunctionData({ abi: delegatorAbi, functionName: 'execute', args: [BATCH_DEFAULT_MODE, executions] })
 }
 
@@ -78,22 +80,34 @@ export function batchCalldata(txs: readonly TxRequest[]): Hex {
  * Sends the board's transactions as one EIP-7702 batch from `wallet` and waits for it; returns its single hash.
  * One transaction is sent as it is. Throws if the batch reverts (then none of its calls happened).
  */
-export async function sendBatch(wallet: Wallet, reads: Reads, txs: readonly TxRequest[], delegate: Address): Promise<Hex> {
+export async function sendBatch(
+  wallet: Wallet,
+  reads: Reads,
+  txs: readonly TxRequest[],
+  delegate: Address,
+): Promise<Hex> {
   if (txs.length === 0) throw new Error('nothing to send')
   const me = wallet.account.address
   let hash: Hex
   if (txs.length === 1) {
     const [t] = txs as [TxRequest]
-    hash = await wallet.sendTransaction({ to: t.to, data: t.data, value: BigInt(t.value), ...(t.gas === undefined ? {} : { gas: BigInt(t.gas) }) })
+    hash = await wallet.sendTransaction({
+      to: t.to,
+      data: t.data,
+      value: BigInt(t.value),
+      ...(t.gas === undefined ? {} : { gas: BigInt(t.gas) }),
+    })
   } else {
     const data = batchCalldata(txs)
     // Floors cover each inner call and its forwarding reserve. Estimate the whole batch too: later calls may
     // depend on earlier ones, and a call without a floor can cost more than a default allowance.
     const withGas = async (request: Parameters<Wallet['sendTransaction']>[0]) => {
-      if (!txs.some(t => t.gas !== undefined)) return request
+      if (!txs.some((t) => t.gas !== undefined)) return request
       const floor = txs.reduce((sum, t) => sum + BigInt(t.gas ?? '0'), 200_000n)
-      if (reads.estimateGas === undefined && txs.some(t => t.gas === undefined)) throw new Error('Batch gas estimation is required for calls without a gas limit')
-      const estimate = reads.estimateGas === undefined ? 0n : await reads.estimateGas({ ...request, account: wallet.account } as never)
+      if (reads.estimateGas === undefined && txs.some((t) => t.gas === undefined))
+        throw new Error('Batch gas estimation is required for calls without a gas limit')
+      const estimate =
+        reads.estimateGas === undefined ? 0n : await reads.estimateGas({ ...request, account: wallet.account } as never)
       return { ...request, gas: estimate > floor ? estimate : floor }
     }
     const current = await delegationOf(reads, me)
@@ -102,9 +116,10 @@ export async function sendBatch(wallet: Wallet, reads: Reads, txs: readonly TxRe
     } else {
       const chainId = wallet.chain.id
       const custom = signers.get(wallet)
-      const authorization = custom !== undefined
-        ? await custom(delegate, chainId, (await reads.getTransactionCount({ address: me, blockTag: 'pending' })) + 1)
-        : await wallet.signAuthorization({ account: wallet.account, contractAddress: delegate, executor: 'self' })
+      const authorization =
+        custom !== undefined
+          ? await custom(delegate, chainId, (await reads.getTransactionCount({ address: me, blockTag: 'pending' })) + 1)
+          : await wallet.signAuthorization({ account: wallet.account, contractAddress: delegate, executor: 'self' })
       hash = await wallet.sendTransaction(await withGas({ to: me, data, authorizationList: [authorization as never] }))
     }
   }

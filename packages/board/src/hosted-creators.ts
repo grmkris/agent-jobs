@@ -22,7 +22,12 @@ export interface HostedCreatorFacts {
   allowances: { address: Address; token: Address; available: string }[]
 }
 
-export async function hostedCreatorFacts(sql: Sql, ctx: sdk.Ctx, query: HostedCreatorQuery, now: number): Promise<HostedCreatorFacts> {
+export async function hostedCreatorFacts(
+  sql: Sql,
+  ctx: sdk.Ctx,
+  query: HostedCreatorQuery,
+  now: number,
+): Promise<HostedCreatorFacts> {
   const wallets = [...query.addresses, ...query.allowances.map((a) => a.address)]
   const rows = new AgentStore(sql, () => now).activeByAddress(ctx.deployment.chainId, ctx.deployment.identity, wallets)
   const hosted = (address: Address) => rows.find((r) => r.address.toLowerCase() === address.toLowerCase())
@@ -31,7 +36,13 @@ export async function hostedCreatorFacts(sql: Sql, ctx: sdk.Ctx, query: HostedCr
   for (const { address, token } of query.allowances) {
     const agent = hosted(address)
     if (agent === undefined) continue
-    const available = await bestAllowanceAvailable(ctx, grants, { address: getAddress(address), operator: getAddress(agent.operator) }, getAddress(token), now)
+    const available = await bestAllowanceAvailable(
+      ctx,
+      grants,
+      { address: getAddress(address), operator: getAddress(agent.operator) },
+      getAddress(token),
+      now,
+    )
     allowances.push({ address: getAddress(address), token: getAddress(token), available: available.toString() })
   }
   return { agents: rows.map((r) => ({ address: getAddress(r.address), agentId: r.agent_id })), allowances }

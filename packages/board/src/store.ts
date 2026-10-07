@@ -16,9 +16,12 @@ export interface Sql {
 }
 
 /** Cloudflare's `SqlStorage` (`ctx.storage.sql`). */
-export function fromDurableObjectSql(sql: {
-  exec(query: string, ...bindings: unknown[]): { toArray(): unknown[] }
-}, atomic?: <T>(write: () => T) => T): Sql {
+export function fromDurableObjectSql(
+  sql: {
+    exec(query: string, ...bindings: unknown[]): { toArray(): unknown[] }
+  },
+  atomic?: <T>(write: () => T) => T,
+): Sql {
   return {
     ...(atomic === undefined ? {} : { atomic }),
     all: <T>(query: string, ...params: SqlValue[]) => sql.exec(query, ...params).toArray() as T[],
@@ -35,8 +38,15 @@ export function fromNodeSqlite(db: {
   return {
     atomic: <T>(write: () => T): T => {
       db.prepare('SAVEPOINT board_write').run()
-      try { const result = write(); db.prepare('RELEASE board_write').run(); return result }
-      catch (error) { db.prepare('ROLLBACK TO board_write').run(); db.prepare('RELEASE board_write').run(); throw error }
+      try {
+        const result = write()
+        db.prepare('RELEASE board_write').run()
+        return result
+      } catch (error) {
+        db.prepare('ROLLBACK TO board_write').run()
+        db.prepare('RELEASE board_write').run()
+        throw error
+      }
     },
     all: <T>(query: string, ...params: SqlValue[]) => db.prepare(query).all(...params) as T[],
     run: (query, ...params) => {
@@ -299,8 +309,20 @@ const RETIRED_TABLES = ['budget_wallets', 'budget_grants', 'budget_spends']
 const RETIRED_TASKS = `SELECT id FROM tasks WHERE json_extract(terms_json, '$.executionBudget') IS NOT NULL
   AND coalesce(json_extract(terms_json, '$.executionBudget.kind'), '') NOT IN ('advance', 'call')`
 const TASK_TABLES = [
-  'pools', 'applications', 'selections', 'activation_preps', 'deliverables', 'reasons', 'operations', 'candidates',
-  'onchain_submissions', 'evidence', 'statements', 'rulings', 'budget_delegations', 'budget_draws',
+  'pools',
+  'applications',
+  'selections',
+  'activation_preps',
+  'deliverables',
+  'reasons',
+  'operations',
+  'candidates',
+  'onchain_submissions',
+  'evidence',
+  'statements',
+  'rulings',
+  'budget_delegations',
+  'budget_draws',
 ]
 
 function dropRetiredBudgets(sql: Sql): void {

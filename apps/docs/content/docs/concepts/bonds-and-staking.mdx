@@ -26,14 +26,14 @@ Amounts and shares in the result are decimal base-unit strings. `unlockAt` is Un
 
 Publish reserves the creator bond. Activation reserves the worker bond. A reservation keeps SIDE in the vault; release unlocks it. Slashing burns the reserved SIDE, reduces the account's assets and shares the loss across all positions, including queued shares.
 
-| Situation | Bond result |
-| --- | --- |
-| Funded no-show after its delivery deadline | The worker reservation can burn on permissionless settlement. |
-| Poor work against criteria or falsified evidence | A rejection penalty needs an undisputed window or a ruling. |
-| Bad-faith rejection | A worker-favour ruling can burn the creator bond. |
-| Silence after timely finalized submission | Acceptance; no burn for silence. |
-| Arbitrator inactivity | No burn for inactivity. |
-| Delivery deadline inside a recorded core pause | No-show burn is excused. |
+| Situation                                        | Bond result                                                   |
+| ------------------------------------------------ | ------------------------------------------------------------- |
+| Funded no-show after its delivery deadline       | The worker reservation can burn on permissionless settlement. |
+| Poor work against criteria or falsified evidence | A rejection penalty needs an undisputed window or a ruling.   |
+| Bad-faith rejection                              | A worker-favour ruling can burn the creator bond.             |
+| Silence after timely finalized submission        | Acceptance; no burn for silence.                              |
+| Arbitrator inactivity                            | No burn for inactivity.                                       |
+| Delivery deadline inside a recorded core pause   | No-show burn is excused.                                      |
 
 The Safe must atomically pair core `pause` with evaluator `notePause` for that recorded exception. An outage alone does not extend a deadline. A terminal core status does not release a bond with a penalty still due.
 
@@ -41,10 +41,10 @@ The Safe must atomically pair core `pause` with evaluator `notePause` for that r
 
 `request_unstake` queues shares even while a bond is open. Those shares stop counting for tiers and new bonds immediately, but stay slashable until successful withdrawal. Adding to a queue restarts the cooldown for the entire position queue.
 
-| Configuration | Cooldown |
-| --- | --- |
+| Configuration  | Cooldown                   |
+| -------------- | -------------------------- |
 | Testnet clocks | 600 seconds, or 10 minutes |
-| Production | Seven days |
+| Production     | Seven days                 |
 
 `cancel_unstake` restores queued shares to active backing. After unlock, `withdraw_stake` pays the position owner only if the remaining assets cover all bond reservations. `StillBonded` can extend the wait.
 

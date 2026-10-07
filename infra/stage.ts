@@ -18,9 +18,14 @@ const profiles = { dev, prod }
 
 export function validateStageProfile(profile: unknown, stage: 'dev' | 'prod'): StageProfile {
   const value = profile as StageProfile
-  if (value?.stage !== stage || !['monad-testnet', 'monad-mainnet'].includes(value.network)
-    || value.chainId !== (value.network === 'monad-mainnet' ? 143 : 10143)) throw new Error('Stage network/chain mismatch')
-  if (new URL(value.origin).origin !== value.origin || !/^0x[0-9a-fA-F]{40}$/.test(value.relay)) throw new Error('Invalid stage origin/relay')
+  if (
+    value?.stage !== stage ||
+    !['monad-testnet', 'monad-mainnet'].includes(value.network) ||
+    value.chainId !== (value.network === 'monad-mainnet' ? 143 : 10143)
+  )
+    throw new Error('Stage network/chain mismatch')
+  if (new URL(value.origin).origin !== value.origin || !/^0x[0-9a-fA-F]{40}$/.test(value.relay))
+    throw new Error('Invalid stage origin/relay')
   for (const name of ['Api', 'Indexer', 'Explore', 'Database', 'Manifests'] as const) {
     if (!/^[a-z0-9][a-z0-9-]*$/.test(value.resources?.[name] ?? '')) throw new Error('Invalid stage resource')
   }
@@ -33,4 +38,3 @@ export function stageProfile(stage: string | undefined = process.env.SIDEQUEST_S
   if (stage === undefined || stage === 'local') return undefined
   throw new Error(`Unknown Sidequest stage: ${stage}`)
 }
-

@@ -45,7 +45,10 @@ export function EmbedPage() {
   const auth = useAuth()
   const { isConnected } = useAccount()
   const { connect, connectors } = useConnect()
-  const board = useQuery({ queryKey: ['get_board', boardId], queryFn: async () => (await tool<{ board: BoardInfo }>('get_board')).board })
+  const board = useQuery({
+    queryKey: ['get_board', boardId],
+    queryFn: async () => (await tool<{ board: BoardInfo }>('get_board')).board,
+  })
   const task = useQuery({
     queryKey: ['embed-task', taskId],
     queryFn: () => tool<{ jobId: string | null }>('get_task', { taskId }),
@@ -55,7 +58,9 @@ export function EmbedPage() {
 
   useEffect(() => {
     postToHost(boardId, 'ready', { view })
-    const ro = new ResizeObserver(() => postToHost(boardId, 'resize', { height: document.documentElement.scrollHeight }))
+    const ro = new ResizeObserver(() =>
+      postToHost(boardId, 'resize', { height: document.documentElement.scrollHeight }),
+    )
     ro.observe(document.body)
     return () => ro.disconnect()
   }, [boardId, view])
@@ -76,7 +81,11 @@ export function EmbedPage() {
     if (theme === 'light' || theme === 'dark') root.dataset.theme = theme
     const accent = search.get('accent')
     if (accent !== null && /^[0-9a-fA-F]{6}$/.test(accent)) {
-      const [r, g, b] = [0, 2, 4].map((i) => Number.parseInt(accent.slice(i, i + 2), 16) / 255) as [number, number, number]
+      const [r, g, b] = [0, 2, 4].map((i) => Number.parseInt(accent.slice(i, i + 2), 16) / 255) as [
+        number,
+        number,
+        number,
+      ]
       const light = 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.6
       root.style.setProperty('--primary', `#${accent}`)
       root.style.setProperty('--primary-foreground', light ? '#111114' : '#ffffff')
@@ -108,7 +117,12 @@ export function EmbedPage() {
         <span className="flex min-w-0 items-center gap-2 font-semibold">
           <svg aria-hidden viewBox="0 0 32 32" className="size-5 shrink-0">
             <rect width="32" height="32" rx="7" className="fill-primary" />
-            <path d="M10 8v16M22 8v16M10 16h12" className="stroke-primary-foreground" strokeWidth="3.5" strokeLinecap="round" />
+            <path
+              d="M10 8v16M22 8v16M10 16h12"
+              className="stroke-primary-foreground"
+              strokeWidth="3.5"
+              strokeLinecap="round"
+            />
           </svg>
           <span className="truncate">{board.data?.name ?? currentBoardId()}</span>
           <span className="text-ui font-normal text-muted-foreground">on Sidequest</span>
@@ -152,7 +166,11 @@ export function EmbedPage() {
       {view !== 'jobs' && view !== 'task' && <p role="status">Choose a supported widget view: jobs or task.</p>}
       {view === 'task' &&
         (task.data?.jobId !== undefined && task.data.jobId !== null ? (
-          <JobPage auth={auth} jobId={task.data.jobId} onEvent={(type, payload) => postToHost(boardId, type, { taskId, ...payload })} />
+          <JobPage
+            auth={auth}
+            jobId={task.data.jobId}
+            onEvent={(type, payload) => postToHost(boardId, type, { taskId, ...payload })}
+          />
         ) : (
           <p className="text-sm text-muted-foreground">
             {taskId === null ? 'No job selected.' : 'This job is not published yet.'}

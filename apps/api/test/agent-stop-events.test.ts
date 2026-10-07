@@ -18,11 +18,23 @@ const registry = `0x${'33'.repeat(20)}` as Address
 
 function d1(db: DatabaseSync, failing = { batch: false }) {
   return {
-    prepare: (query: string) => ({ bind: (...values: SQLInputValue[]) => ({ query, values, all: async () => ({ results: db.prepare(query).all(...values) }) }) }),
+    prepare: (query: string) => ({
+      bind: (...values: SQLInputValue[]) => ({
+        query,
+        values,
+        all: async () => ({ results: db.prepare(query).all(...values) }),
+      }),
+    }),
     batch: async (statements: Array<{ query: string; values: SQLInputValue[] }>) => {
       if (failing.batch) throw new Error('D1 unavailable')
       db.exec('BEGIN')
-      try { for (const s of statements) db.prepare(s.query).run(...s.values); db.exec('COMMIT') } catch (error) { db.exec('ROLLBACK'); throw error }
+      try {
+        for (const s of statements) db.prepare(s.query).run(...s.values)
+        db.exec('COMMIT')
+      } catch (error) {
+        db.exec('ROLLBACK')
+        throw error
+      }
     },
   }
 }
@@ -36,20 +48,46 @@ async function fixture() {
   const database = new DatabaseSync(':memory:')
   const events = asyncSqlite(database)
   await migrateWebhooks(events)
-  await events.batch([wallet, neighbour].map((principal, index) => stmt(`INSERT INTO event_subscriptions
+  await events.batch(
+    [wallet, neighbour].map((principal, index) =>
+      stmt(
+        `INSERT INTO event_subscriptions
     (id, principal, chain_id, name, args_json, url, secret, cursor_seq, status, refresh_before, failures, next_attempt_at, created_at, updated_at)
-    VALUES (?, ?, 10143, 'sidequest.inbox', '{}', 'https://hooks.example/in', 'whsec_x', 0, 'active', 99999, 0, 0, 1000, 1000)`, `sub_${index}`, principal.toLowerCase())))
+    VALUES (?, ?, 10143, 'sidequest.inbox', '{}', 'https://hooks.example/in', 'whsec_x', 0, 'active', 99999, 0, 0, 1000, 1000)`,
+        `sub_${index}`,
+        principal.toLowerCase(),
+      ),
+    ),
+  )
   const failing = { batch: false }
-  const manage = (action: string, bindings: Record<string, unknown> = { Database: d1(database, failing) }) => agentManagement({
-    request: { action, id: 'one', body: {} }, sql, context: sdk.context('monad-testnet', 'main', 'http://127.0.0.1:9'), operator, bindings,
-    relayKey: '0x', rpcUrl: '', now: () => 1000, execute: async () => { throw new Error('unexpected execute') },
-  })
-  const status = async () => Object.fromEntries((await events.all<{ id: string; status: string }>('SELECT id, status FROM event_subscriptions ORDER BY id')).map(row => [row.id, row.status]))
-  const revoked = async () => (await events.all<{ principal: string }>('SELECT principal FROM event_revoked_principals')).map(row => row.principal)
+  const manage = (action: string, bindings: Record<string, unknown> = { Database: d1(database, failing) }) =>
+    agentManagement({
+      request: { action, id: 'one', body: {} },
+      sql,
+      context: sdk.context('monad-testnet', 'main', 'http://127.0.0.1:9'),
+      operator,
+      bindings,
+      relayKey: '0x',
+      rpcUrl: '',
+      now: () => 1000,
+      execute: async () => {
+        throw new Error('unexpected execute')
+      },
+    })
+  const status = async () =>
+    Object.fromEntries(
+      (await events.all<{ id: string; status: string }>('SELECT id, status FROM event_subscriptions ORDER BY id')).map(
+        (row) => [row.id, row.status],
+      ),
+    )
+  const revoked = async () =>
+    (await events.all<{ principal: string }>('SELECT principal FROM event_revoked_principals')).map(
+      (row) => row.principal,
+    )
   return { agents, manage, status, revoked, failing }
 }
 
-test('stop-access terminates the agent\'s subscriptions and leaves other principals alone', async () => {
+test("stop-access terminates the agent's subscriptions and leaves other principals alone", async () => {
   const f = await fixture()
   await f.manage('stop-access')
   expect(f.agents.get('one').state).toBe('revoked')

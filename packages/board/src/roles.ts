@@ -62,7 +62,14 @@ export const ROLE_FEEDBACK_TAG = 'role'
  * @returns The declared role names, trimmed, lower-cased, de-duplicated.
  */
 export function parseDeclaredRoles(value: string): string[] {
-  return [...new Set(value.split(',').map((r) => r.trim().toLowerCase()).filter(Boolean))]
+  return [
+    ...new Set(
+      value
+        .split(',')
+        .map((r) => r.trim().toLowerCase())
+        .filter(Boolean),
+    ),
+  ]
 }
 
 export type RoleGateOutcome =

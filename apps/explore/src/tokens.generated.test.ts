@@ -20,7 +20,8 @@ describe('vendored token logos', () => {
 
   it('ship no logo the manifest does not name (a stale file would be served)', () => {
     for (const chainId of ['143', '10143']) {
-      for (const file of readdirSync(`${publicDir}/tokens/${chainId}`)) expect(TOKEN_LOGOS[`${chainId}:${file.replace(/\.png$/, '')}`], file).toBeDefined()
+      for (const file of readdirSync(`${publicDir}/tokens/${chainId}`))
+        expect(TOKEN_LOGOS[`${chainId}:${file.replace(/\.png$/, '')}`], file).toBeDefined()
     }
   })
 

@@ -134,7 +134,15 @@ export interface Budget {
   /** Whether the chain would still honour the signed delegation (not expired, not disabled). */
   redeemable: boolean
   worker: `0x${string}` | null
-  draws: Array<{ drawId: string; amount: string | null; selector?: string; note: string; status: 'prepared' | 'confirmed' | 'failed'; txHash: string | null; at: number }>
+  draws: Array<{
+    drawId: string
+    amount: string | null
+    selector?: string
+    note: string
+    status: 'prepared' | 'confirmed' | 'failed'
+    txHash: string | null
+    at: number
+  }>
   delegation: { manager: `0x${string}`; delegation: Record<string, unknown> } | null
 }
 

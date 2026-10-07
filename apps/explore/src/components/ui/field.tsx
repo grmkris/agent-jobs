@@ -21,7 +21,11 @@ const fieldVariants = cva('group/field flex w-full gap-2 data-[invalid=true]:tex
   },
 })
 
-function Field({ className, orientation = 'vertical', ...props }: React.ComponentProps<'div'> & VariantProps<typeof fieldVariants>) {
+function Field({
+  className,
+  orientation = 'vertical',
+  ...props
+}: React.ComponentProps<'div'> & VariantProps<typeof fieldVariants>) {
   return (
     <div
       role="group"

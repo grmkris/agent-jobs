@@ -106,7 +106,8 @@ describe.each([
       expect(contrast(t.background!, t[token]!)).toBeGreaterThanOrEqual(4.5)
   })
   it('status dots read against the page', () => {
-    for (const token of ['success', 'info', 'destructive']) expect(contrast(t[token]!, t.background!)).toBeGreaterThanOrEqual(3)
+    for (const token of ['success', 'info', 'destructive'])
+      expect(contrast(t[token]!, t.background!)).toBeGreaterThanOrEqual(3)
   })
   it('borders are visible and cards sit above the page', () => {
     expect(contrast(t.border!, t.background!)).toBeGreaterThanOrEqual(1.3)
@@ -122,8 +123,9 @@ const sources = (readdirSync(new URL('.', import.meta.url), { recursive: true, e
 describe('status colours as rendered', () => {
   it('writes literal string children as plain JSX text', () => {
     // AGENT-PROFILE rewrites these two files after S5 lands; leave its owned source alone.
-    const offenders = sources
-      .flatMap(([file, text]) => [...text.matchAll(/>\{'[^'{}]*'\}</g)].map((match) => `${file}: ${match[0]}`))
+    const offenders = sources.flatMap(([file, text]) =>
+      [...text.matchAll(/>\{'[^'{}]*'\}</g)].map((match) => `${file}: ${match[0]}`),
+    )
     expect(offenders).toEqual([])
   })
   it('text uses the -text shade: the base shade is for dots and tints, below 4.5:1 as text (VV2-010)', () => {
@@ -165,7 +167,10 @@ describe('status colours as rendered', () => {
       'gray-bg',
       'code',
     ]
-    const token = new RegExp(`--(?:color-)?(?:${legacyColours.join('|')}):|--(?:ease-spring|shadow-float|radius-group):`, 'g')
+    const token = new RegExp(
+      `--(?:color-)?(?:${legacyColours.join('|')}):|--(?:ease-spring|shadow-float|radius-group):`,
+      'g',
+    )
     expect([...css.matchAll(token)].map((match) => match[0])).toEqual([])
     expect(css).not.toMatch(/@utility\s+(?:press|material|tabular)\s*\{|\.(?:eyebrow|action-link)\b/)
   })
@@ -176,9 +181,9 @@ describe('status colours as rendered', () => {
       `\\b(?:bg|text|border(?:-[trblxy])?|ring|fill|stroke|accent|outline|divide)-(?:${colours})(?![\\w-])|\\bshadow-float\\b|(?<![\\w-])(?:press|material|tabular|eyebrow|action-link)(?![\\w-])|(?:tracking|leading)-\\[[^\\]]+\\]|--ease-spring`,
       'g',
     )
-    const files = (readdirSync(new URL('.', import.meta.url), { recursive: true, encoding: 'utf8' }) as string[]).filter(
-      (file) => /\.(?:ts|tsx|css)$/.test(file) && file !== 'design-tokens.test.ts',
-    )
+    const files = (
+      readdirSync(new URL('.', import.meta.url), { recursive: true, encoding: 'utf8' }) as string[]
+    ).filter((file) => /\.(?:ts|tsx|css)$/.test(file) && file !== 'design-tokens.test.ts')
     const offenders = files.flatMap((file) => {
       const source = readFileSync(new URL(file, import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\/|^\s*\/\/.*$/gm, '')
       return [...source.matchAll(utility), ...source.matchAll(/(?:from|import)\s*['"][^'"]*\/ui(?:\.tsx)?['"]/g)].map(

@@ -8,7 +8,9 @@ import { fromNodeSqlite } from './store.ts'
 const operator = '0x1111111111111111111111111111111111111111' as const
 const now = 1_800_000_000
 const databases: DatabaseSync[] = []
-afterEach(() => { for (const db of databases.splice(0)) db.close() })
+afterEach(() => {
+  for (const db of databases.splice(0)) db.close()
+})
 
 function fixture() {
   const db = new DatabaseSync(':memory:')
@@ -17,16 +19,36 @@ function fixture() {
   const context = sdk.context('monad-testnet', 'main', 'http://127.0.0.1:1')
   const sponsor = new SponsorDesk({ sql, ctx: context, now: () => now, fail: (_code, message) => new Error(message) })
   const lifecycle = new AgentLifecycle({ sql, context, sponsor, now: () => now })
-  lifecycle.agents.create({ id: 'agent', operator, privyUserId: 'did:privy:test', name: 'Test', registry: context.deployment.identity, chainId: 10143 })
+  lifecycle.agents.create({
+    id: 'agent',
+    operator,
+    privyUserId: 'did:privy:test',
+    name: 'Test',
+    registry: context.deployment.identity,
+    chainId: 10143,
+  })
   sql.run("UPDATE agents SET state='active' WHERE id='agent'")
-  const family = (id = 'family', agent = 'agent', revoked: number | null = null) => sql.run(
-    'INSERT INTO agent_oauth_families (id,client_id,agent_id,board_id,scopes_json,resource,created_at,revoked_at) VALUES (?,?,?,?,?,?,?,?)',
-    id, 'client', agent, 'public', '["sidequest:read"]', 'https://fixture.test/mcp', now, revoked,
-  )
-  const token = (kind: 'access' | 'refresh', expires = now + 60, consumed: number | null = null, familyId = 'family') => sql.run(
-    'INSERT INTO agent_oauth_tokens (hash,family_id,kind,expires_at,consumed_at) VALUES (?,?,?,?,?)',
-    `${kind}:${familyId}`, familyId, kind, expires, consumed,
-  )
+  const family = (id = 'family', agent = 'agent', revoked: number | null = null) =>
+    sql.run(
+      'INSERT INTO agent_oauth_families (id,client_id,agent_id,board_id,scopes_json,resource,created_at,revoked_at) VALUES (?,?,?,?,?,?,?,?)',
+      id,
+      'client',
+      agent,
+      'public',
+      '["sidequest:read"]',
+      'https://fixture.test/mcp',
+      now,
+      revoked,
+    )
+  const token = (kind: 'access' | 'refresh', expires = now + 60, consumed: number | null = null, familyId = 'family') =>
+    sql.run(
+      'INSERT INTO agent_oauth_tokens (hash,family_id,kind,expires_at,consumed_at) VALUES (?,?,?,?,?)',
+      `${kind}:${familyId}`,
+      familyId,
+      kind,
+      expires,
+      consumed,
+    )
   return { lifecycle, sql, family, token, status: () => lifecycle.status('agent', operator) }
 }
 

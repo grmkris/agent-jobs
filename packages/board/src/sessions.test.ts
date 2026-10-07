@@ -31,7 +31,13 @@ describe('SessionDesk', () => {
 
   it('challenge → login → resolve, valid on another board, bound to the page domain', async () => {
     await desk.migrate()
-    const { message } = await desk.challenge({ address: account.address, domain: 'pet.example', uri: 'https://pet.example', chainId: 10143, boardId: 'monad-pet' })
+    const { message } = await desk.challenge({
+      address: account.address,
+      domain: 'pet.example',
+      uri: 'https://pet.example',
+      chainId: 10143,
+      boardId: 'monad-pet',
+    })
     expect(message).toContain('pet.example wants you to sign in')
     expect(message).toContain('board "monad-pet"')
     const signature = await account.signMessage({ message })
@@ -41,24 +47,58 @@ describe('SessionDesk', () => {
     // The same token works on the public board: one session store for every board.
     expect((await desk.resolve({ bearer: r.session }))?.boardId).toBe('monad-pet')
     // A second login with the same nonce is refused.
-    await expect(desk.login({ message, signature, boardId: 'monad-pet', domainAllowed: () => true })).rejects.toThrow(/used or expired/)
+    await expect(desk.login({ message, signature, boardId: 'monad-pet', domainAllowed: () => true })).rejects.toThrow(
+      /used or expired/,
+    )
     // Expiry.
     now += 25 * 3600
     expect(await desk.resolve({ bearer: r.session })).toBeUndefined()
   })
 
   it('refuses a domain the board does not allow and a wrong signature', async () => {
-    const { message } = await desk.challenge({ address: account.address, domain: 'evil.example', uri: 'https://evil.example', chainId: 10143, boardId: 'monad-pet' })
+    const { message } = await desk.challenge({
+      address: account.address,
+      domain: 'evil.example',
+      uri: 'https://evil.example',
+      chainId: 10143,
+      boardId: 'monad-pet',
+    })
     const signature = await account.signMessage({ message })
-    await expect(desk.login({ message, signature, boardId: 'monad-pet', domainAllowed: (d) => d === 'pet.example' })).rejects.toThrow(/may not sign in/)
-    const { message: m2 } = await desk.challenge({ address: account.address, domain: 'pet.example', uri: 'https://pet.example', chainId: 10143, boardId: 'monad-pet' })
+    await expect(
+      desk.login({ message, signature, boardId: 'monad-pet', domainAllowed: (d) => d === 'pet.example' }),
+    ).rejects.toThrow(/may not sign in/)
+    const { message: m2 } = await desk.challenge({
+      address: account.address,
+      domain: 'pet.example',
+      uri: 'https://pet.example',
+      chainId: 10143,
+      boardId: 'monad-pet',
+    })
     const other = privateKeyToAccount(generatePrivateKey())
-    await expect(desk.login({ message: m2, signature: await other.signMessage({ message: m2 }), boardId: 'monad-pet', domainAllowed: () => true })).rejects.toThrow(/does not match/)
+    await expect(
+      desk.login({
+        message: m2,
+        signature: await other.signMessage({ message: m2 }),
+        boardId: 'monad-pet',
+        domainAllowed: () => true,
+      }),
+    ).rejects.toThrow(/does not match/)
   })
 
   it('binds an MCP session', async () => {
-    const { message } = await desk.challenge({ address: account.address, domain: 'api.example', uri: 'https://api.example', chainId: 10143, boardId: 'public' })
-    const r = await desk.login({ message, signature: await account.signMessage({ message }), boardId: 'public', domainAllowed: () => true })
+    const { message } = await desk.challenge({
+      address: account.address,
+      domain: 'api.example',
+      uri: 'https://api.example',
+      chainId: 10143,
+      boardId: 'public',
+    })
+    const r = await desk.login({
+      message,
+      signature: await account.signMessage({ message }),
+      boardId: 'public',
+      domainAllowed: () => true,
+    })
     await desk.bindMcp('mcp-1', r.session)
     expect((await desk.resolve({ mcpSession: 'mcp-1' }))?.address).toBe(account.address)
     expect(await desk.resolve({ mcpSession: 'mcp-2' })).toBeUndefined()

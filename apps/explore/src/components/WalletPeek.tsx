@@ -25,9 +25,15 @@ export function WalletPeek({ address, anchor }: { address: Address; anchor: RefO
       <PopoverTrigger
         aria-label="Wallet balances"
         title="Wallet balances"
-        className={cn(buttonVariants({ variant: 'ghost', size: 'icon' }), 'shrink-0 text-muted-foreground active:scale-95')}
+        className={cn(
+          buttonVariants({ variant: 'ghost', size: 'icon' }),
+          'shrink-0 text-muted-foreground active:scale-95',
+        )}
       >
-        <ChevronUp aria-hidden className={cn('size-4 transition-transform duration-(--dur-fast)', open && 'rotate-180')} />
+        <ChevronUp
+          aria-hidden
+          className={cn('size-4 transition-transform duration-(--dur-fast)', open && 'rotate-180')}
+        />
       </PopoverTrigger>
       <PopoverContent anchor={anchor} side="top" align="start" sideOffset={6} className="w-80 gap-0 p-0">
         <PopoverTitle className="sr-only">Wallet balances</PopoverTitle>
@@ -41,12 +47,31 @@ const amountText = (row: { status: BalanceRow['status']; value: bigint | undefin
   row.status === 'value' ? formatNumber(row.value!, row.decimals) : row.status === 'loading' ? '…' : 'Unavailable'
 
 /** One line: what, how much, and its dollar estimate ("—" when the token has no price). */
-function Line({ label, amount, usd, known, nested = false }: { label: ReactNode; amount: string; usd: number | undefined; known: boolean; nested?: boolean }) {
+function Line({
+  label,
+  amount,
+  usd,
+  known,
+  nested = false,
+}: {
+  label: ReactNode
+  amount: string
+  usd: number | undefined
+  known: boolean
+  nested?: boolean
+}) {
   return (
-    <li className={cn('grid grid-cols-[1fr_auto_4.5rem] items-center gap-x-3 rounded-md px-1.5 py-1.5', nested && 'pt-0 text-muted-foreground')}>
+    <li
+      className={cn(
+        'grid grid-cols-[1fr_auto_4.5rem] items-center gap-x-3 rounded-md px-1.5 py-1.5',
+        nested && 'pt-0 text-muted-foreground',
+      )}
+    >
       <span className="flex min-w-0 items-center gap-2">{label}</span>
       <span className={cn('text-right tabular-nums', !known && 'text-muted-foreground')}>{amount}</span>
-      <span className="text-right text-xs tabular-nums text-muted-foreground">{usd !== undefined ? approxUsd(usd) : known ? '—' : ''}</span>
+      <span className="text-right text-xs tabular-nums text-muted-foreground">
+        {usd !== undefined ? approxUsd(usd) : known ? '—' : ''}
+      </span>
     </li>
   )
 }
@@ -87,7 +112,13 @@ function Balances({ address, close }: { address: Address; close: () => void }) {
               known={row.status === 'value'}
             />
             {row.role === 'bond' && staked.value !== undefined && (
-              <Line label={<span className="pl-6">staked</span>} amount={formatNumber(staked.value, 18)} usd={staked.usd} known nested />
+              <Line
+                label={<span className="pl-6">staked</span>}
+                amount={formatNumber(staked.value, 18)}
+                usd={staked.usd}
+                known
+                nested
+              />
             )}
             {row.role === 'bond' && writesOpen && (
               <li className="flex gap-1.5 px-1.5 pt-0.5 pb-2 pl-8">

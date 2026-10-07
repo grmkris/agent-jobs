@@ -8,21 +8,43 @@ import type { TxRequest } from '../types.ts'
  * reported to the board. Unstyled apart from class names (`aj-txsteps`, `aj-txsteps-step`, `aj-txsteps-button`,
  * `aj-txsteps-error`) so a host's stylesheet decides how it looks.
  */
-export function TxSteps({ taskId, txs, onDone, label, explorerTx }: { taskId: string; txs: TxRequest[]; onDone?: (hashes: string[]) => void; label?: string; explorerTx?: (hash: string) => string }) {
+export function TxSteps({
+  taskId,
+  txs,
+  onDone,
+  label,
+  explorerTx,
+}: {
+  taskId: string
+  txs: TxRequest[]
+  onDone?: (hashes: string[]) => void
+  label?: string
+  explorerTx?: (hash: string) => string
+}) {
   const { sender } = useSidequest()
   const [progress, setProgress] = useState<SendProgress[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const done = progress.length > 0 && (progress.length === txs.length || progress.some((p) => p.description.includes(' + ')))
+  const done =
+    progress.length > 0 && (progress.length === txs.length || progress.some((p) => p.description.includes(' + ')))
   return (
     <div className="aj-txsteps">
       <ol>
         {txs.map((tx, i) => {
-          const p = progress.find((x) => x.index === i) ?? (progress[0]?.description.includes(' + ') ? progress[0] : undefined)
+          const p =
+            progress.find((x) => x.index === i) ?? (progress[0]?.description.includes(' + ') ? progress[0] : undefined)
           return (
             <li key={`${tx.to}-${i}`} className="aj-txsteps-step" data-done={p !== undefined}>
               {i + 1}. {tx.description}
-              {p !== undefined && (explorerTx === undefined ? <span> ✓ {p.hash.slice(0, 10)}…</span> : <a href={explorerTx(p.hash)} target="_blank" rel="noreferrer"> ✓ {p.hash.slice(0, 10)}…</a>)}
+              {p !== undefined &&
+                (explorerTx === undefined ? (
+                  <span> ✓ {p.hash.slice(0, 10)}…</span>
+                ) : (
+                  <a href={explorerTx(p.hash)} target="_blank" rel="noreferrer">
+                    {' '}
+                    ✓ {p.hash.slice(0, 10)}…
+                  </a>
+                ))}
             </li>
           )
         })}

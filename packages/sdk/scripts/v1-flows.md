@@ -40,27 +40,27 @@ resume from the job's frozen terms, the vault's `unlockAt`, or the proposal's on
 clocks may be minutes; the production 12-hour arbitration and 7-day cooldown are not runner constants. An existing
 journal keeps its original terms and signed bytes through a code update; a redeployment requires a new profile.
 
-| Live matrix row | Case(s) |
-| --- | --- |
-| Hire, silence, cancellation | `hire`, `silence`, `cancel` |
-| Both ruling directions and slash flags | `ruling-worker`, `ruling-worker-slash`, `ruling-creator`, `ruling-creator-slash` |
-| Undisputed violation and missed delivery | `violation`, `missed` |
-| Arbitration timeout | `arbitration-timeout` (deployed per-job window) |
-| Top-up payment and contributor pull refund | `topup-paid`, `topup-refund` |
-| Delegated backing, reservations, slash, cooldown | Setup delegates with `delegate`; the hire/slash cases; `delegate`, `slash-pro-rata`, `undelegate-pending-slash`, and `stake-cooldown` (vault unlock time) |
-| Owned delegated backing and snapshotted fee tier | `delegate` |
-| Two outside owners plus self stake, ruled pro-rata burn | `slash-pro-rata` |
-| Slash queued shares, retain a second bond, then withdraw | `undelegate-pending-slash` |
-| Two fee tiers | `fees` (worker must begin below tier 2 and have enough liquid SIDE to reach it) |
-| Real refusing tokens → owed → withdrawal | `owed-blocklist`, `owed-gas` |
-| Direct hire with sponsored activation/decisions | `direct-hire` |
-| Request → quote → hire | `quotes` |
-| Execution budget with worker bond | `budget-advance`, `budget-call` |
-| Sponsorship rate/call cap refuses | `sponsor-caps` (at most 20 harmless calls before the hourly rate refuses) |
-| Canonical cross-board Collect | `collect` (requires a real pending claim/settlement, refuses an empty result) |
-| Epoch compute/root/fund/claim/stake | Contracts' `bun run mining:epoch`, Safe root/fund, then `mining` |
-| Telegram notifications | `telegram` (linked creator/worker; produces a real hire; human DM/channel receipt is recorded separately) |
-| Safe ownership, fee delay, vault delay, pause | `admin-ownership`, `admin-fees`, `admin-vault-refusal`, `admin-pause` |
+| Live matrix row                                          | Case(s)                                                                                                                                                   |
+| -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Hire, silence, cancellation                              | `hire`, `silence`, `cancel`                                                                                                                               |
+| Both ruling directions and slash flags                   | `ruling-worker`, `ruling-worker-slash`, `ruling-creator`, `ruling-creator-slash`                                                                          |
+| Undisputed violation and missed delivery                 | `violation`, `missed`                                                                                                                                     |
+| Arbitration timeout                                      | `arbitration-timeout` (deployed per-job window)                                                                                                           |
+| Top-up payment and contributor pull refund               | `topup-paid`, `topup-refund`                                                                                                                              |
+| Delegated backing, reservations, slash, cooldown         | Setup delegates with `delegate`; the hire/slash cases; `delegate`, `slash-pro-rata`, `undelegate-pending-slash`, and `stake-cooldown` (vault unlock time) |
+| Owned delegated backing and snapshotted fee tier         | `delegate`                                                                                                                                                |
+| Two outside owners plus self stake, ruled pro-rata burn  | `slash-pro-rata`                                                                                                                                          |
+| Slash queued shares, retain a second bond, then withdraw | `undelegate-pending-slash`                                                                                                                                |
+| Two fee tiers                                            | `fees` (worker must begin below tier 2 and have enough liquid SIDE to reach it)                                                                           |
+| Real refusing tokens → owed → withdrawal                 | `owed-blocklist`, `owed-gas`                                                                                                                              |
+| Direct hire with sponsored activation/decisions          | `direct-hire`                                                                                                                                             |
+| Request → quote → hire                                   | `quotes`                                                                                                                                                  |
+| Execution budget with worker bond                        | `budget-advance`, `budget-call`                                                                                                                           |
+| Sponsorship rate/call cap refuses                        | `sponsor-caps` (at most 20 harmless calls before the hourly rate refuses)                                                                                 |
+| Canonical cross-board Collect                            | `collect` (requires a real pending claim/settlement, refuses an empty result)                                                                             |
+| Epoch compute/root/fund/claim/stake                      | Contracts' `bun run mining:epoch`, Safe root/fund, then `mining`                                                                                          |
+| Telegram notifications                                   | `telegram` (linked creator/worker; produces a real hire; human DM/channel receipt is recorded separately)                                                 |
+| Safe ownership, fee delay, vault delay, pause            | `admin-ownership`, `admin-fees`, `admin-vault-refusal`, `admin-pause`                                                                                     |
 
 The G1c candidate adds `delegate`, `slash-pro-rata` and `undelegate-pending-slash`,
 bringing the default board-free rehearsal to 23 v1 cases. Use `--list` to

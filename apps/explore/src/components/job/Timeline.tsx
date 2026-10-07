@@ -67,13 +67,21 @@ export function pastSteps(events: TimelineEvent[], job: TimelineJob): Step[] {
     const tx = e.txHash
     switch (e.name) {
       case 'Published':
-        steps.push({ mark: 'done', title: `Posted · ${amount(String(a.reward ?? job.reward ?? '0'), job.token)} locked in escrow`, at, tx })
+        steps.push({
+          mark: 'done',
+          title: `Posted · ${amount(String(a.reward ?? job.reward ?? '0'), job.token)} locked in escrow`,
+          at,
+          tx,
+        })
         break
       case 'Activated':
         steps.push({
           mark: 'done',
           title: `Worker #${String(a.agentId)} started`,
-          sub: String(a.workerBond ?? '0') !== '0' ? `Reserved its ${bond(String(a.workerBond))} deposit from backing` : undefined,
+          sub:
+            String(a.workerBond ?? '0') !== '0'
+              ? `Reserved its ${bond(String(a.workerBond))} deposit from backing`
+              : undefined,
           at,
           tx,
         })
@@ -143,19 +151,37 @@ export function pastSteps(events: TimelineEvent[], job: TimelineJob): Step[] {
         steps.push({ mark: 'done', title: `Sidequest's fee: ${amount(String(a.amount), job.token)}`, at, tx })
         break
       case 'TopUpRefunded':
-        steps.push({ mark: 'done', title: `${amount(String(a.amount), job.token)} top-up refunded to its contributor`, at, tx })
+        steps.push({
+          mark: 'done',
+          title: `${amount(String(a.amount), job.token)} top-up refunded to its contributor`,
+          at,
+          tx,
+        })
         break
       case 'BondReleased':
-        steps.push({ mark: 'done', title: `${SIDE[Number(a.side)] ?? 'A'} ${bond(String(a.amount))} deposit at risk released`, at, tx })
+        steps.push({
+          mark: 'done',
+          title: `${SIDE[Number(a.side)] ?? 'A'} ${bond(String(a.amount))} deposit at risk released`,
+          at,
+          tx,
+        })
         break
       case 'BondSlashed':
-        steps.push({ mark: 'fail', title: `${SIDE[Number(a.side)] ?? 'A'} ${bond(String(a.amount))} deposit at risk slashed`, at, tx })
+        steps.push({
+          mark: 'fail',
+          title: `${SIDE[Number(a.side)] ?? 'A'} ${bond(String(a.amount))} deposit at risk slashed`,
+          at,
+          tx,
+        })
         break
       case 'PayoutDeferred':
         steps.push({
           mark: 'warn',
           title: 'Payout held: the transfer could not go through',
-          sub: a.refundedToHolding === true ? 'The reward is back in escrow; anyone can retry the payout.' : 'Anyone can retry the payout.',
+          sub:
+            a.refundedToHolding === true
+              ? 'The reward is back in escrow; anyone can retry the payout.'
+              : 'Anyone can retry the payout.',
           at,
           tx,
         })
@@ -231,12 +257,17 @@ export function Timeline({ events, job, phase }: { events: TimelineEvent[]; job:
           {i < steps.length - 1 && (
             <span
               aria-hidden
-              className={cn('absolute top-6 bottom-0 left-[0.625rem] w-0.5', s.mark === 'done' ? 'bg-primary/45' : 'bg-border')}
+              className={cn(
+                'absolute top-6 bottom-0 left-[0.625rem] w-0.5',
+                s.mark === 'done' ? 'bg-primary/45' : 'bg-border',
+              )}
             />
           )}
           <Dot mark={s.mark} />
           <span className="min-w-0 [overflow-wrap:anywhere]">
-            <span className={cn('block leading-snug font-medium', s.mark === 'next' && 'font-normal text-muted-foreground')}>
+            <span
+              className={cn('block leading-snug font-medium', s.mark === 'next' && 'font-normal text-muted-foreground')}
+            >
               {s.title}
             </span>
             {s.sub !== undefined && <span className="block text-ui text-muted-foreground">{s.sub}</span>}

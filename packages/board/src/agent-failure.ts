@@ -35,37 +35,86 @@ const RETRIES = new Set<string>(['same-key', 'new-key', 'after-operator', 'none'
  * (sponsor refusals attach these to a BoardError). Anything else is internal: its text may carry RPC URLs or keys,
  * so the caller sees only an error id that the server logs beside the real error.
  */
-export function agentFailureReply(error: unknown, fallback: string, log: (errorId: string, error: unknown) => void = defaultLog, fallbackCode = 'unavailable'): AgentFailureReply {
+export function agentFailureReply(
+  error: unknown,
+  fallback: string,
+  log: (errorId: string, error: unknown) => void = defaultLog,
+  fallbackCode = 'unavailable',
+): AgentFailureReply {
   if (error instanceof BoardError) {
     const extra = error as unknown as { reason?: unknown; retry?: unknown; retryAfter?: unknown; errorId?: unknown }
     return {
-      ok: false, code: error.code, message: error.message,
+      ok: false,
+      code: error.code,
+      message: error.message,
       ...(typeof extra.reason === 'string' ? { reason: extra.reason } : {}),
       ...(typeof extra.retry === 'string' && RETRIES.has(extra.retry) ? { retry: extra.retry as AgentRetry } : {}),
-      ...(typeof extra.retryAfter === 'number' && Number.isFinite(extra.retryAfter) && extra.retryAfter > 0 ? { retryAfter: Math.ceil(extra.retryAfter) } : {}),
+      ...(typeof extra.retryAfter === 'number' && Number.isFinite(extra.retryAfter) && extra.retryAfter > 0
+        ? { retryAfter: Math.ceil(extra.retryAfter) }
+        : {}),
       ...(typeof extra.errorId === 'string' && /^[0-9a-f]{12}$/.test(extra.errorId) ? { errorId: extra.errorId } : {}),
     }
   }
   const revert = revertName(error)
-  if (revert !== undefined) return { ok: false, code: 'chain', message: `The chain refused this call: ${revert}`, reason: 'revert', retry: 'none' }
-  const errorId = Array.from(crypto.getRandomValues(new Uint8Array(6)), byte => byte.toString(16).padStart(2, '0')).join('')
+  if (revert !== undefined)
+    return {
+      ok: false,
+      code: 'chain',
+      message: `The chain refused this call: ${revert}`,
+      reason: 'revert',
+      retry: 'none',
+    }
+  const errorId = Array.from(crypto.getRandomValues(new Uint8Array(6)), (byte) =>
+    byte.toString(16).padStart(2, '0'),
+  ).join('')
   log(errorId, error)
-  return { ok: false, code: fallbackCode, message: `${fallback} (error ${errorId}); retry the same operationKey`, reason: 'internal', retry: 'same-key', errorId }
+  return {
+    ok: false,
+    code: fallbackCode,
+    message: `${fallback} (error ${errorId}); retry the same operationKey`,
+    reason: 'internal',
+    retry: 'same-key',
+    errorId,
+  }
 }
 
 /**
  * Rebuilds a failure from a sanitized board reply (Board.call already applied agentFailureReply), keeping its code,
  * message and fields so the caller's own boundary passes them on instead of treating the reply as unexpected.
  */
-export function failureFromReply(reply: { code: string; message: string; reason?: unknown; retry?: unknown; retryAfter?: unknown; errorId?: unknown }): BoardError {
-  return Object.assign(new BoardError(reply.code as BoardError['code'], reply.message), { reason: reply.reason, retry: reply.retry, retryAfter: reply.retryAfter, errorId: reply.errorId })
+export function failureFromReply(reply: {
+  code: string
+  message: string
+  reason?: unknown
+  retry?: unknown
+  retryAfter?: unknown
+  errorId?: unknown
+}): BoardError {
+  return Object.assign(new BoardError(reply.code as BoardError['code'], reply.message), {
+    reason: reply.reason,
+    retry: reply.retry,
+    retryAfter: reply.retryAfter,
+    errorId: reply.errorId,
+  })
 }
 
 /** The custom errors our contracts declare: the only revert names a reply may carry. */
 const KNOWN_REVERTS: ReadonlySet<string> = new Set(
-  [sdk.coreAbi, erc20Abi, sdk.sidequestHoldingAbi,
-    sdk.sidequestEvaluatorAbi, sdk.stakeVaultAbi, sdk.feeScheduleAbi, sdk.factoryV2Abi, sdk.miningReserveAbi, sdk.epochDistributorAbi]
-    .flatMap(abi => (abi as readonly { type: string; name?: string }[]).filter(item => item.type === 'error' && item.name !== undefined).map(item => item.name!)),
+  [
+    sdk.coreAbi,
+    erc20Abi,
+    sdk.sidequestHoldingAbi,
+    sdk.sidequestEvaluatorAbi,
+    sdk.stakeVaultAbi,
+    sdk.feeScheduleAbi,
+    sdk.factoryV2Abi,
+    sdk.miningReserveAbi,
+    sdk.epochDistributorAbi,
+  ].flatMap((abi) =>
+    (abi as readonly { type: string; name?: string }[])
+      .filter((item) => item.type === 'error' && item.name !== undefined)
+      .map((item) => item.name!),
+  ),
 )
 
 /**
@@ -91,7 +140,11 @@ function defaultLog(errorId: string, error: unknown): void {
  * cause or response body, which can carry RPC URLs, bearer tokens or provider credentials of any shape.
  */
 export function errorDiagnostics(error: unknown): { name: string; code?: string; status?: number } {
-  const e = (typeof error === 'object' && error !== null ? error : {}) as { name?: unknown; code?: unknown; status?: unknown }
+  const e = (typeof error === 'object' && error !== null ? error : {}) as {
+    name?: unknown
+    code?: unknown
+    status?: unknown
+  }
   return {
     name: typeof e.name === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(e.name) ? e.name : typeof error,
     ...(typeof e.code === 'string' && /^[a-z][a-z-]{0,31}$/.test(e.code) ? { code: e.code } : {}),
@@ -105,6 +158,9 @@ export function errorDiagnostics(error: unknown): { name: string; code?: string;
  */
 export function errorSite(error: unknown): { at?: string[] } {
   const stack = typeof error === 'object' && error !== null ? (error as { stack?: unknown }).stack : undefined
-  const at = typeof stack === 'string' ? [...stack.matchAll(/^\s*at (?:async )?([A-Za-z_$#][\w$#.<>]{0,79}) \(/gm)].map(match => match[1]!).slice(0, 5) : []
+  const at =
+    typeof stack === 'string'
+      ? [...stack.matchAll(/^\s*at (?:async )?([A-Za-z_$#][\w$#.<>]{0,79}) \(/gm)].map((match) => match[1]!).slice(0, 5)
+      : []
   return at.length > 0 ? { at } : {}
 }

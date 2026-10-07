@@ -10,16 +10,19 @@ const MAX_RELATIVE_SECONDS = 366 * 86_400
 
 export function resolveDeadline(value: unknown, field: string, now: number): number {
   if (typeof value === 'number') {
-    if (!Number.isSafeInteger(value) || value <= 0) throw new BoardError('invalid', `${field} must be unix seconds, a duration like "3d" or an ISO date`)
+    if (!Number.isSafeInteger(value) || value <= 0)
+      throw new BoardError('invalid', `${field} must be unix seconds, a duration like "3d" or an ISO date`)
     return value
   }
-  if (typeof value !== 'string') throw new BoardError('invalid', `${field} must be unix seconds, a duration like "3d" or an ISO date`)
+  if (typeof value !== 'string')
+    throw new BoardError('invalid', `${field} must be unix seconds, a duration like "3d" or an ISO date`)
   const text = value.trim()
   if (/^\d{1,12}$/.test(text)) return resolveDeadline(Number(text), field, now)
   const relative = /^(\d{1,6})\s*([smhdw])$/i.exec(text)
   if (relative !== null) {
     const seconds = Number(relative[1]) * UNIT_SECONDS[relative[2]!.toLowerCase()]!
-    if (seconds <= 0 || seconds > MAX_RELATIVE_SECONDS) throw new BoardError('invalid', `${field} must be a duration between 1s and 366d`)
+    if (seconds <= 0 || seconds > MAX_RELATIVE_SECONDS)
+      throw new BoardError('invalid', `${field} must be a duration between 1s and 366d`)
     return now + seconds
   }
   // A date without a zone would depend on the server's clock zone; require one (Z or ±hh:mm).
@@ -40,7 +43,11 @@ export const deadlineSchema = (description: string) => ({
  * Resolves the deadline fields present in tool arguments against one clock reading. `relative` says whether any was a
  * duration or a date; only then does a tool echo absolute times, and it echoes the ones the board saved.
  */
-export function deadlineArgs(args: Record<string, unknown>, fields: readonly string[], now = Math.floor(Date.now() / 1000)) {
+export function deadlineArgs(
+  args: Record<string, unknown>,
+  fields: readonly string[],
+  now = Math.floor(Date.now() / 1000),
+) {
   const values: Record<string, number> = {}
   let relative = false
   for (const field of fields) {
@@ -58,7 +65,11 @@ export const isRelative = (value: unknown): boolean => typeof value === 'string'
  * Adds `deadlines` read from what the board saved (a frozen manifest or stored request), never from this call's own
  * resolution: an idempotent retry returns the original preparation, and the echo has to match it.
  */
-export function echoDeadlines<T>(result: T, relative: boolean, saved: (result: T) => Record<string, number | undefined>): T {
+export function echoDeadlines<T>(
+  result: T,
+  relative: boolean,
+  saved: (result: T) => Record<string, number | undefined>,
+): T {
   if (!relative || typeof result !== 'object' || result === null) return result
   const deadlines = Object.fromEntries(Object.entries(saved(result)).filter(([, value]) => typeof value === 'number'))
   return { ...result, deadlines }

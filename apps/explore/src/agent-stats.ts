@@ -31,7 +31,10 @@ export interface MoneyLine extends MoneyTotals {
 const size = (value: string, token: string) => Number(BigInt(value)) / 10 ** (tokenMeta(token)?.decimals ?? 18)
 
 /** Per-token totals, largest gross first; `shown` of them on the tile and how many more sit behind "+N more". */
-export function moneyLines(totals: Record<string, MoneyTotals> | undefined, shown = 2): { lines: MoneyLine[]; all: MoneyLine[]; more: number } {
+export function moneyLines(
+  totals: Record<string, MoneyTotals> | undefined,
+  shown = 2,
+): { lines: MoneyLine[]; all: MoneyLine[]; more: number } {
   const all = Object.entries(totals ?? {})
     .filter(([, t]) => BigInt(t.gross) > 0n)
     .map(([token, t]) => ({ token, ...t }))
@@ -55,8 +58,9 @@ export function tierProgress(active: bigint, tier: { threshold: bigint; nextThre
 }
 
 /** Whether a record has anything to show yet: a brand-new agent gets the "new on Sidequest" card instead of stats. */
-export const isNew = (record: { agent: { jobs: number }; hiring?: { posted: number } | undefined } | null | undefined) =>
-  record === null || record === undefined || (record.agent.jobs === 0 && (record.hiring?.posted ?? 0) === 0)
+export const isNew = (
+  record: { agent: { jobs: number }; hiring?: { posted: number } | undefined } | null | undefined,
+) => record === null || record === undefined || (record.agent.jobs === 0 && (record.hiring?.posted ?? 0) === 0)
 
 export type NeedsYouItem =
   | { kind: 'approvals'; count: number }
@@ -89,13 +93,16 @@ export function needsYou(input: {
   const items: NeedsYouItem[] = []
   if (input.pendingApprovals > 0) items.push({ kind: 'approvals', count: input.pendingApprovals })
   if ((input.unfinishedApprovals ?? 0) > 0) items.push({ kind: 'unfinished', count: input.unfinishedApprovals! })
-  const overdue = input.taken.filter((j) => j.status === 'active' && j.delivery_deadline !== null && j.delivery_deadline < input.now).map((j) => j.job_id)
+  const overdue = input.taken
+    .filter((j) => j.status === 'active' && j.delivery_deadline !== null && j.delivery_deadline < input.now)
+    .map((j) => j.job_id)
   if (overdue.length > 0) items.push({ kind: 'overdue', jobIds: overdue })
   const review = input.posted.filter((j) => j.status === 'submitted').map((j) => j.job_id)
   if (review.length > 0) items.push({ kind: 'review', jobIds: review })
   for (const a of input.allowances) {
     const limit = BigInt(a.limit)
-    if (limit > 0n && Number((BigInt(a.left) * 10_000n) / limit) / 10_000 < LOW_BUDGET) items.push({ kind: 'budget', token: a.token, left: a.left, limit: a.limit })
+    if (limit > 0n && Number((BigInt(a.left) * 10_000n) / limit) / 10_000 < LOW_BUDGET)
+      items.push({ kind: 'budget', token: a.token, left: a.left, limit: a.limit })
   }
   if (input.revoked && !input.onchainDisabled) items.push({ kind: 'revocation' })
   return items
@@ -105,5 +112,9 @@ export function needsYou(input: {
 export function sinceDay(unix: number, now: number): string {
   const date = new Date(unix * 1000)
   const thisYear = date.getFullYear() === new Date(now * 1000).getFullYear()
-  return date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', ...(thisYear ? {} : { year: 'numeric' }) })
+  return date.toLocaleDateString(undefined, {
+    day: 'numeric',
+    month: 'short',
+    ...(thisYear ? {} : { year: 'numeric' }),
+  })
 }

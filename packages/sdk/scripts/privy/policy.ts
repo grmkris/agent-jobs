@@ -5,7 +5,9 @@ import { directoryDomainFields, directoryDomainName, directoryRecordFields } fro
 import { stageProfile } from '../../../../infra/stage.ts'
 import { selectionTypes, setBudgetTypes, submitTypes } from '../../src/typed-data.ts'
 
-export const config = JSON.parse(readFileSync(new URL('../../../../contracts/config/monad-testnet.json', import.meta.url), 'utf8'))
+export const config = JSON.parse(
+  readFileSync(new URL('../../../../contracts/config/monad-testnet.json', import.meta.url), 'utf8'),
+)
 if (config.chainId !== 10143) throw new Error('P0 requires Monad testnet 10143')
 
 export const domainTypes = [
@@ -58,28 +60,84 @@ export interface SigningShape {
 }
 
 export const signingShapes: readonly SigningShape[] = [
-  { name: 'SidequestHolding', contract: config.deployment.main.holding, types: selectionTypes,
-    primaryType: 'Selection', field: 'nonce', operator: 'gte', value: '0' },
-  { name: 'ERC8183', contract: config.deployment.core, types: setBudgetTypes,
-    primaryType: 'SetBudgetAuthorization', field: 'signer', operator: 'eq', value: '{{wallet.address}}' },
-  { name: 'ERC8183', contract: config.deployment.core, types: submitTypes,
-    primaryType: 'SubmitAuthorization', field: 'signer', operator: 'eq', value: '{{wallet.address}}' },
-  { name: 'DelegationManager', contract: config.delegation.manager, types: DELEGATION_TYPES,
-    primaryType: 'Delegation', field: 'delegate', operator: 'eq', value: config.roles.relay },
-  { name: 'ERC8004IdentityRegistry', contract: config.erc8004.identity, types: agentWalletTypes,
-    primaryType: 'AgentWalletSet', field: 'newWallet', operator: 'eq', value: '{{wallet.address}}' },
+  {
+    name: 'SidequestHolding',
+    contract: config.deployment.main.holding,
+    types: selectionTypes,
+    primaryType: 'Selection',
+    field: 'nonce',
+    operator: 'gte',
+    value: '0',
+  },
+  {
+    name: 'ERC8183',
+    contract: config.deployment.core,
+    types: setBudgetTypes,
+    primaryType: 'SetBudgetAuthorization',
+    field: 'signer',
+    operator: 'eq',
+    value: '{{wallet.address}}',
+  },
+  {
+    name: 'ERC8183',
+    contract: config.deployment.core,
+    types: submitTypes,
+    primaryType: 'SubmitAuthorization',
+    field: 'signer',
+    operator: 'eq',
+    value: '{{wallet.address}}',
+  },
+  {
+    name: 'DelegationManager',
+    contract: config.delegation.manager,
+    types: DELEGATION_TYPES,
+    primaryType: 'Delegation',
+    field: 'delegate',
+    operator: 'eq',
+    value: config.roles.relay,
+  },
+  {
+    name: 'ERC8004IdentityRegistry',
+    contract: config.erc8004.identity,
+    types: agentWalletTypes,
+    primaryType: 'AgentWalletSet',
+    field: 'newWallet',
+    operator: 'eq',
+    value: '{{wallet.address}}',
+  },
   // x402 (ADR-0013 amendment): only from the agent's own wallet, only the configured USDC, at most one payment cap.
-  { name: 'USDC', contract: config.x402.usdc, types: transferWithAuthorizationTypes,
-    primaryType: 'TransferWithAuthorization', field: 'from', operator: 'eq', value: '{{wallet.address}}',
-    also: [{ field: 'value', operator: 'lte', value: X402_PAYMENT_CAP }] },
+  {
+    name: 'USDC',
+    contract: config.x402.usdc,
+    types: transferWithAuthorizationTypes,
+    primaryType: 'TransferWithAuthorization',
+    field: 'from',
+    operator: 'eq',
+    value: '{{wallet.address}}',
+    also: [{ field: 'value', operator: 'lte', value: X402_PAYMENT_CAP }],
+  },
   // Directory records: the agent's own wallet on this identity registry, record version 1; the domain's name and its
   // salt (the audience) are application-enforced, as Privy conditions only chainId and verifyingContract.
-  ...DIRECTORY_RECORD_KINDS.map(kind => ({ name: directoryDomainName(kind), contract: zeroAddress, types: { [kind]: directoryRecordFields },
-    domain: directoryDomainFields, primaryType: kind, field: 'wallet', operator: 'eq', value: '{{wallet.address}}',
-    also: [{ field: 'identityRegistry', operator: 'eq', value: config.erc8004.identity }, { field: 'version', operator: 'eq', value: '1' }] })),
+  ...DIRECTORY_RECORD_KINDS.map((kind) => ({
+    name: directoryDomainName(kind),
+    contract: zeroAddress,
+    types: { [kind]: directoryRecordFields },
+    domain: directoryDomainFields,
+    primaryType: kind,
+    field: 'wallet',
+    operator: 'eq',
+    value: '{{wallet.address}}',
+    also: [
+      { field: 'identityRegistry', operator: 'eq', value: config.erc8004.identity },
+      { field: 'version', operator: 'eq', value: '1' },
+    ],
+  })),
 ]
 
-export function schema(shape: SigningShape): { types: Record<string, readonly { name: string; type: string }[]>; primary_type: string } {
+export function schema(shape: SigningShape): {
+  types: Record<string, readonly { name: string; type: string }[]>
+  primary_type: string
+} {
   return { types: { EIP712Domain: shape.domain ?? domainTypes, ...shape.types }, primary_type: shape.primaryType }
 }
 
@@ -91,10 +149,18 @@ export function authorityPolicy(ownerId: string) {
     conditions: [
       { field_source: 'ethereum_typed_data_domain', field: 'chainId', operator: 'eq', value: '10143' },
       { field_source: 'ethereum_typed_data_domain', field: 'verifyingContract', operator: 'eq', value: shape.contract },
-      { field_source: 'ethereum_typed_data_message', typed_data: schema(shape), field: shape.field,
+      {
+        field_source: 'ethereum_typed_data_message',
+        typed_data: schema(shape),
+        field: shape.field,
         operator: shape.primaryType === 'Delegation' && shape.field === 'delegate' ? 'in' : shape.operator,
-        value: shape.primaryType === 'Delegation' && shape.field === 'delegate' ? [...RELAY_ADDRESSES] : shape.value },
-      ...(shape.also ?? []).map(condition => ({ field_source: 'ethereum_typed_data_message', typed_data: schema(shape), ...condition })),
+        value: shape.primaryType === 'Delegation' && shape.field === 'delegate' ? [...RELAY_ADDRESSES] : shape.value,
+      },
+      ...(shape.also ?? []).map((condition) => ({
+        field_source: 'ethereum_typed_data_message',
+        typed_data: schema(shape),
+        ...condition,
+      })),
     ],
   }))
   return {
@@ -104,8 +170,19 @@ export function authorityPolicy(ownerId: string) {
     owner_id: ownerId,
     rules: [
       ...rules,
-      { name: 'Allow DeleGator upgrade', method: 'eth_sign7702Authorization', action: 'ALLOW',
-        conditions: [{ field_source: 'ethereum_7702_authorization', field: 'contract', operator: 'eq', value: config.delegation.delegator }] },
+      {
+        name: 'Allow DeleGator upgrade',
+        method: 'eth_sign7702Authorization',
+        action: 'ALLOW',
+        conditions: [
+          {
+            field_source: 'ethereum_7702_authorization',
+            field: 'contract',
+            operator: 'eq',
+            value: config.delegation.delegator,
+          },
+        ],
+      },
       { name: 'Deny export', method: 'exportPrivateKey', action: 'DENY', conditions: [] },
     ],
   }
@@ -115,8 +192,8 @@ export function authorityPolicy(ownerId: string) {
 export const appEnforced = [
   'EIP-712 domain name and version',
   'x402 payee, validity window (≤ 600 s), nonce uniqueness and the 24 h hosted ledger',
-  'Directory record domain salt = keccak256(audience), agentId = the bound agent, audience = the request origin, '
-    + 'expiresAt − issuedAt ≤ 300 s (86 400 s for ServiceAd); Heartbeat refused',
+  'Directory record domain salt = keccak256(audience), agentId = the bound agent, audience = the request origin, ' +
+    'expiresAt − issuedAt ≤ 300 s (86 400 s for ServiceAd); Heartbeat refused',
   'Selection spending limit and linkage to the frozen job',
   'SetBudgetAuthorization freshly quoted net and activated job',
   'Delegation B1/B2/B3 caveat templates, including pinned arguments',

@@ -302,9 +302,5 @@ export const checkRules = (root: string, files: readonly string[]): string[] => 
 
 export const checkAll = (root: string, workspaceDirs: readonly string[]): string[] => {
   const files = listFiles(root)
-  return [
-    ...checkSkills(root),
-    ...checkInstructions(root, workspaceDirs, files),
-    ...checkLinks(root, files),
-  ]
+  return [...checkSkills(root), ...checkInstructions(root, workspaceDirs, files), ...checkLinks(root, files)]
 }

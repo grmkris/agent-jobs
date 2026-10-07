@@ -106,7 +106,10 @@ function AgentSetup({
   const [draft] = useState(() => {
     if (initial !== undefined) return { id: initial.id, name: initial.name }
     try {
-      const saved = JSON.parse(localStorage.getItem(`sidequest.agent-draft:${operator}`) ?? 'null') as { id: string; name: string } | null
+      const saved = JSON.parse(localStorage.getItem(`sidequest.agent-draft:${operator}`) ?? 'null') as {
+        id: string
+        name: string
+      } | null
       if (saved !== null) return saved
     } catch {
       /* This tab keeps the same intent without storage. */
@@ -154,13 +157,15 @@ function AgentSetup({
       hash: string
       signature: string
     } | null
-    const signature = saved?.hash === review.hash ? saved.signature : await signTypedDataAsync(typedDataArgs(review.typedData))
+    const signature =
+      saved?.hash === review.hash ? saved.signature : await signTypedDataAsync(typedDataArgs(review.typedData))
     localStorage.setItem(signatureKey, JSON.stringify({ hash: review.hash, signature }))
     const response = await agentAction<ManagedAgent | { status: string }>(agent.id, 'registration-confirm', {
       hash: review.hash,
       signature,
     })
-    if (!('state' in response)) throw new Error(`Registration is ${response.status}. Retry this step to reconcile the saved sends.`)
+    if (!('state' in response))
+      throw new Error(`Registration is ${response.status}. Retry this step to reconcile the saved sends.`)
     setAgent(response)
     setReview(null)
     await queryClient.invalidateQueries({ queryKey: ['managed-agents', operator] })
@@ -196,7 +201,8 @@ function AgentSetup({
             </label>
 
             <p className="text-ui text-muted-foreground">
-              Sidequest creates a separate wallet for it, owned by your account, and registers its Agent ID to your wallet.
+              Sidequest creates a separate wallet for it, owned by your account, and registers its Agent ID to your
+              wallet.
             </p>
 
             <Button busy={busy} onClick={() => void run(create)}>
@@ -216,10 +222,17 @@ function AgentSetup({
 
             {['created', 'upgraded'].includes(agent.state) ? (
               <>
-                <Button busy={busy} onClick={() => void run(async () => setAgent(await agentAction<ManagedAgent>(agent.id, 'resume')))}>
+                <Button
+                  busy={busy}
+                  onClick={() => void run(async () => setAgent(await agentAction<ManagedAgent>(agent.id, 'resume')))}
+                >
                   Resume wallet setup
                 </Button>
-                {busy && <p role="status" className="text-ui text-muted-foreground">Finishing the agent&apos;s wallet. This takes about ten seconds.</p>}
+                {busy && (
+                  <p role="status" className="text-ui text-muted-foreground">
+                    Finishing the agent&apos;s wallet. This takes about ten seconds.
+                  </p>
+                )}
               </>
             ) : !operatorReady ? (
               <OperatorGrant operator={operator} onReady={() => setOperatorReady(true)} />
@@ -239,12 +252,16 @@ function AgentSetup({
           </>
         ) : (
           <div className="flex items-start gap-4">
-            <AgentOrb agentId={agent.agent_id ?? agent.id} size="lg" status={managedLiveness(polled ?? agent, Date.now() / 1000)} />
+            <AgentOrb
+              agentId={agent.agent_id ?? agent.id}
+              size="lg"
+              status={managedLiveness(polled ?? agent, Date.now() / 1000)}
+            />
             <div className="grid min-w-0 gap-1">
               <p className="text-sm font-medium">{connection(polled ?? agent)}</p>
               <p className="text-ui text-muted-foreground">
-                Agent ID {agent.agent_id} is registered to your wallet. The agent&apos;s own wallet holds its earnings and job obligations;
-                anyone who backs it keeps ownership of their SIDE.
+                Agent ID {agent.agent_id} is registered to your wallet. The agent&apos;s own wallet holds its earnings
+                and job obligations; anyone who backs it keeps ownership of their SIDE.
               </p>
             </div>
           </div>
@@ -286,7 +303,10 @@ function AgentSetup({
             <Button onClick={() => onReady(agent, role)}>Use this agent for this connection</Button>
           )}
           {role !== 'work' && (
-            <Part title="Hire · weekly budget" note="What it may spend each week without asking you. Bigger spends wait for your approval.">
+            <Part
+              title="Hire · weekly budget"
+              note="What it may spend each week without asking you. Bigger spends wait for your approval."
+            >
               {context === 'oauth' ? (
                 <details>
                   <summary className="cursor-pointer text-sm font-medium">Optional weekly budget</summary>
@@ -315,8 +335,8 @@ function AgentSetup({
                 <AgentStake agent={agent} operator={operator} />
               )}
               <p className="text-ui text-muted-foreground">
-                Once connected, your agent lists its own services in the worker directory. You can take a listing down from its
-                Manage tab.
+                Once connected, your agent lists its own services in the worker directory. You can take a listing down
+                from its Manage tab.
               </p>
             </Part>
           )}
@@ -389,7 +409,9 @@ function Step({
 function connection(agent: Pick<ManagedAgent, 'last_activity_at'>): string {
   if (agent.last_activity_at === null) return 'Waiting for your coding agent to connect'
   const ago = relative(agent.last_activity_at)
-  return managedLiveness(agent, Date.now() / 1000) === 'live' ? `Connected · last MCP call ${ago}` : `Last MCP call ${ago}`
+  return managedLiveness(agent, Date.now() / 1000) === 'live'
+    ? `Connected · last MCP call ${ago}`
+    : `Last MCP call ${ago}`
 }
 
 /** One role's part of the Choose step. */

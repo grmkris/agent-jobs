@@ -96,7 +96,9 @@ export function Preflight({
           <ItemContent className="min-w-0 flex-1">
             <span className="block">Gas</span>
             {monValue === 0n && (
-              <span className="block text-ui text-warning-text">Add {chain.nativeCurrency.symbol} to pay for the transactions.</span>
+              <span className="block text-ui text-warning-text">
+                Add {chain.nativeCurrency.symbol} to pay for the transactions.
+              </span>
             )}
           </ItemContent>
           <ItemContent className="tabular-nums text-muted-foreground">
@@ -108,14 +110,24 @@ export function Preflight({
             <ItemMedia>
               <Mark
                 tone={
-                  reward === null || tokenHeld === undefined ? (reward === null ? 'none' : 'wait') : tokenHeld >= reward ? 'ok' : 'warn'
+                  reward === null || tokenHeld === undefined
+                    ? reward === null
+                      ? 'none'
+                      : 'wait'
+                    : tokenHeld >= reward
+                      ? 'ok'
+                      : 'warn'
                 }
               />
             </ItemMedia>
             <ItemContent className="min-w-0 flex-1">
-              <span className="block">Reward · {reward === null ? `— ${sym}` : <TokenAmount value={reward} token={token} />}</span>
+              <span className="block">
+                Reward · {reward === null ? `— ${sym}` : <TokenAmount value={reward} token={token} />}
+              </span>
               {reward !== null && tokenHeld !== undefined && tokenHeld < reward && (
-                <span className="block text-ui text-warning-text">You need <TokenAmount value={reward - tokenHeld} token={token} /> more.</span>
+                <span className="block text-ui text-warning-text">
+                  You need <TokenAmount value={reward - tokenHeld} token={token} /> more.
+                </span>
               )}
             </ItemContent>
             <ItemActions className="tabular-nums flex-col items-end text-right text-muted-foreground">
@@ -132,7 +144,17 @@ export function Preflight({
 }
 
 /** The bond is reserved from stake, so what counts is the stake still free (not reserved, not unstaking). */
-function StakeRow({ prefix, need, free, unavailable }: { prefix: string; need: bigint; free: bigint | undefined; unavailable: boolean }) {
+function StakeRow({
+  prefix,
+  need,
+  free,
+  unavailable,
+}: {
+  prefix: string
+  need: bigint
+  free: bigint | undefined
+  unavailable: boolean
+}) {
   return (
     <Item className="before:left-14">
       <ItemMedia>
@@ -141,7 +163,9 @@ function StakeRow({ prefix, need, free, unavailable }: { prefix: string; need: b
       <ItemContent className="min-w-0 flex-1">
         <span className="block">
           {prefix}
-          {need > 0n ? `Your deposit at risk · ${formatNumber(need, 18)} SIDE from backing` : 'No deposit at risk from you'}
+          {need > 0n
+            ? `Your deposit at risk · ${formatNumber(need, 18)} SIDE from backing`
+            : 'No deposit at risk from you'}
         </span>
         {free !== undefined && free < need && (
           <span className="block text-ui text-warning-text">
@@ -151,7 +175,9 @@ function StakeRow({ prefix, need, free, unavailable }: { prefix: string; need: b
             </Link>
           </span>
         )}
-        {unavailable && <span className="block text-ui text-warning-text">Available backing cannot be read right now.</span>}
+        {unavailable && (
+          <span className="block text-ui text-warning-text">Available backing cannot be read right now.</span>
+        )}
       </ItemContent>
       <ItemActions className="tabular-nums flex-col items-end text-right text-muted-foreground">
         {free === undefined ? '…' : `${formatNumber(free, 18)} free`}

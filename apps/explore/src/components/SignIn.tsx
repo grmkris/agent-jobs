@@ -46,7 +46,12 @@ export function SignIn({ auth, label = 'Sign in', className }: { auth: Auth; lab
   }
   if (privyAppId === '') {
     return (
-      <Button size="lg" disabled className={className} title="Sign-in is not set up on this copy of Sidequest, so it is read-only.">
+      <Button
+        size="lg"
+        disabled
+        className={className}
+        title="Sign-in is not set up on this copy of Sidequest, so it is read-only."
+      >
         {label}
       </Button>
     )

@@ -48,7 +48,15 @@ export function BackingManager({
   owner: Address
   scope?: { kind: 'account' } | { kind: 'agent'; account: Address; agentId?: string }
 }) {
-  return <Stake key={`${owner}:${scope.kind === 'agent' ? scope.account : 'account'}`} contracts={sidequest} owner={owner} initialAccount={scope.kind === 'agent' ? scope.account : undefined} scope={scope} />
+  return (
+    <Stake
+      key={`${owner}:${scope.kind === 'agent' ? scope.account : 'account'}`}
+      contracts={sidequest}
+      owner={owner}
+      initialAccount={scope.kind === 'agent' ? scope.account : undefined}
+      scope={scope}
+    />
+  )
 }
 
 function Stake({
@@ -115,15 +123,29 @@ function Stake({
     setText('')
   }, [account, mode])
   const agents = directory.data?.agents ?? []
-  const mine = new Set((managed.data?.agents ?? []).flatMap((agent) => (agent.address === null ? [] : [agent.address.toLowerCase()])))
+  const mine = new Set(
+    (managed.data?.agents ?? []).flatMap((agent) => (agent.address === null ? [] : [agent.address.toLowerCase()])),
+  )
   const rank = (wallet: string) => (mine.has(wallet) ? 0 : wallet === owner.toLowerCase() ? 1 : 2)
-  const scopedPositions = scope.kind === 'agent' ? (selected.data?.position === null || selected.data?.position === undefined || selected.data?.backing === undefined ? [] : [{ position: selected.data.position, backing: selected.data.backing }]) : reads.data?.positions ?? []
+  const scopedPositions =
+    scope.kind === 'agent'
+      ? selected.data?.position === null ||
+        selected.data?.position === undefined ||
+        selected.data?.backing === undefined
+        ? []
+        : [{ position: selected.data.position, backing: selected.data.backing }]
+      : (reads.data?.positions ?? [])
   const positions = scopedPositions.toSorted((left, right) => {
     const a = left.position.account.toLowerCase()
     const b = right.position.account.toLowerCase()
     return rank(a) - rank(b) || a.localeCompare(b)
   })
-  const unavailable = reads.isError || selected.isError || reads.data === undefined || selected.data === undefined || initial.error !== null
+  const unavailable =
+    reads.isError ||
+    selected.isError ||
+    reads.data === undefined ||
+    selected.data === undefined ||
+    initial.error !== null
   const disabled = unavailable || busy || operation !== null || reads.data?.open !== true || !writesOpen
 
   function reportFailure(failure: unknown) {
@@ -202,16 +224,34 @@ function Stake({
         }
         const delegatedTo = await sdk.delegationOf(ctx.publicClient, owner)
         if (delegatedTo?.toLowerCase() === deployment.delegation.delegator.toLowerCase()) {
-          await saveOperation('delegate', account, [{
-            chainId: chain.id,
-            description: `Back with ${exactFactory(amount)} SIDE to ${agent?.profile.name ?? account}`,
-            to: owner,
-            value: '0',
-            data: sdk.batchCalldata([
-              { chainId: chain.id, description: 'Approve SIDE for the vault', to: contracts.factory, value: '0', data: encodeFunctionData({ abi: erc20Abi, functionName: 'approve', args: [contracts.vault, amount] }) },
-              { chainId: chain.id, description: 'Back this wallet', to: contracts.vault, value: '0', data: encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: 'delegate', args: [account, amount] }) },
-            ]),
-          }])
+          await saveOperation('delegate', account, [
+            {
+              chainId: chain.id,
+              description: `Back with ${exactFactory(amount)} SIDE to ${agent?.profile.name ?? account}`,
+              to: owner,
+              value: '0',
+              data: sdk.batchCalldata([
+                {
+                  chainId: chain.id,
+                  description: 'Approve SIDE for the vault',
+                  to: contracts.factory,
+                  value: '0',
+                  data: encodeFunctionData({ abi: erc20Abi, functionName: 'approve', args: [contracts.vault, amount] }),
+                },
+                {
+                  chainId: chain.id,
+                  description: 'Back this wallet',
+                  to: contracts.vault,
+                  value: '0',
+                  data: encodeFunctionData({
+                    abi: sdk.stakeVaultAbi,
+                    functionName: 'delegate',
+                    args: [account, amount],
+                  }),
+                },
+              ]),
+            },
+          ])
           return
         }
         const permit = await sdk.delegatePermit(ctx, owner, amount, BigInt(Math.floor(Date.now() / 1000) + 3600))
@@ -301,7 +341,8 @@ function Stake({
         reads.data !== undefined && (
           <>
             <p className="px-4 text-sm text-muted-foreground">
-              In your wallet: <span className="tabular-nums font-semibold text-foreground">{factoryValue(reads.data.wallet)}</span>
+              In your wallet:{' '}
+              <span className="tabular-nums font-semibold text-foreground">{factoryValue(reads.data.wallet)}</span>
             </p>
 
             <DelegationPositions
@@ -327,7 +368,18 @@ function Stake({
         </Alert>
       )}
 
-      {scope.kind === 'account' && account.toLowerCase() !== owner.toLowerCase() && operation === null && <Button variant="secondary" disabled={disabled} onClick={() => { setAccount(owner); setMode('add') }}>Back my own wallet</Button>}
+      {scope.kind === 'account' && account.toLowerCase() !== owner.toLowerCase() && operation === null && (
+        <Button
+          variant="secondary"
+          disabled={disabled}
+          onClick={() => {
+            setAccount(owner)
+            setMode('add')
+          }}
+        >
+          Back my own wallet
+        </Button>
+      )}
 
       {operation !== null ? (
         <Section title="Confirm your position action">
@@ -380,7 +432,11 @@ function Stake({
                 const journalKey = txJournalKey(`delegation:${operation.id}`, operation.txs)
                 void withWalletStepLock(navigator.locks, journalKey, async () => {
                   const journal = (await readTxJournalDurable(localStorage, journalKey, true))!
-                  if (journal.pending !== null || journal.hashes.some((hash) => hash !== null) || journal.sponsor != null)
+                  if (
+                    journal.pending !== null ||
+                    journal.hashes.some((hash) => hash !== null) ||
+                    journal.sponsor != null
+                  )
                     throw new Error('This action started in another tab. Reconcile it before preparing another.')
                   await withVaultIntentLock(navigator.locks, key, async () => {
                     if (!(await clearOwnedIntentDurable(localStorage, key, operation.id)))
@@ -399,10 +455,13 @@ function Stake({
           {mode === 'add' && mon.data !== undefined && mon.data.value < BACKING_GAS && (
             <Alert>
               <AlertDescription>
-                Backing is sent from your wallet, which pays the gas in MON; Sidequest does not sponsor it. Your wallet holds{' '}
-                {Number(formatEther(mon.data.value)).toLocaleString(undefined, { maximumFractionDigits: 4 })} MON and a backing costs about 0.02.{' '}
+                Backing is sent from your wallet, which pays the gas in MON; Sidequest does not sponsor it. Your wallet
+                holds {Number(formatEther(mon.data.value)).toLocaleString(undefined, { maximumFractionDigits: 4 })} MON
+                and a backing costs about 0.02.{' '}
                 {deployment.testnetFaucet !== null ? (
-                  <Link to="/account" className="underline underline-offset-2">Get test tokens</Link>
+                  <Link to="/account" className="underline underline-offset-2">
+                    Get test tokens
+                  </Link>
                 ) : (
                   'Add MON to your wallet first.'
                 )}
@@ -433,23 +492,25 @@ function Stake({
         </p>
       )}
 
-      {scope.kind === 'account' && <HoldingControls
-        contracts={contracts}
-        account={owner}
-        disabled={disabled}
-        onVeto={(holding, denied) => {
-          void prepare(
-            'veto',
-            owner,
-            denied ? 'Refuse the Holding for my wallet' : 'Allow the Holding for my wallet',
-            encodeFunctionData({
-              abi: sdk.stakeVaultAbi,
-              functionName: 'setHoldingDenied',
-              args: [holding, denied],
-            }),
-          ).catch(reportFailure)
-        }}
-      />}
+      {scope.kind === 'account' && (
+        <HoldingControls
+          contracts={contracts}
+          account={owner}
+          disabled={disabled}
+          onVeto={(holding, denied) => {
+            void prepare(
+              'veto',
+              owner,
+              denied ? 'Refuse the Holding for my wallet' : 'Allow the Holding for my wallet',
+              encodeFunctionData({
+                abi: sdk.stakeVaultAbi,
+                functionName: 'setHoldingDenied',
+                args: [holding, denied],
+              }),
+            ).catch(reportFailure)
+          }}
+        />
+      )}
     </>
   )
 }

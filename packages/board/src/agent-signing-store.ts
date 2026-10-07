@@ -9,13 +9,24 @@ export interface AgentSignRequest {
   result_json: string | null
 }
 
-export function prepareAgentSignRequest(sql: Sql, input: { agentId: string; purpose: string; walletId: string; request: unknown; now: number }): AgentSignRequest {
+export function prepareAgentSignRequest(
+  sql: Sql,
+  input: { agentId: string; purpose: string; walletId: string; request: unknown; now: number },
+): AgentSignRequest {
   const id = keccak256(stringToHex(canonicalAgentArgs([input.agentId, input.purpose])))
   const request = canonicalAgentArgs(input.request)
-  sql.run(`INSERT OR IGNORE INTO agent_sign_requests (id,agent_id,purpose,wallet_id,request_json,created_at) VALUES (?,?,?,?,?,?)`,
-    id, input.agentId, input.purpose, input.walletId, request, input.now)
+  sql.run(
+    `INSERT OR IGNORE INTO agent_sign_requests (id,agent_id,purpose,wallet_id,request_json,created_at) VALUES (?,?,?,?,?,?)`,
+    id,
+    input.agentId,
+    input.purpose,
+    input.walletId,
+    request,
+    input.now,
+  )
   const row = sql.all<AgentSignRequest & { wallet_id: string }>('SELECT * FROM agent_sign_requests WHERE id=?', id)[0]!
-  if (row.request_json !== request || row.wallet_id !== input.walletId) throw new Error('Persisted signer request cannot change')
+  if (row.request_json !== request || row.wallet_id !== input.walletId)
+    throw new Error('Persisted signer request cannot change')
   return row
 }
 

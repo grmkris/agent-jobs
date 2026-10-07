@@ -19,6 +19,18 @@ export interface SidequestContracts {
   safe: Address
 }
 
-const { sidequest: h, stacks: { main } } = deployment
+const {
+  sidequest: h,
+  stacks: { main },
+} = deployment
 
-export const sidequest: SidequestContracts = { factory: h.factory, vault: h.vault, feeSchedule: h.feeSchedule, distributor: h.distributor, miningReserve: h.miningReserve, holding: main.holding, evaluator: main.evaluator, safe: h.safe }
+export const sidequest: SidequestContracts = {
+  factory: h.factory,
+  vault: h.vault,
+  feeSchedule: h.feeSchedule,
+  distributor: h.distributor,
+  miningReserve: h.miningReserve,
+  holding: main.holding,
+  evaluator: main.evaluator,
+  safe: h.safe,
+}

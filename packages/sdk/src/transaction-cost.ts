@@ -2,11 +2,13 @@ import type { Account, Address, Hex, PublicClient, SignedAuthorization } from 'v
 import type { Ctx } from './actions.ts'
 
 const GWEI = 1_000_000_000n
-const min = (a: bigint, b: bigint) => a < b ? a : b
-const max = (a: bigint, b: bigint) => a > b ? a : b
+const min = (a: bigint, b: bigint) => (a < b ? a : b)
+const max = (a: bigint, b: bigint) => (a > b ? a : b)
 
 /** gasPrice includes the base fee; it must never be reused as the priority fee. */
-export async function transactionFees(client: Pick<PublicClient, 'getGasPrice' | 'getBlock' | 'estimateMaxPriorityFeePerGas'>) {
+export async function transactionFees(
+  client: Pick<PublicClient, 'getGasPrice' | 'getBlock' | 'estimateMaxPriorityFeePerGas'>,
+) {
   const [gasPrice, block] = await Promise.all([client.getGasPrice(), client.getBlock()])
   const baseFeePerGas = block.baseFeePerGas
   if (baseFeePerGas === null || baseFeePerGas === undefined || baseFeePerGas <= 0n || gasPrice <= 0n)
@@ -20,7 +22,13 @@ export async function transactionFees(client: Pick<PublicClient, 'getGasPrice' |
   return { gasPrice, baseFeePerGas, maxFeePerGas, maxPriorityFeePerGas }
 }
 
-type GasRequest = { account: Account; to: Address; data: Hex; value?: bigint; authorizationList?: SignedAuthorization<number>[] }
+type GasRequest = {
+  account: Account
+  to: Address
+  data: Hex
+  value?: bigint
+  authorizationList?: SignedAuthorization<number>[]
+}
 export interface GasSizing {
   /** Used when estimation or its exact-limit simulation is unavailable. */
   fallback?: bigint
@@ -38,7 +46,11 @@ export function stackGasSizing(_ctx: Ctx, _target: Address, fallback?: bigint): 
 }
 
 /** Monad charges the full limit. Protocol limits remain fallbacks. */
-export async function transactionGas(client: Pick<PublicClient, 'estimateGas' | 'call'>, request: GasRequest, sizing?: bigint | GasSizing) {
+export async function transactionGas(
+  client: Pick<PublicClient, 'estimateGas' | 'call'>,
+  request: GasRequest,
+  sizing?: bigint | GasSizing,
+) {
   const options: GasSizing = typeof sizing === 'bigint' ? { fallback: sizing } : (sizing ?? {})
   const floor = options.floor
   if (floor !== undefined && floor <= 0n) throw new Error('Gas floor is invalid')
@@ -56,8 +68,9 @@ export async function transactionGas(client: Pick<PublicClient, 'estimateGas' | 
     await client.call({ ...request, gas: fallback })
     return fallback
   }
-  try { await client.call({ ...request, gas }) }
-  catch (error) {
+  try {
+    await client.call({ ...request, gas })
+  } catch (error) {
     if (fallback === undefined || fallback <= gas) throw error
     // A low estimate can miss a contract's explicit gas reserve. The larger limit must simulate too;
     // a wrong caller, expired action or other real revert never becomes permission to broadcast.

@@ -9,7 +9,8 @@ import { Address, Section, TxLink, textLinkClass } from '../kit.tsx'
 import { Check, CircleAlert, ExternalLink } from 'lucide-react'
 import type { Deliverable, DeliverableCheck } from '../../api.ts'
 
-const httpUrl = (url: string) => (url.startsWith('ipfs://') ? `https://ipfs.io/ipfs/${url.slice('ipfs://'.length)}` : url)
+const httpUrl = (url: string) =>
+  url.startsWith('ipfs://') ? `https://ipfs.io/ipfs/${url.slice('ipfs://'.length)}` : url
 const KIND: Record<Deliverable['kind'], string> = {
   git: 'Git commit',
   patch: 'Patch',
@@ -82,7 +83,11 @@ function CheckLine({ check }: { check: DeliverableCheck | null }) {
         ok ? 'text-success-text' : check.ok === false ? 'text-destructive-text' : 'text-muted-foreground',
       )}
     >
-      {ok ? <Check aria-hidden className="size-3.5" strokeWidth={3} /> : <CircleAlert aria-hidden className="size-3.5" />}
+      {ok ? (
+        <Check aria-hidden className="size-3.5" strokeWidth={3} />
+      ) : (
+        <CircleAlert aria-hidden className="size-3.5" />
+      )}
       {ok ? 'Checked at submit' : check.ok === false ? 'Check at submit failed' : 'Not checked'}
       <span className="text-muted-foreground">· {check.detail}</span>
     </span>
@@ -120,7 +125,10 @@ export function Delivered({
 }) {
   if (deliverables.length === 0 && evidence.length === 0) return null
   return (
-    <Section title="Delivered" note="The board checks a delivery once when it is submitted; that check is advice. The approver decides.">
+    <Section
+      title="Delivered"
+      note="The board checks a delivery once when it is submitted; that check is advice. The approver decides."
+    >
       <ItemGroup>
         {deliverables.map((x) => (
           <Item key={x.deliverable_hash}>
@@ -135,7 +143,11 @@ export function Delivered({
                   {e.conclusion === 'success' ? 'Check passed' : 'Check failed'}
                 </Badge>
                 <span className="text-muted-foreground">
-                  {e.onchainMatch ? 'on the delivered commit' : e.expired ? 'attestation expired' : 'on a different commit'}
+                  {e.onchainMatch
+                    ? 'on the delivered commit'
+                    : e.expired
+                      ? 'attestation expired'
+                      : 'on a different commit'}
                 </span>
               </span>
               <span className="flex flex-wrap items-center gap-2 text-ui text-muted-foreground">

@@ -78,16 +78,26 @@ export function parseDeliverable(raw: unknown): Deliverable {
       if (!str(d.name)) throw new DeliverableError('artifact: name is required')
       return { kind: 'artifact', url: d.url, sha256: d.sha256, mediaType: d.mediaType, name: d.name }
     case 'url':
-      if (!fetchable(d.url) || String(d.url).startsWith('ipfs://')) throw new DeliverableError('url: must be a public https URL')
+      if (!fetchable(d.url) || String(d.url).startsWith('ipfs://'))
+        throw new DeliverableError('url: must be a public https URL')
       return { kind: 'url', url: d.url as string }
     case 'onchain': {
-      if (typeof d.chainId !== 'number' || !Number.isSafeInteger(d.chainId) || d.chainId <= 0) throw new DeliverableError('onchain: chainId is required')
+      if (typeof d.chainId !== 'number' || !Number.isSafeInteger(d.chainId) || d.chainId <= 0)
+        throw new DeliverableError('onchain: chainId is required')
       const tx = d.txHash === undefined ? undefined : String(d.txHash)
       const addr = d.address === undefined ? undefined : String(d.address)
-      if (tx !== undefined && !/^0x[0-9a-fA-F]{64}$/.test(tx)) throw new DeliverableError('onchain: txHash must be a 0x-prefixed 32-byte hash')
-      if (addr !== undefined && !/^0x[0-9a-fA-F]{40}$/.test(addr)) throw new DeliverableError('onchain: address must be a 0x-prefixed 20-byte address')
-      if (tx === undefined && addr === undefined) throw new DeliverableError('onchain: give a txHash, an address, or both')
-      return { kind: 'onchain', chainId: d.chainId, ...(tx === undefined ? {} : { txHash: tx.toLowerCase() }), ...(addr === undefined ? {} : { address: addr.toLowerCase() }) }
+      if (tx !== undefined && !/^0x[0-9a-fA-F]{64}$/.test(tx))
+        throw new DeliverableError('onchain: txHash must be a 0x-prefixed 32-byte hash')
+      if (addr !== undefined && !/^0x[0-9a-fA-F]{40}$/.test(addr))
+        throw new DeliverableError('onchain: address must be a 0x-prefixed 20-byte address')
+      if (tx === undefined && addr === undefined)
+        throw new DeliverableError('onchain: give a txHash, an address, or both')
+      return {
+        kind: 'onchain',
+        chainId: d.chainId,
+        ...(tx === undefined ? {} : { txHash: tx.toLowerCase() }),
+        ...(addr === undefined ? {} : { address: addr.toLowerCase() }),
+      }
     }
     default:
       throw new DeliverableError(`deliverable kind must be one of ${DELIVERABLE_KINDS.join(', ')}`)
@@ -114,9 +124,11 @@ export function specOf(terms: { deliverable?: DeliverableSpec }): DeliverableSpe
 
 export function validateSpec(spec: DeliverableSpec): string | undefined {
   if (!Array.isArray(spec.accepts) || spec.accepts.length === 0) return 'accepts must list at least one kind'
-  if (spec.accepts.some((k) => !DELIVERABLE_KINDS.includes(k))) return `accepted kinds are ${DELIVERABLE_KINDS.join(', ')}`
+  if (spec.accepts.some((k) => !DELIVERABLE_KINDS.includes(k)))
+    return `accepted kinds are ${DELIVERABLE_KINDS.join(', ')}`
   if (new Set(spec.accepts).size !== spec.accepts.length) return 'accepts lists a kind twice'
-  if (spec.target !== undefined && (typeof spec.target !== 'string' || spec.target.length > 500)) return 'target is text of at most 500 characters'
+  if (spec.target !== undefined && (typeof spec.target !== 'string' || spec.target.length > 500))
+    return 'target is text of at most 500 characters'
   return undefined
 }
 
@@ -149,8 +161,16 @@ const IPFS_GATEWAY = 'https://ipfs.io/ipfs/'
 
 const gatewayUrl = (url: string) => (url.startsWith('ipfs://') ? IPFS_GATEWAY + url.slice('ipfs://'.length) : url)
 
-async function fetchCapped(deps: CheckDeps, url: string, init?: RequestInit): Promise<{ status: number; bytes: Uint8Array | null; tooLarge: boolean }> {
-  const res = await deps.fetch(gatewayUrl(url), { redirect: 'follow', signal: AbortSignal.timeout(TIMEOUT_MS), ...init })
+async function fetchCapped(
+  deps: CheckDeps,
+  url: string,
+  init?: RequestInit,
+): Promise<{ status: number; bytes: Uint8Array | null; tooLarge: boolean }> {
+  const res = await deps.fetch(gatewayUrl(url), {
+    redirect: 'follow',
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+    ...init,
+  })
   if (!res.ok || res.body === null) return { status: res.status, bytes: null, tooLarge: false }
   const declared = Number(res.headers.get('content-length') ?? 0)
   if (declared > MAX_FETCH_BYTES) {
@@ -199,7 +219,9 @@ export function commitApi(url: string, sha: string): { host: string; api: string
     return o && r ? { host, api: `https://api.github.com/repos/${o}/${r}/commits/${sha}` } : undefined
   }
   if (host === 'gitlab.com') {
-    return path.includes('/') ? { host, api: `https://gitlab.com/api/v4/projects/${encodeURIComponent(path)}/repository/commits/${sha}` } : undefined
+    return path.includes('/')
+      ? { host, api: `https://gitlab.com/api/v4/projects/${encodeURIComponent(path)}/repository/commits/${sha}` }
+      : undefined
   }
   if (host === 'codeberg.org' || host === 'gitea.com') {
     const [o, r] = path.split('/')
@@ -215,11 +237,16 @@ export async function checkDeliverable(d: Deliverable, deps: CheckDeps): Promise
     switch (d.kind) {
       case 'git': {
         const api = commitApi(d.url, d.sha)
-        if (api === undefined) return done(null, 'unverified host: the board checks github.com, gitlab.com, codeberg.org and gitea.com')
-        const res = await deps.fetch(api.api, { headers: { accept: 'application/json', 'user-agent': 'sidequest-board' }, signal: AbortSignal.timeout(TIMEOUT_MS) })
+        if (api === undefined)
+          return done(null, 'unverified host: the board checks github.com, gitlab.com, codeberg.org and gitea.com')
+        const res = await deps.fetch(api.api, {
+          headers: { accept: 'application/json', 'user-agent': 'sidequest-board' },
+          signal: AbortSignal.timeout(TIMEOUT_MS),
+        })
         void res.body?.cancel().catch(() => {})
         if (res.status === 200) return done(true, `commit ${d.sha.slice(0, 12)} exists on ${api.host}`)
-        if (res.status === 404 || res.status === 422) return done(false, `no commit ${d.sha.slice(0, 12)} in that repository on ${api.host} (or it is private)`)
+        if (res.status === 404 || res.status === 422)
+          return done(false, `no commit ${d.sha.slice(0, 12)} in that repository on ${api.host} (or it is private)`)
         return done(null, `${api.host} answered ${res.status}`)
       }
       case 'patch':
@@ -228,7 +255,9 @@ export async function checkDeliverable(d: Deliverable, deps: CheckDeps): Promise
         if (r.tooLarge) return done(null, 'larger than 25 MB: not hashed by the board')
         if (r.bytes === null) return done(false, `fetch failed with HTTP ${r.status}`)
         const got = await sha256Hex(r.bytes)
-        return got === d.sha256 ? done(true, `sha256 matches (${r.bytes.byteLength} bytes)`) : done(false, `sha256 mismatch: the file hashes to ${got.slice(0, 16)}…`)
+        return got === d.sha256
+          ? done(true, `sha256 matches (${r.bytes.byteLength} bytes)`)
+          : done(false, `sha256 mismatch: the file hashes to ${got.slice(0, 16)}…`)
       }
       case 'url': {
         const r = await fetchCapped(deps, d.url)
@@ -257,6 +286,9 @@ export async function checkDeliverable(d: Deliverable, deps: CheckDeps): Promise
     }
   } catch (e) {
     // The check is public advisory output; a fetch or RPC error's text can name a provider URL, so give its class only.
-    return done(null, `could not check (${e instanceof Error && /^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(e.name) ? e.name : 'error'})`)
+    return done(
+      null,
+      `could not check (${e instanceof Error && /^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(e.name) ? e.name : 'error'})`,
+    )
   }
 }

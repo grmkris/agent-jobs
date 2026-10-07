@@ -13,6 +13,20 @@ export function agentRoute(method: string, path: string, body: Record<string, un
   const id = match[1]!
   const action = match[2] ?? 'status'
   if (method === 'GET' && (action === 'status' || action === 'recovery')) return { action, id, body }
-  if (method === 'POST' && ['resume', 'registration-prepare', 'registration-confirm', 'allowance-prepare', 'allowance-confirm', 'stop-access', 'revoke', 'signer-removed', 'execute'].includes(action)) return { action, id, body }
+  if (
+    method === 'POST' &&
+    [
+      'resume',
+      'registration-prepare',
+      'registration-confirm',
+      'allowance-prepare',
+      'allowance-confirm',
+      'stop-access',
+      'revoke',
+      'signer-removed',
+      'execute',
+    ].includes(action)
+  )
+    return { action, id, body }
   return undefined
 }

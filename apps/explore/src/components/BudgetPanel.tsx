@@ -20,7 +20,12 @@ import { ConfirmSheet } from './Sheet.tsx'
 import { When } from './Time.tsx'
 
 const STATUS_VARIANT = { promised: 'warning', live: 'success', revoked: 'destructive', ended: 'neutral' } as const
-const STATUS_LABEL = { promised: 'Approved, not granted yet', live: 'Granted', revoked: 'Revoked', ended: 'Expired or used up' } as const
+const STATUS_LABEL = {
+  promised: 'Approved, not granted yet',
+  live: 'Granted',
+  revoked: 'Revoked',
+  ended: 'Expired or used up',
+} as const
 /** Monad: a transaction may not lower a delegated account's MON below 10 by more than its gas fee. */
 const RESERVE = parseEther('10')
 
@@ -55,7 +60,11 @@ export function BudgetPanel({
     refetchInterval: 10_000,
     retry: false,
   })
-  const mon = useBalance({ address: task.creator, chainId: chain.id, query: { enabled: creator && eb?.kind === 'call' } })
+  const mon = useBalance({
+    address: task.creator,
+    chainId: chain.id,
+    query: { enabled: creator && eb?.kind === 'call' },
+  })
   const [txs, setTxs] = useState<TxRequest[] | null>(null)
   useTokenList(eb?.kind === 'advance' ? [eb.token] : [])
   const [busy, setBusy] = useState<string | null>(null)
@@ -78,12 +87,17 @@ export function BudgetPanel({
   }
 
   const grant = act('grant', async () => {
-    const prep = await tool<{ sign: { typedData: string }; upgrade: { delegator: string } | null }>('budget_grant_prepare', {
-      taskId: task.taskId,
-    })
+    const prep = await tool<{ sign: { typedData: string }; upgrade: { delegator: string } | null }>(
+      'budget_grant_prepare',
+      {
+        taskId: task.taskId,
+      },
+    )
     if (prep.upgrade !== null) {
       if (upgrade === null)
-        throw new Error('Grant from the email or Google wallet that published the task so it can enable limited spending permissions.')
+        throw new Error(
+          'Grant from the email or Google wallet that published the task so it can enable limited spending permissions.',
+        )
       const hash = await upgrade()
       if (hash !== null) await waitForTransactionReceipt(wagmiConfig, { hash, chainId: chain.id })
     }
@@ -112,7 +126,8 @@ export function BudgetPanel({
         {eb.kind === 'call' && (
           <Item>
             <ItemContent className="flex-1 text-sm text-muted-foreground">
-              One call to <span className="font-mono">{/function\s+(\w+)/.exec(eb.function ?? '')?.[1] ?? 'the function'}</span> on{' '}
+              One call to{' '}
+              <span className="font-mono">{/function\s+(\w+)/.exec(eb.function ?? '')?.[1] ?? 'the function'}</span> on{' '}
               <Address value={eb.target} />, made from the creator’s account, so the creator owns what it makes.
             </ItemContent>
           </Item>
@@ -160,7 +175,9 @@ export function BudgetPanel({
 
             {b.draws.map((x) => (
               <Item key={x.drawId}>
-                <Badge variant={x.status === 'confirmed' ? 'success' : x.status === 'failed' ? 'destructive' : 'warning'}>
+                <Badge
+                  variant={x.status === 'confirmed' ? 'success' : x.status === 'failed' ? 'destructive' : 'warning'}
+                >
                   {x.status === 'confirmed' ? 'Spent' : x.status === 'failed' ? 'Failed' : 'Pending'}
                 </Badge>
                 <ItemContent className="min-w-0 flex-1 text-sm">
@@ -179,12 +196,18 @@ export function BudgetPanel({
           <AlertDescription>{friendlyError(budget.error)}</AlertDescription>
         </Alert>
       )}
-      {!signedIn && <p className="px-4 text-ui text-muted-foreground">Sign in as the creator, approver or agent to see what was spent.</p>}
+      {!signedIn && (
+        <p className="px-4 text-ui text-muted-foreground">
+          Sign in as the creator, approver or agent to see what was spent.
+        </p>
+      )}
 
       {creator && b !== undefined && (
         <div className="grid gap-2">
           {b.status === 'promised' && status !== 'active' && (
-            <p className="px-4 text-sm text-muted-foreground">Grant it once the agent has started: the grant names that agent.</p>
+            <p className="px-4 text-sm text-muted-foreground">
+              Grant it once the agent has started: the grant names that agent.
+            </p>
           )}
           {b.status === 'promised' && status === 'active' && (
             <Button size="lg" busy={busy === 'grant'} onClick={() => setConfirm('grant')}>
@@ -199,8 +222,8 @@ export function BudgetPanel({
           {lingering && (
             <div className="grid gap-2 rounded-xl bg-warning/14 px-4 py-3 text-sm text-warning-text">
               <p>
-                The signed grant stays valid on-chain until <When at={b.expiresAt} show="time" />: the agent could still spend it without
-                the board. Disable it now.
+                The signed grant stays valid on-chain until <When at={b.expiresAt} show="time" />: the agent could still
+                spend it without the board. Disable it now.
               </p>
               <Button variant="destructive" busy={busy === 'revoke'} onClick={() => setConfirm('disable')}>
                 Disable on-chain
@@ -213,8 +236,9 @@ export function BudgetPanel({
             mon.data !== undefined &&
             mon.data.value < BigInt(eb.cap) + RESERVE && (
               <p className="px-4 text-sm text-warning-text">
-                Your wallet holds {formatEther(mon.data.value)} MON. The call may send up to {formatEther(BigInt(eb.cap))} MON, and Monad
-                requires a 10 MON wallet reserve: hold at least {formatEther(BigInt(eb.cap) + RESERVE)} MON when the agent calls.
+                Your wallet holds {formatEther(mon.data.value)} MON. The call may send up to{' '}
+                {formatEther(BigInt(eb.cap))} MON, and Monad requires a 10 MON wallet reserve: hold at least{' '}
+                {formatEther(BigInt(eb.cap) + RESERVE)} MON when the agent calls.
               </p>
             )}
         </div>
@@ -246,8 +270,8 @@ export function BudgetPanel({
         }}
       >
         <p className="text-sm text-muted-foreground">
-          Expires <When at={eb.expiresAt} />. The first grant from this wallet also enables limited spending permissions, which the board’s
-          relay sends for you.
+          Expires <When at={eb.expiresAt} />. The first grant from this wallet also enables limited spending
+          permissions, which the board’s relay sends for you.
         </p>
       </ConfirmSheet>
       <ConfirmSheet

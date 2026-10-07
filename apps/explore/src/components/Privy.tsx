@@ -51,7 +51,9 @@ function OperatorBridge({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null)
   const primary = user?.linkedAccounts.find(
     (account) =>
-      account.type === 'wallet' && account.walletClientType === 'privy' && (account.walletIndex === 0 || account.walletIndex === null),
+      account.type === 'wallet' &&
+      account.walletClientType === 'privy' &&
+      (account.walletIndex === 0 || account.walletIndex === null),
   )
   const address = primary?.type === 'wallet' ? primary.address : undefined
   const currentAddress = useRef(address)
@@ -77,7 +79,8 @@ function OperatorBridge({ children }: { children: ReactNode }) {
     }
     void connectOperator()
       .catch((failure: unknown) => {
-        if (currentAddress.current === address) setError(failure instanceof Error ? failure.message : 'Operator wallet connection failed.')
+        if (currentAddress.current === address)
+          setError(failure instanceof Error ? failure.message : 'Operator wallet connection failed.')
       })
       .finally(() => {
         pending.current = false
@@ -168,8 +171,15 @@ function useDelegatorAccountInner(address: string | undefined): DelegatorAccount
   const { authenticated } = usePrivy()
   const { wallets } = useWallets()
   const { signAuthorization } = useSign7702Authorization()
-  const embedded = wallets.find((wallet) => wallet.walletClientType === 'privy' && wallet.address.toLowerCase() === address?.toLowerCase())
-  if (!authenticated || embedded === undefined || address === undefined || embedded.address.toLowerCase() !== address.toLowerCase())
+  const embedded = wallets.find(
+    (wallet) => wallet.walletClientType === 'privy' && wallet.address.toLowerCase() === address?.toLowerCase(),
+  )
+  if (
+    !authenticated ||
+    embedded === undefined ||
+    address === undefined ||
+    embedded.address.toLowerCase() !== address.toLowerCase()
+  )
     return null
   const me = embedded.address as Hex
   const delegate = deployment.delegation.delegator

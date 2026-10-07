@@ -9,5 +9,11 @@ export function useDirectory() {
     getNextPageParam: (page) => page.nextCursor ?? undefined,
     refetchInterval: 20_000,
   })
-  return { ...query, data: query.data === undefined ? undefined : { ...query.data.pages[0]!, agents: query.data.pages.flatMap((page) => page.agents) } }
+  return {
+    ...query,
+    data:
+      query.data === undefined
+        ? undefined
+        : { ...query.data.pages[0]!, agents: query.data.pages.flatMap((page) => page.agents) },
+  }
 }

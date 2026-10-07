@@ -19,7 +19,10 @@ function useDarkTheme(): boolean {
       const observer = new MutationObserver(change)
       query.addEventListener('change', change)
       observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
-      return () => { query.removeEventListener('change', change); observer.disconnect() }
+      return () => {
+        query.removeEventListener('change', change)
+        observer.disconnect()
+      }
     },
     () => {
       const forced = document.documentElement.dataset.theme
@@ -42,12 +45,20 @@ export function HeroGlow({ className }: { className?: string }) {
     <div
       aria-hidden
       className={cn('pointer-events-none', className)}
-      style={{ maskImage: 'radial-gradient(closest-side, black 35%, transparent)', WebkitMaskImage: 'radial-gradient(closest-side, black 35%, transparent)' }}
+      style={{
+        maskImage: 'radial-gradient(closest-side, black 35%, transparent)',
+        WebkitMaskImage: 'radial-gradient(closest-side, black 35%, transparent)',
+      }}
     >
       {shader ? (
         <MeshGradient className="size-full" colors={colors} distortion={1} swirl={0.45} speed={still ? 0 : 0.12} />
       ) : (
-        <div className="size-full" style={{ background: `radial-gradient(circle at 30% 40%, ${colors[1]}, transparent 60%), radial-gradient(circle at 70% 60%, ${colors[2]}, transparent 60%), radial-gradient(circle at 50% 30%, ${colors[3]}, transparent 55%)` }} />
+        <div
+          className="size-full"
+          style={{
+            background: `radial-gradient(circle at 30% 40%, ${colors[1]}, transparent 60%), radial-gradient(circle at 70% 60%, ${colors[2]}, transparent 60%), radial-gradient(circle at 50% 30%, ${colors[3]}, transparent 55%)`,
+          }}
+        />
       )}
     </div>
   )

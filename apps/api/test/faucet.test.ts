@@ -20,7 +20,10 @@ function stubChain(over: Partial<FaucetChain> & { userMon?: bigint; relayMon?: b
     nextDripAt: async () => 0,
     balance: async (a) => (a === relay ? (over.relayMon ?? 5n * MON) : (over.userMon ?? 0n)),
     relay,
-    relaySend: async (tx) => { sends.push(tx); return hash },
+    relaySend: async (tx) => {
+      sends.push(tx)
+      return hash
+    },
     receipt: async () => 'success',
     dripMon: async () => ({ status: 'sent', txHash: hash }),
     ...over,
@@ -38,7 +41,11 @@ describe('testnet faucet claims', () => {
   it('pays the gas from the relay for a wallet without MON, then drips its first MON', async () => {
     const { chain, sends } = stubChain()
     const d = await deps(chain)
-    expect(await claimFaucet(d, { address: user })).toEqual({ status: 'sent', txHash: hash, mon: { status: 'sent', txHash: hash } })
+    expect(await claimFaucet(d, { address: user })).toEqual({
+      status: 'sent',
+      txHash: hash,
+      mon: { status: 'sent', txHash: hash },
+    })
     expect(sends).toEqual([{ to: faucet, data: `0xdrip${user.slice(2)}` }])
   })
 
@@ -50,11 +57,18 @@ describe('testnet faucet claims', () => {
   })
 
   it('reports the cooldown, keeps the relay above its reserve, and refuses mainnet and a missing faucet', async () => {
-    expect(await claimFaucet(await deps(stubChain({ nextDripAt: async () => 1_791_380_000 }).chain), { address: user })).toEqual({ status: 'cooldown', nextAt: 1_791_380_000 })
+    expect(
+      await claimFaucet(await deps(stubChain({ nextDripAt: async () => 1_791_380_000 }).chain), { address: user }),
+    ).toEqual({ status: 'cooldown', nextAt: 1_791_380_000 })
     const low = stubChain({ relayMon: 2n * MON })
-    expect(await claimFaucet(await deps(low.chain), { address: user })).toMatchObject({ status: 'unavailable', reason: expect.stringContaining('relay is low') })
+    expect(await claimFaucet(await deps(low.chain), { address: user })).toMatchObject({
+      status: 'unavailable',
+      reason: expect.stringContaining('relay is low'),
+    })
     expect(low.sends).toHaveLength(0)
-    expect(await claimFaucet(await deps(stubChain().chain, 'monad-mainnet'), { address: user })).toMatchObject({ status: 'unavailable' })
+    expect(await claimFaucet(await deps(stubChain().chain, 'monad-mainnet'), { address: user })).toMatchObject({
+      status: 'unavailable',
+    })
     expect(await claimFaucet(await deps(undefined), { address: user })).toMatchObject({ status: 'unavailable' })
   })
 
@@ -75,7 +89,13 @@ describe('testnet faucet claims', () => {
   it('marks a failed send so the next request can retry, and logs no RPC text to the caller', async () => {
     const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     let fail = true
-    const { chain, sends } = stubChain({ relaySend: async (tx) => { if (fail) throw new Error('rpc said something private'); sends.push(tx); return hash } })
+    const { chain, sends } = stubChain({
+      relaySend: async (tx) => {
+        if (fail) throw new Error('rpc said something private')
+        sends.push(tx)
+        return hash
+      },
+    })
     const d = await deps(chain)
     const out = await claimFaucet(d, { address: user })
     expect(out).toEqual({ status: 'unavailable', reason: 'the faucet send failed; try again later' })

@@ -26,7 +26,16 @@ const bundle: DisputeBundle = {
   arbitrator: account.address,
   disputedAt: 1_000_000,
   arbitrationEndsAt: 1_000_300,
-  offer: { title: 'CI', brief: 'add CI', acceptanceCriteria: ['check "test" passes'], reward: '1', token: main.evaluator, creatorBond: '1', workerBond: '1', deliveryDeadline: 999_000 },
+  offer: {
+    title: 'CI',
+    brief: 'add CI',
+    acceptanceCriteria: ['check "test" passes'],
+    reward: '1',
+    token: main.evaluator,
+    creatorBond: '1',
+    workerBond: '1',
+    deliveryDeadline: 999_000,
+  },
   rejection: { violation: 'None', reasonHash: sdk.hashText('meh'), reasonText: 'meh' },
   submission: { deliverableHash: sdk.hashText('d'), submittedAt: 998_000, timely: true },
   deliverable: { repo: 'https://github.com/a/b', branch: 'x', sha: 'a'.repeat(40) },
@@ -39,7 +48,15 @@ beforeEach(() => {
   vi.spyOn(sdk, 'deployment').mockReturnValue({ ...deployed })
 })
 
-function fakeBoard(opts: { tamper?: (td: any) => void; decision?: unknown; arbitrator?: Address; cancellation?: sdk.TxRequest; chainId?: number } = {}) {
+function fakeBoard(
+  opts: {
+    tamper?: (td: any) => void
+    decision?: unknown
+    arbitrator?: Address
+    cancellation?: sdk.TxRequest
+    chainId?: number
+  } = {},
+) {
   const disputeChainId = opts.chainId ?? chainId
   const calls: Array<{ tool: string; args: any }> = []
   let signed: Hex | undefined
@@ -50,16 +67,50 @@ function fakeBoard(opts: { tamper?: (td: any) => void; decision?: unknown; arbit
         case 'arbiter_lease':
           return { held: true, holder: args.runner } as any
         case 'list_disputes':
-          return [{ taskId: 't1', stack: 'main', arbitrationEndsAt: bundle.arbitrationEndsAt, decision: opts.decision ?? null }] as any
+          return [
+            {
+              taskId: 't1',
+              stack: 'main',
+              arbitrationEndsAt: bundle.arbitrationEndsAt,
+              decision: opts.decision ?? null,
+            },
+          ] as any
         case 'get_dispute_bundle':
-          return { bundle: { ...bundle, chainId: disputeChainId, arbitrator: opts.arbitrator ?? bundle.arbitrator }, bundleHash: '0xbb' } as any
+          return {
+            bundle: { ...bundle, chainId: disputeChainId, arbitrator: opts.arbitrator ?? bundle.arbitrator },
+            bundleHash: '0xbb',
+          } as any
         case 'cancel_ruling':
-          return { resolved: false, nonce: '4', transactions: [opts.cancellation ?? { chainId: disputeChainId, to: main.evaluator, value: '0', description: 'Cancel', data: encodeFunctionData({ abi: sdk.sidequestEvaluatorAbi, functionName: 'cancelRuling', args: [4n] }) }] } as any
+          return {
+            resolved: false,
+            nonce: '4',
+            transactions: [
+              opts.cancellation ?? {
+                chainId: disputeChainId,
+                to: main.evaluator,
+                value: '0',
+                description: 'Cancel',
+                data: encodeFunctionData({ abi: sdk.sidequestEvaluatorAbi, functionName: 'cancelRuling', args: [4n] }),
+              },
+            ],
+          } as any
         case 'prepare_ruling': {
           const td = {
             primaryType: 'Ruling',
-            domain: { name: 'SidequestEvaluator', version: '1', chainId: disputeChainId, verifyingContract: main.evaluator },
-            message: { jobId: '42', forWorker: args.forWorker, slashLoser: args.slashLoser, reasonHash: sdk.hashText(args.reason), deadline: String(bundle.arbitrationEndsAt), nonce: '5' },
+            domain: {
+              name: 'SidequestEvaluator',
+              version: '1',
+              chainId: disputeChainId,
+              verifyingContract: main.evaluator,
+            },
+            message: {
+              jobId: '42',
+              forWorker: args.forWorker,
+              slashLoser: args.slashLoser,
+              reasonHash: sdk.hashText(args.reason),
+              deadline: String(bundle.arbitrationEndsAt),
+              nonce: '5',
+            },
           }
           opts.tamper?.(td)
           return { sign: { typedData: JSON.stringify(td) } } as any
@@ -94,7 +145,14 @@ describe('arbitrateOnce', () => {
       domain: sdk.evaluatorDomain(chainId, main.evaluator),
       types: sdk.rulingTypes,
       primaryType: 'Ruling',
-      message: { jobId: 42n, forWorker: true, slashLoser: true, reasonHash: sdk.hashText(reason), deadline: BigInt(bundle.arbitrationEndsAt), nonce: 5n },
+      message: {
+        jobId: 42n,
+        forWorker: true,
+        slashLoser: true,
+        reasonHash: sdk.hashText(reason),
+        deadline: BigInt(bundle.arbitrationEndsAt),
+        nonce: 5n,
+      },
       signature: f.signed()!,
     })
     expect(ok).toBe(true)
@@ -125,16 +183,29 @@ describe('arbitrateOnce', () => {
     const f = fakeBoard({ decision: { forWorker: false, slashLoser: false, reason, txHash: null } })
     let asked = 0
     const sendCancellation = vi.fn(async () => {})
-    const { outcomes } = await arbitrateOnce({ ...deps(f.board, {}), sendCancellation, propose: async () => (asked++, { forWorker: true, slashLoser: true, reason }) })
+    const { outcomes } = await arbitrateOnce({
+      ...deps(f.board, {}),
+      sendCancellation,
+      propose: async () => (asked++, { forWorker: true, slashLoser: true, reason }),
+    })
     expect(sendCancellation).toHaveBeenCalledOnce()
     expect(asked).toBe(0)
     expect(outcomes[0]).toMatchObject({ result: 'ruled', forWorker: false, slashLoser: false })
-    expect(f.calls.find((c) => c.tool === 'prepare_ruling')?.args).toMatchObject({ forWorker: false, slashLoser: false, reason })
+    expect(f.calls.find((c) => c.tool === 'prepare_ruling')?.args).toMatchObject({
+      forWorker: false,
+      slashLoser: false,
+      reason,
+    })
   })
 
   it('a failed model call yields no ruling', async () => {
     const f = fakeBoard()
-    const { outcomes } = await arbitrateOnce({ ...deps(f.board, {}), propose: async () => { throw new Error('model endpoint: HTTP 503') } })
+    const { outcomes } = await arbitrateOnce({
+      ...deps(f.board, {}),
+      propose: async () => {
+        throw new Error('model endpoint: HTTP 503')
+      },
+    })
     expect(outcomes[0]).toMatchObject({ result: 'skipped' })
     expect(f.signed()).toBeUndefined()
   })
@@ -147,70 +218,150 @@ describe('arbitrateOnce', () => {
   it('uses only the key named by the job, including the separate v1 key', async () => {
     const v1 = privateKeyToAccount(generatePrivateKey())
     const f = fakeBoard({ arbitrator: v1.address })
-    expect((await arbitrateOnce(deps(f.board, { forWorker: true, slashLoser: false, reason }))).outcomes[0]).toMatchObject({ result: 'skipped', why: 'not this key’s dispute' })
+    expect(
+      (await arbitrateOnce(deps(f.board, { forWorker: true, slashLoser: false, reason }))).outcomes[0],
+    ).toMatchObject({ result: 'skipped', why: 'not this key’s dispute' })
     expect(f.signed()).toBeUndefined()
     const right = await arbitrateOnce({ ...deps(f.board, { forWorker: true, slashLoser: false, reason }), account: v1 })
     expect(right.outcomes[0]?.result).toBe('ruled')
-    expect(await verifyTypedData({ address: v1.address, domain: sdk.evaluatorDomain(chainId, main.evaluator), types: sdk.rulingTypes,
-      primaryType: 'Ruling', message: { jobId: 42n, forWorker: true, slashLoser: false, reasonHash: sdk.hashText(reason), deadline: BigInt(bundle.arbitrationEndsAt), nonce: 5n }, signature: f.signed()! })).toBe(true)
+    expect(
+      await verifyTypedData({
+        address: v1.address,
+        domain: sdk.evaluatorDomain(chainId, main.evaluator),
+        types: sdk.rulingTypes,
+        primaryType: 'Ruling',
+        message: {
+          jobId: 42n,
+          forWorker: true,
+          slashLoser: false,
+          reasonHash: sdk.hashText(reason),
+          deadline: BigInt(bundle.arbitrationEndsAt),
+          nonce: 5n,
+        },
+        signature: f.signed()!,
+      }),
+    ).toBe(true)
   })
 
   it('confirms v1 cancellation before preparing and signing a fresh authorization on retry', async () => {
     const d = sdk.deployment('monad-testnet')
-    vi.spyOn(sdk, 'deployment').mockReturnValue({ ...d, stacks: { ...d.stacks, main: { ...main, kind: 'sidequest-v1' } } })
+    vi.spyOn(sdk, 'deployment').mockReturnValue({
+      ...d,
+      stacks: { ...d.stacks, main: { ...main, kind: 'sidequest-v1' } },
+    })
     const f = fakeBoard({ decision: { forWorker: false, slashLoser: false, reason, txHash: null } })
     const sendCancellation = vi.fn(async (tx: sdk.TxRequest) => {
       expect(f.calls.at(-1)!.tool).toBe('cancel_ruling')
       expect(tx.to).toBe(main.evaluator)
-      expect(tx.data).toBe(encodeFunctionData({ abi: sdk.sidequestEvaluatorAbi, functionName: 'cancelRuling', args: [4n] }))
+      expect(tx.data).toBe(
+        encodeFunctionData({ abi: sdk.sidequestEvaluatorAbi, functionName: 'cancelRuling', args: [4n] }),
+      )
     })
     const result = await arbitrateOnce({ ...deps(f.board, {}), sendCancellation })
     expect(result.outcomes[0]?.result).toBe('ruled')
     expect(sendCancellation).toHaveBeenCalledOnce()
-    expect(f.calls.map(c => c.tool)).toEqual(['arbiter_lease', 'list_disputes', 'get_dispute_bundle', 'cancel_ruling', 'prepare_ruling', 'submit_ruling'])
+    expect(f.calls.map((c) => c.tool)).toEqual([
+      'arbiter_lease',
+      'list_disputes',
+      'get_dispute_bundle',
+      'cancel_ruling',
+      'prepare_ruling',
+      'submit_ruling',
+    ])
   })
 
   it('does not sign a replacement if cancellation fails or targets another contract', async () => {
     const d = sdk.deployment('monad-testnet')
-    vi.spyOn(sdk, 'deployment').mockReturnValue({ ...d, stacks: { ...d.stacks, main: { ...main, kind: 'sidequest-v1' } } })
-    for (const f of [fakeBoard({ decision: { forWorker: false, slashLoser: false, reason } }), fakeBoard({ decision: { forWorker: false, slashLoser: false, reason }, cancellation: { description: 'Bad', chainId, to: account.address, data: '0x', value: '0' } })]) {
-      const result = await arbitrateOnce({ ...deps(f.board, {}), sendCancellation: async () => { throw new Error('cancel reverted') } })
+    vi.spyOn(sdk, 'deployment').mockReturnValue({
+      ...d,
+      stacks: { ...d.stacks, main: { ...main, kind: 'sidequest-v1' } },
+    })
+    for (const f of [
+      fakeBoard({ decision: { forWorker: false, slashLoser: false, reason } }),
+      fakeBoard({
+        decision: { forWorker: false, slashLoser: false, reason },
+        cancellation: { description: 'Bad', chainId, to: account.address, data: '0x', value: '0' },
+      }),
+    ]) {
+      const result = await arbitrateOnce({
+        ...deps(f.board, {}),
+        sendCancellation: async () => {
+          throw new Error('cancel reverted')
+        },
+      })
       expect(result.outcomes[0]?.result).toBe('skipped')
       expect(f.signed()).toBeUndefined()
-      expect(f.calls.map(c => c.tool)).not.toContain('prepare_ruling')
+      expect(f.calls.map((c) => c.tool)).not.toContain('prepare_ruling')
     }
   })
 
   it('v1-only mainnet recorded ruling uses the configured funded account and waits for cancellation', async () => {
-    const mainnetDeployment = { ...sdk.deployment('monad-testnet'), network: 'monad-mainnet' as const, chainId: 143,
-      stacks: { main: { ...main, kind: 'sidequest-v1' as const } } }
+    const mainnetDeployment = {
+      ...sdk.deployment('monad-testnet'),
+      network: 'monad-mainnet' as const,
+      chainId: 143,
+      stacks: { main: { ...main, kind: 'sidequest-v1' as const } },
+    }
     vi.spyOn(sdk, 'deployment').mockReturnValue(mainnetDeployment)
     const key = generatePrivateKey()
     const selected = arbiterAccounts(mainnetDeployment, { V1_ARBITRATOR_PRIVATE_KEY: key })[0]!
-    const f = fakeBoard({ chainId: 143, arbitrator: selected.address, decision: { forWorker: false, slashLoser: false, reason, txHash: null } })
-    let balance = 240_000n, confirmed = false
+    const f = fakeBoard({
+      chainId: 143,
+      arbitrator: selected.address,
+      decision: { forWorker: false, slashLoser: false, reason, txHash: null },
+    })
+    let balance = 240_000n,
+      confirmed = false
     const send = vi.fn(async () => {
       expect(f.calls.at(-1)!.tool).toBe('cancel_ruling')
       return sdk.hashText('mainnet-cancel-fixture')
     })
     const wallet = { account: selected, chain: { id: 143 }, sendTransaction: send } as unknown as sdk.Wallet
-    const reads = { getChainId: async () => 143, getBalance: vi.fn(async () => balance), estimateGas: async () => 100_000n,
+    const reads = {
+      getChainId: async () => 143,
+      getBalance: vi.fn(async () => balance),
+      estimateGas: async () => 100_000n,
       estimateFeesPerGas: async () => ({ maxFeePerGas: 2n, maxPriorityFeePerGas: 1n }),
-      waitForTransactionReceipt: async () => { confirmed = true; return { status: 'success' } } } as unknown as PublicClient
+      waitForTransactionReceipt: async () => {
+        confirmed = true
+        return { status: 'success' }
+      },
+    } as unknown as PublicClient
     const walletFactory = vi.spyOn(sdk, 'wallet').mockReturnValue(wallet)
-    vi.spyOn(sdk, 'context').mockReturnValue({ deployment: mainnetDeployment, stack: mainnetDeployment.stacks.main, publicClient: reads })
+    vi.spyOn(sdk, 'context').mockReturnValue({
+      deployment: mainnetDeployment,
+      stack: mainnetDeployment.stacks.main,
+      publicClient: reads,
+    })
     const sendCancellation = cancellationSender('monad-mainnet', selected, 'http://127.0.0.1:9')
-    const result = await arbitrateOnce({ ...deps(f.board, {}), network: 'monad-mainnet', account: selected, sendCancellation })
+    const result = await arbitrateOnce({
+      ...deps(f.board, {}),
+      network: 'monad-mainnet',
+      account: selected,
+      sendCancellation,
+    })
     expect(walletFactory).toHaveBeenCalledWith('monad-mainnet', selected, 'http://127.0.0.1:9')
     expect(reads.getBalance).toHaveBeenCalledWith({ address: selected.address, blockTag: 'pending' })
     expect(confirmed).toBe(true)
     expect(result.outcomes[0]?.result).toBe('ruled')
     expect(send).toHaveBeenCalledOnce()
-    const empty = fakeBoard({ chainId: 143, arbitrator: selected.address, decision: { forWorker: false, slashLoser: false, reason, txHash: null } })
+    const empty = fakeBoard({
+      chainId: 143,
+      arbitrator: selected.address,
+      decision: { forWorker: false, slashLoser: false, reason, txHash: null },
+    })
     balance = 0n
-    const unfunded = await arbitrateOnce({ ...deps(empty.board, {}), network: 'monad-mainnet', account: selected, sendCancellation })
-    expect(unfunded.outcomes[0]).toMatchObject({ result: 'skipped', why: 'Fund the arbitrator cancellation gas reserve before retrying' })
-    expect(empty.calls.map(c => c.tool)).not.toContain('prepare_ruling')
+    const unfunded = await arbitrateOnce({
+      ...deps(empty.board, {}),
+      network: 'monad-mainnet',
+      account: selected,
+      sendCancellation,
+    })
+    expect(unfunded.outcomes[0]).toMatchObject({
+      result: 'skipped',
+      why: 'Fund the arbitrator cancellation gas reserve before retrying',
+    })
+    expect(empty.calls.map((c) => c.tool)).not.toContain('prepare_ruling')
     expect(send).toHaveBeenCalledOnce()
   })
 })

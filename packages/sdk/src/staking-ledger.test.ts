@@ -15,6 +15,14 @@ it('VV2-003 retains the generation of a deposit preceding a reset in the same bl
   const candidate = delegationCandidates(ledger, { account, delegator: wallet })[0]!
   expect(candidate.generation).toBe(0n)
   const pool = { assets: 0n, shares: 0n, queuedShares: 0n, reserved: 0n, generation: 1n }
-  expect(positionIn(pool, { shares: 0n, queuedShares: 0n, generation: 1n, unlockAt: 0 }, candidate.generation).staleGeneration).toBe(true)
-  expect(delegationCandidates([...ledger, { name: 'Delegated', account, delegator: wallet, blockNumber: 100n, logIndex: 9 }], { account })[0]?.generation).toBe(1n)
+  expect(
+    positionIn(pool, { shares: 0n, queuedShares: 0n, generation: 1n, unlockAt: 0 }, candidate.generation)
+      .staleGeneration,
+  ).toBe(true)
+  expect(
+    delegationCandidates(
+      [...ledger, { name: 'Delegated', account, delegator: wallet, blockNumber: 100n, logIndex: 9 }],
+      { account },
+    )[0]?.generation,
+  ).toBe(1n)
 })

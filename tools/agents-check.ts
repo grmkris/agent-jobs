@@ -11,7 +11,10 @@ import { checkAll } from './agents.ts'
 import { nodes } from './graph.ts'
 import { repoRoot } from './run.ts'
 
-const failures = checkAll(repoRoot, nodes.map((node) => node.dir))
+const failures = checkAll(
+  repoRoot,
+  nodes.map((node) => node.dir),
+)
 for (const failure of failures) console.error(failure)
 if (failures.length > 0) {
   console.error(`agents:check: ${failures.length} problem(s).`)

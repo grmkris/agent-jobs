@@ -4,19 +4,48 @@ import { describe, expect, it, vi } from 'vitest'
 import { AgentFailure, agentFailureReply, errorDiagnostics, errorSite, failureFromReply } from './agent-failure.ts'
 import { BoardError } from './board-error.ts'
 
-function verifyOneOffAllowance(): never { throw new Error('secret https://rpc.example/KEY Bearer abc') }
+function verifyOneOffAllowance(): never {
+  throw new Error('secret https://rpc.example/KEY Bearer abc')
+}
 
 describe('agentFailureReply', () => {
   it('keeps an agent failure code, reason, retry and wait', () => {
-    expect(agentFailureReply(new AgentFailure('conflict', 'This operationKey already names a different action', 'operation-key-reused', 'new-key'), 'fallback'))
-      .toEqual({ ok: false, code: 'conflict', message: 'This operationKey already names a different action', reason: 'operation-key-reused', retry: 'new-key' })
-    expect(agentFailureReply(new AgentFailure('unavailable', 'grant renews', 'grant-missing', 'same-key', 59.2), 'fallback'))
-      .toMatchObject({ retry: 'same-key', retryAfter: 60 })
+    expect(
+      agentFailureReply(
+        new AgentFailure(
+          'conflict',
+          'This operationKey already names a different action',
+          'operation-key-reused',
+          'new-key',
+        ),
+        'fallback',
+      ),
+    ).toEqual({
+      ok: false,
+      code: 'conflict',
+      message: 'This operationKey already names a different action',
+      reason: 'operation-key-reused',
+      retry: 'new-key',
+    })
+    expect(
+      agentFailureReply(new AgentFailure('unavailable', 'grant renews', 'grant-missing', 'same-key', 59.2), 'fallback'),
+    ).toMatchObject({ retry: 'same-key', retryAfter: 60 })
   })
 
   it('keeps the fields a sponsor refusal attaches to a BoardError and drops malformed ones', () => {
-    const floor = Object.assign(new BoardError('conflict', 'the sponsorship relay is below its balance floor'), { reason: 'floor', retry: 'same-key', retryAfter: 600 })
-    expect(agentFailureReply(floor, 'fallback')).toEqual({ ok: false, code: 'conflict', message: 'the sponsorship relay is below its balance floor', reason: 'floor', retry: 'same-key', retryAfter: 600 })
+    const floor = Object.assign(new BoardError('conflict', 'the sponsorship relay is below its balance floor'), {
+      reason: 'floor',
+      retry: 'same-key',
+      retryAfter: 600,
+    })
+    expect(agentFailureReply(floor, 'fallback')).toEqual({
+      ok: false,
+      code: 'conflict',
+      message: 'the sponsorship relay is below its balance floor',
+      reason: 'floor',
+      retry: 'same-key',
+      retryAfter: 600,
+    })
     const odd = Object.assign(new BoardError('conflict', 'x'), { reason: 7, retry: 'later', retryAfter: -1 })
     expect(agentFailureReply(odd, 'fallback')).toEqual({ ok: false, code: 'conflict', message: 'x' })
   })
@@ -35,42 +64,82 @@ describe('agentFailureReply', () => {
   it('logs only static diagnostics through the default sink, never message or body text', () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
     try {
-      const long = Object.assign(new Error('HTTP request failed. URL: https://monad.example/v2/SECRETKEY0123456789abcdef'), { name: 'HttpRequestError', status: 401, code: 'bad-request' })
+      const long = Object.assign(
+        new Error('HTTP request failed. URL: https://monad.example/v2/SECRETKEY0123456789abcdef'),
+        { name: 'HttpRequestError', status: 401, code: 'bad-request' },
+      )
       const reply = agentFailureReply(long, 'Hosted agent execution failed')
       // Short or segmented credentials defeat any redactor, so none of the text may reach the log at all.
       agentFailureReply(new Error('Authorization: Bearer SECRETKEY'), 'Hosted agent execution failed')
-      agentFailureReply(Object.assign(new Error('provider refused'), { body: '{"apiKey":"short-secret"}', details: 'sk-1 x-api-key: ab12' }), 'Hosted agent execution failed')
+      agentFailureReply(
+        Object.assign(new Error('provider refused'), {
+          body: '{"apiKey":"short-secret"}',
+          details: 'sk-1 x-api-key: ab12',
+        }),
+        'Hosted agent execution failed',
+      )
       agentFailureReply('token=abc', 'Hosted agent execution failed')
-      const logged = spy.mock.calls.map(call => call.join(' ')).join('\n')
+      const logged = spy.mock.calls.map((call) => call.join(' ')).join('\n')
       expect(spy).toHaveBeenCalledTimes(4)
       expect(logged).toContain(reply.errorId!)
       expect(logged).toContain('"name":"HttpRequestError"')
       expect(logged).toContain('"status":401')
-      expect(logged).not.toMatch(/SECRETKEY|monad\.example|Bearer|short-secret|apiKey|sk-1|ab12|token=abc|refused|request failed/)
-    } finally { spy.mockRestore() }
-    expect(errorDiagnostics(Object.assign(new Error('x'), { name: 'bad name!', code: 'NOT A CODE' }))).toEqual({ name: 'object' })
-    expect(errorDiagnostics(Object.assign(new Error('x'), { code: 'rate-limited', status: 429 }))).toEqual({ name: 'Error', code: 'rate-limited', status: 429 })
+      expect(logged).not.toMatch(
+        /SECRETKEY|monad\.example|Bearer|short-secret|apiKey|sk-1|ab12|token=abc|refused|request failed/,
+      )
+    } finally {
+      spy.mockRestore()
+    }
+    expect(errorDiagnostics(Object.assign(new Error('x'), { name: 'bad name!', code: 'NOT A CODE' }))).toEqual({
+      name: 'object',
+    })
+    expect(errorDiagnostics(Object.assign(new Error('x'), { code: 'rate-limited', status: 429 }))).toEqual({
+      name: 'Error',
+      code: 'rate-limited',
+      status: 429,
+    })
     expect(errorDiagnostics('plain string')).toEqual({ name: 'string' })
   })
 
   it('logs where an internal failure was thrown as function names only', () => {
     let thrown: unknown
-    try { verifyOneOffAllowance() } catch (error) { thrown = error }
+    try {
+      verifyOneOffAllowance()
+    } catch (error) {
+      thrown = error
+    }
     const site = errorSite(thrown)
     expect(site.at?.[0]).toBe('verifyOneOffAllowance')
     expect(JSON.stringify(site)).not.toMatch(/secret|rpc\.example|KEY|Bearer|\/|:\d/)
   })
 
   it('reports only a viem-decoded revert whose name our contracts declare', () => {
-    const decoded = new ContractFunctionRevertedError({ abi: sdk.stakeVaultAbi, functionName: 'withdraw', data: encodeErrorResult({ abi: sdk.stakeVaultAbi, errorName: 'StillBonded', args: [5n, 7n] }) })
+    const decoded = new ContractFunctionRevertedError({
+      abi: sdk.stakeVaultAbi,
+      functionName: 'withdraw',
+      data: encodeErrorResult({ abi: sdk.stakeVaultAbi, errorName: 'StillBonded', args: [5n, 7n] }),
+    })
     const wrapped = new Error('execution reverted: https://rpc.example/KEY', { cause: decoded })
-    expect(agentFailureReply(wrapped, 'fallback', vi.fn())).toEqual({ ok: false, code: 'chain', message: 'The chain refused this call: StillBonded', reason: 'revert', retry: 'none' })
+    expect(agentFailureReply(wrapped, 'fallback', vi.fn())).toEqual({
+      ok: false,
+      code: 'chain',
+      message: 'The chain refused this call: StillBonded',
+      reason: 'revert',
+      retry: 'none',
+    })
     // A provider's JSON-RPC error body copied onto an RpcRequestError is not a decoded revert, whatever it claims.
-    const raw = Object.assign(new Error('RPC Request failed.'), { name: 'RpcRequestError', data: { errorName: 'StillBonded' } })
+    const raw = Object.assign(new Error('RPC Request failed.'), {
+      name: 'RpcRequestError',
+      data: { errorName: 'StillBonded' },
+    })
     expect(agentFailureReply(raw, 'fallback', vi.fn())).toMatchObject({ reason: 'internal' })
     // A decoded name outside our contracts' errors (a foreign ABI, Error(string), Panic) is not echoed either.
     const foreignAbi = parseAbi(['error Leaked(string detail)'])
-    const foreign = new ContractFunctionRevertedError({ abi: foreignAbi, functionName: 'x', data: encodeErrorResult({ abi: foreignAbi, errorName: 'Leaked', args: ['https://rpc.example/KEY'] }) })
+    const foreign = new ContractFunctionRevertedError({
+      abi: foreignAbi,
+      functionName: 'x',
+      data: encodeErrorResult({ abi: foreignAbi, errorName: 'Leaked', args: ['https://rpc.example/KEY'] }),
+    })
     expect(agentFailureReply(foreign, 'fallback', vi.fn())).toMatchObject({ reason: 'internal' })
   })
 })
@@ -86,14 +155,24 @@ describe('the tenant boundary (VV2-017)', () => {
       expect(boardReply).toMatchObject({ code: 'error', reason: 'internal', retry: 'same-key' })
       expect(mcpReply).toEqual(boardReply)
       expect(spy).toHaveBeenCalledTimes(1)
-      const surfaces = [JSON.stringify(boardReply), JSON.stringify(mcpReply), ...spy.mock.calls.map(call => call.join(' '))].join('\n')
+      const surfaces = [
+        JSON.stringify(boardReply),
+        JSON.stringify(mcpReply),
+        ...spy.mock.calls.map((call) => call.join(' ')),
+      ].join('\n')
       expect(surfaces).toContain(boardReply.errorId!)
       expect(surfaces).not.toMatch(/SECRETKEY|rpc\.example|short-secret|apiKey|fetch/)
-    } finally { spy.mockRestore() }
+    } finally {
+      spy.mockRestore()
+    }
   })
 
   it('passes an explicit refusal through the rewrap unchanged', () => {
-    const floor = Object.assign(new BoardError('unavailable', 'the sponsorship relay is below its balance floor'), { reason: 'floor', retry: 'same-key', retryAfter: 600 })
+    const floor = Object.assign(new BoardError('unavailable', 'the sponsorship relay is below its balance floor'), {
+      reason: 'floor',
+      retry: 'same-key',
+      retryAfter: 600,
+    })
     const boardReply = agentFailureReply(floor, 'fallback', vi.fn(), 'error')
     expect(agentFailureReply(failureFromReply(boardReply), 'fallback', vi.fn())).toEqual(boardReply)
   })

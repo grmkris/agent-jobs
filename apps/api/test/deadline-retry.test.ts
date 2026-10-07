@@ -10,8 +10,15 @@ const worker = '0x2222222222222222222222222222222222222222' as const
 const T = 1_791_000_000
 const databases: DatabaseSync[] = []
 let boardNow = T
-beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(T * 1000); boardNow = T })
-afterEach(() => { vi.useRealTimers(); for (const db of databases.splice(0)) db.close() })
+beforeEach(() => {
+  vi.useFakeTimers()
+  vi.setSystemTime(T * 1000)
+  boardNow = T
+})
+afterEach(() => {
+  vi.useRealTimers()
+  for (const db of databases.splice(0)) db.close()
+})
 
 function fixture() {
   const base = sdk.context('monad-testnet', 'main', 'http://127.0.0.1:1')
@@ -28,34 +35,66 @@ function fixture() {
     throw new Error(`unexpected chain read: ${functionName}`)
   })
   // The public request list reads each budgeted poster's balance in one multicall.
-  const multicall = vi.fn(async ({ contracts }: { contracts: unknown[] }) => contracts.map(() => ({ status: 'success' as const, result: 7n })))
+  const multicall = vi.fn(async ({ contracts }: { contracts: unknown[] }) =>
+    contracts.map(() => ({ status: 'success' as const, result: 7n })),
+  )
   const client = { ...base.publicClient, readContract: read, multicall, getBlockNumber: vi.fn(async () => 100n) }
   const ctx = { ...base, stack: { ...base.stack, kind: 'sidequest-v1' }, publicClient: client } as unknown as sdk.Ctx
-  const db = new DatabaseSync(':memory:'); databases.push(db)
-  const board = new Board(fromNodeSqlite(db), { network: 'monad-testnet', contexts: { main: ctx }, domain: 'deadline.test', uri: 'https://deadline.test', manifestBaseUrl: 'https://deadline.test/offers', now: () => boardNow })
+  const db = new DatabaseSync(':memory:')
+  databases.push(db)
+  const board = new Board(fromNodeSqlite(db), {
+    network: 'monad-testnet',
+    contexts: { main: ctx },
+    domain: 'deadline.test',
+    uri: 'https://deadline.test',
+    manifestBaseUrl: 'https://deadline.test/offers',
+    now: () => boardNow,
+  })
   const run = (tool: string, args: Record<string, unknown>, address: `0x${string}` = creator) =>
-    tools[tool]!.run(board, { address }, args, { network: 'monad-testnet', mcpSession: undefined }) as Promise<Record<string, unknown>>
+    tools[tool]!.run(board, { address }, args, { network: 'monad-testnet', mcpSession: undefined }) as Promise<
+      Record<string, unknown>
+    >
   const token = base.deployment.rewardTokens[0]!
-  const offer = { title: 'Offer', brief: 'Brief', acceptanceCriteria: ['works'], creatorBond: '0', workerBond: '0',
-    windows: { reviewSeconds: 120, disputeSeconds: 120, arbitrationSeconds: 300 }, arbitrator: '0x4444444444444444444444444444444444444444' }
+  const offer = {
+    title: 'Offer',
+    brief: 'Brief',
+    acceptanceCriteria: ['works'],
+    creatorBond: '0',
+    workerBond: '0',
+    windows: { reviewSeconds: 120, disputeSeconds: 120, arbitrationSeconds: 300 },
+    arbitrator: '0x4444444444444444444444444444444444444444',
+  }
   return { board, run, token, offer, db }
 }
 
-const later = () => { vi.setSystemTime((T + 3600) * 1000); boardNow = T + 3600 }
+const later = () => {
+  vi.setSystemTime((T + 3600) * 1000)
+  boardNow = T + 3600
+}
 
 it('a request_quotes retry under a moved clock echoes the saved deadlines, not its own resolution', async () => {
   const f = fixture()
   const args = { ...f.offer, tokens: [f.token], deliveryDeadline: '3d', quoteDeadline: '2d', idempotencyKey: 'rq' }
   const first = await f.run('request_quotes', args)
-  expect(first).toMatchObject({ deliveryDeadline: T + 3 * 86_400, quoteDeadline: T + 2 * 86_400, deadlines: { deliveryDeadline: T + 3 * 86_400, quoteDeadline: T + 2 * 86_400 } })
+  expect(first).toMatchObject({
+    deliveryDeadline: T + 3 * 86_400,
+    quoteDeadline: T + 2 * 86_400,
+    deadlines: { deliveryDeadline: T + 3 * 86_400, quoteDeadline: T + 2 * 86_400 },
+  })
   later()
   expect(await f.run('request_quotes', args)).toEqual(first)
 })
 
 it('a create_task retry under a moved clock returns the original terms and their deadlines', async () => {
   const f = fixture()
-  const args = { ...f.offer, token: f.token, reward: '1', deliveryDeadline: '3d', idempotencyKey: 'ct',
-    executionBudget: { kind: 'advance', token: f.token, cap: '1', expiresAt: '2d' } }
+  const args = {
+    ...f.offer,
+    token: f.token,
+    reward: '1',
+    deliveryDeadline: '3d',
+    idempotencyKey: 'ct',
+    executionBudget: { kind: 'advance', token: f.token, cap: '1', expiresAt: '2d' },
+  }
   const first = await f.run('create_task', args)
   expect(first.deadlines).toEqual({ deliveryDeadline: T + 3 * 86_400, budgetExpiresAt: T + 2 * 86_400 })
   later()
@@ -64,12 +103,27 @@ it('a create_task retry under a moved clock returns the original terms and their
 })
 
 it('pick_quote freezes a relative or ISO budget expiry as integer seconds the delegation can use', async () => {
-  for (const [key, expiresAt, expected] of [['relative', '2d', T + 2 * 86_400], ['iso', '2026-10-07T00:00:00Z', Date.UTC(2026, 9, 7) / 1000]] as const) {
+  for (const [key, expiresAt, expected] of [
+    ['relative', '2d', T + 2 * 86_400],
+    ['iso', '2026-10-07T00:00:00Z', Date.UTC(2026, 9, 7) / 1000],
+  ] as const) {
     const f = fixture()
-    const request = await f.run('request_quotes', { ...f.offer, tokens: [f.token], deliveryDeadline: '5d', quoteDeadline: '1d' })
-    const quote = await f.board.submitQuote({ address: worker }, { requestId: request.requestId as string, agentId: '7', token: f.token, amount: '1' })
-    const picked = await f.run('pick_quote', { requestId: request.requestId, quoteId: quote.quoteId, idempotencyKey: `pick-${key}`,
-      executionBudget: { kind: 'advance', token: f.token, cap: '1', expiresAt } })
+    const request = await f.run('request_quotes', {
+      ...f.offer,
+      tokens: [f.token],
+      deliveryDeadline: '5d',
+      quoteDeadline: '1d',
+    })
+    const quote = await f.board.submitQuote(
+      { address: worker },
+      { requestId: request.requestId as string, agentId: '7', token: f.token, amount: '1' },
+    )
+    const picked = await f.run('pick_quote', {
+      requestId: request.requestId,
+      quoteId: quote.quoteId,
+      idempotencyKey: `pick-${key}`,
+      executionBudget: { kind: 'advance', token: f.token, cap: '1', expiresAt },
+    })
     const terms = JSON.parse(picked.manifest as string) as { executionBudget: { expiresAt: unknown } }
     expect(terms.executionBudget.expiresAt).toBe(expected)
     expect(BigInt(terms.executionBudget.expiresAt as number)).toBe(BigInt(expected))
@@ -79,53 +133,123 @@ it('pick_quote freezes a relative or ISO budget expiry as integer seconds the de
 
 it('the board refuses a budget expiry that is not integer seconds, whatever the caller', async () => {
   const f = fixture()
-  await expect(f.board.createTask({ address: creator }, { ...f.offer, token: f.token, reward: '1', deliveryDeadline: T + 86_400,
-    executionBudget: { kind: 'advance', token: f.token, cap: '1', expiresAt: '3d' as never } })).rejects.toMatchObject({ code: 'invalid', message: expect.stringContaining('expiresAt') })
+  await expect(
+    f.board.createTask(
+      { address: creator },
+      {
+        ...f.offer,
+        token: f.token,
+        reward: '1',
+        deliveryDeadline: T + 86_400,
+        executionBudget: { kind: 'advance', token: f.token, cap: '1', expiresAt: '3d' as never },
+      },
+    ),
+  ).rejects.toMatchObject({ code: 'invalid', message: expect.stringContaining('expiresAt') })
 })
 
 it('tags are frozen through API creation and quote picking; quote privacy follows the exact creator', async () => {
   const f = fixture()
-  const created = await f.run('create_task', { ...f.offer, tags: ['research', 'coding'], token: f.token, reward: '1', deliveryDeadline: '3d' })
+  const created = await f.run('create_task', {
+    ...f.offer,
+    tags: ['research', 'coding'],
+    token: f.token,
+    reward: '1',
+    deliveryDeadline: '3d',
+  })
   expect(JSON.parse(created.manifest as string).tags).toEqual(['coding', 'research'])
-  const untagged = await f.run('create_task', { ...f.offer, tags: [], token: f.token, reward: '1', deliveryDeadline: '3d' })
+  const untagged = await f.run('create_task', {
+    ...f.offer,
+    tags: [],
+    token: f.token,
+    reward: '1',
+    deliveryDeadline: '3d',
+  })
   expect(JSON.parse(untagged.manifest as string)).not.toHaveProperty('tags')
-  const request = await f.run('request_quotes', { ...f.offer, tags: ['writing', 'design'], tokens: [f.token], deliveryDeadline: '3d', quoteDeadline: '1d' })
+  const request = await f.run('request_quotes', {
+    ...f.offer,
+    tags: ['writing', 'design'],
+    tokens: [f.token],
+    deliveryDeadline: '3d',
+    quoteDeadline: '1d',
+  })
   expect((await f.board.listQuoteRequests({}))[0]).toMatchObject({ tags: ['design', 'writing'] })
-  const quote = await f.board.submitQuote({ address: worker }, { requestId: request.requestId as string, agentId: '7', token: f.token, amount: '1' })
+  const quote = await f.board.submitQuote(
+    { address: worker },
+    { requestId: request.requestId as string, agentId: '7', token: f.token, amount: '1' },
+  )
   const unrelated = '0x5555555555555555555555555555555555555555' as const
   expect(await f.run('list_quotes', { requestId: request.requestId }, unrelated)).toMatchObject({ creator, quotes: [] })
   const picked = await f.run('pick_quote', { requestId: request.requestId, quoteId: quote.quoteId })
   expect(JSON.parse(picked.manifest as string).tags).toEqual(['design', 'writing'])
-  expect(f.board.taskIndex({}).find(task => task.taskId === picked.taskId)?.tags).toEqual(['design', 'writing'])
-  await expect(f.run('pick_quote', { requestId: request.requestId, quoteId: quote.quoteId }, unrelated)).rejects.toMatchObject({ code: 'forbidden' })
+  expect(f.board.taskIndex({}).find((task) => task.taskId === picked.taskId)?.tags).toEqual(['design', 'writing'])
+  await expect(
+    f.run('pick_quote', { requestId: request.requestId, quoteId: quote.quoteId }, unrelated),
+  ).rejects.toMatchObject({ code: 'forbidden' })
 })
 
 it('invalid tag inputs fail as validation errors before any preparation is persisted', async () => {
   const f = fixture()
   for (const tags of [['unknown'], ['coding', 'design', 'writing', 'research'], 'coding']) {
-    await expect(f.run('create_task', { ...f.offer, tags, token: f.token, reward: '1', deliveryDeadline: '3d' })).rejects.toMatchObject({ code: 'invalid' })
+    await expect(
+      f.run('create_task', { ...f.offer, tags, token: f.token, reward: '1', deliveryDeadline: '3d' }),
+    ).rejects.toMatchObject({ code: 'invalid' })
   }
   expect(f.board.taskIndex({})).toEqual([])
 })
 
 it('a public budget caps quotes: only its token, nothing above max, and the pick checks again', async () => {
   const f = fixture()
-  const plain = await f.run('request_quotes', { ...f.offer, tokens: [f.token], deliveryDeadline: '3d', quoteDeadline: '1d' })
-  expect((await f.board.listQuoteRequests({})).find(r => r.requestId === plain.requestId)).not.toHaveProperty('budget')
+  const plain = await f.run('request_quotes', {
+    ...f.offer,
+    tokens: [f.token],
+    deliveryDeadline: '3d',
+    quoteDeadline: '1d',
+  })
+  expect((await f.board.listQuoteRequests({})).find((r) => r.requestId === plain.requestId)).not.toHaveProperty(
+    'budget',
+  )
   const other = f.offer.arbitrator
-  await expect(f.run('request_quotes', { ...f.offer, tokens: [f.token, other], budget: { token: f.token, max: '10' }, deliveryDeadline: '3d', quoteDeadline: '1d' }))
-    .rejects.toMatchObject({ code: 'invalid', message: expect.stringContaining('only its budget token') })
-  await expect(f.run('request_quotes', { ...f.offer, budget: { token: f.token, max: '0' }, deliveryDeadline: '3d', quoteDeadline: '1d' }))
-    .rejects.toMatchObject({ code: 'invalid', message: expect.stringContaining('positive') })
-  await expect(f.run('request_quotes', { ...f.offer, deliveryDeadline: '3d', quoteDeadline: '1d' }))
-    .rejects.toMatchObject({ code: 'invalid', message: expect.stringContaining('at least one accepted token') })
-  const capped = await f.run('request_quotes', { ...f.offer, budget: { token: f.token, max: '10' }, deliveryDeadline: '3d', quoteDeadline: '1d' })
+  await expect(
+    f.run('request_quotes', {
+      ...f.offer,
+      tokens: [f.token, other],
+      budget: { token: f.token, max: '10' },
+      deliveryDeadline: '3d',
+      quoteDeadline: '1d',
+    }),
+  ).rejects.toMatchObject({ code: 'invalid', message: expect.stringContaining('only its budget token') })
+  await expect(
+    f.run('request_quotes', {
+      ...f.offer,
+      budget: { token: f.token, max: '0' },
+      deliveryDeadline: '3d',
+      quoteDeadline: '1d',
+    }),
+  ).rejects.toMatchObject({ code: 'invalid', message: expect.stringContaining('positive') })
+  await expect(
+    f.run('request_quotes', { ...f.offer, deliveryDeadline: '3d', quoteDeadline: '1d' }),
+  ).rejects.toMatchObject({ code: 'invalid', message: expect.stringContaining('at least one accepted token') })
+  const capped = await f.run('request_quotes', {
+    ...f.offer,
+    budget: { token: f.token, max: '10' },
+    deliveryDeadline: '3d',
+    quoteDeadline: '1d',
+  })
   // The poster's wallet holds 7 of the 10 it offers: public, and not covered.
-  expect((await f.board.listQuoteRequests({})).find(r => r.requestId === capped.requestId)).toMatchObject({ tokens: [f.token], budget: { token: f.token, max: '10' }, budgetCovered: false, creatorAgentId: null })
+  expect((await f.board.listQuoteRequests({})).find((r) => r.requestId === capped.requestId)).toMatchObject({
+    tokens: [f.token],
+    budget: { token: f.token, max: '10' },
+    budgetCovered: false,
+    creatorAgentId: null,
+  })
   const requestId = capped.requestId as string
-  await expect(f.board.submitQuote({ address: worker }, { requestId, agentId: '7', token: f.token, amount: '11' }))
-    .rejects.toMatchObject({ code: 'invalid', message: expect.stringContaining('at most 10') })
-  const quote = await f.board.submitQuote({ address: worker }, { requestId, agentId: '7', token: f.token, amount: '10' })
+  await expect(
+    f.board.submitQuote({ address: worker }, { requestId, agentId: '7', token: f.token, amount: '11' }),
+  ).rejects.toMatchObject({ code: 'invalid', message: expect.stringContaining('at most 10') })
+  const quote = await f.board.submitQuote(
+    { address: worker },
+    { requestId, agentId: '7', token: f.token, amount: '10' },
+  )
   // A quote above the budget can only exist if it bypassed submit_quote; the pick refuses it before freezing anything.
   f.db.prepare('UPDATE quotes SET amount = ? WHERE id = ?').run('11', quote.quoteId)
   await expect(f.run('pick_quote', { requestId, quoteId: quote.quoteId })).rejects.toMatchObject({ code: 'conflict' })

@@ -6,7 +6,12 @@ type KeyStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
 
 const keyName = (agentId: string, serviceId: string | null) => `sidequest.listing-op:${agentId}:${serviceId ?? '*'}`
 
-export function listingOperationKey(storage: KeyStorage, agentId: string, serviceId: string | null, fresh: () => string = () => crypto.randomUUID()): string {
+export function listingOperationKey(
+  storage: KeyStorage,
+  agentId: string,
+  serviceId: string | null,
+  fresh: () => string = () => crypto.randomUUID(),
+): string {
   const name = keyName(agentId, serviceId)
   const saved = storage.getItem(name)
   if (saved !== null && /^[A-Za-z0-9_-]{1,128}$/.test(saved)) return saved

@@ -14,7 +14,14 @@ export function FactoryIcon(props: IconProps) {
     <svg {...svg(props)}>
       {/* The Sidequest mark in the page's ink: near-black on light, inverted on dark, like the favicon. */}
       <circle cx="16" cy="16" r="16" className="fill-foreground" />
-      <path d="M8 9h8l8 8M24 23h-8l-8-8" className="stroke-background" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      <path
+        d="M8 9h8l8 8M24 23h-8l-8-8"
+        className="stroke-background"
+        strokeWidth="3.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
     </svg>
   )
 }
@@ -32,7 +39,14 @@ function TestToken({ fill, glyph, ...props }: IconProps & { fill: string; glyph:
       </defs>
       <circle cx="16" cy="16" r="16" fill={fill} />
       <circle cx="16" cy="16" r="16" fill={`url(#${id})`} />
-      <g transform="translate(5 5) scale(0.9167)" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" fill="none">
+      <g
+        transform="translate(5 5) scale(0.9167)"
+        stroke="#fff"
+        strokeWidth="2.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      >
         {glyph.map((d) => (
           <path key={d} d={d} />
         ))}

@@ -11,7 +11,13 @@ import { Database } from '@sidequest/indexer/database'
 import { rpcUrlForNetwork } from '@sidequest/indexer/network'
 import { runtimeSecret } from '@sidequest/board/runtime'
 import { queueTelegramNotifications } from '@sidequest/indexer/telegram-notifications'
-import { configurePublicSite, publicOrigin, drainTelegramOutbox, migrateTelegram, telegramTransport } from '@sidequest/indexer/telegram'
+import {
+  configurePublicSite,
+  publicOrigin,
+  drainTelegramOutbox,
+  migrateTelegram,
+  telegramTransport,
+} from '@sidequest/indexer/telegram'
 import { reportRelayWatchFailure, watchRelay } from '@sidequest/indexer/relay-watch'
 import { feedFromChain, pruneFeed, reportFeedFailure } from '@sidequest/indexer/feed'
 import { deliverWebhooks, reportWebhookFailure } from '@sidequest/indexer/webhooks'
@@ -35,9 +41,15 @@ export default class Indexer extends Cloudflare.Worker<Indexer>()(
     env: {
       NETWORK: stageProfile()?.network ?? process.env.SIDEQUEST_NETWORK ?? 'monad-testnet',
       PUBLIC_ORIGIN: stageProfile()?.origin ?? 'http://localhost:5173',
-      RELAY_ADDRESS: stageProfile()?.relay ?? sdk.deployment((process.env.SIDEQUEST_NETWORK ?? 'monad-testnet') as sdk.Network).relay,
+      RELAY_ADDRESS:
+        stageProfile()?.relay ??
+        sdk.deployment((process.env.SIDEQUEST_NETWORK ?? 'monad-testnet') as sdk.Network).relay,
       TELEGRAM_BOT_USERNAME: stageProfile()?.telegram.botUsername ?? '',
-      HYPERSYNC_URL: process.env.HYPERSYNC_URL ?? ((stageProfile()?.network ?? process.env.SIDEQUEST_NETWORK) === 'monad-mainnet' ? 'https://monad.hypersync.xyz' : 'https://monad-testnet.hypersync.xyz'),
+      HYPERSYNC_URL:
+        process.env.HYPERSYNC_URL ??
+        ((stageProfile()?.network ?? process.env.SIDEQUEST_NETWORK) === 'monad-mainnet'
+          ? 'https://monad.hypersync.xyz'
+          : 'https://monad-testnet.hypersync.xyz'),
       MONAD_RPC_URL: Redacted.make(rpcUrlForNetwork() || 'unset'),
       HYPERSYNC_API_TOKEN: Redacted.make(runtimeSecret('HYPERSYNC_API_TOKEN') || 'unset'),
       TELEGRAM_BOT_TOKEN: Redacted.make(runtimeSecret('TELEGRAM_BOT_TOKEN') || 'unset'),
@@ -65,7 +77,10 @@ export default class Indexer extends Cloudflare.Worker<Indexer>()(
       const sql = fromD1(raw as never)
       yield* Effect.promise(() => migrateTelegram(sql))
       if (token === '' || rpcUrl === '') {
-        if (telegramToken !== '') yield* Effect.promise(() => drainTelegramOutbox(sql, telegramTransport(telegramToken), Math.floor(Date.now() / 1000)))
+        if (telegramToken !== '')
+          yield* Effect.promise(() =>
+            drainTelegramOutbox(sql, telegramTransport(telegramToken), Math.floor(Date.now() / 1000)),
+          )
         return { skipped: 'HYPERSYNC_API_TOKEN or MONAD_RPC_URL unset' }
       }
       const hyper = yield* Config.String('HYPERSYNC_URL')
@@ -78,7 +93,8 @@ export default class Indexer extends Cloudflare.Worker<Indexer>()(
           source: hyperSync(hyper, token),
           head: rpcHead(rpcUrl),
           runner: `cron:${crypto.randomUUID()}`,
-          maxPages: 5, offers: { boards: sdk.deployment(network).boards ?? [], origin: publicOrigin() },
+          maxPages: 5,
+          offers: { boards: sdk.deployment(network).boards ?? [], origin: publicOrigin() },
         }
         try {
           const result = await runOnce(sql, indexer)
@@ -99,15 +115,26 @@ export default class Indexer extends Cloudflare.Worker<Indexer>()(
             const notifications = await queueTelegramNotifications(sql, network, now, { caughtUp })
             allowSilence = !notifications.stale
             // Owner alert when the sponsorship relay nears its floor; never fails the indexing run.
-            await watchRelay(sql, { network, now, relay: deployment.relay, balance: () => client.getBalance({ address: deployment.relay }) })
-              .catch(reportRelayWatchFailure)
+            await watchRelay(sql, {
+              network,
+              now,
+              relay: deployment.relay,
+              balance: () => client.getBalance({ address: deployment.relay }),
+            }).catch(reportRelayWatchFailure)
           }
           return result
         } finally {
           // The next minute's run indexes at once instead of being refused while this lease runs out. A failed
           // release only means waiting for expiry, as before.
           await releaseLease(sql, indexer).catch(() => undefined)
-          if (telegramToken !== '') await drainTelegramOutbox(sql, telegramTransport(telegramToken), Math.floor(Date.now() / 1000), 20, allowSilence)
+          if (telegramToken !== '')
+            await drainTelegramOutbox(
+              sql,
+              telegramTransport(telegramToken),
+              Math.floor(Date.now() / 1000),
+              20,
+              allowSilence,
+            )
         }
       })
     })

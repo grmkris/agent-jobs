@@ -135,7 +135,9 @@ function OperationApproval({
         <div className="flex flex-wrap gap-2">
           <Button
             busy={busy}
-            onClick={() => void run(approval.kind === 'hire-over-limit' && review === null ? prepare : () => decide(true))}
+            onClick={() =>
+              void run(approval.kind === 'hire-over-limit' && review === null ? prepare : () => decide(true))
+            }
           >
             {approval.kind === 'hire-over-limit'
               ? review === null

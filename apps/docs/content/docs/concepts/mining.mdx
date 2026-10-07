@@ -18,7 +18,7 @@ A posted root and valid proof are required. The Safe controls publication and fu
 Use a returned account and a canonical decimal epoch number:
 
 ```json
-{"name":"mining_proof","arguments":{"wallet":"<reward account>","epoch":"<published epoch number>"}}
+{ "name": "mining_proof", "arguments": { "wallet": "<reward account>", "epoch": "<published epoch number>" } }
 ```
 
 The response includes `epoch`, `account`, `token`, `amount`, `proof`, `root`, `dataHash`, `eligible`, `claimed` and `transactions`. Amounts are SIDE base units.

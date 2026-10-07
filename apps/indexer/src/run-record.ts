@@ -37,7 +37,14 @@ function failureDetail(cause: Cause.Cause<unknown>): RunFailureDetail {
 export async function recordIndexerRun(sql: AsyncSql, outcome: IndexerRunOutcome, at: number): Promise<void> {
   const detail = JSON.stringify(outcome.ok ? outcome.result : failureDetail(outcome.cause))
   await sql.batch([
-    { query: 'CREATE TABLE IF NOT EXISTS indexer_runs (id INTEGER PRIMARY KEY, at INTEGER NOT NULL, ok INTEGER NOT NULL, detail TEXT NOT NULL)', params: [] },
-    { query: 'INSERT OR REPLACE INTO indexer_runs (id, at, ok, detail) VALUES (1, ?, ?, ?)', params: [at, outcome.ok ? 1 : 0, detail] },
+    {
+      query:
+        'CREATE TABLE IF NOT EXISTS indexer_runs (id INTEGER PRIMARY KEY, at INTEGER NOT NULL, ok INTEGER NOT NULL, detail TEXT NOT NULL)',
+      params: [],
+    },
+    {
+      query: 'INSERT OR REPLACE INTO indexer_runs (id, at, ok, detail) VALUES (1, ?, ?, ?)',
+      params: [at, outcome.ok ? 1 : 0, detail],
+    },
   ])
 }

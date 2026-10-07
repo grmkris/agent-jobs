@@ -25,15 +25,32 @@ import { TokenAmount } from '../token/TokenAmount.tsx'
 import { TxSteps } from '../TxSteps.tsx'
 
 /** Before activation: the viewer's fee tier and net payout if they activate now. */
-export function FeeQuote({ jobId, holding, viewer, token }: { jobId: string; holding: Address; viewer: Address; token: string | null }) {
+export function FeeQuote({
+  jobId,
+  holding,
+  viewer,
+  token,
+}: {
+  jobId: string
+  holding: Address
+  viewer: Address
+  token: string | null
+}) {
   const quote = useReadContracts({
     contracts: [
-      { address: holding, abi: sdk.sidequestHoldingAbi, functionName: 'quoteActivation', args: [BigInt(jobId), viewer], chainId: chain.id },
+      {
+        address: holding,
+        abi: sdk.sidequestHoldingAbi,
+        functionName: 'quoteActivation',
+        args: [BigInt(jobId), viewer],
+        chainId: chain.id,
+      },
     ],
     query: { refetchInterval: 30_000 },
   })
   const r = quote.data?.[0]
-  const [bps, fee, net] = r?.status === 'success' ? (r.result as readonly [number, bigint, bigint]) : [undefined, undefined, undefined]
+  const [bps, fee, net] =
+    r?.status === 'success' ? (r.result as readonly [number, bigint, bigint]) : [undefined, undefined, undefined]
   return (
     <Section
       title="If you take this job"
@@ -54,7 +71,9 @@ export function FeeQuote({ jobId, holding, viewer, token }: { jobId: string; hol
             </ItemContent>
             {/* min-w-24: the value's room is kept while it loads, so the label does not rewrap when it lands. */}
             <ItemActions className="tabular-nums min-w-24 flex-col items-end text-right text-muted-foreground">
-              {fee === undefined ? '…' : (
+              {fee === undefined ? (
+                '…'
+              ) : (
                 <span>
                   − <TokenAmount value={fee} token={token} />
                 </span>
@@ -77,13 +96,35 @@ export function FeeQuote({ jobId, holding, viewer, token }: { jobId: string; hol
 }
 
 /** After activation: anyone adds to the reward. Paid to the agent with it (same fee rate), or refundable. */
-export function TopUp({ jobId, holding, token, viewer }: { jobId: string; holding: Address; token: Address; viewer: Address }) {
+export function TopUp({
+  jobId,
+  holding,
+  token,
+  viewer,
+}: {
+  jobId: string
+  holding: Address
+  token: Address
+  viewer: Address
+}) {
   const qc = useQueryClient()
   const toast = useToast()
   const reads = useReadContracts({
     contracts: [
-      { address: holding, abi: sdk.sidequestHoldingAbi, functionName: 'getListing', args: [BigInt(jobId)], chainId: chain.id },
-      { address: holding, abi: sdk.sidequestHoldingAbi, functionName: 'topUpOf', args: [BigInt(jobId), viewer], chainId: chain.id },
+      {
+        address: holding,
+        abi: sdk.sidequestHoldingAbi,
+        functionName: 'getListing',
+        args: [BigInt(jobId)],
+        chainId: chain.id,
+      },
+      {
+        address: holding,
+        abi: sdk.sidequestHoldingAbi,
+        functionName: 'topUpOf',
+        args: [BigInt(jobId), viewer],
+        chainId: chain.id,
+      },
     ],
     query: { refetchInterval: 30_000 },
   })

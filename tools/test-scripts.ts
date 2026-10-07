@@ -4,10 +4,14 @@ import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { repoRoot, run } from './run.ts'
 
-export const nodeTestFiles = (root: string): string[] => [
-  ...new Set(execFileSync('git', ['ls-files', '-co', '--exclude-standard', '--', 'scripts'], { cwd: root, encoding: 'utf8' })
-    .split('\n').filter((file) => /^scripts\/.*\.test\.mjs$/u.test(file) && existsSync(path.join(root, file)))),
-].toSorted()
+export const nodeTestFiles = (root: string): string[] =>
+  [
+    ...new Set(
+      execFileSync('git', ['ls-files', '-co', '--exclude-standard', '--', 'scripts'], { cwd: root, encoding: 'utf8' })
+        .split('\n')
+        .filter((file) => /^scripts\/.*\.test\.mjs$/u.test(file) && existsSync(path.join(root, file))),
+    ),
+  ].toSorted()
 
 if (import.meta.main) {
   const files = nodeTestFiles(repoRoot)

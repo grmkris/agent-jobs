@@ -37,7 +37,10 @@ const targets: Array<[string, number, number]> = [
 
 mkdirSync(out('icons'), { recursive: true })
 // A path argument, not an environment variable: Explore's build pins every env read under apps/explore (B12-003).
-const browser = await chromium.launch({ headless: true, ...(process.argv[2] === undefined ? {} : { executablePath: process.argv[2] }) })
+const browser = await chromium.launch({
+  headless: true,
+  ...(process.argv[2] === undefined ? {} : { executablePath: process.argv[2] }),
+})
 for (const [file, size, scale] of targets) {
   const page = await browser.newPage({ viewport: { width: size, height: size }, deviceScaleFactor: 1 })
   await page.setContent(`<html><body style="margin:0">${icon(size, scale)}</body></html>`)

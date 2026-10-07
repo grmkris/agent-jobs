@@ -12,7 +12,8 @@ export function typedDataArgs(json: string) {
   const { EIP712Domain: _domain, ...types } = parsed.types
   const message = { ...parsed.message }
   for (const f of types[parsed.primaryType] ?? []) {
-    if (/^u?int\d*$/.test(f.type) && typeof message[f.name] === 'string') message[f.name] = BigInt(message[f.name] as string)
+    if (/^u?int\d*$/.test(f.type) && typeof message[f.name] === 'string')
+      message[f.name] = BigInt(message[f.name] as string)
   }
   return { domain: parsed.domain, types, primaryType: parsed.primaryType, message } as never
 }

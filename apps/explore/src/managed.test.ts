@@ -3,7 +3,16 @@ import type { ManagedAgent } from './api.ts'
 import { boardRoutes } from './components/BoardLink.tsx'
 import { agentHome, managedLiveness, ownedAgent, ownerOf, pendingByAgent } from './managed.ts'
 
-const agent = (id: string, agentId: string | null): ManagedAgent => ({ id, name: id, address: null, agent_id: agentId, state: 'active', last_activity_at: null, revoke_json: null }) as unknown as ManagedAgent
+const agent = (id: string, agentId: string | null): ManagedAgent =>
+  ({
+    id,
+    name: id,
+    address: null,
+    agent_id: agentId,
+    state: 'active',
+    last_activity_at: null,
+    revoke_json: null,
+  }) as unknown as ManagedAgent
 
 describe('managed agents', () => {
   it('counts only pending decisions, per agent', () => {
@@ -26,9 +35,18 @@ describe('managed agents', () => {
     expect(ownedAgent(undefined, '1942')).toBeUndefined()
   })
   it('sends a registered agent to its page on this board and an unregistered one to its setup', () => {
-    expect(agentHome({ id: 'm1', agent_id: '1942' } as ManagedAgent, boardRoutes('public'))).toEqual({ to: '/agent/$agentId', params: { agentId: '1942' } })
-    expect(agentHome({ id: 'm1', agent_id: '1942' } as ManagedAgent, boardRoutes('acme'))).toEqual({ to: '/b/$boardId/agent/$agentId', params: { boardId: 'acme', agentId: '1942' } })
-    expect(agentHome({ id: 'm2', agent_id: null } as ManagedAgent, boardRoutes('acme'))).toEqual({ to: '/agents/new', search: { resume: 'm2' } })
+    expect(agentHome({ id: 'm1', agent_id: '1942' } as ManagedAgent, boardRoutes('public'))).toEqual({
+      to: '/agent/$agentId',
+      params: { agentId: '1942' },
+    })
+    expect(agentHome({ id: 'm1', agent_id: '1942' } as ManagedAgent, boardRoutes('acme'))).toEqual({
+      to: '/b/$boardId/agent/$agentId',
+      params: { boardId: 'acme', agentId: '1942' },
+    })
+    expect(agentHome({ id: 'm2', agent_id: null } as ManagedAgent, boardRoutes('acme'))).toEqual({
+      to: '/agents/new',
+      search: { resume: 'm2' },
+    })
   })
   it('rings an agent live for ten minutes after its last MCP call', () => {
     expect(managedLiveness({ last_activity_at: 1_000 }, 1_600)).toBe('live')

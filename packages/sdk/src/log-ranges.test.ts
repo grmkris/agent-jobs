@@ -2,8 +2,10 @@ import { expect, it } from 'vitest'
 import { logWindowEnd, smallerLogSpan } from './log-ranges.ts'
 
 it('VV2-004 retries shrinking inclusive windows and covers every block exactly once after success', () => {
-  const start = 100n, through = 205n
-  let from = start, span = 100n
+  const start = 100n,
+    through = 205n
+  let from = start,
+    span = 100n
   const covered: bigint[] = []
   const rejected: bigint[] = []
   while (from <= through) {

@@ -149,8 +149,16 @@ export function Shell({ children }: { children: ReactNode }) {
                 const on = onAgent(pathname, agent.agent_id)
                 return (
                   <li key={agent.id}>
-                    <BoardLink target={agentHome(agent)} aria-current={on ? 'page' : undefined} className={sideClass(on, true)}>
-                      <AgentOrb agentId={agent.agent_id ?? agent.id} size="sm" status={managedLiveness(agent, Date.now() / 1000)} />
+                    <BoardLink
+                      target={agentHome(agent)}
+                      aria-current={on ? 'page' : undefined}
+                      className={sideClass(on, true)}
+                    >
+                      <AgentOrb
+                        agentId={agent.agent_id ?? agent.id}
+                        size="sm"
+                        status={managedLiveness(agent, Date.now() / 1000)}
+                      />
                       <span className="min-w-0 flex-1 truncate">{agent.name}</span>
                       {n > 0 && <Count n={n} kind="waiting" />}
                     </BoardLink>
@@ -197,9 +205,14 @@ export function Shell({ children }: { children: ReactNode }) {
           <LaunchBanner />
           {paused && (
             <div role="alert" className="rounded-xl bg-destructive/10 px-4 py-3 text-sm text-destructive-text">
-              The contracts are paused by their admin: nothing can be published, delivered, paid or spent until they are unpaused, and
-              deadlines keep running.{' '}
-              <a className="underline" href="https://github.com/grmkris/sidequest#trust" target="_blank" rel="noreferrer">
+              The contracts are paused by their admin: nothing can be published, delivered, paid or spent until they are
+              unpaused, and deadlines keep running.{' '}
+              <a
+                className="underline"
+                href="https://github.com/grmkris/sidequest#trust"
+                target="_blank"
+                rel="noreferrer"
+              >
                 What the admin can do
               </a>
             </div>
@@ -233,7 +246,11 @@ export function Shell({ children }: { children: ReactNode }) {
               <Icon aria-hidden className="size-6" strokeWidth={on ? 2.2 : 1.7} />
               {p.label}
               {n > 0 && (
-                <Count n={n} kind={p.label === 'Account' ? 'collect' : 'waiting'} className="absolute top-0 left-[calc(50%+0.5rem)]" />
+                <Count
+                  n={n}
+                  kind={p.label === 'Account' ? 'collect' : 'waiting'}
+                  className="absolute top-0 left-[calc(50%+0.5rem)]"
+                />
               )}
             </PlaceLink>
           )

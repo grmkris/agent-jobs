@@ -85,9 +85,13 @@ export function ResumeOffer({
 
   const header = (
     <>
-      <BoardLink target={routes.jobs()} className={cn(textLinkClass, 'text-sm')}>Back to jobs</BoardLink>
+      <BoardLink target={routes.jobs()} className={cn(textLinkClass, 'text-sm')}>
+        Back to jobs
+      </BoardLink>
 
-      <PageTitle sub={t !== undefined && t.jobId === null ? <Badge variant="warning">Not published yet</Badge> : undefined}>
+      <PageTitle
+        sub={t !== undefined && t.jobId === null ? <Badge variant="warning">Not published yet</Badge> : undefined}
+      >
         {t?.title ?? 'A saved offer'}
       </PageTitle>
     </>
@@ -252,7 +256,9 @@ export function ResumeOffer({
               <Lock aria-hidden className="size-5" />
             </span>
             <span className="min-w-0">
-              <span className="tabular-nums block text-2xl leading-tight font-bold tracking-tight [overflow-wrap:anywhere]">{reward}</span>
+              <span className="tabular-nums block text-2xl leading-tight font-bold tracking-tight [overflow-wrap:anywhere]">
+                {reward}
+              </span>
               <span className="block text-sm text-muted-foreground">
                 Locked in escrow when you publish · due <When at={t.deliveryDeadline} show="relative" />
               </span>
@@ -261,7 +267,8 @@ export function ResumeOffer({
 
           {lapsed && (
             <p className="rounded-xl bg-warning/14 px-4 py-3 text-sm text-warning-text">
-              Its delivery deadline has passed, so it can no longer be published. Create a fresh job with your agent and new dates.
+              Its delivery deadline has passed, so it can no longer be published. Create a fresh job with your agent and
+              new dates.
             </p>
           )}
 

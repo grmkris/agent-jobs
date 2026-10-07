@@ -6,8 +6,23 @@ import { join } from 'node:path'
 import { checkPasswordFile } from './password.ts'
 import { budgetOf, epochWindowOf, firstBlockAtOrAfter } from './chain.ts'
 import type { TopUp } from './contributors.ts'
-import { computeEpoch, dataHashOf, leafValues, treasuryOwed, type FeeCharged, type OwedWithdrawn, type PayoutOwed } from './compute.ts'
-import { parsePriceList, priceListDomain, PRICE_LIST_TYPES, recoverPriceListSigner, typedMessage, type PriceList } from './prices.ts'
+import {
+  computeEpoch,
+  dataHashOf,
+  leafValues,
+  treasuryOwed,
+  type FeeCharged,
+  type OwedWithdrawn,
+  type PayoutOwed,
+} from './compute.ts'
+import {
+  parsePriceList,
+  priceListDomain,
+  PRICE_LIST_TYPES,
+  recoverPriceListSigner,
+  typedMessage,
+  type PriceList,
+} from './prices.ts'
 import { buildTree, leafHash, proofOf, verifyProof, type LeafValue } from './tree.ts'
 import { cumulativeBudget, replayLots, scheduledLot } from './lots.ts'
 import { privateKeyToAccount, type Address, type Hex, type PublicClient } from './viem.ts'
@@ -20,24 +35,35 @@ const HOLDING = a(0x401d)
 const USDC = a(0x05dc)
 
 test('mining uses deployed fast epoch boundaries and keeps the end timestamp exclusive', async () => {
-  const t0 = 1000n, zero = 1800n, length = 3600n
+  const t0 = 1000n,
+    zero = 1800n,
+    length = 3600n
   const requests: Array<{ functionName: string; args: bigint[] }> = []
-  const c = { readContract: async (request: { functionName: string; args: bigint[] }) => {
-    requests.push(request)
-    const epoch = request.args[0]!, start = epoch === 0n ? t0 : t0 + zero + (epoch - 1n) * length
-    if (request.functionName === 'epochStart') return start
-    if (request.functionName === 'epochEnd') return start + (epoch === 0n ? zero : length)
-    throw new Error('unexpected contract getter')
-  }, getBlock: async ({ blockNumber }: { blockNumber: bigint }) => ({ timestamp: t0 + blockNumber }) } as unknown as PublicClient
+  const c = {
+    readContract: async (request: { functionName: string; args: bigint[] }) => {
+      requests.push(request)
+      const epoch = request.args[0]!,
+        start = epoch === 0n ? t0 : t0 + zero + (epoch - 1n) * length
+      if (request.functionName === 'epochStart') return start
+      if (request.functionName === 'epochEnd') return start + (epoch === 0n ? zero : length)
+      throw new Error('unexpected contract getter')
+    },
+    getBlock: async ({ blockNumber }: { blockNumber: bigint }) => ({ timestamp: t0 + blockNumber }),
+  } as unknown as PublicClient
   const first = await epochWindowOf(c, a(7), 0n)
   expect(first).toEqual({ start: t0, end: 2800n })
   expect(await epochWindowOf(c, a(7), 1n)).toEqual({ start: 2800n, end: 6400n })
   expect(await epochWindowOf(c, a(7), 2n)).toEqual({ start: 6400n, end: 10000n })
   const from = await firstBlockAtOrAfter(c, first.start, 0n, 10000n)
-  const to = await firstBlockAtOrAfter(c, first.end, 0n, 10000n) - 1n
+  const to = (await firstBlockAtOrAfter(c, first.end, 0n, 10000n)) - 1n
   expect([from, to]).toEqual([0n, 1799n])
-  expect(requests.map(r => [r.functionName, r.args[0]])).toEqual([
-    ['epochStart', 0n], ['epochEnd', 0n], ['epochStart', 1n], ['epochEnd', 1n], ['epochStart', 2n], ['epochEnd', 2n],
+  expect(requests.map((r) => [r.functionName, r.args[0]])).toEqual([
+    ['epochStart', 0n],
+    ['epochEnd', 0n],
+    ['epochStart', 1n],
+    ['epochEnd', 1n],
+    ['epochStart', 2n],
+    ['epochEnd', 2n],
   ])
   const broken = { readContract: async () => 1000n } as unknown as PublicClient
   await expect(epochWindowOf(broken, a(7), 0n)).rejects.toThrow('invalid deployed mining epoch window')
@@ -53,11 +79,36 @@ const prices: PriceList = {
 }
 
 let position = 0
-const at = (tx: number) => ({ block: BigInt(100 + tx), logIndex: position++, tx: `0x${tx.toString(16).padStart(64, '0')}` as Hex, holding: HOLDING })
-const fee = (tx: number, jobId: number, token: Address, worker: Address, creator: Address, dollars: number): FeeCharged =>
-  ({ ...at(tx), jobId: BigInt(jobId), token, worker, creator, amount: BigInt(dollars * 1_000_000), bonusPart: 0n })
+const at = (tx: number) => ({
+  block: BigInt(100 + tx),
+  logIndex: position++,
+  tx: `0x${tx.toString(16).padStart(64, '0')}` as Hex,
+  holding: HOLDING,
+})
+const fee = (
+  tx: number,
+  jobId: number,
+  token: Address,
+  worker: Address,
+  creator: Address,
+  dollars: number,
+): FeeCharged => ({
+  ...at(tx),
+  jobId: BigInt(jobId),
+  token,
+  worker,
+  creator,
+  amount: BigInt(dollars * 1_000_000),
+  bonusPart: 0n,
+})
 // A refused leg: the treasury's is always the fee's amount; a worker's is what the worker was due.
-const owedTo = (f: FeeCharged, to: Address, amount = f.amount): PayoutOwed => ({ ...at(Number(BigInt(f.tx))), jobId: f.jobId, to, token: f.token, amount })
+const owedTo = (f: FeeCharged, to: Address, amount = f.amount): PayoutOwed => ({
+  ...at(Number(BigInt(f.tx))),
+  jobId: f.jobId,
+  to,
+  token: f.token,
+  amount,
+})
 const withdrawn = (tx: number, to: Address, token: Address): OwedWithdrawn => ({ ...at(tx), to, token, amount: 1n })
 
 test('one leaf per account: a worker who is also a creator gets both parts', () => {
@@ -71,9 +122,22 @@ test('one leaf per account: a worker who is also a creator gets both parts', () 
   const o4 = owedTo(f4, TREASURY)
   const f6 = fee(7, 6, USDC, E, C, 1) // only the worker's transfer was refused: the treasury holds the fee
   const o6 = owedTo(f6, E, f6.amount * 9n)
-  const r = computeEpoch({ fees: [f1, f2, f3, f4, f5, f6], owed: [o4, o5, o6], withdrawals: [w5], prices, budget: factory(10_000_000) })
+  const r = computeEpoch({
+    fees: [f1, f2, f3, f4, f5, f6],
+    owed: [o4, o5, o6],
+    withdrawals: [w5],
+    prices,
+    budget: factory(10_000_000),
+  })
 
-  expect(r.fees.map(x => x.status)).toEqual(['counted', 'unpriced', 'counted', 'owed-to-treasury', 'counted', 'counted'])
+  expect(r.fees.map((x) => x.status)).toEqual([
+    'counted',
+    'unpriced',
+    'counted',
+    'owed-to-treasury',
+    'counted',
+    'counted',
+  ])
   expect(r.feeUsd).toBe(usd(6))
   expect(r.demand).toBe(factory(15_000)) // 0.5 × $6 ÷ $0.0002
   expect(r.emission).toBe(factory(15_000))
@@ -106,18 +170,30 @@ test('the budget caps the emission, and every part rounds down: total is the sum
   expect(r.demand).toBe(factory(7_500))
   expect(r.emission).toBe(10n)
   // Pools 6 and 4 wei, a third each: 2 per worker, 1 per creator.
-  expect(r.leaves.map(l => l.amount)).toEqual([2n, 2n, 2n, 1n, 1n, 1n])
+  expect(r.leaves.map((l) => l.amount)).toEqual([2n, 2n, 2n, 1n, 1n, 1n])
   expect(r.total).toBe(9n)
 })
 
 test('the SIDE reference price never counts below $0.0001', () => {
-  const r = computeEpoch({ fees: [fee(21, 21, USDC, A, B, 1)], owed: [], withdrawals: [], prices: { ...prices, factoryUsdPrice: 10n ** 13n }, budget: factory(10_000_000) })
+  const r = computeEpoch({
+    fees: [fee(21, 21, USDC, A, B, 1)],
+    owed: [],
+    withdrawals: [],
+    prices: { ...prices, factoryUsdPrice: 10n ** 13n },
+    budget: factory(10_000_000),
+  })
   expect(r.factoryUsdPrice).toBe(10n ** 14n)
   expect(r.emission).toBe(factory(5_000))
 })
 
 test('no counted fee: no emission, no leaves', () => {
-  const r = computeEpoch({ fees: [fee(31, 31, UNPRICED, A, B, 5)], owed: [], withdrawals: [], prices, budget: factory(1) })
+  const r = computeEpoch({
+    fees: [fee(31, 31, UNPRICED, A, B, 5)],
+    owed: [],
+    withdrawals: [],
+    prices,
+    budget: factory(1),
+  })
   expect(r.emission).toBe(0n)
   expect(r.leaves).toEqual([])
   expect(r.total).toBe(0n)
@@ -145,18 +221,28 @@ test('B8-SEC-001: a worker that is the treasury, with one refused leg, is told a
   const f = fee(45, 45, USDC, TREASURY, B, 2)
   const treasuryLeg = owedTo(f, TREASURY) // the fee's amount: the treasury's leg was refused
   const workerLeg = owedTo(f, TREASURY, 7n) // the worker's own amount: the treasury received the fee
-  const run = (owed: PayoutOwed[]) => computeEpoch({ fees: [f], owed, withdrawals: [], prices, budget: factory(1_000_000) }).fees[0]!.status
+  const run = (owed: PayoutOwed[]) =>
+    computeEpoch({ fees: [f], owed, withdrawals: [], prices, budget: factory(1_000_000) }).fees[0]!.status
   expect(run([treasuryLeg])).toBe('owed-to-treasury')
   expect(run([workerLeg])).toBe('counted')
   // A worker leg that happens to equal the fee cannot be told apart: it fails closed.
   const g = fee(46, 46, USDC, A, B, 2)
-  expect(computeEpoch({ fees: [g], owed: [owedTo(g, A)], withdrawals: [], prices, budget: factory(1_000_000) }).fees[0]!.status).toBe('owed-to-treasury')
+  expect(
+    computeEpoch({ fees: [g], owed: [owedTo(g, A)], withdrawals: [], prices, budget: factory(1_000_000) }).fees[0]!
+      .status,
+  ).toBe('owed-to-treasury')
 })
 
 test('a withdrawal before the refused transfer does not clear it', () => {
   const early = withdrawn(50, TREASURY, USDC)
   const f = fee(51, 51, USDC, A, B, 1)
-  const r = computeEpoch({ fees: [f], owed: [owedTo(f, TREASURY)], withdrawals: [early], prices, budget: factory(1_000_000) })
+  const r = computeEpoch({
+    fees: [f],
+    owed: [owedTo(f, TREASURY)],
+    withdrawals: [early],
+    prices,
+    budget: factory(1_000_000),
+  })
   expect(r.fees[0]!.status).toBe('owed-to-treasury')
 })
 
@@ -164,10 +250,25 @@ test('a withdrawal before the refused transfer does not clear it', () => {
 // load were byte-identical to buildTree's).
 const ozVectors: [LeafValue[], Hex][] = [
   [[['0', a(1), '1000000000000000000']], '0xa07c47999914533524b061ea33d8d650b5c240ce14f38b2868b31bc63fb252ee'],
-  [[['0', a(1), '5'], ['0', a(2), '7']], '0xfb8f274a9836bd4aa448e0de30906f4afb7e67fdb24965e7df7228efe3e053ec'],
-  [[['3', a(0xabc), '123456789012345678901234'], ['3', a(0xdef), '1'], ['3', '0x70997970c51812dc3a010c7d01b50e0d17dc79c8', '999']],
-    '0x714ac225a3ca222e24b7b27574c3b758d3f405c6222deedc5634831ab5826ad5'],
-  [[1, 2, 3, 4, 5].map(i => ['7', a(i * 0x1111), String(i * 1000)] as LeafValue), '0x50b919fc4ac7c5f8ac9246f679c06308ac76ffe88c67739869ce0a89e86af1da'],
+  [
+    [
+      ['0', a(1), '5'],
+      ['0', a(2), '7'],
+    ],
+    '0xfb8f274a9836bd4aa448e0de30906f4afb7e67fdb24965e7df7228efe3e053ec',
+  ],
+  [
+    [
+      ['3', a(0xabc), '123456789012345678901234'],
+      ['3', a(0xdef), '1'],
+      ['3', '0x70997970c51812dc3a010c7d01b50e0d17dc79c8', '999'],
+    ],
+    '0x714ac225a3ca222e24b7b27574c3b758d3f405c6222deedc5634831ab5826ad5',
+  ],
+  [
+    [1, 2, 3, 4, 5].map((i) => ['7', a(i * 0x1111), String(i * 1000)] as LeafValue),
+    '0x50b919fc4ac7c5f8ac9246f679c06308ac76ffe88c67739869ce0a89e86af1da',
+  ],
 ]
 
 test('the tree matches OpenZeppelin StandardMerkleTree, and every proof verifies', () => {
@@ -190,14 +291,31 @@ test('dataHash is the keccak of the inputs JSON and moves with any input', () =>
   expect(dataHashOf({ ...inputs, epoch: '4' })).not.toBe(dataHashOf(inputs))
   // B8-SEC-002: the window's last block hash is an input, so a different history gives a different dataHash.
   const window = { start: '1', end: '2', fromBlock: '10', toBlock: '20', toBlockHash: `0x${'1'.repeat(64)}` }
-  expect(dataHashOf({ ...inputs, window })).not.toBe(dataHashOf({ ...inputs, window: { ...window, toBlockHash: `0x${'2'.repeat(64)}` } }))
+  expect(dataHashOf({ ...inputs, window })).not.toBe(
+    dataHashOf({ ...inputs, window: { ...window, toBlockHash: `0x${'2'.repeat(64)}` } }),
+  )
 })
 
 test('B8-SEC-003: --page must be a positive number of blocks, refused before any read', () => {
   const env = { ...process.env, NO_COLOR: '1' }
   delete env.FORCE_COLOR
   for (const page of ['0', '-1', '1.5', 'x']) {
-    const run = spawnSync('bun', [`${import.meta.dirname}/epoch.ts`, '0', '--prices', '/nonexistent', '--out', '/tmp', '--rpc', 'http://127.0.0.1:9', '--page', page], { encoding: 'utf8', env, timeout: 30_000 })
+    const run = spawnSync(
+      'bun',
+      [
+        `${import.meta.dirname}/epoch.ts`,
+        '0',
+        '--prices',
+        '/nonexistent',
+        '--out',
+        '/tmp',
+        '--rpc',
+        'http://127.0.0.1:9',
+        '--page',
+        page,
+      ],
+      { encoding: 'utf8', env, timeout: 30_000 },
+    )
     expect(run.status).not.toBe(0)
     expect(run.stderr).toContain('--page takes a positive number of blocks')
   }
@@ -208,19 +326,42 @@ const DISTRIBUTOR = a(0xd157)
 
 test('a signed price list recovers its signer for this chain and distributor only', async () => {
   const owner = privateKeyToAccount(OWNER_KEY)
-  const signature = await owner.signTypedData({ domain: priceListDomain(10143, DISTRIBUTOR), types: PRICE_LIST_TYPES, primaryType: 'PriceList', message: typedMessage(prices) })
-  expect(await recoverPriceListSigner(prices, signature, 10143, DISTRIBUTOR)).toBe(owner.address.toLowerCase() as Address)
-  expect(await recoverPriceListSigner({ ...prices, factoryUsdPrice: 1n }, signature, 10143, DISTRIBUTOR)).not.toBe(owner.address.toLowerCase() as Address)
-  expect(await recoverPriceListSigner(prices, signature, 143, DISTRIBUTOR)).not.toBe(owner.address.toLowerCase() as Address)
+  const signature = await owner.signTypedData({
+    domain: priceListDomain(10143, DISTRIBUTOR),
+    types: PRICE_LIST_TYPES,
+    primaryType: 'PriceList',
+    message: typedMessage(prices),
+  })
+  expect(await recoverPriceListSigner(prices, signature, 10143, DISTRIBUTOR)).toBe(
+    owner.address.toLowerCase() as Address,
+  )
+  expect(await recoverPriceListSigner({ ...prices, factoryUsdPrice: 1n }, signature, 10143, DISTRIBUTOR)).not.toBe(
+    owner.address.toLowerCase() as Address,
+  )
+  expect(await recoverPriceListSigner(prices, signature, 143, DISTRIBUTOR)).not.toBe(
+    owner.address.toLowerCase() as Address,
+  )
   expect(await recoverPriceListSigner(prices, signature, 10143, a(1))).not.toBe(owner.address.toLowerCase() as Address)
 })
 
 test('the price list file refuses duplicates, zero prices and bad decimals', () => {
-  const ok = { message: { epoch: '3', tokens: [{ token: USDC, decimals: 6, usdPrice: '1000000000000000000' }], factoryUsdPrice: '100000000000000' } }
+  const ok = {
+    message: {
+      epoch: '3',
+      tokens: [{ token: USDC, decimals: 6, usdPrice: '1000000000000000000' }],
+      factoryUsdPrice: '100000000000000',
+    },
+  }
   expect(parsePriceList(ok).tokens[0]!.usdPrice).toBe(usd(1))
-  expect(() => parsePriceList({ message: { ...ok.message, tokens: [...ok.message.tokens, ...ok.message.tokens] } })).toThrow('twice')
-  expect(() => parsePriceList({ message: { ...ok.message, tokens: [{ ...ok.message.tokens[0]!, usdPrice: '0' }] } })).toThrow('no price')
-  expect(() => parsePriceList({ message: { ...ok.message, tokens: [{ ...ok.message.tokens[0]!, decimals: 40 }] } })).toThrow('decimals')
+  expect(() =>
+    parsePriceList({ message: { ...ok.message, tokens: [...ok.message.tokens, ...ok.message.tokens] } }),
+  ).toThrow('twice')
+  expect(() =>
+    parsePriceList({ message: { ...ok.message, tokens: [{ ...ok.message.tokens[0]!, usdPrice: '0' }] } }),
+  ).toThrow('no price')
+  expect(() =>
+    parsePriceList({ message: { ...ok.message, tokens: [{ ...ok.message.tokens[0]!, decimals: 40 }] } }),
+  ).toThrow('decimals')
   expect(() => parsePriceList({ message: { ...ok.message, factoryUsdPrice: '1.5' } })).toThrow('decimal string')
 })
 
@@ -228,11 +369,23 @@ test('the price list file refuses duplicates, zero prices and bad decimals', () 
 const reserveAt = (finalized: bigint, latest: bigint, funded: { epoch: bigint; amount: bigint }[]) => {
   let scans = 0
   const c = {
-    readContract: async ({ functionName, blockNumber, args }: { functionName: string; blockNumber?: bigint; args?: [bigint] }) =>
-      functionName === 'cumulativeBudget' ? cumulativeBudget(args?.[0] ?? 0n) : blockNumber === undefined ? latest : finalized,
+    readContract: async ({
+      functionName,
+      blockNumber,
+      args,
+    }: {
+      functionName: string
+      blockNumber?: bigint
+      args?: [bigint]
+    }) =>
+      functionName === 'cumulativeBudget'
+        ? cumulativeBudget(args?.[0] ?? 0n)
+        : blockNumber === undefined
+          ? latest
+          : finalized,
     getLogs: async () => {
       scans++
-      return funded.map(f => ({ args: { epoch: f.epoch, amount: f.amount, totalFunded: 0n } }))
+      return funded.map((f) => ({ args: { epoch: f.epoch, amount: f.amount, totalFunded: 0n } }))
     },
   } as unknown as PublicClient
   return { c, scans: () => scans }
@@ -246,9 +399,17 @@ test('B8-SEC-004: a funding transaction that is not final yet refuses, so fund i
 })
 
 test('the budget is the cumulative cap less earlier epochs; what this epoch has is reported apart', async () => {
-  const funded = reserveAt(factory(10), factory(10), [{ epoch: 0n, amount: factory(4) }, { epoch: 1n, amount: factory(6) }])
+  const funded = reserveAt(factory(10), factory(10), [
+    { epoch: 0n, amount: factory(4) },
+    { epoch: 1n, amount: factory(6) },
+  ])
   const b = await budgetOf(funded.c, a(1), 1n, 1n, 100n, 1000n)
-  expect([b.fundedBefore, b.fundedThis, b.totalFunded, b.available]).toEqual([factory(4), factory(6), factory(10), cumulativeBudget(1n) - factory(4)])
+  expect([b.fundedBefore, b.fundedThis, b.totalFunded, b.available]).toEqual([
+    factory(4),
+    factory(6),
+    factory(10),
+    cumulativeBudget(1n) - factory(4),
+  ])
   const fresh = reserveAt(0n, 0n, [])
   expect((await budgetOf(fresh.c, a(1), 0n, 1n, 100n, 1000n)).available).toBe(scheduledLot(0n))
   expect(fresh.scans()).toBe(0)
@@ -258,14 +419,18 @@ test('note 17 lots roll over four epochs, expire oldest first and halve at epoch
   expect(scheduledLot(0n)).toBe(cumulativeBudget(0n))
   expect(scheduledLot(1n)).toBe(cumulativeBudget(1n) - cumulativeBudget(0n))
   expect(scheduledLot(27n)).toBe(scheduledLot(1n) / 2n)
-  const first = scheduledLot(0n), second = scheduledLot(1n)
-  const replay = replayLots(4n, [{ epoch: 0n, amount: first - 10n }, { epoch: 1n, amount: second }])
+  const first = scheduledLot(0n),
+    second = scheduledLot(1n)
+  const replay = replayLots(4n, [
+    { epoch: 0n, amount: first - 10n },
+    { epoch: 1n, amount: second },
+  ])
   expect(replay.expired).toEqual([])
-  expect(replay.usable.find(lot => lot.epoch === 0n)?.remaining).toBe(0n)
-  expect(replay.usable.find(lot => lot.epoch === 1n)?.remaining).toBe(10n)
+  expect(replay.usable.find((lot) => lot.epoch === 0n)?.remaining).toBe(0n)
+  expect(replay.usable.find((lot) => lot.epoch === 1n)?.remaining).toBe(10n)
   const expired = replayLots(5n, [{ epoch: 0n, amount: first - 10n }])
-  expect(expired.expired.find(lot => lot.epoch === 0n)?.remaining).toBe(10n)
-  expect(expired.usable.some(lot => lot.epoch === 0n)).toBe(false)
+  expect(expired.expired.find((lot) => lot.epoch === 0n)?.remaining).toBe(10n)
+  expect(expired.usable.some((lot) => lot.epoch === 0n)).toBe(false)
 })
 
 // KEYSTORE-SEC-003: a keystore password file is checked before any signer starts.
@@ -308,13 +473,40 @@ test('KEYSTORE-SEC-003: sign-prices refuses a loose or symlinked password file b
     const config = join(dir, 'config.json')
     writeFileSync(config, JSON.stringify({ chainId: 10143, deployment: { sidequest: { distributor: DISTRIBUTOR } } }))
     const unsigned = join(dir, 'unsigned.json')
-    writeFileSync(unsigned, JSON.stringify({ epoch: '0', tokens: [{ token: USDC, decimals: 6, usdPrice: '1000000000000000000' }], factoryUsdPrice: '100000000000000' }))
+    writeFileSync(
+      unsigned,
+      JSON.stringify({
+        epoch: '0',
+        tokens: [{ token: USDC, decimals: 6, usdPrice: '1000000000000000000' }],
+        factoryUsdPrice: '100000000000000',
+      }),
+    )
     const env = { ...process.env, NO_COLOR: '1', PATH: `${bin}:${process.env.PATH}` }
     delete env.FORCE_COLOR
-    const sign = (password: string) => spawnSync('bun', [`${import.meta.dirname}/sign-prices.ts`, unsigned, '--network', 'monad-testnet', '--config', config,
-      '--out', join(dir, 'signed.json'), '--keystore', join(dir, 'keystore'), '--password-file', password], { encoding: 'utf8', env, timeout: 30_000 })
+    const sign = (password: string) =>
+      spawnSync(
+        'bun',
+        [
+          `${import.meta.dirname}/sign-prices.ts`,
+          unsigned,
+          '--network',
+          'monad-testnet',
+          '--config',
+          config,
+          '--out',
+          join(dir, 'signed.json'),
+          '--keystore',
+          join(dir, 'keystore'),
+          '--password-file',
+          password,
+        ],
+        { encoding: 'utf8', env, timeout: 30_000 },
+      )
 
-    for (const [password, why] of [[passwordIn(dir, 0o644, 'loose'), 'mode 600 or 400'], [join(dir, 'missing'), 'does not exist']] as const) {
+    for (const [password, why] of [
+      [passwordIn(dir, 0o644, 'loose'), 'mode 600 or 400'],
+      [join(dir, 'missing'), 'does not exist'],
+    ] as const) {
       const run = sign(password)
       expect(run.status).not.toBe(0)
       expect(run.stderr).toContain(why)

@@ -64,9 +64,15 @@ export interface LaunchClocks {
   epochDuration: number
 }
 export const productionLaunchClocks: LaunchClocks = {
-  minReviewWindow: 3600, minDisputeWindow: 3600, minArbitrationWindow: 43200,
-  unstakeDelay: 604800, holdingDelay: 691200, feeDelay: 259200,
-  proposalGrace: 604800, epochZeroDuration: 259200, epochDuration: 604800,
+  minReviewWindow: 3600,
+  minDisputeWindow: 3600,
+  minArbitrationWindow: 43200,
+  unstakeDelay: 604800,
+  holdingDelay: 691200,
+  feeDelay: 259200,
+  proposalGrace: 604800,
+  epochZeroDuration: 259200,
+  epochDuration: 604800,
 }
 
 export interface ChainConfig {
@@ -99,15 +105,23 @@ export const RETIRED_ROLE_ADDRESSES = [
   '0x66b72404Ad8ce4C650C4f67F13AAd1Ee82F2963f',
   '0xc657F023F938BB89de590Ed96f79B775c7dDd632',
 ] as const
-const retired = (value: unknown) => typeof value === 'string' && RETIRED_ROLE_ADDRESSES.some(old => old.toLowerCase() === value.toLowerCase())
+const retired = (value: unknown) =>
+  typeof value === 'string' && RETIRED_ROLE_ADDRESSES.some((old) => old.toLowerCase() === value.toLowerCase())
 
-const address = (value: unknown): value is string => typeof value === 'string' && /^0x[0-9a-fA-F]{40}$/.test(value) && !/^0x0{40}$/.test(value)
+const address = (value: unknown): value is string =>
+  typeof value === 'string' && /^0x[0-9a-fA-F]{40}$/.test(value) && !/^0x0{40}$/.test(value)
 const mainnetUrl = (value: string, hyperSync = false) => {
   try {
     const url = new URL(value)
-    return url.protocol === 'https:' && !url.username && !url.password && !url.search && !url.hash &&
+    return (
+      url.protocol === 'https:' &&
+      !url.username &&
+      !url.password &&
+      !url.search &&
+      !url.hash &&
       !/testnet|10143|localhost|127\.0\.0\.1/i.test(url.hostname) &&
       (!hyperSync || url.origin === 'https://monad.hypersync.xyz')
+    )
   } catch {
     return false
   }
@@ -115,32 +129,80 @@ const mainnetUrl = (value: string, hyperSync = false) => {
 
 function validateCompleteProdConfig(config: ChainConfig, artifact: ProdArtifact): string[] {
   const failures: string[] = []
-  const check = (valid: boolean, label: string) => { if (!valid) failures.push(label) }
-  check(artifact.stage === 'prod' && artifact.network === 'monad-mainnet' && config.network === artifact.network, 'stage/network')
-  check(config.chainId === 143 && artifact.chainId === 143 && artifact.rpc.chainId === 143 && artifact.hyperSync.chainId === 143, 'chain/providers')
+  const check = (valid: boolean, label: string) => {
+    if (!valid) failures.push(label)
+  }
+  check(
+    artifact.stage === 'prod' && artifact.network === 'monad-mainnet' && config.network === artifact.network,
+    'stage/network',
+  )
+  check(
+    config.chainId === 143 &&
+      artifact.chainId === 143 &&
+      artifact.rpc.chainId === 143 &&
+      artifact.hyperSync.chainId === 143,
+    'chain/providers',
+  )
   check(mainnetUrl(artifact.rpc.url), 'rpc URL')
   check(mainnetUrl(artifact.hyperSync.url, true), 'HyperSync URL')
   check(artifact.remoteState === true, 'remote state')
   check(typeof artifact.admission?.drain === 'boolean', 'admission mode')
-  check(artifact.privy.approved === true && typeof artifact.privy.appId === 'string' && artifact.privy.appId.length > 0 &&
-    artifact.privy.origins.length > 0 && artifact.privy.origins.every(origin => origin === 'https://sidequest.exchange'), 'Privy app/origin approval')
-  check(config.knownTokens.length === 1 && config.knownTokens[0]?.toLowerCase() === config.x402.usdc.toLowerCase(), 'known USDC')
+  check(
+    artifact.privy.approved === true &&
+      typeof artifact.privy.appId === 'string' &&
+      artifact.privy.appId.length > 0 &&
+      artifact.privy.origins.length > 0 &&
+      artifact.privy.origins.every((origin) => origin === 'https://sidequest.exchange'),
+    'Privy app/origin approval',
+  )
+  check(
+    config.knownTokens.length === 1 && config.knownTokens[0]?.toLowerCase() === config.x402.usdc.toLowerCase(),
+    'known USDC',
+  )
   const deployed = config.deployment
-  check(deployed.network === artifact.network && Number.isSafeInteger(deployed.block) && (deployed.block ?? 0) > 0, 'deployment network/block')
+  check(
+    deployed.network === artifact.network && Number.isSafeInteger(deployed.block) && (deployed.block ?? 0) > 0,
+    'deployment network/block',
+  )
   check(deployed.main?.openTokens === true, 'open-token main Holding metadata')
   check(deployed.demo === undefined && deployed.fast === undefined, 'single v1 stack')
   check(deployed.main?.kind === 'sidequest-v1' && artifact.deployment.main.kind === 'sidequest-v1', 'main v1 kind')
-  check(address(deployed.main?.factory) && deployed.main.factory.toLowerCase() === deployed.factory?.toLowerCase() &&
-    deployed.main.factory.toLowerCase() === deployed.sidequest?.factory?.toLowerCase(), 'v1 factory consistency')
-  check(Object.keys(deployed.legacy ?? {}).length === 0 && Object.keys(artifact.deployment.legacy ?? {}).length === 0, 'no mainnet legacy pairs')
+  check(
+    address(deployed.main?.factory) &&
+      deployed.main.factory.toLowerCase() === deployed.factory?.toLowerCase() &&
+      deployed.main.factory.toLowerCase() === deployed.sidequest?.factory?.toLowerCase(),
+    'v1 factory consistency',
+  )
+  check(
+    Object.keys(deployed.legacy ?? {}).length === 0 && Object.keys(artifact.deployment.legacy ?? {}).length === 0,
+    'no mainnet legacy pairs',
+  )
   const sidequest = deployed.sidequest
-  check(sidequest !== undefined && Number.isSafeInteger(sidequest.block) && (sidequest.block ?? 0) > 0 &&
-    Number.isSafeInteger(sidequest.t0) && (sidequest.t0 ?? 0) > 0 &&
-    artifact.deployment.sidequest.block === sidequest.block && artifact.deployment.sidequest.t0 === sidequest.t0, 'sidequest block/T0')
+  check(
+    sidequest !== undefined &&
+      Number.isSafeInteger(sidequest.block) &&
+      (sidequest.block ?? 0) > 0 &&
+      Number.isSafeInteger(sidequest.t0) &&
+      (sidequest.t0 ?? 0) > 0 &&
+      artifact.deployment.sidequest.block === sidequest.block &&
+      artifact.deployment.sidequest.t0 === sidequest.t0,
+    'sidequest block/T0',
+  )
   // D16 / PROD-GATE-001: the Safe that must own everything is part of the reviewed record, in config and artifact.
-  for (const name of ['safe', 'factory', 'vault', 'feeSchedule', 'distributor', 'miningReserve', 'teamVesting'] as const) {
+  for (const name of [
+    'safe',
+    'factory',
+    'vault',
+    'feeSchedule',
+    'distributor',
+    'miningReserve',
+    'teamVesting',
+  ] as const) {
     const value = sidequest?.[name]
-    check(address(value) && artifact.deployment.sidequest[name]?.toLowerCase() === value.toLowerCase(), `sidequest:${name}`)
+    check(
+      address(value) && artifact.deployment.sidequest[name]?.toLowerCase() === value.toLowerCase(),
+      `sidequest:${name}`,
+    )
   }
   const pinned = safePolicy(artifact)
   check(pinned !== undefined, 'sidequest:safeOwners/safeThreshold')
@@ -151,12 +213,18 @@ function validateCompleteProdConfig(config: ChainConfig, artifact: ProdArtifact)
   check(artifact.deployment.main.openTokens === true, 'artifact main open tokens')
   // LAUNCH-AUDIT-004: the SDK and Explore take their reward tokens from this list; mainnet's must hold USDC, and the
   // artifact pins the same list.
-  const rewards = (list: unknown) => Array.isArray(list) && list.every(address) ? list.map(token => token.toLowerCase()) : undefined
+  const rewards = (list: unknown) =>
+    Array.isArray(list) && list.every(address) ? list.map((token) => token.toLowerCase()) : undefined
   const configRewards = rewards(deployed.rewardTokens)
   const artifactRewards = rewards(artifact.deployment.rewardTokens)
   check(configRewards !== undefined && configRewards.includes(config.x402.usdc.toLowerCase()), 'rewardTokens:USDC')
-  check(configRewards === undefined || (artifactRewards !== undefined && artifactRewards.length === configRewards.length &&
-    artifactRewards.every((token, i) => token === configRewards[i])), 'artifact rewardTokens')
+  check(
+    configRewards === undefined ||
+      (artifactRewards !== undefined &&
+        artifactRewards.length === configRewards.length &&
+        artifactRewards.every((token, i) => token === configRewards[i])),
+    'artifact rewardTokens',
+  )
   const expected = {
     ...config.roles,
     identity: config.erc8004.identity,
@@ -170,18 +238,27 @@ function validateCompleteProdConfig(config: ChainConfig, artifact: ProdArtifact)
   for (const [name, value] of Object.entries(expected)) {
     check(address(value) && artifact.addresses[name]?.toLowerCase() === value.toLowerCase(), `address:${name}`)
   }
-  for (const [name, value] of Object.entries(config.roles)) check(!retired(value), `role:${name} is a retired 1 Oct key`)
-  for (const [name, value] of Object.entries(artifact.addresses)) check(!retired(value), `address:${name} is a retired 1 Oct key`)
+  for (const [name, value] of Object.entries(config.roles))
+    check(!retired(value), `role:${name} is a retired 1 Oct key`)
+  for (const [name, value] of Object.entries(artifact.addresses))
+    check(!retired(value), `address:${name} is a retired 1 Oct key`)
   // LAUNCH-AUDIT-FIX-001: the recipe deploys the v1 Holding with sidequest.defaultArbitrator, and promotion checks the
   // Holding's defaultArbitrator() against it; so it must be roles.arbitrator, and never a retired key.
   const defaultArbitrator = config.sidequest?.defaultArbitrator
-  check(address(defaultArbitrator) && address(config.roles.arbitrator) &&
-    defaultArbitrator.toLowerCase() === config.roles.arbitrator.toLowerCase(), 'sidequest.defaultArbitrator is not roles.arbitrator')
+  check(
+    address(defaultArbitrator) &&
+      address(config.roles.arbitrator) &&
+      defaultArbitrator.toLowerCase() === config.roles.arbitrator.toLowerCase(),
+    'sidequest.defaultArbitrator is not roles.arbitrator',
+  )
   check(!retired(defaultArbitrator), 'sidequest.defaultArbitrator is a retired 1 Oct key')
   for (const [binding, source] of Object.entries(prodSecretSources)) {
     check(artifact.secretSources[binding] === source, `secret source:${binding}`)
   }
-  check(Object.keys(artifact.secretSources).length === Object.keys(prodSecretSources).length, 'unexpected secret source')
+  check(
+    Object.keys(artifact.secretSources).length === Object.keys(prodSecretSources).length,
+    'unexpected secret source',
+  )
   return failures
 }
 
@@ -195,8 +272,9 @@ export function safePolicy(artifact: Pick<ProdArtifact, 'deployment'>): SafePoli
   const owners = artifact.deployment?.sidequest?.safeOwners
   const threshold = artifact.deployment?.sidequest?.safeThreshold
   if (!Array.isArray(owners) || owners.length === 0 || !owners.every(address)) return undefined
-  if (new Set(owners.map(owner => owner.toLowerCase())).size !== owners.length) return undefined
-  if (typeof threshold !== 'number' || !Number.isSafeInteger(threshold) || threshold < 1 || threshold > owners.length) return undefined
+  if (new Set(owners.map((owner) => owner.toLowerCase())).size !== owners.length) return undefined
+  if (typeof threshold !== 'number' || !Number.isSafeInteger(threshold) || threshold < 1 || threshold > owners.length)
+    return undefined
   return { owners, threshold }
 }
 
@@ -207,7 +285,6 @@ export function validateProdConfig(config: ChainConfig, artifact: ProdArtifact):
     return ['artifact structure']
   }
 }
-
 
 // ---- D16: the live launch gate (PROD-GATE-001/002/003/004) ----
 
@@ -270,7 +347,14 @@ const word = (value: unknown): value is `0x${string}` => typeof value === 'strin
 const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase()
 
 /** The six Ownable2Step v1 contracts the Safe must own (not merely be pending for) before admission opens. */
-export const launchOwnedContracts = ['vault', 'feeSchedule', 'holding', 'evaluator', 'distributor', 'miningReserve'] as const
+export const launchOwnedContracts = [
+  'vault',
+  'feeSchedule',
+  'holding',
+  'evaluator',
+  'distributor',
+  'miningReserve',
+] as const
 
 /** A floor given in wei (bigint) or in MON (string/number); undefined stays undefined, which the gate refuses. */
 export function relayFloorWei(floor: bigint | string | number | undefined): bigint | undefined {
@@ -307,7 +391,10 @@ interface ExploreRelease {
  * the only place it is set) and agree with the admission mode: an open artifact (`admission.drain` false) needs it true,
  * a drained setup artifact needs it false. Labels only, no values.
  */
-export function validateExploreRelease(artifact: Pick<ProdArtifact, 'admission' | 'explore'>, sourceMainnetLive: boolean): string[] {
+export function validateExploreRelease(
+  artifact: Pick<ProdArtifact, 'admission' | 'explore'>,
+  sourceMainnetLive: boolean,
+): string[] {
   const pinned = artifact.explore?.mainnetLive
   if (typeof pinned !== 'boolean') return ['explore:mainnetLive']
   const failures: string[] = []
@@ -348,7 +435,10 @@ export function validateReleaseProbe(artifact: Pick<ProdArtifact, 'network' | 'e
  *   5. the relay (`roles.relay`, whose key preflight derives) holds strictly more than the floor.
  */
 export async function liveLaunchGate(
-  config: ChainConfig, reader: LaunchReader, relayFloor: bigint | undefined, policy: SafePolicy | undefined,
+  config: ChainConfig,
+  reader: LaunchReader,
+  relayFloor: bigint | undefined,
+  policy: SafePolicy | undefined,
 ): Promise<string[]> {
   const failures: string[] = []
   const deployed = config.deployment
@@ -362,7 +452,20 @@ export async function liveLaunchGate(
       return undefined
     }
   }
-  type LaunchFunction = (typeof launchClockReads)[number][1] | 'MAX_REVIEW_WINDOW' | 'MAX_DISPUTE_WINDOW' | 'MAX_ARBITRATION_WINDOW' | 'owner' | 'ADMIN_ROLE' | 'DEFAULT_ADMIN_ROLE' | 'hasRole' | 'verifiers' | 'VERSION' | 'getOwners' | 'getThreshold' | 'getModulesPaginated'
+  type LaunchFunction =
+    | (typeof launchClockReads)[number][1]
+    | 'MAX_REVIEW_WINDOW'
+    | 'MAX_DISPUTE_WINDOW'
+    | 'MAX_ARBITRATION_WINDOW'
+    | 'owner'
+    | 'ADMIN_ROLE'
+    | 'DEFAULT_ADMIN_ROLE'
+    | 'hasRole'
+    | 'verifiers'
+    | 'VERSION'
+    | 'getOwners'
+    | 'getThreshold'
+    | 'getModulesPaginated'
   const view = async (to: unknown, functionName: LaunchFunction, args: readonly unknown[] = []) => {
     if (!address(to)) throw new Error('no address')
     const data = encodeFunctionData({ abi: launchAbi, functionName, args } as never)
@@ -375,7 +478,10 @@ export async function liveLaunchGate(
 
   // LAUNCH-AUDIT-003: the reviewed Safe, read live against the artifact's pinned policy.
   const singleton = await read('launch:safe singleton', () => reader.storage(safe, SLOT_0))
-  if (singleton !== undefined && !(word(singleton) && same(`0x${singleton.slice(26)}`, SAFE_SINGLETON) && /^0x0{24}/.test(singleton))) {
+  if (
+    singleton !== undefined &&
+    !(word(singleton) && same(`0x${singleton.slice(26)}`, SAFE_SINGLETON) && /^0x0{24}/.test(singleton))
+  ) {
     failures.push('launch:safe singleton is not the canonical SafeL2 v1.4.1')
   }
   const version = await read('launch:safe VERSION', () => view(safe, 'VERSION'))
@@ -383,14 +489,20 @@ export async function liveLaunchGate(
   if (policy === undefined) failures.push('launch:safe owners/threshold not pinned in the artifact')
   const owners = await read('launch:safe owners', () => view(safe, 'getOwners'))
   if (owners !== undefined && policy !== undefined) {
-    const live = Array.isArray(owners) ? owners.map(owner => String(owner).toLowerCase()) : []
-    const want = policy.owners.map(owner => owner.toLowerCase())
-    if (!Array.isArray(owners) || live.length !== want.length || new Set(live).size !== live.length || !want.every(owner => live.includes(owner))) {
+    const live = Array.isArray(owners) ? owners.map((owner) => String(owner).toLowerCase()) : []
+    const want = policy.owners.map((owner) => owner.toLowerCase())
+    if (
+      !Array.isArray(owners) ||
+      live.length !== want.length ||
+      new Set(live).size !== live.length ||
+      !want.every((owner) => live.includes(owner))
+    ) {
       failures.push('launch:safe owners differ from the pinned set')
     }
   }
   const threshold = await read('launch:safe threshold', () => view(safe, 'getThreshold'))
-  if (threshold !== undefined && policy !== undefined && threshold !== BigInt(policy.threshold)) failures.push('launch:safe threshold differs from the pinned one')
+  if (threshold !== undefined && policy !== undefined && threshold !== BigInt(policy.threshold))
+    failures.push('launch:safe threshold differs from the pinned one')
   const modules = await read('launch:safe modules', () => view(safe, 'getModulesPaginated', [SAFE_SENTINEL, 10n]))
   if (modules !== undefined && !(Array.isArray(modules) && Array.isArray(modules[0]) && modules[0].length === 0)) {
     failures.push('launch:safe has a module enabled')
@@ -399,12 +511,17 @@ export async function liveLaunchGate(
   if (guard !== undefined && !(word(guard) && /^0x0{64}$/.test(guard))) failures.push('launch:safe has a guard set')
 
   const owned: Record<(typeof launchOwnedContracts)[number], unknown> = {
-    vault: deployed.sidequest?.vault, feeSchedule: deployed.sidequest?.feeSchedule, holding: deployed.main?.holding,
-    evaluator: deployed.main?.evaluator, distributor: deployed.sidequest?.distributor, miningReserve: deployed.sidequest?.miningReserve,
+    vault: deployed.sidequest?.vault,
+    feeSchedule: deployed.sidequest?.feeSchedule,
+    holding: deployed.main?.holding,
+    evaluator: deployed.main?.evaluator,
+    distributor: deployed.sidequest?.distributor,
+    miningReserve: deployed.sidequest?.miningReserve,
   }
   for (const name of launchOwnedContracts) {
     const owner = await read(`launch:owner:${name}`, () => view(owned[name], 'owner'))
-    if (owner !== undefined && (typeof owner !== 'string' || !same(owner, safe))) failures.push(`launch:owner:${name} is not the Safe`)
+    if (owner !== undefined && (typeof owner !== 'string' || !same(owner, safe)))
+      failures.push(`launch:owner:${name} is not the Safe`)
   }
 
   // D24: no config override can relax chain 143. Missing testnet input means production.
@@ -415,7 +532,12 @@ export async function liveLaunchGate(
       const value = input?.[key]
       const min = key.startsWith('min') ? 1 : key.startsWith('epoch') ? 600 : 60
       const max = key.startsWith('min') ? 1209600 : 281474976710655
-      if (!Number.isSafeInteger(value) || value < min || value > max || (config.chainId === 143 && value !== productionLaunchClocks[key])) {
+      if (
+        !Number.isSafeInteger(value) ||
+        value < min ||
+        value > max ||
+        (config.chainId === 143 && value !== productionLaunchClocks[key])
+      ) {
         failures.push(`launch:clocks:${key} config invalid`)
       } else clocks[key] = value
     }
@@ -424,7 +546,8 @@ export async function liveLaunchGate(
   for (const [name, getter, key] of launchClockReads) {
     const label = `launch:clock:${name}.${getter}`
     const value = await read(label, () => view(owned[name], getter))
-    if (value !== undefined && value !== BigInt(clocks[key]) && value !== clocks[key]) failures.push(`${label} differs from config`)
+    if (value !== undefined && value !== BigInt(clocks[key]) && value !== clocks[key])
+      failures.push(`${label} differs from config`)
   }
   for (const getter of ['MAX_REVIEW_WINDOW', 'MAX_DISPUTE_WINDOW', 'MAX_ARBITRATION_WINDOW'] as const) {
     const label = `launch:clock:holding.${getter}`
@@ -437,16 +560,24 @@ export async function liveLaunchGate(
   for (const roleName of ['DEFAULT_ADMIN_ROLE', 'ADMIN_ROLE'] as const) {
     const role = await read(`launch:core ${roleName}`, () => view(deployed.core, roleName))
     if (role === undefined) continue
-    const safeHolds = await read(`launch:core ${roleName} of the Safe`, () => view(deployed.core, 'hasRole', [role, safe]))
+    const safeHolds = await read(`launch:core ${roleName} of the Safe`, () =>
+      view(deployed.core, 'hasRole', [role, safe]),
+    )
     if (safeHolds !== undefined && safeHolds !== true) failures.push(`launch:core ${roleName} not held by the Safe`)
     if (address(deployer)) {
-      const deployerHolds = await read(`launch:core ${roleName} of the deployer`, () => view(deployed.core, 'hasRole', [role, deployer]))
-      if (deployerHolds !== undefined && deployerHolds !== false) failures.push(`launch:core ${roleName} still held by the deployer`)
+      const deployerHolds = await read(`launch:core ${roleName} of the deployer`, () =>
+        view(deployed.core, 'hasRole', [role, deployer]),
+      )
+      if (deployerHolds !== undefined && deployerHolds !== false)
+        failures.push(`launch:core ${roleName} still held by the deployer`)
     }
   }
 
-  const verifier = await read('launch:attester verifier', () => view(deployed.main?.evaluator, 'verifiers', [config.roles.attester]))
-  if (verifier !== undefined && verifier !== true) failures.push('launch:attester is not a verifier on the v1 Evaluator')
+  const verifier = await read('launch:attester verifier', () =>
+    view(deployed.main?.evaluator, 'verifiers', [config.roles.attester]),
+  )
+  if (verifier !== undefined && verifier !== true)
+    failures.push('launch:attester is not a verifier on the v1 Evaluator')
 
   if (relayFloor === undefined) failures.push('launch:relay floor undefined (RELAY_FLOOR_MAINNET, @sidequest/sdk)')
   const relay = config.roles.relay

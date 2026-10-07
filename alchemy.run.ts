@@ -24,9 +24,7 @@ export default Alchemy.Stack(
     providers: Cloudflare.providers(),
     // Staging recovery is deliberately explicit. A stray remote-state variable must
     // never redirect an update to the duplicate/unknown backend.
-    state: selectedState === 'remote'
-      ? Cloudflare.state()
-      : Alchemy.localState(),
+    state: selectedState === 'remote' ? Cloudflare.state() : Alchemy.localState(),
   },
   Effect.gen(function* () {
     const stage = yield* Stage
@@ -44,14 +42,28 @@ export default Alchemy.Stack(
     // Explore (spec §6): the SPA's assets, with the board API proxied same-origin through a service binding.
     // The local stack test leaves it out (SIDEQUEST_WITHOUT_EXPLORE): its Vite child needs a remote session.
     if (process.env.SIDEQUEST_WITHOUT_EXPLORE === '1') {
-      return { apiUrl: api.url, indexerUrl: indexer.url, databaseName: database.databaseName, manifestsBucket: manifests.bucketName }
+      return {
+        apiUrl: api.url,
+        indexerUrl: indexer.url,
+        databaseName: database.databaseName,
+        manifestsBucket: manifests.bucketName,
+      }
     }
     // Each stage owns only its canonical hostname. The development stack never claims the apex.
     const explore = yield* Cloudflare.Website.Vite('Explore', {
       ...(profile ? { name: profile.resources.Explore } : {}),
       rootDir: fileURLToPath(new URL('./apps/explore/', import.meta.url)),
       main: 'worker.ts',
-      memo: { workspaces: [{ cwd: '../docs' }, { cwd: '../../skill' }, { cwd: '../../packages/sdk' }, { cwd: '../../packages/react' }, { cwd: '../../contracts/config' }, { cwd: '../../infra' }] },
+      memo: {
+        workspaces: [
+          { cwd: '../docs' },
+          { cwd: '../../skill' },
+          { cwd: '../../packages/sdk' },
+          { cwd: '../../packages/react' },
+          { cwd: '../../contracts/config' },
+          { cwd: '../../infra' },
+        ],
+      },
       ...(profile ? { domain: { name: new URL(profile.origin).hostname } } : {}),
       env: { API: api },
       assets: {

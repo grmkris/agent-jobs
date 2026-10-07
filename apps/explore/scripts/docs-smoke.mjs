@@ -12,7 +12,10 @@ const repo = fileURLToPath(new URL('../../../', import.meta.url))
 const explore = resolve(repo, 'apps/explore')
 const output = resolve(explore, 'dist/e2e')
 const args = process.argv.slice(2)
-assert(args.length === 0 || (args.length === 2 && args[0] === '--origin'), 'Usage: node apps/explore/scripts/docs-smoke.mjs [--origin <url>]')
+assert(
+  args.length === 0 || (args.length === 2 && args[0] === '--origin'),
+  'Usage: node apps/explore/scripts/docs-smoke.mjs [--origin <url>]',
+)
 let origin = args[1] ? new URL(args[1]).origin : undefined
 let server
 let htmlCount = 0
@@ -36,18 +39,25 @@ function checkHtml(body, res, path) {
   assert.match(body, /content="sidequest-docs"/, `${path} docs marker`)
   assert(!body.includes('$RC(') && !body.includes('<template id="B:'), `${path} unresolved Suspense`)
   const policy = res.headers.get('content-security-policy') ?? ''
-  const scriptSrc = policy.split(';').find(part => part.trim().startsWith('script-src')) ?? ''
+  const scriptSrc = policy.split(';').find((part) => part.trim().startsWith('script-src')) ?? ''
   assert(!scriptSrc.includes("'unsafe-inline'"), `${path} script-src allows inline scripts`)
   const nonce = /'nonce-([^']+)'/.exec(scriptSrc)?.[1]
   assert(nonce, `${path} CSP nonce`)
-  const visit = node => {
-    const attributes = new Map((node.attrs ?? []).map(attr => [attr.name, attr.value]))
+  const visit = (node) => {
+    const attributes = new Map((node.attrs ?? []).map((attr) => [attr.name, attr.value]))
     if (node.tagName === 'script') assert.equal(attributes.get('nonce'), nonce, `${path} script nonce`)
     for (const [name, value] of attributes) {
       assert(!/^on/i.test(name), `${path} inline handler ${name}`)
-      const normalized = Array.from(value).filter(char => (char.codePointAt(0) ?? 0) >= 0x21).join('').toLowerCase()
+      const normalized = Array.from(value)
+        .filter((char) => (char.codePointAt(0) ?? 0) >= 0x21)
+        .join('')
+        .toLowerCase()
       assert(!normalized.startsWith('javascript:'), `${path} javascript URL`)
-      if ((name === 'src' || name === 'href') && (value.startsWith('/docs/_assets/') || value.startsWith('/__tsr/staticServerFnCache/'))) assets.add(value)
+      if (
+        (name === 'src' || name === 'href') &&
+        (value.startsWith('/docs/_assets/') || value.startsWith('/__tsr/staticServerFnCache/'))
+      )
+        assets.add(value)
     }
     for (const child of node.childNodes ?? []) visit(child)
     if (node.content) visit(node.content)
@@ -59,9 +69,9 @@ async function checks() {
   assert.equal(llmsResponse.headers.get('content-type'), 'text/plain; charset=utf-8')
   const llms = await llmsResponse.text()
   assert.match(llms, /^# Sidequest\n\n> /)
-  const links = [...llms.matchAll(/\]\((https?:\/\/[^)]+)\)/g)].map(match => new URL(match[1]))
+  const links = [...llms.matchAll(/\]\((https?:\/\/[^)]+)\)/g)].map((match) => new URL(match[1]))
   assert.equal(links[0]?.pathname, '/start.md', 'start.md is the first LLM link')
-  const markdownPaths = links.filter(url => url.pathname.startsWith('/docs/')).map(url => url.pathname)
+  const markdownPaths = links.filter((url) => url.pathname.startsWith('/docs/')).map((url) => url.pathname)
   assert(markdownPaths.length >= 3, 'LLM index lists the seed pages')
   assert.equal(new Set(markdownPaths).size, markdownPaths.length, 'duplicate LLM page')
   for (const markdownPath of markdownPaths) {
@@ -96,7 +106,11 @@ async function checks() {
   assert.equal((await checkResponse('/docs/nope.md', 404)).headers.get('content-type'), 'text/plain; charset=utf-8')
   const notFound = await checkResponse('/docs/not-found')
   checkHtml(await notFound.text(), notFound, '/docs/not-found')
-  for (const [path, status, location] of [['/docs/', 308, '/docs'], ['/docs/quickstart.html', 301, '/docs/quickstart']]) assert.equal((await checkResponse(path, status)).headers.get('location'), location)
+  for (const [path, status, location] of [
+    ['/docs/', 308, '/docs'],
+    ['/docs/quickstart.html', 301, '/docs/quickstart'],
+  ])
+    assert.equal((await checkResponse(path, status)).headers.get('location'), location)
   const post = await checkResponse('/docs', 405, { method: 'POST' })
   assert.equal(post.headers.get('allow'), 'GET, HEAD')
   if (!args[1]) {
@@ -107,11 +121,17 @@ async function checks() {
   for (const path of assets) {
     const asset = await checkResponse(path)
     assert(!asset.headers.get('content-type')?.startsWith('text/html'), `${path} SPA fallback`)
-    if (path.startsWith('/docs/_assets/')) assert.equal(asset.headers.get('cache-control'), 'public, max-age=31536000, immutable')
+    if (path.startsWith('/docs/_assets/'))
+      assert.equal(asset.headers.get('cache-control'), 'public, max-age=31536000, immutable')
   }
   const source = readFileSync(resolve(repo, 'skill/start.md'), 'utf8').replaceAll('{{SIDEQUEST_ORIGIN}}', origin)
   assert.equal(await (await checkResponse('/start.md')).text(), source, 'start.md content unchanged')
-  for (const role of ['connector', 'worker', 'publisher', 'arbitrator']) assert.equal(await (await checkResponse(`/skills/${role}/SKILL.md`)).text(), readFileSync(resolve(repo, `skill/${role}/SKILL.md`), 'utf8'), `${role} skill unchanged`)
+  for (const role of ['connector', 'worker', 'publisher', 'arbitrator'])
+    assert.equal(
+      await (await checkResponse(`/skills/${role}/SKILL.md`)).text(),
+      readFileSync(resolve(repo, `skill/${role}/SKILL.md`), 'utf8'),
+      `${role} skill unchanged`,
+    )
   for (const path of ['/', '/jobs']) {
     const page = await checkResponse(path)
     assert.match(page.headers.get('content-security-policy') ?? '', /https:\/\/challenges.cloudflare.com/)
@@ -121,24 +141,47 @@ async function checks() {
 }
 try {
   if (!origin) {
-    const env = { API: { fetch: async () => new Response('unauthorized', { status: 401 }) }, ASSETS: localAssets(output) }
+    const env = {
+      API: { fetch: async () => new Response('unauthorized', { status: 401 }) },
+      ASSETS: localAssets(output),
+    }
     server = createServer(async (request, res) => {
       try {
         const headers = new Headers()
-        for (const [key, value] of Object.entries(request.headers)) if (value !== undefined) headers.set(key, Array.isArray(value) ? value.join(',') : value)
-        const result = await worker.fetch(new Request(new URL(request.url ?? '/', origin), { method: request.method ?? 'GET', headers }), env)
+        for (const [key, value] of Object.entries(request.headers))
+          if (value !== undefined) headers.set(key, Array.isArray(value) ? value.join(',') : value)
+        const result = await worker.fetch(
+          new Request(new URL(request.url ?? '/', origin), { method: request.method ?? 'GET', headers }),
+          env,
+        )
         res.writeHead(result.status, Object.fromEntries(result.headers))
         res.end(Buffer.from(await result.arrayBuffer()))
-      } catch (error) { res.writeHead(500); res.end(String(error)) }
+      } catch (error) {
+        res.writeHead(500)
+        res.end(String(error))
+      }
     })
-    await new Promise(done => server.listen(0, '127.0.0.1', done))
+    await new Promise((done) => server.listen(0, '127.0.0.1', done))
     origin = `http://127.0.0.1:${server.address().port}`
-    const result = spawnSync(process.execPath, [resolve(explore, 'node_modules/vite/bin/vite.js'), 'build', '--outDir', 'dist/e2e'], { cwd: explore, env: { ...process.env, SIDEQUEST_DOCS_ORIGIN: origin, SIDEQUEST_DOCS_PREBUILT: '0' }, encoding: 'utf8', maxBuffer: 20 * 1024 * 1024 })
-    if (result.status !== 0) { process.stderr.write(result.stdout ?? ''); process.stderr.write(result.stderr ?? ''); throw new Error(`Explore build failed: ${result.status ?? result.error?.message}`) }
+    const result = spawnSync(
+      process.execPath,
+      [resolve(explore, 'node_modules/vite/bin/vite.js'), 'build', '--outDir', 'dist/e2e'],
+      {
+        cwd: explore,
+        env: { ...process.env, SIDEQUEST_DOCS_ORIGIN: origin, SIDEQUEST_DOCS_PREBUILT: '0' },
+        encoding: 'utf8',
+        maxBuffer: 20 * 1024 * 1024,
+      },
+    )
+    if (result.status !== 0) {
+      process.stderr.write(result.stdout ?? '')
+      process.stderr.write(result.stderr ?? '')
+      throw new Error(`Explore build failed: ${result.status ?? result.error?.message}`)
+    }
     console.log('Explore client build includes docs; testing the real Worker over HTTP.')
   }
   await checks()
   console.log(`Docs smoke passed: ${requestCount} HTTP checks, ${htmlCount} parsed HTML responses (${origin}).`)
 } finally {
-  if (server) await new Promise((done, fail) => server.close(error => error ? fail(error) : done()))
+  if (server) await new Promise((done, fail) => server.close((error) => (error ? fail(error) : done())))
 }

@@ -8,7 +8,11 @@ import { chain } from './wallet.ts'
 
 /** Loads every board's tokens (symbol and decimals as the board read them on-chain) into the amount formatter. */
 export function useTokenRegistry(): void {
-  const q = useQuery({ queryKey: ['data-boards'], queryFn: () => data<{ boards: BoardInfo[] }>('boards'), staleTime: 300_000 })
+  const q = useQuery({
+    queryKey: ['data-boards'],
+    queryFn: () => data<{ boards: BoardInfo[] }>('boards'),
+    staleTime: 300_000,
+  })
   // Idempotent: a known address keeps its first entry.
   useEffect(() => {
     if (q.data !== undefined) registerTokens(q.data.boards.flatMap((board) => board.tokens))
@@ -35,7 +39,8 @@ export function useToken(address: string | null | undefined): TokenMeta | 'readi
   })
   useEffect(() => {
     const [symbol, decimals] = reads.data ?? []
-    if (symbol?.status === 'success' && decimals?.status === 'success') registerTokens([{ address: a, symbol: symbol.result, decimals: decimals.result }])
+    if (symbol?.status === 'success' && decimals?.status === 'success')
+      registerTokens([{ address: a, symbol: symbol.result, decimals: decimals.result }])
   }, [a, reads.data])
   if (!valid) return 'none'
   if (known !== undefined) return known
@@ -49,12 +54,17 @@ export function useToken(address: string | null | undefined): TokenMeta | 'readi
 
 export function useTokenList(addresses: readonly string[]): void {
   useSyncExternalStore(subscribeTokens, tokenRegistryVersion, tokenRegistryVersion)
-  const unknown = [...new Set(addresses.map((address) => address.toLowerCase()))].filter((address) => isAddress(address, { strict: false }) && tokenMeta(address) === undefined)
+  const unknown = [...new Set(addresses.map((address) => address.toLowerCase()))].filter(
+    (address) => isAddress(address, { strict: false }) && tokenMeta(address) === undefined,
+  )
   const reads = useReadContracts({
-    contracts: unknown.flatMap((address) => [
-      { address: address as Address, abi: erc20Abi, functionName: 'symbol', chainId: chain.id },
-      { address: address as Address, abi: erc20Abi, functionName: 'decimals', chainId: chain.id },
-    ] as const),
+    contracts: unknown.flatMap(
+      (address) =>
+        [
+          { address: address as Address, abi: erc20Abi, functionName: 'symbol', chainId: chain.id },
+          { address: address as Address, abi: erc20Abi, functionName: 'decimals', chainId: chain.id },
+        ] as const,
+    ),
     query: { enabled: unknown.length > 0, staleTime: Infinity, retry: 1 },
   })
   const identity = unknown.join(',')
@@ -62,7 +72,10 @@ export function useTokenList(addresses: readonly string[]): void {
     const tokens = unknown.flatMap((address, index) => {
       const symbol = reads.data?.[index * 2]
       const decimals = reads.data?.[index * 2 + 1]
-      return symbol?.status === 'success' && typeof symbol.result === 'string' && decimals?.status === 'success' && typeof decimals.result === 'number'
+      return symbol?.status === 'success' &&
+        typeof symbol.result === 'string' &&
+        decimals?.status === 'success' &&
+        typeof decimals.result === 'number'
         ? [{ address, symbol: symbol.result, decimals: decimals.result }]
         : []
     })

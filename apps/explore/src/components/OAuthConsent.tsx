@@ -41,14 +41,19 @@ export function OAuthConsent({ requestId }: { requestId: string }) {
     setError(null)
     try {
       const scopes =
-        request.data?.request.scopes.filter((scope) => (scope === 'sidequest:work' ? work : scope === 'sidequest:hire' ? hire : true)) ?? []
+        request.data?.request.scopes.filter((scope) =>
+          scope === 'sidequest:work' ? work : scope === 'sidequest:hire' ? hire : true,
+        ) ?? []
       const response = await agentEndpoint<{ redirectUrl: string }>(`/oauth/requests/${requestId}/approve`, 'POST', {
         decision: approved ? 'approve' : 'reject',
         agentIds: [selected],
         scopes,
       })
       const url = new URL(response.redirectUrl)
-      if (url.protocol !== 'https:' && !(url.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)))
+      if (
+        url.protocol !== 'https:' &&
+        !(url.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname))
+      )
         throw new Error('The client redirect is unavailable')
       window.location.assign(url.href)
     } catch (failure) {
@@ -70,8 +75,8 @@ export function OAuthConsent({ requestId }: { requestId: string }) {
     return (
       <Alert variant="destructive">
         <AlertDescription>
-          This connection request is unavailable or expired. Restart authentication from your coding client; your saved agent remains
-          registered.
+          This connection request is unavailable or expired. Restart authentication from your coding client; your saved
+          agent remains registered.
         </AlertDescription>
       </Alert>
     )
@@ -114,7 +119,9 @@ export function OAuthConsent({ requestId }: { requestId: string }) {
           {request.data?.request.scopes.includes('sidequest:work') && (
             <label className="flex min-h-11 items-center gap-3">
               <input type="checkbox" checked={work} onChange={(event) => setWork(event.target.checked)} />
-              <span>Work · apply, quote, activate, deliver and dispute; manage stake, earnings, permissions and payments</span>
+              <span>
+                Work · apply, quote, activate, deliver and dispute; manage stake, earnings, permissions and payments
+              </span>
             </label>
           )}
           {request.data?.request.scopes.includes('sidequest:hire') && (
@@ -124,10 +131,14 @@ export function OAuthConsent({ requestId }: { requestId: string }) {
             </label>
           )}
           <p className="text-sm text-muted-foreground">
-            The weekly budget limits transfers of payment tokens. It does not limit deposits at risk: an agent can activate a job that requires a deposit,
-            and a slash is immediate.
+            The weekly budget limits transfers of payment tokens. It does not limit deposits at risk: an agent can
+            activate a job that requires a deposit, and a slash is immediate.
           </p>
-          <Button busy={busy} disabled={agent.state !== 'active' || request.data === undefined} onClick={() => void decide(true)}>
+          <Button
+            busy={busy}
+            disabled={agent.state !== 'active' || request.data === undefined}
+            onClick={() => void decide(true)}
+          >
             Use this agent for this connection
           </Button>
           <p className="text-sm text-muted-foreground">Weekly budget and SIDE backing can be added later.</p>

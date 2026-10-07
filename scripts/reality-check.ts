@@ -90,7 +90,7 @@ function keccakF(s: bigint[]): void {
     for (let t = 0; t < 24; t++) {
       ;[x, y] = [y, (2 * x + 3 * y) % 5]
       const next = s[x + 5 * y]!
-      s[x + 5 * y] = rotl(current, ((t + 1) * (t + 2)) / 2 % 64)
+      s[x + 5 * y] = rotl(current, (((t + 1) * (t + 2)) / 2) % 64)
       current = next
     }
     for (let row = 0; row < 25; row += 5) {
@@ -171,7 +171,14 @@ function addressOf(privateKey: string): string | undefined {
 
 // --- Read-only helpers --------------------------------------------------------------------------------------------
 
-const READ_METHODS = new Set(['eth_chainId', 'eth_blockNumber', 'eth_getBalance', 'eth_getTransactionCount', 'eth_getCode', 'eth_call'])
+const READ_METHODS = new Set([
+  'eth_chainId',
+  'eth_blockNumber',
+  'eth_getBalance',
+  'eth_getTransactionCount',
+  'eth_getCode',
+  'eth_call',
+])
 
 async function rpc(url: string, method: string, params: unknown[] = []): Promise<string> {
   if (!READ_METHODS.has(method)) throw new Error(`${method} is not a read method`)
@@ -182,7 +189,8 @@ async function rpc(url: string, method: string, params: unknown[] = []): Promise
     signal: AbortSignal.timeout(15_000),
   })
   const body = (await res.json().catch(() => ({}))) as { result?: string; error?: { message?: string } }
-  if (typeof body.result !== 'string') throw new Error(`${method}: HTTP ${res.status} ${body.error?.message ?? ''}`.trim())
+  if (typeof body.result !== 'string')
+    throw new Error(`${method}: HTTP ${res.status} ${body.error?.message ?? ''}`.trim())
   return body.result
 }
 
@@ -228,9 +236,18 @@ async function monadRpc(urlVar: string, chainId: number, next: string): Promise<
   if (id !== chainId) return { tier: 'failed', evidence: `eth_chainId = ${id}`, next: `an RPC for chain ${chainId}` }
   const block = Number(await rpc(url, 'eth_blockNumber'))
   const admin: string | undefined = (chainId === 10143 ? testnet : mainnet)?.roles?.admin
-  if (admin === undefined) return { tier: 'credential', evidence: `chain id ${id}, block ${block}`, next: 'contracts/config to read a balance' }
+  if (admin === undefined)
+    return {
+      tier: 'credential',
+      evidence: `chain id ${id}, block ${block}`,
+      next: 'contracts/config to read a balance',
+    }
   const balance = await rpc(url, 'eth_getBalance', [admin, 'latest'])
-  return { tier: 'operation', evidence: `chain id ${id}, block ${block}; balance of admin ${short(admin)} = ${mon(balance)}`, next }
+  return {
+    tier: 'operation',
+    evidence: `chain id ${id}, block ${block}; balance of admin ${short(admin)} = ${mon(balance)}`,
+    next,
+  }
 }
 
 async function registries(): Promise<Omit<Row, 'name'>> {
@@ -240,10 +257,20 @@ async function registries(): Promise<Omit<Row, 'name'>> {
   const parts: string[] = []
   for (const [label, address] of Object.entries<string>(testnet?.erc8004 ?? {})) {
     const code = await rpc(url, 'eth_getCode', [address, 'latest'])
-    if (code === '0x') return { tier: 'failed', evidence: `no code at ${label} ${short(address)} (10143)`, next: 'the registry deployed at the configured address' }
+    if (code === '0x')
+      return {
+        tier: 'failed',
+        evidence: `no code at ${label} ${short(address)} (10143)`,
+        next: 'the registry deployed at the configured address',
+      }
     parts.push(`${label} ${short(address)} has code`)
   }
-  if (parts.length === 0) return { tier: 'failed', evidence: 'no erc8004 addresses in contracts/config/monad-testnet.json', next: 'the config' }
+  if (parts.length === 0)
+    return {
+      tier: 'failed',
+      evidence: 'no erc8004 addresses in contracts/config/monad-testnet.json',
+      next: 'the config',
+    }
   let usdc = 'USDC (143) not read: MONAD_MAINNET_RPC_URL unset'
   const mainnetUrl = env('MONAD_MAINNET_RPC_URL')
   const token: string | undefined = mainnet?.knownTokens?.[0]
@@ -251,7 +278,11 @@ async function registries(): Promise<Omit<Row, 'name'>> {
     const decimals = Number(await rpc(mainnetUrl, 'eth_call', [{ to: token, data: '0x313ce567' }, 'latest']))
     usdc = `USDC ${short(token)} (143) decimals() = ${decimals}`
   }
-  return { tier: 'operation', evidence: `${parts.join(', ')} (10143); ${usdc}`, next: 'used by the fork tests (end-to-end)' }
+  return {
+    tier: 'operation',
+    evidence: `${parts.join(', ')} (10143); ${usdc}`,
+    next: 'used by the fork tests (end-to-end)',
+  }
 }
 
 /** A key-holding EOA: credential when the key derives to the stated address, operation when that address has sent. */
@@ -260,16 +291,33 @@ async function eoa(keyVar: string, addressVar: string, role: string | undefined)
   if (m) return m
   const stated = env(addressVar)!
   const derived = addressOf(env(keyVar)!)
-  if (derived === undefined) return { tier: 'failed', evidence: `${keyVar} is not a valid secp256k1 key`, next: 'a valid key' }
-  if (derived !== stated.toLowerCase()) return { tier: 'failed', evidence: `${keyVar} does not derive to ${addressVar} ${short(stated)}`, next: 'the matching key or address' }
+  if (derived === undefined)
+    return { tier: 'failed', evidence: `${keyVar} is not a valid secp256k1 key`, next: 'a valid key' }
+  if (derived !== stated.toLowerCase())
+    return {
+      tier: 'failed',
+      evidence: `${keyVar} does not derive to ${addressVar} ${short(stated)}`,
+      next: 'the matching key or address',
+    }
   const configured: string | undefined = role === undefined ? undefined : testnet?.roles?.[role]
   const roleNote =
-    configured === undefined ? '' : configured.toLowerCase() === derived ? `; matches config role ${role}` : `; differs from config role ${role} ${short(configured)}`
+    configured === undefined
+      ? ''
+      : configured.toLowerCase() === derived
+        ? `; matches config role ${role}`
+        : `; differs from config role ${role} ${short(configured)}`
   const url = env('MONAD_TESTNET_RPC_URL')!
-  const [balance, nonce] = await Promise.all([rpc(url, 'eth_getBalance', [stated, 'latest']), rpc(url, 'eth_getTransactionCount', [stated, 'latest'])])
+  const [balance, nonce] = await Promise.all([
+    rpc(url, 'eth_getBalance', [stated, 'latest']),
+    rpc(url, 'eth_getTransactionCount', [stated, 'latest']),
+  ])
   const evidence = `key derives to ${short(stated)}${roleNote}; ${mon(balance)}, nonce ${Number(nonce)} (10143)`
   return Number(nonce) > 0
-    ? { tier: 'operation', evidence: `${evidence}: it has sent transactions`, next: 'end-to-end: its product flow (not provable read-only)' }
+    ? {
+        tier: 'operation',
+        evidence: `${evidence}: it has sent transactions`,
+        next: 'end-to-end: its product flow (not provable read-only)',
+      }
     : { tier: 'credential', evidence, next: 'a first transaction (this script sends none)' }
 }
 
@@ -277,10 +325,26 @@ async function monadscan(): Promise<Omit<Row, 'name'>> {
   const m = missing(['MONADSCAN_API_KEY'])
   if (m) return m
   const address: string = testnet?.roles?.admin ?? '0x0000000000000000000000000000000000000000'
-  const q = new URLSearchParams({ chainid: '10143', module: 'account', action: 'balance', address, tag: 'latest', apikey: env('MONADSCAN_API_KEY')! })
+  const q = new URLSearchParams({
+    chainid: '10143',
+    module: 'account',
+    action: 'balance',
+    address,
+    tag: 'latest',
+    apikey: env('MONADSCAN_API_KEY')!,
+  })
   const { json } = await http(`https://api.etherscan.io/v2/api?${q}`)
-  if (json?.status !== '1') return { tier: 'failed', evidence: `balance query: ${String(json?.message ?? 'no response')} ${String(json?.result ?? '')}`.trim(), next: 'a valid API key' }
-  return { tier: 'credential', evidence: `v2 balance query chainid=10143 for ${short(address)} = ${mon(json.result)}`, next: 'verify a contract (a write; not done here)' }
+  if (json?.status !== '1')
+    return {
+      tier: 'failed',
+      evidence: `balance query: ${String(json?.message ?? 'no response')} ${String(json?.result ?? '')}`.trim(),
+      next: 'a valid API key',
+    }
+  return {
+    tier: 'credential',
+    evidence: `v2 balance query chainid=10143 for ${short(address)} = ${mon(json.result)}`,
+    next: 'verify a contract (a write; not done here)',
+  }
 }
 
 async function cloudflare(): Promise<Omit<Row, 'name'>> {
@@ -291,16 +355,25 @@ async function cloudflare(): Promise<Omit<Row, 'name'>> {
   const api = 'https://api.cloudflare.com/client/v4'
   let verify = await http(`${api}/user/tokens/verify`, { headers })
   if (!verify.json?.success) verify = await http(`${api}/accounts/${account}/tokens/verify`, { headers })
-  if (!verify.json?.success) return { tier: 'failed', evidence: `token verify: HTTP ${verify.status}`, next: 'a valid API token' }
+  if (!verify.json?.success)
+    return { tier: 'failed', evidence: `token verify: HTTP ${verify.status}`, next: 'a valid API token' }
   const scripts = await http(`${api}/accounts/${account}/workers/scripts`, { headers })
   const stores = await http(`${api}/accounts/${account}/secrets_store/stores`, { headers })
-  const storeNote = stores.json?.success ? 'Secrets Store readable' : `Secrets Store not readable (HTTP ${stores.status})`
+  const storeNote = stores.json?.success
+    ? 'Secrets Store readable'
+    : `Secrets Store not readable (HTTP ${stores.status})`
   if (!scripts.json?.success)
-    return { tier: 'credential', evidence: `token ${verify.json.result?.status ?? 'verified'}; Workers list HTTP ${scripts.status}; ${storeNote}`, next: 'Workers read permission' }
+    return {
+      tier: 'credential',
+      evidence: `token ${verify.json.result?.status ?? 'verified'}; Workers list HTTP ${scripts.status}; ${storeNote}`,
+      next: 'Workers read permission',
+    }
   return {
     tier: 'operation',
     evidence: `token ${verify.json.result?.status ?? 'verified'}; ${scripts.json.result.length} Worker script(s) listed; ${storeNote}`,
-    next: stores.json?.success ? 'end-to-end: a deploy (not done here)' : 'Secrets Store: Edit on the token (remote alchemy state)',
+    next: stores.json?.success
+      ? 'end-to-end: a deploy (not done here)'
+      : 'Secrets Store: Edit on the token (remote alchemy state)',
   }
 }
 
@@ -310,16 +383,31 @@ async function hypersync(): Promise<Omit<Row, 'name'>> {
   const base = 'https://monad-testnet.hypersync.xyz'
   const headers = { authorization: `Bearer ${env('HYPERSYNC_API_TOKEN')!}`, 'content-type': 'application/json' }
   const height = await http(`${base}/height`, { headers })
-  if (typeof height.json?.height !== 'number') return { tier: 'failed', evidence: `GET /height: HTTP ${height.status}`, next: 'a reachable HyperSync endpoint' }
+  if (typeof height.json?.height !== 'number')
+    return { tier: 'failed', evidence: `GET /height: HTTP ${height.status}`, next: 'a reachable HyperSync endpoint' }
   // /height answers without a token; a one-block query (a read) is what checks it.
   const to = height.json.height as number
   const query = await http(`${base}/query`, {
     method: 'POST',
     headers,
-    body: JSON.stringify({ from_block: to - 1, to_block: to, logs: [{ address: [testnet?.deployment?.core ?? '0x0000000000000000000000000000000000000000'] }], field_selection: { log: ['block_number'] } }),
+    body: JSON.stringify({
+      from_block: to - 1,
+      to_block: to,
+      logs: [{ address: [testnet?.deployment?.core ?? '0x0000000000000000000000000000000000000000'] }],
+      field_selection: { log: ['block_number'] },
+    }),
   })
-  if (!query.ok) return { tier: 'failed', evidence: `GET /height = ${to}; one-block query: HTTP ${query.status} ${String(query.json?.error ?? '')}`.trim(), next: 'a valid API token' }
-  return { tier: 'credential', evidence: `GET /height = ${to}; one-block log query accepted the token`, next: 'a log query with decoding and pagination (S4)' }
+  if (!query.ok)
+    return {
+      tier: 'failed',
+      evidence: `GET /height = ${to}; one-block query: HTTP ${query.status} ${String(query.json?.error ?? '')}`.trim(),
+      next: 'a valid API token',
+    }
+  return {
+    tier: 'credential',
+    evidence: `GET /height = ${to}; one-block log query accepted the token`,
+    next: 'a log query with decoding and pagination (S4)',
+  }
 }
 
 function b64url(data: string | Buffer): string {
@@ -332,9 +420,16 @@ async function githubApp(): Promise<Omit<Row, 'name'>> {
   const now = Math.floor(Date.now() / 1000)
   const unsigned = `${b64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }))}.${b64url(JSON.stringify({ iat: now - 60, exp: now + 540, iss: env('GITHUB_APP_ID')! }))}`
   const signature = createSign('RSA-SHA256').update(unsigned).sign(env('GITHUB_APP_PRIVATE_KEY')!.replace(/\\n/g, '\n'))
-  const headers = { accept: 'application/vnd.github+json', 'user-agent': 'sidequest-reality-check', 'x-github-api-version': '2022-11-28' }
-  const app = await http('https://api.github.com/app', { headers: { ...headers, authorization: `Bearer ${unsigned}.${b64url(signature)}` } })
-  if (!app.ok) return { tier: 'failed', evidence: `JWT → GET /app: HTTP ${app.status}`, next: 'a valid app id and private key' }
+  const headers = {
+    accept: 'application/vnd.github+json',
+    'user-agent': 'sidequest-reality-check',
+    'x-github-api-version': '2022-11-28',
+  }
+  const app = await http('https://api.github.com/app', {
+    headers: { ...headers, authorization: `Bearer ${unsigned}.${b64url(signature)}` },
+  })
+  if (!app.ok)
+    return { tier: 'failed', evidence: `JWT → GET /app: HTTP ${app.status}`, next: 'a valid app id and private key' }
   // Minting a short-lived installation token is the read path the attester uses; it changes no state.
   const installation = env('GITHUB_APP_INSTALLATION_ID')!
   const tokenRes = await http(`https://api.github.com/app/installations/${installation}/access_tokens`, {
@@ -342,14 +437,30 @@ async function githubApp(): Promise<Omit<Row, 'name'>> {
     headers: { ...headers, authorization: `Bearer ${unsigned}.${b64url(signature)}` },
   })
   const token: unknown = tokenRes.json?.token
-  if (typeof token !== 'string') return { tier: 'credential', evidence: `JWT → app "${app.json?.slug}"; installation ${installation} token: HTTP ${tokenRes.status}`, next: 'the app installed (installation id)' }
+  if (typeof token !== 'string')
+    return {
+      tier: 'credential',
+      evidence: `JWT → app "${app.json?.slug}"; installation ${installation} token: HTTP ${tokenRes.status}`,
+      next: 'the app installed (installation id)',
+    }
   secrets.push(token)
   const evidence = `JWT → app "${app.json?.slug}" → installation ${installation} token`
   const repo = env('FIXTURE_REPO')
   if (repo === undefined) return { tier: 'credential', evidence, next: 'set FIXTURE_REPO to read check runs' }
-  const runs = await http(`https://api.github.com/repos/${repo}/commits/HEAD/check-runs?per_page=100`, { headers: { ...headers, authorization: `Bearer ${token}` } })
-  if (!runs.ok) return { tier: 'credential', evidence: `${evidence}; check-runs of ${repo}@HEAD: HTTP ${runs.status}`, next: 'read access to FIXTURE_REPO' }
-  return { tier: 'operation', evidence: `${evidence} → check-runs of ${repo}@HEAD (${runs.json?.total_count ?? 0} runs)`, next: 'end-to-end: the attester in the board' }
+  const runs = await http(`https://api.github.com/repos/${repo}/commits/HEAD/check-runs?per_page=100`, {
+    headers: { ...headers, authorization: `Bearer ${token}` },
+  })
+  if (!runs.ok)
+    return {
+      tier: 'credential',
+      evidence: `${evidence}; check-runs of ${repo}@HEAD: HTTP ${runs.status}`,
+      next: 'read access to FIXTURE_REPO',
+    }
+  return {
+    tier: 'operation',
+    evidence: `${evidence} → check-runs of ${repo}@HEAD (${runs.json?.total_count ?? 0} runs)`,
+    next: 'end-to-end: the attester in the board',
+  }
 }
 
 async function privy(): Promise<Omit<Row, 'name'>> {
@@ -360,15 +471,27 @@ async function privy(): Promise<Omit<Row, 'name'>> {
     headers: { authorization: `Basic ${btoa(`${appId}:${env('PRIVY_APP_SECRET')!}`)}`, 'privy-app-id': appId },
   })
   const address: unknown = json?.address
-  if (typeof address !== 'string') return { tier: 'failed', evidence: `wallet lookup: HTTP ${status}`, next: 'a valid app secret and wallet id' }
+  if (typeof address !== 'string')
+    return { tier: 'failed', evidence: `wallet lookup: HTTP ${status}`, next: 'a valid app secret and wallet id' }
   const evidence = `wallet lookup → ${json.chain_type ?? 'wallet'} ${short(address)}`
   const url = env('MONAD_TESTNET_RPC_URL')
   if (url === undefined) return { tier: 'credential', evidence, next: 'set MONAD_TESTNET_RPC_URL to read its nonce' }
-  const [balance, nonce] = await Promise.all([rpc(url, 'eth_getBalance', [address, 'latest']), rpc(url, 'eth_getTransactionCount', [address, 'latest'])])
+  const [balance, nonce] = await Promise.all([
+    rpc(url, 'eth_getBalance', [address, 'latest']),
+    rpc(url, 'eth_getTransactionCount', [address, 'latest']),
+  ])
   const chain = `${mon(balance)}, nonce ${Number(nonce)} (10143)`
   return Number(nonce) > 0
-    ? { tier: 'operation', evidence: `${evidence}; ${chain}: it has sent transactions`, next: 'end-to-end: its product flow (not provable read-only)' }
-    : { tier: 'credential', evidence: `${evidence}; ${chain}`, next: 'a first eth_sendTransaction (this script sends none)' }
+    ? {
+        tier: 'operation',
+        evidence: `${evidence}; ${chain}: it has sent transactions`,
+        next: 'end-to-end: its product flow (not provable read-only)',
+      }
+    : {
+        tier: 'credential',
+        evidence: `${evidence}; ${chain}`,
+        next: 'a first eth_sendTransaction (this script sends none)',
+      }
 }
 
 async function metamask(): Promise<Omit<Row, 'name'>> {
@@ -376,7 +499,10 @@ async function metamask(): Promise<Omit<Row, 'name'>> {
   if (m) return m
   const address = env('METAMASK_AGENT_WALLET_ADDRESS')!
   const url = env('MONAD_TESTNET_RPC_URL')!
-  const [balance, nonce] = await Promise.all([rpc(url, 'eth_getBalance', [address, 'latest']), rpc(url, 'eth_getTransactionCount', [address, 'latest'])])
+  const [balance, nonce] = await Promise.all([
+    rpc(url, 'eth_getBalance', [address, 'latest']),
+    rpc(url, 'eth_getTransactionCount', [address, 'latest']),
+  ])
   return {
     tier: 'unproven',
     evidence: `${short(address)}: ${mon(balance)}, nonce ${Number(nonce)} (10143)`,
@@ -389,11 +515,22 @@ async function completion(baseUrl: string, key: string, model: string): Promise<
   const { status, json } = await http(`${baseUrl.replace(/\/$/, '')}/chat/completions`, {
     method: 'POST',
     headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' },
-    body: JSON.stringify({ model, max_tokens: 512, messages: [{ role: 'user', content: 'Reply with the single word: ok' }] }),
+    body: JSON.stringify({
+      model,
+      max_tokens: 512,
+      messages: [{ role: 'user', content: 'Reply with the single word: ok' }],
+    }),
   })
   const choice = json?.choices?.[0]
-  if (choice === undefined) return { tier: 'failed', evidence: `${model} completion: HTTP ${status} ${String(json?.error?.message ?? '')}`.trim(), next: 'a valid key and model id' }
-  const answer = String(choice.message?.content ?? '').trim().slice(0, 20)
+  if (choice === undefined)
+    return {
+      tier: 'failed',
+      evidence: `${model} completion: HTTP ${status} ${String(json?.error?.message ?? '')}`.trim(),
+      next: 'a valid key and model id',
+    }
+  const answer = String(choice.message?.content ?? '')
+    .trim()
+    .slice(0, 20)
   return {
     tier: 'operation',
     evidence: `${model} completion: finish_reason ${choice.finish_reason}, ${json.usage?.completion_tokens ?? '?'} output tokens, answer "${answer}"`,
@@ -402,7 +539,10 @@ async function completion(baseUrl: string, key: string, model: string): Promise<
 }
 
 async function aiGateway(): Promise<Omit<Row, 'name'>> {
-  return missing(['AI_GATEWAY_API_KEY', 'SCREENING_MODEL']) ?? completion('https://ai-gateway.vercel.sh/v1', env('AI_GATEWAY_API_KEY')!, env('SCREENING_MODEL')!)
+  return (
+    missing(['AI_GATEWAY_API_KEY', 'SCREENING_MODEL']) ??
+    completion('https://ai-gateway.vercel.sh/v1', env('AI_GATEWAY_API_KEY')!, env('SCREENING_MODEL')!)
+  )
 }
 
 async function arbiterModel(): Promise<Omit<Row, 'name'>> {
@@ -416,12 +556,16 @@ async function arbiterModel(): Promise<Omit<Row, 'name'>> {
 async function mainnetReadiness(): Promise<Omit<Row, 'name'>> {
   const m = missing(['MONAD_MAINNET_RPC_URL'])
   if (m) return m
-  if (mainnet === undefined) return { tier: 'failed', evidence: 'no contracts/config/monad-mainnet.json', next: 'the config' }
+  if (mainnet === undefined)
+    return { tier: 'failed', evidence: 'no contracts/config/monad-mainnet.json', next: 'the config' }
   const url = env('MONAD_MAINNET_RPC_URL')!
   const parts: string[] = []
   const gaps: string[] = []
   for (const [role, address] of Object.entries<string>(mainnet.roles ?? {})) {
-    const [balance, nonce] = [await rpc(url, 'eth_getBalance', [address, 'latest']), await rpc(url, 'eth_getTransactionCount', [address, 'latest'])]
+    const [balance, nonce] = [
+      await rpc(url, 'eth_getBalance', [address, 'latest']),
+      await rpc(url, 'eth_getTransactionCount', [address, 'latest']),
+    ]
     parts.push(`${role} ${short(address)} ${mon(balance)} n${Number(nonce)}`)
     if (BigInt(balance) === 0n) gaps.push(`fund ${role}`)
   }
@@ -449,7 +593,10 @@ async function mainnetReadiness(): Promise<Omit<Row, 'name'>> {
 }
 
 const probes: Array<[string, Probe]> = [
-  ['Monad testnet RPC', () => monadRpc('MONAD_TESTNET_RPC_URL', 10143, 'end-to-end: the B1 deploy (not provable read-only)')],
+  [
+    'Monad testnet RPC',
+    () => monadRpc('MONAD_TESTNET_RPC_URL', 10143, 'end-to-end: the B1 deploy (not provable read-only)'),
+  ],
   ['Monad mainnet RPC', () => monadRpc('MONAD_MAINNET_RPC_URL', 143, 'end-to-end: the B7 deploy')],
   ['ERC-8004 registries, Circle USDC', registries],
   ['Mainnet readiness (B7)', mainnetReadiness],
@@ -476,7 +623,12 @@ for (const [name, probe] of probes) {
   try {
     rows.push({ name, ...(await probe()) })
   } catch (error) {
-    rows.push({ name, tier: 'failed', evidence: error instanceof Error ? error.message : String(error), next: 'see evidence' })
+    rows.push({
+      name,
+      tier: 'failed',
+      evidence: error instanceof Error ? error.message : String(error),
+      next: 'see evidence',
+    })
   }
 }
 
@@ -484,7 +636,9 @@ const now = new Date()
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const date = `${now.getUTCDate()} ${MONTHS[now.getUTCMonth()]} ${now.getUTCFullYear()}`
 const cell = (text: string) => {
-  const flat = redact(text).replace(/\|/g, '\\|').replace(/\s*\n\s*/g, ' ')
+  const flat = redact(text)
+    .replace(/\|/g, '\\|')
+    .replace(/\s*\n\s*/g, ' ')
   return flat.length > 200 ? `${flat.slice(0, 199)}…` : flat
 }
 const lines = [

@@ -35,7 +35,12 @@ const SUB = 'A message from the bot when a job needs you.'
  */
 export function TelegramSection() {
   const auth = useAuth()
-  if (!writesOpen) return <Section title="Notifications"><LaunchNotice /></Section>
+  if (!writesOpen)
+    return (
+      <Section title="Notifications">
+        <LaunchNotice />
+      </Section>
+    )
   if (auth.address === undefined || !auth.signedIn) {
     return (
       <Section title="Notifications">
@@ -46,7 +51,11 @@ export function TelegramSection() {
       </Section>
     )
   }
-  return <Section title="Notifications" note={SUB}><TelegramLink key={auth.address} wallet={auth.address} /></Section>
+  return (
+    <Section title="Notifications" note={SUB}>
+      <TelegramLink key={auth.address} wallet={auth.address} />
+    </Section>
+  )
 }
 
 function TelegramLink({ wallet }: { wallet: string }) {
@@ -158,7 +167,10 @@ function TelegramLink({ wallet }: { wallet: string }) {
           </ItemGroup>
         </Section>
       ) : waiting && link !== null ? (
-        <Section title="Open Telegram" note="Press Start in the chat. This page updates once the bot has linked your wallet.">
+        <Section
+          title="Open Telegram"
+          note="Press Start in the chat. This page updates once the bot has linked your wallet."
+        >
           <div className="grid gap-3 rounded-2xl bg-card p-4">
             <a href={link} target="_blank" rel="noopener noreferrer" className={buttonVariants({ size: 'lg' })}>
               <Send aria-hidden data-icon="inline-start" />
@@ -175,7 +187,9 @@ function TelegramLink({ wallet }: { wallet: string }) {
       ) : (
         <div className="grid gap-2">
           {pending !== null && (
-            <p className="px-4 text-sm text-warning-text">The last code expired before the bot used it. Link again for a new one.</p>
+            <p className="px-4 text-sm text-warning-text">
+              The last code expired before the bot used it. Link again for a new one.
+            </p>
           )}
           <Button size="lg" busy={busy === 'prepare'} onClick={() => void start()}>
             Link Telegram
@@ -192,7 +206,10 @@ function TelegramLink({ wallet }: { wallet: string }) {
         </Alert>
       )}
 
-      <Section title="What the bot tells you" note={linked ? undefined : 'Private messages about jobs you are part of.'}>
+      <Section
+        title="What the bot tells you"
+        note={linked ? undefined : 'Private messages about jobs you are part of.'}
+      >
         <ItemGroup>
           {TELEGRAM_NOTICES.map((n) => (
             <Item key={n} className="before:left-14">

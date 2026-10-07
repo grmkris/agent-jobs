@@ -17,7 +17,7 @@ export interface MiningLot {
 /** Mirrors MiningSchedule.cumulativeBudget, including integer rounding and the reserve ceiling. */
 export function cumulativeBudget(epoch: bigint): bigint {
   if (epoch < 0n) throw new Error('mining epoch must be nonnegative')
-  let total = WEEKLY_BUDGET * 3n / 7n
+  let total = (WEEKLY_BUDGET * 3n) / 7n
   const eras = epoch / 26n
   for (let era = 0n; era < eras && era < 256n && total < MINING_RESERVE; era++) {
     total += 26n * (WEEKLY_BUDGET >> era)
@@ -69,17 +69,18 @@ export function replayLots(epoch: bigint, funding: readonly EpochFunding[]) {
   for (const [n, amount] of totals) {
     if (n > 182n && n < epoch) consume(lots, n, amount)
   }
-  const usable = lots.filter(lot => lot.epoch + ROLLOVER_EPOCHS >= epoch)
-  const expired = lots.filter(lot => lot.epoch + ROLLOVER_EPOCHS < epoch)
+  const usable = lots.filter((lot) => lot.epoch + ROLLOVER_EPOCHS >= epoch)
+  const expired = lots.filter((lot) => lot.epoch + ROLLOVER_EPOCHS < epoch)
   const available = usable.reduce((sum, lot) => sum + lot.remaining, 0n)
   const fundedThis = totals.get(epoch) ?? 0n
   if (fundedThis > available) throw new Error('current epoch funding exceeds its live lots')
-  const fundedBefore = [...totals].reduce((sum, [n, amount]) => n < epoch ? sum + amount : sum, 0n)
+  const fundedBefore = [...totals].reduce((sum, [n, amount]) => (n < epoch ? sum + amount : sum), 0n)
   return { usable, expired, available, fundedBefore, fundedThis }
 }
 
 /** Excess funding is an inconsistent input, never silently accepted or funded a second time. */
 export function fundingRemainder(emission: bigint, fundedThis: bigint): bigint {
-  if (emission < 0n || fundedThis < 0n || fundedThis > emission) throw new Error('epoch already funded beyond its computed emission')
+  if (emission < 0n || fundedThis < 0n || fundedThis > emission)
+    throw new Error('epoch already funded beyond its computed emission')
   return emission - fundedThis
 }

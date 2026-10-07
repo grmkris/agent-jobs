@@ -8,13 +8,20 @@ export interface PrivyResponse {
 
 /** Error bodies can echo request data; expose only the HTTP status and a machine code. */
 export class PrivyApiError extends Error {
-  constructor(readonly status: number, readonly code: string, readonly route: string) {
+  constructor(
+    readonly status: number,
+    readonly code: string,
+    readonly route: string,
+  ) {
     super(`Privy ${route}: HTTP ${status} (${code})`)
   }
 }
 
 export class PrivyApi {
-  constructor(readonly appId: string, private readonly appSecret: string) {}
+  constructor(
+    readonly appId: string,
+    private readonly appSecret: string,
+  ) {}
 
   async request(
     method: string,
@@ -35,9 +42,14 @@ export class PrivyApi {
       'content-type': 'application/json',
     }
     if (sign) {
-      headers['privy-authorization-signature'] = await sign(formatPrivyAuthorizationPayload({
-        method, url, body: cleanBody, headers: privyHeaders,
-      }))
+      headers['privy-authorization-signature'] = await sign(
+        formatPrivyAuthorizationPayload({
+          method,
+          url,
+          body: cleanBody,
+          headers: privyHeaders,
+        }),
+      )
     }
     const response = await fetch(url, {
       method,
@@ -45,7 +57,7 @@ export class PrivyApi {
       ...(method === 'GET' ? {} : { body: JSON.stringify(cleanBody) }),
       signal: AbortSignal.timeout(30_000),
     })
-    const json = await response.json().catch(() => ({})) as Record<string, unknown>
+    const json = (await response.json().catch(() => ({}))) as Record<string, unknown>
     const candidate = json.code ?? json.error
     const code = typeof candidate === 'string' && /^[a-zA-Z0-9_-]{1,80}$/.test(candidate) ? candidate : 'unspecified'
     return { status: response.status, json, code }

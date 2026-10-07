@@ -16,10 +16,15 @@ export type StakeLedgerEvent = {
   | { readonly name: 'PoolReset'; readonly generation: bigint }
 )
 
-export function delegationCandidates(events: readonly StakeLedgerEvent[], filters: { account?: Address; delegator?: Address } = {}): DelegationCandidate[] {
+export function delegationCandidates(
+  events: readonly StakeLedgerEvent[],
+  filters: { account?: Address; delegator?: Address } = {},
+): DelegationCandidate[] {
   const generations = new Map<string, bigint>()
   const positions = new Map<string, DelegationCandidate>()
-  const ordered = events.toSorted((a, b) => a.blockNumber === b.blockNumber ? a.logIndex - b.logIndex : a.blockNumber < b.blockNumber ? -1 : 1)
+  const ordered = events.toSorted((a, b) =>
+    a.blockNumber === b.blockNumber ? a.logIndex - b.logIndex : a.blockNumber < b.blockNumber ? -1 : 1,
+  )
   for (const event of ordered) {
     const account = event.account.toLowerCase()
     if (event.name === 'PoolReset') {
@@ -28,8 +33,11 @@ export function delegationCandidates(events: readonly StakeLedgerEvent[], filter
     }
     if (filters.account !== undefined && account !== filters.account.toLowerCase()) continue
     if (filters.delegator !== undefined && event.delegator.toLowerCase() !== filters.delegator.toLowerCase()) continue
-    positions.set(`${account}:${event.delegator.toLowerCase()}`, { account: event.account,
-      delegator: event.delegator, generation: generations.get(account) ?? 0n })
+    positions.set(`${account}:${event.delegator.toLowerCase()}`, {
+      account: event.account,
+      delegator: event.delegator,
+      generation: generations.get(account) ?? 0n,
+    })
   }
   return [...positions.values()]
 }

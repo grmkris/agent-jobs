@@ -1,13 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import {
-  aggregate,
-  fromKnip,
-  fromOxlint,
-  renderMarkdown,
-  ruleCode,
-  safeFixCodes,
-  workspaceOf,
-} from '../report.ts'
+import { aggregate, fromKnip, fromOxlint, renderMarkdown, ruleCode, safeFixCodes, workspaceOf } from '../report.ts'
 import type { Finding } from '../report.ts'
 
 describe('workspaceOf', () => {
@@ -58,7 +50,13 @@ describe('oxlint input', () => {
     }
     expect(fromOxlint(output, (code) => code === 'eslint(no-var)')).toEqual([
       { source: 'oxlint', rule: 'eslint(no-var)', file: 'apps/api/src/a.ts', line: 3, fixable: true },
-      { source: 'oxlint', rule: 'sidequest(require-disable-description)', file: 'scripts/stage.ts', line: 0, fixable: false },
+      {
+        source: 'oxlint',
+        rule: 'sidequest(require-disable-description)',
+        file: 'scripts/stage.ts',
+        line: 0,
+        fixable: false,
+      },
     ])
   })
 

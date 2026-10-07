@@ -8,11 +8,21 @@ import * as sdk from '@sidequest/sdk'
 import { type Abi, type Hex, decodeFunctionData } from 'viem'
 
 const FLOORS: ReadonlyArray<{ contract: 'holding' | 'evaluator'; abi: Abi; limits: Record<string, bigint> }> = [
-  { contract: 'holding', abi: sdk.sidequestHoldingAbi as Abi, limits: { settle: 1_000_000n, claimTopUpRefund: 450_000n, cancel: 700_000n } },
+  {
+    contract: 'holding',
+    abi: sdk.sidequestHoldingAbi as Abi,
+    limits: { settle: 1_000_000n, claimTopUpRefund: 450_000n, cancel: 700_000n },
+  },
   {
     contract: 'evaluator',
     abi: sdk.sidequestEvaluatorAbi as Abi,
-    limits: { accept: 1_200_000n, completeAfterSilence: 1_200_000n, rule: 1_200_000n, ruleWithSignature: 1_200_000n, retryDeferred: 300_000n },
+    limits: {
+      accept: 1_200_000n,
+      completeAfterSilence: 1_200_000n,
+      rule: 1_200_000n,
+      ruleWithSignature: 1_200_000n,
+      retryDeferred: 300_000n,
+    },
   },
 ]
 
@@ -25,7 +35,10 @@ export const BATCH_CALL_DEFAULT = 120_000n
  * The limit to send `tx` with: the larger of the one it names and the call's floor; undefined when neither applies
  * (the wallet estimates). `v1` is the deployment's v1 Holding and Evaluator.
  */
-export function gasLimit(tx: { to: string; data: Hex; gas?: string | undefined }, v1: { holding: string; evaluator: string }): bigint | undefined {
+export function gasLimit(
+  tx: { to: string; data: Hex; gas?: string | undefined },
+  v1: { holding: string; evaluator: string },
+): bigint | undefined {
   const given = tx.gas === undefined ? undefined : BigInt(tx.gas)
   let floor: bigint | undefined
   for (const { contract, abi, limits } of FLOORS) {
@@ -44,7 +57,10 @@ export function gasLimit(tx: { to: string; data: Hex; gas?: string | undefined }
  * A batch's limit when any call in it has one: each call's limit (a call without one counts `BATCH_CALL_DEFAULT`)
  * plus the overhead. Undefined lets the wallet estimate the whole batch.
  */
-export function batchGasLimit(txs: ReadonlyArray<{ to: string; data: Hex; gas?: string | undefined }>, v1: { holding: string; evaluator: string }): bigint | undefined {
+export function batchGasLimit(
+  txs: ReadonlyArray<{ to: string; data: Hex; gas?: string | undefined }>,
+  v1: { holding: string; evaluator: string },
+): bigint | undefined {
   const limits = txs.map((tx) => gasLimit(tx, v1))
   if (limits.every((l) => l === undefined)) return undefined
   return limits.reduce<bigint>((sum, l) => sum + (l ?? BATCH_CALL_DEFAULT), BATCH_OVERHEAD)

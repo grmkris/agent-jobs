@@ -10,8 +10,16 @@ import { defineConfig } from 'oxlint'
  */
 export default defineConfig({
   ignorePatterns: [
-    '**/.alchemy/**', '**/dist/**', '**/.output/**', '**/.tanstack/**', '**/.source/**', '**/.nitro/**',
-    '**/routeTree.gen.ts', 'contracts/lib/**', 'contracts/out/**', 'contracts/cache/**',
+    '**/.alchemy/**',
+    '**/dist/**',
+    '**/.output/**',
+    '**/.tanstack/**',
+    '**/.source/**',
+    '**/.nitro/**',
+    '**/routeTree.gen.ts',
+    'contracts/lib/**',
+    'contracts/out/**',
+    'contracts/cache/**',
     // Vendored from dmmulroy/anti-slop (tools/oxlint/anti-slop/PROVENANCE.md): upstream code, upstream style.
     'tools/oxlint/anti-slop/**',
   ],

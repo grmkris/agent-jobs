@@ -57,7 +57,15 @@ export function Row({ label, children, hint }: { label: ReactNode; children: Rea
 }
 
 /** Copy with visible, announced success or failure; the value stays available when clipboard access is refused. */
-export function CopyButton({ value, label = 'Copy', className }: { value: string; label?: string; className?: string }) {
+export function CopyButton({
+  value,
+  label = 'Copy',
+  className,
+}: {
+  value: string
+  label?: string
+  className?: string
+}) {
   const [status, setStatus] = useState<'idle' | 'done' | 'failed'>('idle')
   useEffect(() => {
     if (status === 'idle') return
@@ -92,10 +100,24 @@ export function CopyButton({ value, label = 'Copy', className }: { value: string
           className,
         )}
       >
-        {status === 'done' ? <Check data-icon="inline-start" strokeWidth={2.5} /> : status === 'failed' ? <CircleAlert data-icon="inline-start" /> : <Copy data-icon="inline-start" />}
+        {status === 'done' ? (
+          <Check data-icon="inline-start" strokeWidth={2.5} />
+        ) : status === 'failed' ? (
+          <CircleAlert data-icon="inline-start" />
+        ) : (
+          <Copy data-icon="inline-start" />
+        )}
       </Button>
-      {status === 'done' && <span role="status" className="text-xs text-success-text">Copied</span>}
-      {status === 'failed' && <span role="status" className="text-xs text-destructive-text">Copy failed</span>}
+      {status === 'done' && (
+        <span role="status" className="text-xs text-success-text">
+          Copied
+        </span>
+      )}
+      {status === 'failed' && (
+        <span role="status" className="text-xs text-destructive-text">
+          Copy failed
+        </span>
+      )}
     </span>
   )
 }
@@ -169,7 +191,11 @@ export function Segmented<T extends string>({
   label?: string
 }) {
   return (
-    <div role="radiogroup" aria-label={label} className={cn('flex min-w-0 flex-wrap gap-0.5 rounded-lg bg-muted p-[3px]', className)}>
+    <div
+      role="radiogroup"
+      aria-label={label}
+      className={cn('flex min-w-0 flex-wrap gap-0.5 rounded-lg bg-muted p-[3px]', className)}
+    >
       {options.map(([v, text]) => (
         <button
           key={v}
@@ -221,7 +247,9 @@ export function PageTitle({ children, sub }: { children: ReactNode; sub?: ReactN
   return (
     <header className="grid gap-1">
       <h1 className="text-2xl leading-tight font-semibold tracking-tight">{children}</h1>
-      {sub !== undefined && <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">{sub}</div>}
+      {sub !== undefined && (
+        <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">{sub}</div>
+      )}
     </header>
   )
 }

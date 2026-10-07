@@ -7,10 +7,10 @@ An execution budget funds optional running costs outside the hire's reward escro
 
 ## Two forms
 
-| Kind | Authority | Recipient or caller |
-| --- | --- | --- |
-| `advance` | Move an ERC-20 amount up to a cap. | The activated worker receives it in its own wallet. |
-| `call` | One call to one function on one target, with a native-value cap. | The creator account is `msg.sender` and owns what the call creates. |
+| Kind      | Authority                                                        | Recipient or caller                                                 |
+| --------- | ---------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `advance` | Move an ERC-20 amount up to a cap.                               | The activated worker receives it in its own wallet.                 |
+| `call`    | One call to one function on one target, with a native-value cap. | The creator account is `msg.sender` and owns what the call creates. |
 
 The offer freezes the budget into its terms. It expires no later than the delivery deadline. A quote's `expectedCosts` are an estimate separate from its price; picking a quote alone grants no authority.
 

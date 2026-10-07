@@ -11,13 +11,13 @@ function record(value: unknown): JsonRecord {
 
 export function writablePolicy(policy: JsonRecord): JsonRecord {
   const fields = new Set(['id', 'created_at', 'version', 'name', 'chain_type', 'owner_id', 'rules'])
-  if (Object.keys(policy).some(field => !fields.has(field)) || !Array.isArray(policy.rules)) {
+  if (Object.keys(policy).some((field) => !fields.has(field)) || !Array.isArray(policy.rules)) {
     throw new PolicyDocumentError('Unexpected policy fields; refusing update')
   }
   const { id: _id, created_at: _createdAt, ...body } = policy
   return {
     ...body,
-    rules: policy.rules.map(value => {
+    rules: policy.rules.map((value) => {
       const { id: _ruleId, ...rule } = record(structuredClone(value))
       return rule
     }),

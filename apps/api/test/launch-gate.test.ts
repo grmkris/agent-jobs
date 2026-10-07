@@ -1,8 +1,31 @@
-import { decodeFunctionData, encodeFunctionResult, getAddress, keccak256, parseAbi, parseEther, toHex, type Hex } from 'viem'
+import {
+  decodeFunctionData,
+  encodeFunctionResult,
+  getAddress,
+  keccak256,
+  parseAbi,
+  parseEther,
+  toHex,
+  type Hex,
+} from 'viem'
 import { expect, test } from 'vitest'
 import mainnet from '../../../contracts/config/monad-mainnet.json' with { type: 'json' }
 import { assertLaunchGate } from '../src/deploy-preflight.ts'
-import { launchOwnedContracts, launchClockReads, productionLaunchClocks, liveLaunchGate, opensAdmission, admissionDrainBinding, validateAdmissionMode, relayFloorWei, SAFE_GUARD_SLOT, SAFE_SINGLETON, type ChainConfig, type LaunchReader, type SafePolicy } from '../src/prod-config.ts'
+import {
+  launchOwnedContracts,
+  launchClockReads,
+  productionLaunchClocks,
+  liveLaunchGate,
+  opensAdmission,
+  admissionDrainBinding,
+  validateAdmissionMode,
+  relayFloorWei,
+  SAFE_GUARD_SLOT,
+  SAFE_SINGLETON,
+  type ChainConfig,
+  type LaunchReader,
+  type SafePolicy,
+} from '../src/prod-config.ts'
 import { RELAY_FLOOR_MAINNET } from '@sidequest/sdk'
 import { parseHostedAdmission } from '@sidequest/board'
 
@@ -31,7 +54,15 @@ const abi = parseAbi([
 ])
 const a = (n: number) => `0x${n.toString(16).padStart(40, '0')}` as const
 const SAFE = a(0x5afe)
-const addresses = { core: a(0xc0), holding: a(0x10), evaluator: a(0x11), vault: a(0x12), feeSchedule: a(0x13), distributor: a(0x14), miningReserve: a(0x15) }
+const addresses = {
+  core: a(0xc0),
+  holding: a(0x10),
+  evaluator: a(0x11),
+  vault: a(0x12),
+  feeSchedule: a(0x13),
+  distributor: a(0x14),
+  miningReserve: a(0x15),
+}
 const DEFAULT_ADMIN = toHex(0, { size: 32 })
 const ADMIN = keccak256(toHex('ADMIN_ROLE'))
 const FLOOR = RELAY_FLOOR_MAINNET
@@ -46,9 +77,28 @@ const word = (address: string) => `0x${'0'.repeat(24)}${address.slice(2).toLower
 function promoted(): ChainConfig {
   const config = structuredClone(mainnet) as unknown as ChainConfig
   config.deployment = {
-    network: 'monad-mainnet', block: 123, core: addresses.core, factory: a(0xfa),
-    main: { kind: 'sidequest-v1', factory: a(0xfa), holding: addresses.holding, evaluator: addresses.evaluator, openTokens: true },
-    sidequest: { block: 123, safe: SAFE, factory: a(0xfa), vault: addresses.vault, feeSchedule: addresses.feeSchedule, distributor: addresses.distributor, miningReserve: addresses.miningReserve, teamVesting: a(0x16), t0: 1_791_500_000 },
+    network: 'monad-mainnet',
+    block: 123,
+    core: addresses.core,
+    factory: a(0xfa),
+    main: {
+      kind: 'sidequest-v1',
+      factory: a(0xfa),
+      holding: addresses.holding,
+      evaluator: addresses.evaluator,
+      openTokens: true,
+    },
+    sidequest: {
+      block: 123,
+      safe: SAFE,
+      factory: a(0xfa),
+      vault: addresses.vault,
+      feeSchedule: addresses.feeSchedule,
+      distributor: addresses.distributor,
+      miningReserve: addresses.miningReserve,
+      teamVesting: a(0x16),
+      t0: 1_791_500_000,
+    },
   }
   return config
 }
@@ -69,9 +119,18 @@ interface LiveState {
 }
 
 function live(config: ChainConfig): LiveState {
-  const owners = Object.fromEntries(Object.values(addresses).filter(value => value !== addresses.core).map(value => [lower(value), SAFE]))
+  const owners = Object.fromEntries(
+    Object.values(addresses)
+      .filter((value) => value !== addresses.core)
+      .map((value) => [lower(value), SAFE]),
+  )
   return {
-    clocks: Object.fromEntries(launchClockReads.map(([name, getter, key]) => [`${lower(addresses[name])}:${getter}`, productionLaunchClocks[key]])),
+    clocks: Object.fromEntries(
+      launchClockReads.map(([name, getter, key]) => [
+        `${lower(addresses[name])}:${getter}`,
+        productionLaunchClocks[key],
+      ]),
+    ),
     code: { [lower(SAFE)]: '0x6080' },
     owners,
     roles: { [DEFAULT_ADMIN]: new Set([lower(SAFE)]), [ADMIN]: new Set([lower(SAFE)]) },
@@ -115,14 +174,22 @@ function reader(state: LiveState): LaunchReader & { reads: string[] } {
           if (owner === undefined) return '0x'
           return encode(owner)
         }
-        case 'ADMIN_ROLE': return encode(ADMIN)
-        case 'DEFAULT_ADMIN_ROLE': return encode(DEFAULT_ADMIN)
-        case 'hasRole': return encode(state.roles[args![0] as string]?.has(lower(args![1] as string)) ?? false)
-        case 'verifiers': return encode(lower(to) === lower(addresses.evaluator) && state.verifiers.has(lower(args![0] as string)))
-        case 'VERSION': return encode(state.safe.version)
-        case 'getOwners': return encode(state.safe.owners)
-        case 'getThreshold': return encode(state.safe.threshold)
-        case 'getModulesPaginated': return encode([state.safe.modules, a(1)])
+        case 'ADMIN_ROLE':
+          return encode(ADMIN)
+        case 'DEFAULT_ADMIN_ROLE':
+          return encode(DEFAULT_ADMIN)
+        case 'hasRole':
+          return encode(state.roles[args![0] as string]?.has(lower(args![1] as string)) ?? false)
+        case 'verifiers':
+          return encode(lower(to) === lower(addresses.evaluator) && state.verifiers.has(lower(args![0] as string)))
+        case 'VERSION':
+          return encode(state.safe.version)
+        case 'getOwners':
+          return encode(state.safe.owners)
+        case 'getThreshold':
+          return encode(state.safe.threshold)
+        case 'getModulesPaginated':
+          return encode([state.safe.modules, a(1)])
       }
       if (functionName.startsWith('MAX_')) return encode(1209600)
       const clock = state.clocks[`${lower(to)}:${functionName}`]
@@ -139,7 +206,12 @@ const gate = async (
   const config = promoted()
   const state = live(config)
   mutate(state, config)
-  return liveLaunchGate(config, reader(state), 'floor' in options ? options.floor : FLOOR, 'policy' in options ? options.policy : POLICY)
+  return liveLaunchGate(
+    config,
+    reader(state),
+    'floor' in options ? options.floor : FLOOR,
+    'policy' in options ? options.policy : POLICY,
+  )
 }
 
 test('D16: a promoted deployment with the Safe in custody, a verifier attester and a funded relay passes', async () => {
@@ -149,50 +221,150 @@ test('D16: a promoted deployment with the Safe in custody, a verifier attester a
 // ---- PROD-GATE-001: the Safe owns all six ----
 
 test('PROD-GATE-001: a missing Safe, a Safe without code, or an unreadable Safe refuses', async () => {
-  expect(await gate((_, config) => { delete config.deployment.sidequest!.safe })).toEqual(['launch:safe unset'])
-  expect(await gate((_, config) => { config.deployment.sidequest!.safe = null })).toEqual(['launch:safe unset'])
-  expect(await gate(state => { state.code = {} })).toEqual(['launch:safe has no code'])
-  expect(await gate(state => { state.failing.add(`code:${lower(SAFE)}`) })).toEqual(['launch:safe code unreadable'])
+  expect(
+    await gate((_, config) => {
+      delete config.deployment.sidequest!.safe
+    }),
+  ).toEqual(['launch:safe unset'])
+  expect(
+    await gate((_, config) => {
+      config.deployment.sidequest!.safe = null
+    }),
+  ).toEqual(['launch:safe unset'])
+  expect(
+    await gate((state) => {
+      state.code = {}
+    }),
+  ).toEqual(['launch:safe has no code'])
+  expect(
+    await gate((state) => {
+      state.failing.add(`code:${lower(SAFE)}`)
+    }),
+  ).toEqual(['launch:safe code unreadable'])
 })
 
-test.each(launchOwnedContracts)('PROD-GATE-001: %s still owned by the deployer (Safe only pending) refuses', async name => {
-  const failures = await gate((state, config) => { state.owners[lower(addresses[name])] = config.roles.admin! })
-  expect(failures).toEqual([`launch:owner:${name} is not the Safe`])
-})
+test.each(launchOwnedContracts)(
+  'PROD-GATE-001: %s still owned by the deployer (Safe only pending) refuses',
+  async (name) => {
+    const failures = await gate((state, config) => {
+      state.owners[lower(addresses[name])] = config.roles.admin!
+    })
+    expect(failures).toEqual([`launch:owner:${name} is not the Safe`])
+  },
+)
 
-test.each(launchOwnedContracts)('PROD-GATE-001: an unreadable owner() on %s refuses', async name => {
-  expect(await gate(state => { state.failing.add(`call:${lower(addresses[name])}:owner`) })).toEqual([`launch:owner:${name} unreadable`])
-  expect(await gate(state => { delete state.owners[lower(addresses[name])] })).toEqual([`launch:owner:${name} unreadable`])
+test.each(launchOwnedContracts)('PROD-GATE-001: an unreadable owner() on %s refuses', async (name) => {
+  expect(
+    await gate((state) => {
+      state.failing.add(`call:${lower(addresses[name])}:owner`)
+    }),
+  ).toEqual([`launch:owner:${name} unreadable`])
+  expect(
+    await gate((state) => {
+      delete state.owners[lower(addresses[name])]
+    }),
+  ).toEqual([`launch:owner:${name} unreadable`])
 })
 
 // ---- LAUNCH-AUDIT-003: the Safe is the reviewed one: canonical, pinned owners and threshold, no module, no guard ----
 
 test.each([
-  ['one enabled module', (s: LiveState) => { s.safe.modules = [a(0xbeef)] }, 'launch:safe has a module enabled'],
-  ['a nonzero guard', (s: LiveState) => { s.storage[`${lower(SAFE)}:${SAFE_GUARD_SLOT}`] = word(a(0x9a2d)) }, 'launch:safe has a guard set'],
-  ['a wrong owner set (one owner swapped)', (s: LiveState) => { s.safe.owners = [OWNERS[0]!, a(0xbad)] }, 'launch:safe owners differ from the pinned set'],
-  ['an extra owner', (s: LiveState) => { s.safe.owners = [...OWNERS, a(0xbad)] }, 'launch:safe owners differ from the pinned set'],
-  ['a missing owner', (s: LiveState) => { s.safe.owners = [OWNERS[0]!] }, 'launch:safe owners differ from the pinned set'],
-  ['a wrong threshold', (s: LiveState) => { s.safe.threshold = 2n }, 'launch:safe threshold differs from the pinned one'],
-  ['a non-canonical singleton', (s: LiveState) => { s.storage[`${lower(SAFE)}:${SLOT_0}`] = word(a(0x5a1e)) }, 'launch:safe singleton is not the canonical SafeL2 v1.4.1'],
-  ['another VERSION', (s: LiveState) => { s.safe.version = '1.3.0' }, 'launch:safe VERSION is not 1.4.1'],
+  [
+    'one enabled module',
+    (s: LiveState) => {
+      s.safe.modules = [a(0xbeef)]
+    },
+    'launch:safe has a module enabled',
+  ],
+  [
+    'a nonzero guard',
+    (s: LiveState) => {
+      s.storage[`${lower(SAFE)}:${SAFE_GUARD_SLOT}`] = word(a(0x9a2d))
+    },
+    'launch:safe has a guard set',
+  ],
+  [
+    'a wrong owner set (one owner swapped)',
+    (s: LiveState) => {
+      s.safe.owners = [OWNERS[0]!, a(0xbad)]
+    },
+    'launch:safe owners differ from the pinned set',
+  ],
+  [
+    'an extra owner',
+    (s: LiveState) => {
+      s.safe.owners = [...OWNERS, a(0xbad)]
+    },
+    'launch:safe owners differ from the pinned set',
+  ],
+  [
+    'a missing owner',
+    (s: LiveState) => {
+      s.safe.owners = [OWNERS[0]!]
+    },
+    'launch:safe owners differ from the pinned set',
+  ],
+  [
+    'a wrong threshold',
+    (s: LiveState) => {
+      s.safe.threshold = 2n
+    },
+    'launch:safe threshold differs from the pinned one',
+  ],
+  [
+    'a non-canonical singleton',
+    (s: LiveState) => {
+      s.storage[`${lower(SAFE)}:${SLOT_0}`] = word(a(0x5a1e))
+    },
+    'launch:safe singleton is not the canonical SafeL2 v1.4.1',
+  ],
+  [
+    'another VERSION',
+    (s: LiveState) => {
+      s.safe.version = '1.3.0'
+    },
+    'launch:safe VERSION is not 1.4.1',
+  ],
 ] as const)('LAUNCH-AUDIT-003: a Safe with %s refuses', async (_, mutate, expected) => {
   expect(await gate(mutate)).toEqual([expected])
 })
 
 test('LAUNCH-AUDIT-003: owner order and case do not matter; an unpinned policy and every failed Safe read refuse', async () => {
-  expect(await gate(state => { state.safe.owners = [getAddress(OWNERS[1]!), OWNERS[0]!] })).toEqual([])
-  expect(await gate(() => {}, { policy: undefined })).toEqual(['launch:safe owners/threshold not pinned in the artifact'])
-  expect(await gate(state => { state.failing.add(`storage:${lower(SAFE)}:${SLOT_0}`) })).toEqual(['launch:safe singleton unreadable'])
-  expect(await gate(state => { state.failing.add(`storage:${lower(SAFE)}:${SAFE_GUARD_SLOT}`) })).toEqual(['launch:safe guard unreadable'])
+  expect(
+    await gate((state) => {
+      state.safe.owners = [getAddress(OWNERS[1]!), OWNERS[0]!]
+    }),
+  ).toEqual([])
+  expect(await gate(() => {}, { policy: undefined })).toEqual([
+    'launch:safe owners/threshold not pinned in the artifact',
+  ])
+  expect(
+    await gate((state) => {
+      state.failing.add(`storage:${lower(SAFE)}:${SLOT_0}`)
+    }),
+  ).toEqual(['launch:safe singleton unreadable'])
+  expect(
+    await gate((state) => {
+      state.failing.add(`storage:${lower(SAFE)}:${SAFE_GUARD_SLOT}`)
+    }),
+  ).toEqual(['launch:safe guard unreadable'])
   for (const fn of ['VERSION', 'getOwners', 'getThreshold', 'getModulesPaginated'] as const) {
-    const label = { VERSION: 'VERSION', getOwners: 'owners', getThreshold: 'threshold', getModulesPaginated: 'modules' }[fn]
-    expect(await gate(state => { state.failing.add(`call:${lower(SAFE)}:${fn}`) })).toEqual([`launch:safe ${label} unreadable`])
+    const label = {
+      VERSION: 'VERSION',
+      getOwners: 'owners',
+      getThreshold: 'threshold',
+      getModulesPaginated: 'modules',
+    }[fn]
+    expect(
+      await gate((state) => {
+        state.failing.add(`call:${lower(SAFE)}:${fn}`)
+      }),
+    ).toEqual([`launch:safe ${label} unreadable`])
   }
 })
 
 test('LAUNCH-AUDIT-003: Safe failure labels carry no values', async () => {
-  const failures = await gate(state => {
+  const failures = await gate((state) => {
     state.safe.modules = [a(0xbeef)]
     state.safe.owners = [a(0xbad)]
     state.safe.threshold = 3n
@@ -206,33 +378,79 @@ test('LAUNCH-AUDIT-003: Safe failure labels carry no values', async () => {
 // ---- PROD-GATE-002: both core admin roles with the Safe, none with the deployer ----
 
 test.each([
-  ['DEFAULT_ADMIN_ROLE not with the Safe', (s: LiveState) => { s.roles[DEFAULT_ADMIN]!.delete(lower(SAFE)) }, 'launch:core DEFAULT_ADMIN_ROLE not held by the Safe'],
-  ['ADMIN_ROLE not with the Safe', (s: LiveState) => { s.roles[ADMIN]!.delete(lower(SAFE)) }, 'launch:core ADMIN_ROLE not held by the Safe'],
-  ['DEFAULT_ADMIN_ROLE still with the deployer', (s: LiveState, c: ChainConfig) => { s.roles[DEFAULT_ADMIN]!.add(lower(c.roles.admin!)) }, 'launch:core DEFAULT_ADMIN_ROLE still held by the deployer'],
-  ['ADMIN_ROLE still with the deployer', (s: LiveState, c: ChainConfig) => { s.roles[ADMIN]!.add(lower(c.roles.admin!)) }, 'launch:core ADMIN_ROLE still held by the deployer'],
+  [
+    'DEFAULT_ADMIN_ROLE not with the Safe',
+    (s: LiveState) => {
+      s.roles[DEFAULT_ADMIN]!.delete(lower(SAFE))
+    },
+    'launch:core DEFAULT_ADMIN_ROLE not held by the Safe',
+  ],
+  [
+    'ADMIN_ROLE not with the Safe',
+    (s: LiveState) => {
+      s.roles[ADMIN]!.delete(lower(SAFE))
+    },
+    'launch:core ADMIN_ROLE not held by the Safe',
+  ],
+  [
+    'DEFAULT_ADMIN_ROLE still with the deployer',
+    (s: LiveState, c: ChainConfig) => {
+      s.roles[DEFAULT_ADMIN]!.add(lower(c.roles.admin!))
+    },
+    'launch:core DEFAULT_ADMIN_ROLE still held by the deployer',
+  ],
+  [
+    'ADMIN_ROLE still with the deployer',
+    (s: LiveState, c: ChainConfig) => {
+      s.roles[ADMIN]!.add(lower(c.roles.admin!))
+    },
+    'launch:core ADMIN_ROLE still held by the deployer',
+  ],
 ] as const)('PROD-GATE-002: %s refuses', async (_, mutate, expected) => {
   expect(await gate(mutate)).toEqual([expected])
 })
 
 test('PROD-GATE-002: custody is read live; a stale record of roles.admin proves nothing, and failed role reads refuse', async () => {
   // The config still names the old admin as deployer, but the role has since moved to yet another key.
-  const failures = await gate(state => {
+  const failures = await gate((state) => {
     state.roles[ADMIN] = new Set([lower(a(0xbad))])
   })
   expect(failures).toEqual(['launch:core ADMIN_ROLE not held by the Safe'])
-  expect(await gate(state => { state.failing.add(`call:${lower(addresses.core)}:hasRole`) })).toEqual([
-    'launch:core DEFAULT_ADMIN_ROLE of the Safe unreadable', 'launch:core DEFAULT_ADMIN_ROLE of the deployer unreadable',
-    'launch:core ADMIN_ROLE of the Safe unreadable', 'launch:core ADMIN_ROLE of the deployer unreadable',
+  expect(
+    await gate((state) => {
+      state.failing.add(`call:${lower(addresses.core)}:hasRole`)
+    }),
+  ).toEqual([
+    'launch:core DEFAULT_ADMIN_ROLE of the Safe unreadable',
+    'launch:core DEFAULT_ADMIN_ROLE of the deployer unreadable',
+    'launch:core ADMIN_ROLE of the Safe unreadable',
+    'launch:core ADMIN_ROLE of the deployer unreadable',
   ])
-  expect(await gate(state => { state.failing.add(`call:${lower(addresses.core)}:ADMIN_ROLE`) })).toEqual(['launch:core ADMIN_ROLE unreadable'])
-  expect(await gate((_, config) => { config.roles.admin = SAFE })).toContain('launch:deployer must be a separate account')
+  expect(
+    await gate((state) => {
+      state.failing.add(`call:${lower(addresses.core)}:ADMIN_ROLE`)
+    }),
+  ).toEqual(['launch:core ADMIN_ROLE unreadable'])
+  expect(
+    await gate((_, config) => {
+      config.roles.admin = SAFE
+    }),
+  ).toContain('launch:deployer must be a separate account')
 })
 
 // ---- PROD-GATE-003: the attester verifies on the v1 Evaluator ----
 
 test('PROD-GATE-003: an attester that is not (or no longer) a verifier refuses; an unreadable flag refuses', async () => {
-  expect(await gate(state => { state.verifiers.clear() })).toEqual(['launch:attester is not a verifier on the v1 Evaluator'])
-  expect(await gate(state => { state.failing.add(`call:${lower(addresses.evaluator)}:verifiers`) })).toEqual(['launch:attester verifier unreadable'])
+  expect(
+    await gate((state) => {
+      state.verifiers.clear()
+    }),
+  ).toEqual(['launch:attester is not a verifier on the v1 Evaluator'])
+  expect(
+    await gate((state) => {
+      state.failing.add(`call:${lower(addresses.evaluator)}:verifiers`)
+    }),
+  ).toEqual(['launch:attester verifier unreadable'])
 })
 
 // ---- PROD-GATE-004: the relay holds strictly more than RELAY_FLOOR_MAINNET ----
@@ -242,16 +460,28 @@ test.each([
   ['below the floor', FLOOR - 1n],
   ['exactly at the floor', FLOOR],
 ])('PROD-GATE-004: a relay balance %s refuses', async (_, balance) => {
-  expect(await gate((state, config) => { state.balances[lower(config.roles.relay!)] = balance })).toEqual(['launch:relay at or below RELAY_FLOOR_MAINNET'])
+  expect(
+    await gate((state, config) => {
+      state.balances[lower(config.roles.relay!)] = balance
+    }),
+  ).toEqual(['launch:relay at or below RELAY_FLOOR_MAINNET'])
 })
 
 test('PROD-GATE-004: an unreadable balance or an undefined floor refuses; the relay is the configured role, not any funded address', async () => {
-  expect(await gate((state, config) => { state.failing.add(`balance:${lower(config.roles.relay!)}`) })).toEqual(['launch:relay balance unreadable'])
-  expect(await gate(() => {}, { floor: undefined })).toEqual(['launch:relay floor undefined (RELAY_FLOOR_MAINNET, @sidequest/sdk)'])
-  expect(await gate((state, config) => {
-    state.balances = { [lower(a(0xf00d))]: parseEther('100') }
-    expect(config.roles.relay).not.toBe(a(0xf00d))
-  })).toEqual(['launch:relay at or below RELAY_FLOOR_MAINNET'])
+  expect(
+    await gate((state, config) => {
+      state.failing.add(`balance:${lower(config.roles.relay!)}`)
+    }),
+  ).toEqual(['launch:relay balance unreadable'])
+  expect(await gate(() => {}, { floor: undefined })).toEqual([
+    'launch:relay floor undefined (RELAY_FLOOR_MAINNET, @sidequest/sdk)',
+  ])
+  expect(
+    await gate((state, config) => {
+      state.balances = { [lower(a(0xf00d))]: parseEther('100') }
+      expect(config.roles.relay).not.toBe(a(0xf00d))
+    }),
+  ).toEqual(['launch:relay at or below RELAY_FLOOR_MAINNET'])
   expect(relayFloorWei('2')).toBe(FLOOR)
   expect(relayFloorWei(FLOOR)).toBe(FLOOR)
   expect(relayFloorWei(undefined)).toBeUndefined()
@@ -290,9 +520,12 @@ test('D16: an opening deploy is refused before anything else when the gate fails
   const state = live(config)
   state.owners[lower(addresses.vault)] = config.roles.admin!
   const chain = reader(state)
-  await expect(assertLaunchGate(config, '0', chain, FLOOR, POLICY)).rejects.toThrow('production launch gate refused: launch:owner:vault is not the Safe')
+  await expect(assertLaunchGate(config, '0', chain, FLOOR, POLICY)).rejects.toThrow(
+    'production launch gate refused: launch:owner:vault is not the Safe',
+  )
   const reads = chain.reads.length
-  for (const drain of [undefined, '', '1', 'invalid']) await expect(assertLaunchGate(config, drain, chain, FLOOR, POLICY)).resolves.toBeUndefined()
+  for (const drain of [undefined, '', '1', 'invalid'])
+    await expect(assertLaunchGate(config, drain, chain, FLOOR, POLICY)).resolves.toBeUndefined()
   expect(chain.reads.length).toBe(reads)
   state.owners[lower(addresses.vault)] = SAFE
   await expect(assertLaunchGate(config, '0', chain, FLOOR, POLICY)).resolves.toBeUndefined()
@@ -301,32 +534,62 @@ test('D16: an opening deploy is refused before anything else when the gate fails
 // D24: every constructor clock is independently read and fails closed.
 test.each(launchClockReads)('CLOCKS: %s.%s mismatch and unreadable value refuse', async (name, getter) => {
   const label = `launch:clock:${name}.${getter}`
-  expect(await gate(state => { state.clocks[`${lower(addresses[name])}:${getter}`] = 1 })).toEqual([`${label} differs from config`])
-  expect(await gate(state => { state.failing.add(`call:${lower(addresses[name])}:${getter}`) })).toEqual([`${label} unreadable`])
+  expect(
+    await gate((state) => {
+      state.clocks[`${lower(addresses[name])}:${getter}`] = 1
+    }),
+  ).toEqual([`${label} differs from config`])
+  expect(
+    await gate((state) => {
+      state.failing.add(`call:${lower(addresses[name])}:${getter}`)
+    }),
+  ).toEqual([`${label} unreadable`])
 })
 
 test('CLOCKS: testnet fast config passes readback; production cannot be overridden on 143', async () => {
-  const fast = { minReviewWindow: 120, minDisputeWindow: 120, minArbitrationWindow: 300, unstakeDelay: 600,
-    holdingDelay: 900, feeDelay: 300, proposalGrace: 1800, epochZeroDuration: 1800, epochDuration: 3600 }
+  const fast = {
+    minReviewWindow: 120,
+    minDisputeWindow: 120,
+    minArbitrationWindow: 300,
+    unstakeDelay: 600,
+    holdingDelay: 900,
+    feeDelay: 300,
+    proposalGrace: 1800,
+    epochZeroDuration: 1800,
+    epochDuration: 3600,
+  }
   const setup = (state: LiveState, config: ChainConfig) => {
     config.sidequest = { ...config.sidequest, clocks: fast }
     for (const [name, getter, key] of launchClockReads) state.clocks[`${lower(addresses[name])}:${getter}`] = fast[key]
   }
-  expect(await gate((state, config) => { setup(state, config); config.chainId = 10143 })).toEqual([])
+  expect(
+    await gate((state, config) => {
+      setup(state, config)
+      config.chainId = 10143
+    }),
+  ).toEqual([])
   const failures = await gate(setup)
   for (const key of Object.keys(fast)) expect(failures).toContain(`launch:clocks:${key} config invalid`)
   expect(failures).toContain('launch:clock:vault.HOLDING_DELAY differs from config')
 })
 
 test('CLOCKS: partial, zero, out-of-range and cross-clock-invalid config refuse', async () => {
-  for (const patch of [{ proposalGrace: 0 }, { epochDuration: 0 }, { epochZeroDuration: 599 },
-    { minReviewWindow: 1209601 }, { holdingDelay: 60 }, { feeDelay: 59 }]) {
+  for (const patch of [
+    { proposalGrace: 0 },
+    { epochDuration: 0 },
+    { epochZeroDuration: 599 },
+    { minReviewWindow: 1209601 },
+    { holdingDelay: 60 },
+    { feeDelay: 59 },
+  ]) {
     const failures = await gate((_, config) => {
       config.chainId = 10143
       config.sidequest = { ...config.sidequest, clocks: { ...productionLaunchClocks, ...patch } }
     })
     expect(failures.length).toBeGreaterThan(0)
   }
-  const failures = await gate((_, config) => { config.sidequest = { clocks: {} as never } })
+  const failures = await gate((_, config) => {
+    config.sidequest = { clocks: {} as never }
+  })
   expect(failures).toHaveLength(9)
 })

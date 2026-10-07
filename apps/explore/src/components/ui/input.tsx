@@ -15,7 +15,12 @@ const inputVariants = cva('', {
   defaultVariants: { variant: 'default' },
 })
 
-function Input({ className, type, variant, ...props }: React.ComponentProps<'input'> & VariantProps<typeof inputVariants>) {
+function Input({
+  className,
+  type,
+  variant,
+  ...props
+}: React.ComponentProps<'input'> & VariantProps<typeof inputVariants>) {
   return (
     <InputPrimitive
       type={type}

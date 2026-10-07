@@ -1,7 +1,19 @@
 import { type Address, type Hex, zeroAddress } from 'viem'
 import { describe, expect, it } from 'vitest'
 import { sidequestEvaluatorAbi, sidequestHoldingAbi } from './abi/index.ts'
-import { accept, activate, cancel, claimTopUpRefund, hashText, publish, settleDeferred, type ActivationTerms, type Ctx, type Wallet, V1_GAS } from './actions.ts'
+import {
+  accept,
+  activate,
+  cancel,
+  claimTopUpRefund,
+  hashText,
+  publish,
+  settleDeferred,
+  type ActivationTerms,
+  type Ctx,
+  type Wallet,
+  V1_GAS,
+} from './actions.ts'
 import { deployment } from './deployment.ts'
 import type { Selection } from './typed-data.ts'
 
@@ -11,10 +23,28 @@ const holding = '0x3333333333333333333333333333333333333333' as Address
 const evaluator = '0x4444444444444444444444444444444444444444' as Address
 const oldFactory = '0x5555555555555555555555555555555555555555' as Address
 const arbitrator = '0x6666666666666666666666666666666666666666' as Address
-const terms: ActivationTerms = { creator, approver: creator, token: oldFactory, reward: 101n, creatorBond: 2n, workerBond: 3n,
-  arbitrator, reviewWindow: 3600, disputeWindow: 7200, arbitrationWindow: 43200, deliveryDeadline: 2_000_000_000 }
+const terms: ActivationTerms = {
+  creator,
+  approver: creator,
+  token: oldFactory,
+  reward: 101n,
+  creatorBond: 2n,
+  workerBond: 3n,
+  arbitrator,
+  reviewWindow: 3600,
+  disputeWindow: 7200,
+  arbitrationWindow: 43200,
+  deliveryDeadline: 2_000_000_000,
+}
 const policyHash = hashText('offer')
-const selection: Selection = { jobId: 7n, worker, agentId: 1n, termsHash: policyHash, activateBy: 1_900_000_000, nonce: 1n }
+const selection: Selection = {
+  jobId: 7n,
+  worker,
+  agentId: 1n,
+  termsHash: policyHash,
+  activateBy: 1_900_000_000,
+  nonce: 1n,
+}
 const txHash = `0x${'ab'.repeat(32)}` as Hex
 
 function fixture(kind: 'sidequest-v1' = 'sidequest-v1', over: Partial<ActivationTerms> = {}, available = 20n) {
@@ -23,7 +53,8 @@ function fixture(kind: 'sidequest-v1' = 'sidequest-v1', over: Partial<Activation
   const simulated: Array<Record<string, unknown>> = []
   const sent: Array<Record<string, unknown>> = []
   const reads: Array<Record<string, unknown>> = []
-  const ctx = { deployment: { ...deployment('monad-testnet'), sidequest: { factory: oldFactory, vault: holding } },
+  const ctx = {
+    deployment: { ...deployment('monad-testnet'), sidequest: { factory: oldFactory, vault: holding } },
     stack: { kind, factory: oldFactory, holding, evaluator, openTokens: true },
     publicClient: {
       readContract: async (r: Record<string, unknown>) => {
@@ -31,24 +62,49 @@ function fixture(kind: 'sidequest-v1' = 'sidequest-v1', over: Partial<Activation
         const name = String(r.functionName)
         events.push(name)
         switch (name) {
-          case 'getListing': return { ...terms, ...over, policyHash, mode: 0, workerBondPosted: false, workerBondReserved: false }
-          case 'quoteActivation': return [3000, 31n, 70n]
-          case 'stakeOf': return available
-          case 'reservedOf': return 0n
-          case 'availableOf': return available
-          case 'positionOf': return { shares: available, queuedShares: 0n, unlockAt: 0, generation: 0n }
-          case 'convertToAssets': return 0n
-          case 'allowance': return 0n
-          default: throw new Error(`unexpected read ${name}`)
+          case 'getListing':
+            return { ...terms, ...over, policyHash, mode: 0, workerBondPosted: false, workerBondReserved: false }
+          case 'quoteActivation':
+            return [3000, 31n, 70n]
+          case 'stakeOf':
+            return available
+          case 'reservedOf':
+            return 0n
+          case 'availableOf':
+            return available
+          case 'positionOf':
+            return { shares: available, queuedShares: 0n, unlockAt: 0, generation: 0n }
+          case 'convertToAssets':
+            return 0n
+          case 'allowance':
+            return 0n
+          default:
+            throw new Error(`unexpected read ${name}`)
         }
       },
-      simulateContract: async (r: Record<string, unknown>) => { simulated.push(r); events.push(`simulate:${r.functionName}`); return { request: r } },
-      waitForTransactionReceipt: async () => { events.push('receipt'); return { status: 'success', transactionHash: txHash, logs: [] } },
+      simulateContract: async (r: Record<string, unknown>) => {
+        simulated.push(r)
+        events.push(`simulate:${r.functionName}`)
+        return { request: r }
+      },
+      waitForTransactionReceipt: async () => {
+        events.push('receipt')
+        return { status: 'success', transactionHash: txHash, logs: [] }
+      },
     },
   } as unknown as Ctx
-  const wallet = { account: { address: worker },
-    signTypedData: async (r: { message: Record<string, unknown> }) => { signed.push(r); events.push('sign'); return '0x11' },
-    writeContract: async (r: Record<string, unknown>) => { sent.push(r); events.push(`send:${r.functionName}`); return txHash },
+  const wallet = {
+    account: { address: worker },
+    signTypedData: async (r: { message: Record<string, unknown> }) => {
+      signed.push(r)
+      events.push('sign')
+      return '0x11'
+    },
+    writeContract: async (r: Record<string, unknown>) => {
+      sent.push(r)
+      events.push(`send:${r.functionName}`)
+      return txHash
+    },
   } as unknown as Wallet
   return { ctx, wallet, events, signed, simulated, sent, reads }
 }
@@ -58,15 +114,29 @@ describe('kind-aware activation', () => {
     const f = fixture()
     await activate(f.ctx, f.wallet, selection, '0x11', terms)
     expect(f.signed[0]?.message.amount).toBe(70n)
-    expect(f.events.slice(f.events.indexOf('quoteActivation'), f.events.indexOf('simulate:activate'))).toEqual(['quoteActivation', 'sign'])
+    expect(f.events.slice(f.events.indexOf('quoteActivation'), f.events.indexOf('simulate:activate'))).toEqual([
+      'quoteActivation',
+      'sign',
+    ])
     expect(f.events.indexOf('availableOf')).toBeLessThan(f.events.indexOf('quoteActivation'))
-    expect(f.reads.find(r => r.functionName === 'quoteActivation')?.args).toEqual([7n, worker])
+    expect(f.reads.find((r) => r.functionName === 'quoteActivation')?.args).toEqual([7n, worker])
     expect(f.sent[0]?.abi).toBe(sidequestHoldingAbi)
-    expect(f.sent.some(r => r.functionName === 'approve')).toBe(false)
+    expect(f.sent.some((r) => r.functionName === 'approve')).toBe(false)
   })
 
-  for (const [field, value] of Object.entries({ token: holding, arbitrator: holding, creator: holding, approver: holding,
-    reward: 102n, creatorBond: 4n, workerBond: 4n, reviewWindow: 7200, disputeWindow: 3600, arbitrationWindow: 86400, deliveryDeadline: 2_000_000_001 })) {
+  for (const [field, value] of Object.entries({
+    token: holding,
+    arbitrator: holding,
+    creator: holding,
+    approver: holding,
+    reward: 102n,
+    creatorBond: 4n,
+    workerBond: 4n,
+    reviewWindow: 7200,
+    disputeWindow: 3600,
+    arbitrationWindow: 86400,
+    deliveryDeadline: 2_000_000_001,
+  })) {
     it(`refuses an independently changed ${field} before signing, even with the same policyHash`, async () => {
       const f = fixture('sidequest-v1', { [field]: value })
       await expect(activate(f.ctx, f.wallet, selection, '0x11', terms)).rejects.toThrow(`Listing ${field}`)
@@ -78,9 +148,13 @@ describe('kind-aware activation', () => {
   it('refuses missing accepted terms, a different hash and insufficient stake before signing', async () => {
     const f = fixture()
     await expect(activate(f.ctx, f.wallet, selection, '0x11')).rejects.toThrow('accepted offer terms')
-    await expect(activate(f.ctx, f.wallet, { ...selection, termsHash: hashText('other') }, '0x11', terms)).rejects.toThrow('policy hash')
+    await expect(
+      activate(f.ctx, f.wallet, { ...selection, termsHash: hashText('other') }, '0x11', terms),
+    ).rejects.toThrow('policy hash')
     const poor = fixture('sidequest-v1', {}, 2n)
-    await expect(activate(poor.ctx, poor.wallet, selection, '0x11', terms)).rejects.toThrow('Insufficient available stake')
+    await expect(activate(poor.ctx, poor.wallet, selection, '0x11', terms)).rejects.toThrow(
+      'Insufficient available stake',
+    )
     expect(poor.signed).toHaveLength(0)
     expect(poor.sent).toHaveLength(0)
   })
@@ -102,15 +176,22 @@ describe('v1 payout limits and recovery ordering', () => {
     await accept(f.ctx, f.wallet, 7n)
     await cancel(f.ctx, f.wallet, 7n)
     await claimTopUpRefund(f.ctx, f.wallet, 7n)
-    expect(f.simulated.map(r => r.gas)).toEqual([V1_GAS.evaluator, V1_GAS.cancel, V1_GAS.claimTopUpRefund])
-    expect(f.sent.map(r => r.gas)).toEqual([V1_GAS.evaluator, V1_GAS.cancel, V1_GAS.claimTopUpRefund])
+    expect(f.simulated.map((r) => r.gas)).toEqual([V1_GAS.evaluator, V1_GAS.cancel, V1_GAS.claimTopUpRefund])
+    expect(f.sent.map((r) => r.gas)).toEqual([V1_GAS.evaluator, V1_GAS.cancel, V1_GAS.claimTopUpRefund])
     expect(f.sent[0]?.abi).toBe(sidequestEvaluatorAbi)
   })
 
   it('waits for retryDeferred to be confirmed before it simulates and sends settle', async () => {
     const f = fixture()
     await settleDeferred(f.ctx, f.wallet, 7n)
-    expect(f.events).toEqual(['simulate:retryDeferred', 'send:retryDeferred', 'receipt', 'simulate:settle', 'send:settle', 'receipt'])
-    expect(f.sent.map(r => r.gas)).toEqual([300_000n, 1_000_000n])
+    expect(f.events).toEqual([
+      'simulate:retryDeferred',
+      'send:retryDeferred',
+      'receipt',
+      'simulate:settle',
+      'send:settle',
+      'receipt',
+    ])
+    expect(f.sent.map((r) => r.gas)).toEqual([300_000n, 1_000_000n])
   })
 })

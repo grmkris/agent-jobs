@@ -6,21 +6,41 @@ import * as HttpClient from 'effect/http/HttpClient'
 import { expect } from 'vitest'
 import RecoveryDrill from './recovery-worker.ts'
 
-const { test, beforeAll, deploy } = Test.make({ providers: Cloudflare.providers(), state: Alchemy.localState(), dev: true })
-const Stack = Alchemy.Stack('E38LocalRecoveryDrill', { providers: Cloudflare.providers(), state: Alchemy.localState() }, Effect.gen(function* () {
-  const worker = yield* RecoveryDrill
-  return { url: worker.url }
-}))
+const { test, beforeAll, deploy } = Test.make({
+  providers: Cloudflare.providers(),
+  state: Alchemy.localState(),
+  dev: true,
+})
+const Stack = Alchemy.Stack(
+  'E38LocalRecoveryDrill',
+  { providers: Cloudflare.providers(), state: Alchemy.localState() },
+  Effect.gen(function* () {
+    const worker = yield* RecoveryDrill
+    return { url: worker.url }
+  }),
+)
 const stack = beforeAll(deploy(Stack))
 
-test('disposable local workerd D1 restores and rebuilds synthetic v1 indexed facts without deleting hosted rows', Effect.gen(function* () {
-  const { url } = yield* stack
-  const response = yield* HttpClient.get(url as string)
-  const result = (yield* response.json) as { ok: boolean; runtime: string; events: number; protocolEvents: number; jobs: number; restored: boolean; rebuilt: boolean; hostedRowsRetained: boolean }
-  expect(result.runtime).toBe('Cloudflare-Workers')
-  expect(result.ok).toBe(true)
-  expect(result.events).toBe(24)
-  expect(result.protocolEvents).toBe(0)
-  expect(result.jobs).toBe(3)
-  expect(result.restored && result.rebuilt && result.hostedRowsRetained).toBe(true)
-}))
+test(
+  'disposable local workerd D1 restores and rebuilds synthetic v1 indexed facts without deleting hosted rows',
+  Effect.gen(function* () {
+    const { url } = yield* stack
+    const response = yield* HttpClient.get(url as string)
+    const result = (yield* response.json) as {
+      ok: boolean
+      runtime: string
+      events: number
+      protocolEvents: number
+      jobs: number
+      restored: boolean
+      rebuilt: boolean
+      hostedRowsRetained: boolean
+    }
+    expect(result.runtime).toBe('Cloudflare-Workers')
+    expect(result.ok).toBe(true)
+    expect(result.events).toBe(24)
+    expect(result.protocolEvents).toBe(0)
+    expect(result.jobs).toBe(3)
+    expect(result.restored && result.rebuilt && result.hostedRowsRetained).toBe(true)
+  }),
+)

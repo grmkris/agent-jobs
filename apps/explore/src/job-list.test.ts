@@ -5,21 +5,30 @@ import { type JobListItem, listPhase, postedAt, postedJustNow, rowCountdown, sor
 
 const creator = '0x1111111111111111111111111111111111111111'
 const viewer = '0x2222222222222222222222222222222222222222'
-const phase = (key: Phase['key'], deadline: number | null, terminal = false) => ({ key, deadline, terminal, roles: [], label: key }) as unknown as Phase
+const phase = (key: Phase['key'], deadline: number | null, terminal = false) =>
+  ({ key, deadline, terminal, roles: [], label: key }) as unknown as Phase
 const request = (id: string, createdAt: number) => ({ requestId: id, createdAt, creator }) as unknown as QuoteRequest
-const row = (item: Partial<JobListItem>, p: Phase) => ({ item: { jobId: null, task: undefined, chain: undefined, ...item }, phase: p })
+const row = (item: Partial<JobListItem>, p: Phase) => ({
+  item: { jobId: null, task: undefined, chain: undefined, ...item },
+  phase: p,
+})
 
 describe('the single Jobs list', () => {
   it('files quote requests with open, closed ones with done', () => {
-    expect(viewOf(quoteRequestPhase({ quoteDeadline: 2000, quotes: 3, picked: false, creator }, viewer, 1000))).toBe('open')
-    expect(viewOf(quoteRequestPhase({ quoteDeadline: 900, quotes: 0, picked: false, creator }, viewer, 1000))).toBe('done')
+    expect(viewOf(quoteRequestPhase({ quoteDeadline: 2000, quotes: 3, picked: false, creator }, viewer, 1000))).toBe(
+      'open',
+    )
+    expect(viewOf(quoteRequestPhase({ quoteDeadline: 900, quotes: 0, picked: false, creator }, viewer, 1000))).toBe(
+      'done',
+    )
     expect(viewOf(phase('hire-open', 5000))).toBe('open')
     expect(viewOf(phase('active', 5000))).toBe('progress')
     expect(viewOf(phase('completed', null, true))).toBe('done')
   })
 
   it('a closed request reads "Closed · no pick" to everyone but its poster, who may still pick', () => {
-    const closed = (who: string) => listPhase(quoteRequestPhase({ quoteDeadline: 900, quotes: 2, picked: false, creator }, who, 1000))
+    const closed = (who: string) =>
+      listPhase(quoteRequestPhase({ quoteDeadline: 900, quotes: 2, picked: false, creator }, who, 1000))
     expect(closed(viewer).label).toBe('Closed · no pick')
     expect(closed(creator)).toMatchObject({ label: 'Quotes closed', youAct: true })
   })
@@ -40,7 +49,13 @@ describe('the single Jobs list', () => {
       row({ request: request('soon', 100) }, phase('quotes-open', 2000)),
       row({ jobId: '6', task: { createdAt: 800 } as never }, phase('hire-open', 5000)),
     ]
-    expect(sortRows(rows).map(r => r.item.request?.requestId ?? r.item.jobId)).toEqual(['soon', '6', 'late', '7', '5'])
+    expect(sortRows(rows).map((r) => r.item.request?.requestId ?? r.item.jobId)).toEqual([
+      'soon',
+      '6',
+      'late',
+      '7',
+      '5',
+    ])
     expect(postedAt(rows[1]!.item)).toBe(700)
   })
 

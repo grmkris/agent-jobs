@@ -3,7 +3,18 @@ import { finishListingOperation, listingOperationKey } from './listing.ts'
 
 const store = () => {
   const values = new Map<string, string>()
-  return { values, storage: { getItem: (k: string) => values.get(k) ?? null, setItem: (k: string, v: string) => { values.set(k, v) }, removeItem: (k: string) => { values.delete(k) } } }
+  return {
+    values,
+    storage: {
+      getItem: (k: string) => values.get(k) ?? null,
+      setItem: (k: string, v: string) => {
+        values.set(k, v)
+      },
+      removeItem: (k: string) => {
+        values.delete(k)
+      },
+    },
+  }
 }
 
 describe('listing take-down keys', () => {
@@ -19,6 +30,8 @@ describe('listing take-down keys', () => {
   })
   it('refuses to send when the key cannot be saved', () => {
     const { storage } = store()
-    expect(() => listingOperationKey({ ...storage, setItem: () => {} }, '7', null, () => 'k')).toThrow(/could not be saved/)
+    expect(() => listingOperationKey({ ...storage, setItem: () => {} }, '7', null, () => 'k')).toThrow(
+      /could not be saved/,
+    )
   })
 })

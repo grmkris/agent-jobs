@@ -50,5 +50,11 @@ export function PhaseBadge({ phase }: { phase: Phase | null }) {
 
 /** A lifecycle sentence with its times rendered live in the reader's time zone. */
 export function Sentence({ parts }: { parts: Segment[] }) {
-  return <>{parts.map((p, i) => (typeof p === 'string' ? <span key={i}>{p}</span> : <When key={i} at={p.time} show="time" />))}</>
+  return (
+    <>
+      {parts.map((p, i) =>
+        typeof p === 'string' ? <span key={i}>{p}</span> : <When key={i} at={p.time} show="time" />,
+      )}
+    </>
+  )
 }

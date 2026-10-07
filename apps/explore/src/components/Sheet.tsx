@@ -9,7 +9,8 @@ import { X } from 'lucide-react'
 import { type ReactNode, createContext, useCallback, useContext, useEffect, useId, useRef, useState } from 'react'
 
 /** Apple's momentum projection: where a flick released at `velocity` px/s comes to rest. */
-const project = (velocity: number, decelerationRate = 0.998) => ((velocity / 1000) * decelerationRate) / (1 - decelerationRate)
+const project = (velocity: number, decelerationRate = 0.998) =>
+  ((velocity / 1000) * decelerationRate) / (1 - decelerationRate)
 
 /**
  * `walletPrompt`: a wallet request started from the sheet is pending. An embedded wallet (Privy) draws its own prompt in
@@ -106,7 +107,10 @@ export function Sheet({
     >
       <div
         ref={panel}
-        style={{ transform: dy === 0 ? undefined : `translateY(${dy}px)`, transition: drag.current === null ? undefined : 'none' }}
+        style={{
+          transform: dy === 0 ? undefined : `translateY(${dy}px)`,
+          transition: drag.current === null ? undefined : 'none',
+        }}
         className={cn(
           'absolute inset-x-0 bottom-0 grid max-h-[90vh] gap-4 overflow-y-auto rounded-t-xl bg-popover px-5 pt-2 pb-[calc(1.25rem+var(--safe-bottom))] text-sm text-popover-foreground shadow-popover',
           // A grouped block inside the sheet sits one step down, not white on white.
@@ -179,7 +183,13 @@ export function ConfirmSheet({
       {description !== undefined && <div className="-mt-2 leading-snug text-muted-foreground">{description}</div>}
       {children}
       <div className="grid gap-2">
-        <Button size="lg" variant={tone === 'destructive' ? 'destructive' : 'default'} busy={busy} disabled={disabled} onClick={onConfirm}>
+        <Button
+          size="lg"
+          variant={tone === 'destructive' ? 'destructive' : 'default'}
+          busy={busy}
+          disabled={disabled}
+          onClick={onConfirm}
+        >
           {confirm}
         </Button>
         <Button size="lg" variant="secondary" disabled={busy === true} onClick={onClose}>

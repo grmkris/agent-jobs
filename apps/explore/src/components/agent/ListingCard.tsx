@@ -31,9 +31,14 @@ export function ListingCard({ agent }: { agent: ManagedAgent }) {
     mutationFn: async (serviceId: string | null) => {
       const operationKey = listingOperationKey(localStorage, agentId!, serviceId)
       try {
-        await agentAction(agent.id, 'execute', { tool: 'withdraw_service', args: serviceId === null ? {} : { serviceId }, operationKey })
+        await agentAction(agent.id, 'execute', {
+          tool: 'withdraw_service',
+          args: serviceId === null ? {} : { serviceId },
+          operationKey,
+        })
       } catch (failure) {
-        if (NEW_KEY.has((failure as { code?: string }).code ?? '')) finishListingOperation(localStorage, agentId!, serviceId)
+        if (NEW_KEY.has((failure as { code?: string }).code ?? ''))
+          finishListingOperation(localStorage, agentId!, serviceId)
         throw failure
       }
       finishListingOperation(localStorage, agentId!, serviceId)
@@ -64,7 +69,9 @@ export function ListingCard({ agent }: { agent: ManagedAgent }) {
         {listing.isLoading && <Skeleton className="h-12 w-full" />}
         {listed !== null &&
           (listed.ads.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No live service ads. Each ad lasts 24 hours unless the agent renews it.</p>
+            <p className="text-sm text-muted-foreground">
+              No live service ads. Each ad lasts 24 hours unless the agent renews it.
+            </p>
           ) : (
             <ItemGroup>
               {listed.ads.map((ad) => (
@@ -76,7 +83,12 @@ export function ListingCard({ agent }: { agent: ManagedAgent }) {
                     </ItemDescription>
                   </ItemContent>
                   <ItemActions>
-                    <Button variant="outline" size="sm" disabled={takeDown.isPending} onClick={() => takeDown.mutate(ad.serviceId)}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={takeDown.isPending}
+                      onClick={() => takeDown.mutate(ad.serviceId)}
+                    >
                       Take down
                     </Button>
                   </ItemActions>
@@ -86,7 +98,8 @@ export function ListingCard({ agent }: { agent: ManagedAgent }) {
           ))}
         {takeDown.isError && (
           <p role="alert" className="text-sm text-destructive-text">
-            {takeDown.error instanceof Error ? takeDown.error.message : 'The take-down failed.'} Nothing else changed; try again.
+            {takeDown.error instanceof Error ? takeDown.error.message : 'The take-down failed.'} Nothing else changed;
+            try again.
           </p>
         )}
         {listed !== null && (
@@ -108,7 +121,9 @@ export function ListingCard({ agent }: { agent: ManagedAgent }) {
           </div>
         )}
       </div>
-      <p className="px-1 text-ui text-muted-foreground">A listing is discovery only: it admits the agent to no job and moves no money.</p>
+      <p className="px-1 text-ui text-muted-foreground">
+        A listing is discovery only: it admits the agent to no job and moves no money.
+      </p>
     </div>
   )
 }

@@ -70,7 +70,12 @@ async function parity(docs, siteDir, origin) {
   for (const page of docs) {
     const file = join(resolve(siteDir), 'docs', `${page.slug}.md`)
     let actual
-    try { actual = readFileSync(file, 'utf8') } catch { failures.push(`${file}: missing`); continue }
+    try {
+      actual = readFileSync(file, 'utf8')
+    } catch {
+      failures.push(`${file}: missing`)
+      continue
+    }
     const expected = page.markdown.replaceAll(placeholder, origin)
     if (actual !== expected) failures.push(`${file}: ${mismatch(expected, actual)}`)
   }

@@ -70,8 +70,15 @@ const after = (a: LogPosition, b: LogPosition) => a.block > b.block || (a.block 
  * is read as the treasury's, failing closed).
  */
 export function treasuryOwed(fee: FeeCharged, owed: readonly PayoutOwed[]): PayoutOwed | undefined {
-  const legs = owed.filter(o => o.tx === fee.tx && o.holding === fee.holding && o.jobId === fee.jobId && o.token === fee.token && after(o, fee)
-    && (o.to !== fee.worker || o.amount === fee.amount))
+  const legs = owed.filter(
+    (o) =>
+      o.tx === fee.tx &&
+      o.holding === fee.holding &&
+      o.jobId === fee.jobId &&
+      o.token === fee.token &&
+      after(o, fee) &&
+      (o.to !== fee.worker || o.amount === fee.amount),
+  )
   return legs.length === 0 ? undefined : legs.reduce((a, b) => (after(b, a) ? b : a))
 }
 
@@ -91,18 +98,24 @@ export function computeEpoch(input: {
   prices: PriceList
   budget: bigint
 }): EpochResult {
-  const price = new Map(input.prices.tokens.map(t => [t.token, t]))
-  const fees: FeeRecord[] = input.fees.map(fee => {
+  const price = new Map(input.prices.tokens.map((t) => [t.token, t]))
+  const fees: FeeRecord[] = input.fees.map((fee) => {
     const p = price.get(fee.token)
     if (p === undefined) return { fee, status: 'unpriced', usd: 0n }
     const owed = treasuryOwed(fee, input.owed)
-    if (owed !== undefined && !input.withdrawals.some(w => w.holding === owed.holding && w.to === owed.to && w.token === owed.token && after(w, owed))) {
+    if (
+      owed !== undefined &&
+      !input.withdrawals.some(
+        (w) => w.holding === owed.holding && w.to === owed.to && w.token === owed.token && after(w, owed),
+      )
+    ) {
       return { fee, status: 'owed-to-treasury', usd: 0n }
     }
     return { fee, status: 'counted', usd: (fee.amount * p.usdPrice) / 10n ** BigInt(p.decimals) }
   })
   const feeUsd = fees.reduce((sum, r) => sum + r.usd, 0n)
-  const factoryUsdPrice = input.prices.factoryUsdPrice > MIN_SIDE_USD_PRICE ? input.prices.factoryUsdPrice : MIN_SIDE_USD_PRICE
+  const factoryUsdPrice =
+    input.prices.factoryUsdPrice > MIN_SIDE_USD_PRICE ? input.prices.factoryUsdPrice : MIN_SIDE_USD_PRICE
   const demand = (feeUsd * 10n ** 18n) / (2n * factoryUsdPrice)
   const emission = demand < input.budget ? demand : input.budget
 
@@ -120,8 +133,10 @@ export function computeEpoch(input: {
   if (feeUsd > 0n) {
     const workerPool = (emission * WORKER_SHARE_PERCENT) / 100n
     const creatorPool = (emission * CREATOR_SHARE_PERCENT) / 100n
-    for (const [account, usd] of byWorker) amounts.set(account, (amounts.get(account) ?? 0n) + (workerPool * usd) / feeUsd)
-    for (const [account, usd] of byCreator) amounts.set(account, (amounts.get(account) ?? 0n) + (creatorPool * usd) / feeUsd)
+    for (const [account, usd] of byWorker)
+      amounts.set(account, (amounts.get(account) ?? 0n) + (workerPool * usd) / feeUsd)
+    for (const [account, usd] of byCreator)
+      amounts.set(account, (amounts.get(account) ?? 0n) + (creatorPool * usd) / feeUsd)
   }
   const leaves = [...amounts]
     .filter(([, amount]) => amount > 0n)
@@ -131,7 +146,7 @@ export function computeEpoch(input: {
 }
 
 export const leafValues = (epoch: bigint, leaves: EpochResult['leaves']): LeafValue[] =>
-  leaves.map(l => [epoch.toString(), l.account, l.amount.toString()] as const)
+  leaves.map((l) => [epoch.toString(), l.account, l.amount.toString()] as const)
 
 /** keccak256 of the UTF-8 bytes of `JSON.stringify(inputs)`, exactly as `inputs` appears in epoch-<n>.json. */
 export const dataHashOf = (inputs: unknown): Hex => keccak256(toBytes(JSON.stringify(inputs)))

@@ -30,10 +30,16 @@ export function BuyButtons({ address }: { address: `0x${string}` }) {
   return (
     <div className="grid gap-3">
       <div className="flex flex-wrap gap-2">
-        <Button variant={want === 'side' ? 'default' : 'outline'} onClick={() => setWant(want === 'side' ? null : 'side')}>
+        <Button
+          variant={want === 'side' ? 'default' : 'outline'}
+          onClick={() => setWant(want === 'side' ? null : 'side')}
+        >
           Buy SIDE
         </Button>
-        <Button variant={want === 'quote' ? 'default' : 'outline'} onClick={() => setWant(want === 'quote' ? null : 'quote')}>
+        <Button
+          variant={want === 'quote' ? 'default' : 'outline'}
+          onClick={() => setWant(want === 'quote' ? null : 'quote')}
+        >
           Buy {quote.symbol}
         </Button>
       </div>
@@ -42,7 +48,17 @@ export function BuyButtons({ address }: { address: `0x${string}` }) {
   )
 }
 
-function BuyPanel({ market: m, want, address, onDone }: { market: sdk.Market; want: Want; address: `0x${string}`; onDone: () => void }) {
+function BuyPanel({
+  market: m,
+  want,
+  address,
+  onDone,
+}: {
+  market: sdk.Market
+  want: Want
+  address: `0x${string}`
+  onDone: () => void
+}) {
   const ctx = stakeContext()
   const qc = useQueryClient()
   const toast = useToast()
@@ -68,10 +84,16 @@ function BuyPanel({ market: m, want, address, onDone }: { market: sdk.Market; wa
     }
   })()
   const balance = useReadContracts({
-    contracts: [{ address: tokenIn, abi: erc20Abi, functionName: 'balanceOf', args: [address], chainId: chain.id }] as const,
+    contracts: [
+      { address: tokenIn, abi: erc20Abi, functionName: 'balanceOf', args: [address], chainId: chain.id },
+    ] as const,
     query: { refetchInterval: 10_000 },
   }).data?.[0]?.result as bigint | undefined
-  const price = useQuery({ queryKey: ['market-price', m.poolId], queryFn: () => sdk.sidePrice(ctx, m, quoteToken.decimals), refetchInterval: 30_000 })
+  const price = useQuery({
+    queryKey: ['market-price', m.poolId],
+    queryFn: () => sdk.sidePrice(ctx, m, quoteToken.decimals),
+    refetchInterval: 30_000,
+  })
   const quoted = useQuery({
     queryKey: ['market-quote', m.poolId, tokenIn, amountIn?.toString()],
     queryFn: () => sdk.quoteExactIn(ctx, m, tokenIn, amountIn!),
@@ -117,7 +139,11 @@ function BuyPanel({ market: m, want, address, onDone }: { market: sdk.Market; wa
               inputMode="decimal"
               className="max-w-48"
             />
-            <Button variant="link" disabled={balance === undefined || balance === 0n} onClick={() => setText(formatUnits(balance!, inInfo.decimals))}>
+            <Button
+              variant="link"
+              disabled={balance === undefined || balance === 0n}
+              onClick={() => setText(formatUnits(balance!, inInfo.decimals))}
+            >
               Max
             </Button>
           </div>
@@ -138,7 +164,11 @@ function BuyPanel({ market: m, want, address, onDone }: { market: sdk.Market; wa
             </Alert>
           )}
           <div>
-            <Button disabled={amountIn === null || short || out === undefined} busy={busy} onClick={() => void review()}>
+            <Button
+              disabled={amountIn === null || short || out === undefined}
+              busy={busy}
+              onClick={() => void review()}
+            >
               Review swap
             </Button>
           </div>

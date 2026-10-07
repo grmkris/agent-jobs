@@ -8,8 +8,15 @@ const SPONSOR_RELAY_FLOORS: Readonly<Record<Network, bigint>> = {
 export const sponsorRelayFloor = (network: Network): bigint => SPONSOR_RELAY_FLOORS[network]
 
 export const SPONSOR_LIMITS = {
-  calls: 100, validity: 86400, batch: 8, walletCalls: 20, walletWindow: 3600, operatorPublishes: 100,
-  dailyWei: 10n * 10n ** 18n, relayFloorWei: RELAY_FLOOR_MAINNET, gas: 6_000_000n,
+  calls: 100,
+  validity: 86400,
+  batch: 8,
+  walletCalls: 20,
+  walletWindow: 3600,
+  operatorPublishes: 100,
+  dailyWei: 10n * 10n ** 18n,
+  relayFloorWei: RELAY_FLOOR_MAINNET,
+  gas: 6_000_000n,
   // Relay sends' gas limit as a percentage of the estimate (plus 10k): Monad bills the whole limit, and transactionGas's
   // exact-limit simulation falls back to the protocol limit when a tight one cannot run.
   gasMargin: 110,

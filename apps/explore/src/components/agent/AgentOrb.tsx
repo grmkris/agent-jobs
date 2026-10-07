@@ -13,7 +13,17 @@ const CLEAR = '#00000000'
  * and any orb past the budget, is the same gradient in CSS, so small chips never take the slots a page's main orb
  * needs. It stands still when idle or when the person prefers less motion. Decorative only: it renders no text.
  */
-export function AgentOrb({ agentId, size = 'md', status = 'idle', className }: { agentId: string; size?: keyof typeof SIZE; status?: AgentLiveness; className?: string }) {
+export function AgentOrb({
+  agentId,
+  size = 'md',
+  status = 'idle',
+  className,
+}: {
+  agentId: string
+  size?: keyof typeof SIZE
+  status?: AgentLiveness
+  className?: string
+}) {
   const palette = orbPalette(agentId)
   const still = usePrefersReducedMotion()
   const moving = !still && status !== 'idle'
@@ -50,7 +60,13 @@ export function AgentOrb({ agentId, size = 'md', status = 'idle', className }: {
           />
         ))}
       {orb ? (
-        <MeshGradient className="size-full overflow-hidden rounded-full" colors={palette} distortion={0.8} swirl={0.3} speed={moving ? 0.25 : 0} />
+        <MeshGradient
+          className="size-full overflow-hidden rounded-full"
+          colors={palette}
+          distortion={0.8}
+          swirl={0.3}
+          speed={moving ? 0.25 : 0}
+        />
       ) : (
         <span className="block size-full rounded-full" style={{ background: orbGradient(palette) }} />
       )}

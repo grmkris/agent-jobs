@@ -114,8 +114,6 @@ describe('agents:check', () => {
     )
     expect(checkAll(root, ['apps/a'])[0]).toContain('Add agents/openai.yaml with')
   })
-
-
 })
 
 describe('markdownLinks', () => {

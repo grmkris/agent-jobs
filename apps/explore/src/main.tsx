@@ -2,7 +2,17 @@ import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from './components/u
 import { PageTitle, textLinkClass } from './components/kit.tsx'
 import { Button } from './components/ui/button.tsx'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { type ErrorComponentProps, Link, Outlet, RouterProvider, createRootRoute, createRoute, createRouter, redirect, useLocation } from '@tanstack/react-router'
+import {
+  type ErrorComponentProps,
+  Link,
+  Outlet,
+  RouterProvider,
+  createRootRoute,
+  createRoute,
+  createRouter,
+  redirect,
+  useLocation,
+} from '@tanstack/react-router'
 import { Component, type ReactNode, StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { WagmiProvider } from 'wagmi'
@@ -77,7 +87,9 @@ function ErrorPage({ error }: ErrorComponentProps) {
       <Empty>
         <EmptyHeader>
           <EmptyTitle>This page could not be shown</EmptyTitle>
-          <EmptyDescription className="[overflow-wrap:anywhere]">{error instanceof Error ? error.message : 'An unexpected error'}</EmptyDescription>
+          <EmptyDescription className="[overflow-wrap:anywhere]">
+            {error instanceof Error ? error.message : 'An unexpected error'}
+          </EmptyDescription>
         </EmptyHeader>
         <Button variant="secondary" onClick={() => window.location.reload()}>
           Reload
@@ -209,14 +221,23 @@ const boardQuotes = createRoute({
   getParentRoute: () => board,
   path: '/quotes',
   beforeLoad: ({ params }) => {
-    throw redirect({ to: '/b/$boardId', params: { boardId: params.boardId }, search: { view: 'open' } as never, replace: true })
+    throw redirect({
+      to: '/b/$boardId',
+      params: { boardId: params.boardId },
+      search: { view: 'open' } as never,
+      replace: true,
+    })
   },
 })
 const boardQuoteRequest = createRoute({
   getParentRoute: () => board,
   path: '/quotes/$requestId',
   beforeLoad: ({ params }) => {
-    throw redirect({ to: '/b/$boardId/request/$requestId', params: { boardId: params.boardId, requestId: params.requestId }, replace: true })
+    throw redirect({
+      to: '/b/$boardId/request/$requestId',
+      params: { boardId: params.boardId, requestId: params.requestId },
+      replace: true,
+    })
   },
 })
 const boardAgent = createRoute({

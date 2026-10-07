@@ -1,14 +1,30 @@
 import { type Address, type Hex, decodeAbiParameters, decodeFunctionData } from 'viem'
 import { describe, expect, it } from 'vitest'
 import type { Wallet } from './actions.ts'
-import { BATCH_DEFAULT_MODE, batchCalldata, delegationOf, delegatorAbi, sendBatch, setAuthorizationSigner } from './batch.ts'
+import {
+  BATCH_DEFAULT_MODE,
+  batchCalldata,
+  delegationOf,
+  delegatorAbi,
+  sendBatch,
+  setAuthorizationSigner,
+} from './batch.ts'
 import type { TxRequest } from './board-client.ts'
 import { sendAll } from './board-client.ts'
 
 const ME = '0x1111111111111111111111111111111111111111' as Address
 const DELEGATE = '0x63c0c19a282a1B52b07dD5a65b58948A07DAE32B' as Address
-const tx = (to: string, data: Hex, description = 'x'): TxRequest => ({ description, chainId: 10143, to: to as Address, data, value: '0' })
-const TXS = [tx('0x2222222222222222222222222222222222222222', '0xaaaa', 'approve'), tx('0x3333333333333333333333333333333333333333', '0xbbbb', 'publish')]
+const tx = (to: string, data: Hex, description = 'x'): TxRequest => ({
+  description,
+  chainId: 10143,
+  to: to as Address,
+  data,
+  value: '0',
+})
+const TXS = [
+  tx('0x2222222222222222222222222222222222222222', '0xaaaa', 'approve'),
+  tx('0x3333333333333333333333333333333333333333', '0xbbbb', 'publish'),
+]
 
 function fakes(code: Hex | undefined, status = 'success') {
   const sent: Array<Record<string, unknown>> = []
@@ -36,7 +52,9 @@ function fakes(code: Hex | undefined, status = 'success') {
 
 describe('EIP-7702 batches', () => {
   it('reads a delegation designator and nothing else', async () => {
-    expect(await delegationOf({ getCode: async () => `0xef0100${DELEGATE.slice(2)}` as Hex }, ME)).toBe(`0x${DELEGATE.slice(2)}`)
+    expect(await delegationOf({ getCode: async () => `0xef0100${DELEGATE.slice(2)}` as Hex }, ME)).toBe(
+      `0x${DELEGATE.slice(2)}`,
+    )
     expect(await delegationOf({ getCode: async () => undefined }, ME)).toBeNull()
     expect(await delegationOf({ getCode: async () => '0x6080604052' }, ME)).toBeNull()
   })
@@ -46,7 +64,16 @@ describe('EIP-7702 batches', () => {
     expect(functionName).toBe('execute')
     expect(args[0]).toBe(BATCH_DEFAULT_MODE)
     const [executions] = decodeAbiParameters(
-      [{ type: 'tuple[]', components: [{ name: 'target', type: 'address' }, { name: 'value', type: 'uint256' }, { name: 'callData', type: 'bytes' }] }],
+      [
+        {
+          type: 'tuple[]',
+          components: [
+            { name: 'target', type: 'address' },
+            { name: 'value', type: 'uint256' },
+            { name: 'callData', type: 'bytes' },
+          ],
+        },
+      ],
       args[1],
     )
     expect(executions.map((c) => [c.target.toLowerCase(), c.value, c.callData])).toEqual([
@@ -95,15 +122,31 @@ describe('EIP-7702 batches', () => {
     const f = fakes(`0xef0100${DELEGATE.slice(2)}` as Hex)
     await sendBatch(f.wallet, f.reads, [{ ...TXS[0]!, gas: '450000' }], DELEGATE)
     expect(f.sent[0]?.gas).toBe(450_000n)
-    await sendBatch(f.wallet, f.reads, [{ ...TXS[0]!, gas: '300000' }, { ...TXS[1]!, gas: '1000000' }], DELEGATE)
+    await sendBatch(
+      f.wallet,
+      f.reads,
+      [
+        { ...TXS[0]!, gas: '300000' },
+        { ...TXS[1]!, gas: '1000000' },
+      ],
+      DELEGATE,
+    )
     expect(f.sent[1]?.gas).toBe(1_500_000n)
   })
 
   it('estimates the whole mixed batch and retains the larger result, including the first upgrade', async () => {
     const f = fakes('0x')
     let authCount = 0
-    const estimateGas = async (r: Record<string, unknown>) => { authCount = (r.authorizationList as unknown[]).length; return 2_000_000n }
-    await sendBatch(f.wallet, { ...f.reads, estimateGas: estimateGas as never }, [{ ...TXS[0]!, gas: '1000000' }, TXS[1]!], DELEGATE)
+    const estimateGas = async (r: Record<string, unknown>) => {
+      authCount = (r.authorizationList as unknown[]).length
+      return 2_000_000n
+    }
+    await sendBatch(
+      f.wallet,
+      { ...f.reads, estimateGas: estimateGas as never },
+      [{ ...TXS[0]!, gas: '1000000' }, TXS[1]!],
+      DELEGATE,
+    )
     expect(authCount).toBe(1)
     expect(f.sent[0]?.gas).toBe(2_000_000n)
   })
@@ -111,12 +154,25 @@ describe('EIP-7702 batches', () => {
   it('sends explicit floors in sequence and stops before the next call if a receipt reverts', async () => {
     const f = fakes('0x')
     const order: string[] = []
-    await sendAll(f.wallet, { waitForTransactionReceipt: async () => { order.push('receipt'); return { status: 'success' } } } as never,
-      [{ ...TXS[0]!, gas: '300000' }, { ...TXS[1]!, gas: '1000000' }])
-    expect(f.sent.map(r => r.gas)).toEqual([300_000n, 1_000_000n])
+    await sendAll(
+      f.wallet,
+      {
+        waitForTransactionReceipt: async () => {
+          order.push('receipt')
+          return { status: 'success' }
+        },
+      } as never,
+      [
+        { ...TXS[0]!, gas: '300000' },
+        { ...TXS[1]!, gas: '1000000' },
+      ],
+    )
+    expect(f.sent.map((r) => r.gas)).toEqual([300_000n, 1_000_000n])
     expect(order).toHaveLength(2)
     const failed = fakes('0x')
-    await expect(sendAll(failed.wallet, { waitForTransactionReceipt: async () => ({ status: 'reverted' }) } as never, TXS)).rejects.toThrow('approve')
+    await expect(
+      sendAll(failed.wallet, { waitForTransactionReceipt: async () => ({ status: 'reverted' }) } as never, TXS),
+    ).rejects.toThrow('approve')
     expect(failed.sent).toHaveLength(1)
   })
 })

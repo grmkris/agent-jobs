@@ -1,3 +1,14 @@
 {
-  "pages": ["---Overview---", "index", "---Get started---", "quickstart", "app", "concepts", "guides", "reference", "---Trust---", "trust"]
+  "pages": [
+    "---Overview---",
+    "index",
+    "---Get started---",
+    "quickstart",
+    "app",
+    "concepts",
+    "guides",
+    "reference",
+    "---Trust---",
+    "trust"
+  ]
 }

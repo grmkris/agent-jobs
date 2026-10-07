@@ -37,7 +37,15 @@ function Line({ label, children }: { label: ReactNode; children: ReactNode }) {
   )
 }
 
-export function BackingStrip({ wallet, viewer, onBack }: { wallet: Address; viewer: Address | undefined; onBack: () => void }) {
+export function BackingStrip({
+  wallet,
+  viewer,
+  onBack,
+}: {
+  wallet: Address
+  viewer: Address | undefined
+  onBack: () => void
+}) {
   const read = useIndexedBacking(wallet, viewer)
   const now = useNow()
   if (!deployed) return null
@@ -48,28 +56,39 @@ export function BackingStrip({ wallet, viewer, onBack }: { wallet: Address; view
       {read.isPending ? (
         <LoadingRows rows={2} />
       ) : read.isError || snapshot === undefined ? (
-        <p className="px-1 text-ui text-muted-foreground">This agent&apos;s backing can&apos;t be read right now; it retries.</p>
+        <p className="px-1 text-ui text-muted-foreground">
+          This agent&apos;s backing can&apos;t be read right now; it retries.
+        </p>
       ) : (
         <div className="grid gap-3 rounded-xl bg-card p-4 ring-1 ring-foreground/10">
           <div className="flex flex-wrap items-end gap-x-8 gap-y-3">
             <Figure value={<TokenAmount value={snapshot.backing.assets} token={factory} />} label="total backing" />
             <Figure value={snapshot.delegatorCount} label={snapshot.delegatorCount === 1 ? 'backer' : 'backers'} />
             <Figure value={percent(snapshot.backing.tier.feeBps)} label="worker fee" />
-            <Button variant="secondary" onClick={onBack} className="ml-auto max-sm:w-full">Back this agent</Button>
+            <Button variant="secondary" onClick={onBack} className="ml-auto max-sm:w-full">
+              Back this agent
+            </Button>
           </div>
           {snapshot.backing.tier.nextThreshold === null ? (
             <p className="text-xs text-muted-foreground">It pays the lowest fee.</p>
           ) : (
-            <Meter value={tierProgress(snapshot.backing.active, snapshot.backing.tier) * 100} aria-label="Progress to the next fee tier" className="gap-1.5">
+            <Meter
+              value={tierProgress(snapshot.backing.active, snapshot.backing.tier) * 100}
+              aria-label="Progress to the next fee tier"
+              className="gap-1.5"
+            >
               <span className="text-xs text-muted-foreground">
-                <TokenAmount value={snapshot.backing.tier.needed} token={factory} /> more active backing drops its fee to{' '}
-                {percent(snapshot.backing.tier.nextFeeBps!)}
+                <TokenAmount value={snapshot.backing.tier.needed} token={factory} /> more active backing drops its fee
+                to {percent(snapshot.backing.tier.nextFeeBps!)}
               </span>
             </Meter>
           )}
           <details className="group/details -mx-1">
             <summary className="inline-flex min-h-8 cursor-pointer list-none items-center gap-1 rounded-md px-1 text-sm font-medium select-none pointer-coarse:min-h-11 [&::-webkit-details-marker]:hidden">
-              <ChevronRight aria-hidden className="size-4 text-muted-foreground transition-transform duration-(--dur-fast) group-open/details:rotate-90" />
+              <ChevronRight
+                aria-hidden
+                className="size-4 text-muted-foreground transition-transform duration-(--dur-fast) group-open/details:rotate-90"
+              />
               Details
             </summary>
             <div className="grid gap-4 px-1 pt-2">
@@ -91,11 +110,19 @@ export function BackingStrip({ wallet, viewer, onBack }: { wallet: Address; view
                 <div className="grid gap-1">
                   <h3 className="text-xs font-medium text-muted-foreground">Top backers</h3>
                   {snapshot.topDelegators.map((position) => (
-                    <div key={position.delegator} className="flex min-h-9 items-center gap-3 border-t border-border/70 py-1 text-sm first:border-t-0">
-                      <AddressText value={position.delegator} you={viewer !== undefined && position.delegator.toLowerCase() === viewer.toLowerCase()} />
+                    <div
+                      key={position.delegator}
+                      className="flex min-h-9 items-center gap-3 border-t border-border/70 py-1 text-sm first:border-t-0"
+                    >
+                      <AddressText
+                        value={position.delegator}
+                        you={viewer !== undefined && position.delegator.toLowerCase() === viewer.toLowerCase()}
+                      />
                       <span className="tabular-nums ml-auto text-right">
                         <TokenAmount value={position.value} token={factory} />
-                        <span className="block text-xs text-muted-foreground">{percent(position.shareBps)} of backing</span>
+                        <span className="block text-xs text-muted-foreground">
+                          {percent(position.shareBps)} of backing
+                        </span>
                       </span>
                     </div>
                   ))}
@@ -105,7 +132,8 @@ export function BackingStrip({ wallet, viewer, onBack }: { wallet: Address; view
                 <div className="grid gap-1 rounded-lg bg-muted p-3">
                   <p className="text-xs font-medium text-muted-foreground">Your position</p>
                   <p className="tabular-nums font-semibold">
-                    <TokenAmount value={snapshot.position.value} token={factory} /> · {percent(snapshot.position.shareBps)}
+                    <TokenAmount value={snapshot.position.value} token={factory} /> ·{' '}
+                    {percent(snapshot.position.shareBps)}
                   </p>
                   {snapshot.position.queuedShares > 0n && (
                     <p className="text-sm text-muted-foreground">

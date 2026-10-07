@@ -11,7 +11,10 @@ function Meter({ className, children, fill, ...props }: MeterPrimitive.Root.Prop
       <MeterPrimitive.Track data-slot="meter-track" className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
         <MeterPrimitive.Indicator
           data-slot="meter-indicator"
-          className={cn('h-full rounded-full bg-primary transition-[width] duration-500 ease-out motion-reduce:transition-none', fill)}
+          className={cn(
+            'h-full rounded-full bg-primary transition-[width] duration-500 ease-out motion-reduce:transition-none',
+            fill,
+          )}
         />
       </MeterPrimitive.Track>
     </MeterPrimitive.Root>

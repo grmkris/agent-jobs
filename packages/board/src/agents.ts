@@ -63,20 +63,31 @@ export function canonicalAgentArgs(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonicalAgentArgs).join(',')}]`
   if (typeof value === 'object' && value !== null) {
     const prototype = Object.getPrototypeOf(value)
-    if (prototype !== Object.prototype && prototype !== null) throw new Error('Agent arguments must be plain JSON objects')
+    if (prototype !== Object.prototype && prototype !== null)
+      throw new Error('Agent arguments must be plain JSON objects')
     const object = value as Record<string, unknown>
-    return `{${Object.keys(object).toSorted().map(key => `${JSON.stringify(key)}:${canonicalAgentArgs(object[key])}`).join(',')}}`
+    return `{${Object.keys(object)
+      .toSorted()
+      .map((key) => `${JSON.stringify(key)}:${canonicalAgentArgs(object[key])}`)
+      .join(',')}}`
   }
   throw new Error('Agent arguments must be finite JSON')
 }
 
 const transitions: Readonly<Record<AgentState, readonly AgentState[]>> = {
-  created: ['upgraded', 'revoked'], upgraded: ['grants-live', 'revoked'], 'grants-live': ['registered', 'revoked'],
-  registered: ['active', 'revoked'], active: ['revoked'], revoked: [],
+  created: ['upgraded', 'revoked'],
+  upgraded: ['grants-live', 'revoked'],
+  'grants-live': ['registered', 'revoked'],
+  registered: ['active', 'revoked'],
+  active: ['revoked'],
+  revoked: [],
 }
 
 export class AgentStore {
-  constructor(readonly sql: Sql, readonly now: () => number) {
+  constructor(
+    readonly sql: Sql,
+    readonly now: () => number,
+  ) {
     migrateAgentSchema(sql)
   }
 
@@ -96,22 +107,57 @@ export class AgentStore {
     return this.sql.all<AgentRow>('SELECT * FROM agents WHERE operator=? ORDER BY created_at', operator.toLowerCase())
   }
 
-  create(input: { id: string; operator: Address; privyUserId: string; name: string; registry: Address; chainId: number }): AgentRow {
-    if (!/^[A-Za-z0-9_-]{1,64}$/.test(input.id) || input.name.trim().length < 1 || input.name.length > 100) throw new Error('Invalid agent identity')
+  create(input: {
+    id: string
+    operator: Address
+    privyUserId: string
+    name: string
+    registry: Address
+    chainId: number
+  }): AgentRow {
+    if (!/^[A-Za-z0-9_-]{1,64}$/.test(input.id) || input.name.trim().length < 1 || input.name.length > 100)
+      throw new Error('Invalid agent identity')
     const prior = this.sql.all<AgentRow>('SELECT * FROM agents WHERE id=?', input.id)[0]
     if (prior) {
-      if (prior.operator.toLowerCase() !== input.operator.toLowerCase() || prior.privy_user_id !== input.privyUserId || prior.chain_id !== input.chainId || prior.registry.toLowerCase() !== input.registry.toLowerCase() || prior.name !== input.name.trim()) throw new Error('Agent creation key changed')
+      if (
+        prior.operator.toLowerCase() !== input.operator.toLowerCase() ||
+        prior.privy_user_id !== input.privyUserId ||
+        prior.chain_id !== input.chainId ||
+        prior.registry.toLowerCase() !== input.registry.toLowerCase() ||
+        prior.name !== input.name.trim()
+      )
+        throw new Error('Agent creation key changed')
       return prior
     }
-    this.sql.run(`INSERT INTO agents (id,operator,privy_user_id,name,registry,chain_id,state,permissions_json,onboarding_json,revoke_json,created_at,updated_at)
-      VALUES (?,?,?,?,?,?,'created','{"work":true,"hire":true}','{}','{}',?,?)`, input.id, input.operator.toLowerCase(), input.privyUserId, input.name.trim(), input.registry.toLowerCase(), input.chainId, this.now(), this.now())
+    this.sql.run(
+      `INSERT INTO agents (id,operator,privy_user_id,name,registry,chain_id,state,permissions_json,onboarding_json,revoke_json,created_at,updated_at)
+      VALUES (?,?,?,?,?,?,'created','{"work":true,"hire":true}','{}','{}',?,?)`,
+      input.id,
+      input.operator.toLowerCase(),
+      input.privyUserId,
+      input.name.trim(),
+      input.registry.toLowerCase(),
+      input.chainId,
+      this.now(),
+      this.now(),
+    )
     return this.get(input.id)
   }
 
   bindWallet(id: string, walletId: string, address: Address): AgentRow {
     const row = this.get(id)
-    if (row.privy_wallet_id && (row.privy_wallet_id !== walletId || row.address?.toLowerCase() !== address.toLowerCase())) throw new Error('Agent wallet binding cannot change')
-    this.sql.run('UPDATE agents SET privy_wallet_id=?,address=?,updated_at=? WHERE id=?', walletId, address.toLowerCase(), this.now(), id)
+    if (
+      row.privy_wallet_id &&
+      (row.privy_wallet_id !== walletId || row.address?.toLowerCase() !== address.toLowerCase())
+    )
+      throw new Error('Agent wallet binding cannot change')
+    this.sql.run(
+      'UPDATE agents SET privy_wallet_id=?,address=?,updated_at=? WHERE id=?',
+      walletId,
+      address.toLowerCase(),
+      this.now(),
+      id,
+    )
     return this.get(id)
   }
 
@@ -124,7 +170,12 @@ export class AgentStore {
   }
 
   updateOnboarding(id: string, value: Record<string, unknown>): void {
-    this.sql.run('UPDATE agents SET onboarding_json=?,updated_at=? WHERE id=?', canonicalAgentArgs(value), this.now(), id)
+    this.sql.run(
+      'UPDATE agents SET onboarding_json=?,updated_at=? WHERE id=?',
+      canonicalAgentArgs(value),
+      this.now(),
+      id,
+    )
   }
 
   bindRegistry(id: string, agentId: string): void {
@@ -139,34 +190,76 @@ export class AgentStore {
   }
 
   /** When each active, registered agent last used its connection, with the wallet it acts from. At most 100 IDs. */
-  lastActivity(chainId: number, registry: Address, agentIds: readonly string[]): Array<{ agent_id: string; address: Address; last_activity_at: number }> {
+  lastActivity(
+    chainId: number,
+    registry: Address,
+    agentIds: readonly string[],
+  ): Array<{ agent_id: string; address: Address; last_activity_at: number }> {
     const ids = agentIds.filter((id) => /^[1-9][0-9]*$/.test(id)).slice(0, 100)
     if (ids.length === 0) return []
-    return this.sql.all(`SELECT agent_id, address, last_activity_at FROM agents WHERE chain_id=? AND registry=? AND state='active'
-      AND address IS NOT NULL AND last_activity_at IS NOT NULL AND agent_id IN (${ids.map(() => '?').join(',')})`, chainId, registry.toLowerCase(), ...ids)
+    return this.sql.all(
+      `SELECT agent_id, address, last_activity_at FROM agents WHERE chain_id=? AND registry=? AND state='active'
+      AND address IS NOT NULL AND last_activity_at IS NOT NULL AND agent_id IN (${ids.map(() => '?').join(',')})`,
+      chainId,
+      registry.toLowerCase(),
+      ...ids,
+    )
   }
 
   /** The active, registered hosted agents acting from these wallets, with their operators. At most 90 addresses. */
-  activeByAddress(chainId: number, registry: Address, addresses: readonly Address[]): Array<{ agent_id: string; address: Address; operator: Address }> {
+  activeByAddress(
+    chainId: number,
+    registry: Address,
+    addresses: readonly Address[],
+  ): Array<{ agent_id: string; address: Address; operator: Address }> {
     const wallets = [...new Set(addresses.map((a) => a.toLowerCase()))].slice(0, 90)
     if (wallets.length === 0) return []
-    return this.sql.all(`SELECT agent_id, address, operator FROM agents WHERE chain_id=? AND registry=? AND state='active'
-      AND address IS NOT NULL AND agent_id IS NOT NULL AND address IN (${wallets.map(() => '?').join(',')})`, chainId, registry.toLowerCase(), ...wallets)
+    return this.sql.all(
+      `SELECT agent_id, address, operator FROM agents WHERE chain_id=? AND registry=? AND state='active'
+      AND address IS NOT NULL AND agent_id IS NOT NULL AND address IN (${wallets.map(() => '?').join(',')})`,
+      chainId,
+      registry.toLowerCase(),
+      ...wallets,
+    )
   }
 
   begin(id: string, key: string, boardId: string, tool: string, args: Record<string, unknown>): AgentOperationRow {
-    if (!/^[A-Za-z0-9_-]{1,128}$/.test(key)) throw new AgentFailure('invalid', 'Every agent action requires a stable operationKey (1-128 letters, digits, _ or -)', 'operation-key', 'new-key')
-    if (this.get(id).state === 'revoked') throw new AgentFailure('forbidden', 'Agent access is revoked', 'agent-revoked', 'none')
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(key))
+      throw new AgentFailure(
+        'invalid',
+        'Every agent action requires a stable operationKey (1-128 letters, digits, _ or -)',
+        'operation-key',
+        'new-key',
+      )
+    if (this.get(id).state === 'revoked')
+      throw new AgentFailure('forbidden', 'Agent access is revoked', 'agent-revoked', 'none')
     const intent = canonicalAgentArgs(args)
     const hash = keccak256(stringToHex(intent))
     const operationId = keccak256(stringToHex(JSON.stringify([id, key])))
     const prior = this.sql.all<AgentOperationRow>('SELECT * FROM agent_operations WHERE id=?', operationId)[0]
     if (prior) {
-      if (prior.board_id !== boardId || prior.tool !== tool || prior.args_hash !== hash) throw new AgentFailure('conflict', 'This operationKey already names a different action; use a new key for a new action', 'operation-key-reused', 'new-key')
+      if (prior.board_id !== boardId || prior.tool !== tool || prior.args_hash !== hash)
+        throw new AgentFailure(
+          'conflict',
+          'This operationKey already names a different action; use a new key for a new action',
+          'operation-key-reused',
+          'new-key',
+        )
       return prior
     }
-    this.sql.run(`INSERT INTO agent_operations (id,agent_id,action_key,board_id,tool,args_hash,stage,intent_json,signatures_json,created_at,updated_at)
-      VALUES (?,?,?,?,?,?,'intent',?,'{}',?,?)`, operationId, id, key, boardId, tool, hash, intent, this.now(), this.now())
+    this.sql.run(
+      `INSERT INTO agent_operations (id,agent_id,action_key,board_id,tool,args_hash,stage,intent_json,signatures_json,created_at,updated_at)
+      VALUES (?,?,?,?,?,?,'intent',?,'{}',?,?)`,
+      operationId,
+      id,
+      key,
+      boardId,
+      tool,
+      hash,
+      intent,
+      this.now(),
+      this.now(),
+    )
     return this.operation(operationId)
   }
 
@@ -176,7 +269,11 @@ export class AgentStore {
     return row
   }
 
-  saveOperation(id: string, stage: AgentOperationStage, fields: { prepared?: unknown; signatures?: unknown; sponsorOperationId?: string; result?: unknown } = {}): AgentOperationRow {
+  saveOperation(
+    id: string,
+    stage: AgentOperationStage,
+    fields: { prepared?: unknown; signatures?: unknown; sponsorOperationId?: string; result?: unknown } = {},
+  ): AgentOperationRow {
     const row = this.operation(id)
     const allowed: Readonly<Record<AgentOperationStage, readonly AgentOperationStage[]>> = {
       intent: ['intent', 'prepared', 'signed', 'approval', 'sending', 'failed'],
@@ -187,26 +284,49 @@ export class AgentStore {
       confirmed: ['confirmed'],
       failed: ['failed'],
     }
-    if (!allowed[row.stage].includes(stage)) throw new Error(`Agent operation cannot move from ${row.stage} to ${stage}`)
+    if (!allowed[row.stage].includes(stage))
+      throw new Error(`Agent operation cannot move from ${row.stage} to ${stage}`)
     const prepared = fields.prepared === undefined ? row.prepared_json : canonicalAgentArgs(fields.prepared)
-    if (row.prepared_json !== null && prepared !== row.prepared_json) throw new Error('Prepared operation cannot change')
+    if (row.prepared_json !== null && prepared !== row.prepared_json)
+      throw new Error('Prepared operation cannot change')
     const signatures = fields.signatures === undefined ? row.signatures_json : canonicalAgentArgs(fields.signatures)
     const priorSignatures = JSON.parse(row.signatures_json) as Record<string, unknown>
     const nextSignatures = JSON.parse(signatures) as Record<string, unknown>
     for (const key of Object.keys(priorSignatures)) {
-      if (!Object.hasOwn(nextSignatures, key) || canonicalAgentArgs(priorSignatures[key]) !== canonicalAgentArgs(nextSignatures[key])) throw new Error('Persisted signature cannot change')
+      if (
+        !Object.hasOwn(nextSignatures, key) ||
+        canonicalAgentArgs(priorSignatures[key]) !== canonicalAgentArgs(nextSignatures[key])
+      )
+        throw new Error('Persisted signature cannot change')
     }
-    if (row.sponsor_operation_id !== null && fields.sponsorOperationId !== undefined && fields.sponsorOperationId !== row.sponsor_operation_id) throw new Error('Sponsor operation cannot change')
+    if (
+      row.sponsor_operation_id !== null &&
+      fields.sponsorOperationId !== undefined &&
+      fields.sponsorOperationId !== row.sponsor_operation_id
+    )
+      throw new Error('Sponsor operation cannot change')
     const result = fields.result === undefined ? row.result_json : canonicalAgentArgs(fields.result)
     if (row.result_json !== null && result !== row.result_json) throw new Error('Operation result cannot change')
-    this.sql.run('UPDATE agent_operations SET stage=?,prepared_json=?,signatures_json=?,sponsor_operation_id=?,result_json=?,updated_at=? WHERE id=?',
-      stage, prepared, signatures, fields.sponsorOperationId ?? row.sponsor_operation_id, result, this.now(), id)
+    this.sql.run(
+      'UPDATE agent_operations SET stage=?,prepared_json=?,signatures_json=?,sponsor_operation_id=?,result_json=?,updated_at=? WHERE id=?',
+      stage,
+      prepared,
+      signatures,
+      fields.sponsorOperationId ?? row.sponsor_operation_id,
+      result,
+      this.now(),
+      id,
+    )
     return this.operation(id)
   }
 
   step<T>(operationId: string, name: string): T | undefined {
-    const row = this.sql.all<{ value_json: string }>('SELECT value_json FROM agent_operation_steps WHERE operation_id=? AND name=?', operationId, name)[0]
-    return row === undefined ? undefined : JSON.parse(row.value_json) as T
+    const row = this.sql.all<{ value_json: string }>(
+      'SELECT value_json FROM agent_operation_steps WHERE operation_id=? AND name=?',
+      operationId,
+      name,
+    )[0]
+    return row === undefined ? undefined : (JSON.parse(row.value_json) as T)
   }
 
   freezeStep<T>(operationId: string, name: string, value: T): T {
@@ -219,8 +339,16 @@ export class AgentStore {
   }
 
   requestApproval(operation: AgentOperationRow, kind: ApprovalRow['kind'], request: unknown): ApprovalRow {
-    this.sql.run(`INSERT OR IGNORE INTO approvals (id,agent_id,operation_id,kind,status,request_json,created_at)
-      VALUES (?,?,?,?,'pending',?,?)`, operation.id, operation.agent_id, operation.id, kind, canonicalAgentArgs(request), this.now())
+    this.sql.run(
+      `INSERT OR IGNORE INTO approvals (id,agent_id,operation_id,kind,status,request_json,created_at)
+      VALUES (?,?,?,?,'pending',?,?)`,
+      operation.id,
+      operation.agent_id,
+      operation.id,
+      kind,
+      canonicalAgentArgs(request),
+      this.now(),
+    )
     this.saveOperation(operation.id, 'approval')
     return this.approval(operation.id)
   }
@@ -232,25 +360,45 @@ export class AgentStore {
   }
 
   approvals(operator: Address): ApprovalRow[] {
-    return this.sql.all<ApprovalRow>('SELECT approvals.* FROM approvals JOIN agents ON agents.id=approvals.agent_id WHERE agents.operator=? ORDER BY created_at DESC', operator.toLowerCase())
+    return this.sql.all<ApprovalRow>(
+      'SELECT approvals.* FROM approvals JOIN agents ON agents.id=approvals.agent_id WHERE agents.operator=? ORDER BY created_at DESC',
+      operator.toLowerCase(),
+    )
   }
 
   decide(id: string, operator: Address, approved: boolean, decision: unknown): ApprovalRow {
     const row = this.approval(id)
     this.owned(row.agent_id, operator)
     if (row.status !== 'pending') return row
-    this.sql.run('UPDATE approvals SET status=?,decision_json=?,decided_at=? WHERE id=?', approved ? 'approved' : 'rejected', canonicalAgentArgs(decision), this.now(), id)
+    this.sql.run(
+      'UPDATE approvals SET status=?,decision_json=?,decided_at=? WHERE id=?',
+      approved ? 'approved' : 'rejected',
+      canonicalAgentArgs(decision),
+      this.now(),
+      id,
+    )
     return this.approval(id)
   }
 
   reopenApproval(id: string): ApprovalRow {
     const row = this.approval(id)
     const operation = this.operation(row.operation_id)
-    if (row.status !== 'approved' || row.kind !== 'hire-over-limit' || operation.sponsor_operation_id !== null || operation.stage === 'sending' || operation.stage === 'confirmed' || operation.stage === 'failed') throw new Error('Only an approved unsent hire can return to review')
+    if (
+      row.status !== 'approved' ||
+      row.kind !== 'hire-over-limit' ||
+      operation.sponsor_operation_id !== null ||
+      operation.stage === 'sending' ||
+      operation.stage === 'confirmed' ||
+      operation.stage === 'failed'
+    )
+      throw new Error('Only an approved unsent hire can return to review')
     const decision = JSON.parse(row.decision_json!) as { allowanceHash: Hex }
     if (this.sql.atomic === undefined) throw new Error('Approval recovery requires atomic storage')
     this.sql.atomic(() => {
-      this.freezeStep(operation.id, `operator-decision:${decision.allowanceHash}`, { decision, decidedAt: row.decided_at })
+      this.freezeStep(operation.id, `operator-decision:${decision.allowanceHash}`, {
+        decision,
+        decidedAt: row.decided_at,
+      })
       this.sql.run("UPDATE approvals SET status='pending',decision_json=NULL,decided_at=NULL WHERE id=?", id)
       this.saveOperation(operation.id, 'approval')
     })

@@ -27,26 +27,48 @@ export interface PermissionDecision {
   readonly adjusted: boolean
 }
 
-const termsJson = (terms: sdk.PermissionTerms) => JSON.stringify(terms, (_, value) => typeof value === 'bigint' ? value.toString() : value)
+const termsJson = (terms: sdk.PermissionTerms) =>
+  JSON.stringify(terms, (_, value) => (typeof value === 'bigint' ? value.toString() : value))
 
 function parseTerms(json: string): sdk.PermissionTerms {
   // Reuse the spec parser for one canonical reading of stored terms.
-  return sdk.parsePermissionSpec(JSON.stringify({ kind: 'permission', delegator: '0x0000000000000000000000000000000000000001', agent: '0x0000000000000000000000000000000000000002',
-    salt: '0', start: 0, expiry: 0, terms: JSON.parse(json) })).terms
+  return sdk.parsePermissionSpec(
+    JSON.stringify({
+      kind: 'permission',
+      delegator: '0x0000000000000000000000000000000000000001',
+      agent: '0x0000000000000000000000000000000000000002',
+      salt: '0',
+      start: 0,
+      expiry: 0,
+      terms: JSON.parse(json),
+    }),
+  ).terms
 }
 
 /** Whether a live standing permission already allows everything the request asks for. */
 function covers(have: sdk.PermissionTerms, want: sdk.PermissionTerms): boolean {
   if (have.type !== want.type) return false
   if (have.type === 'sidequest:contract-call' && want.type === 'sidequest:contract-call') {
-    return have.target.toLowerCase() === want.target.toLowerCase() && have.value === want.value && have.callData === want.callData
+    return (
+      have.target.toLowerCase() === want.target.toLowerCase() &&
+      have.value === want.value &&
+      have.callData === want.callData
+    )
   }
   if (have.type === 'erc20-token-periodic' && want.type === 'erc20-token-periodic') {
-    return have.token.toLowerCase() === want.token.toLowerCase() && have.recipient.toLowerCase() === want.recipient.toLowerCase()
-      && want.periodAmount <= have.periodAmount && want.periodDuration >= have.periodDuration
+    return (
+      have.token.toLowerCase() === want.token.toLowerCase() &&
+      have.recipient.toLowerCase() === want.recipient.toLowerCase() &&
+      want.periodAmount <= have.periodAmount &&
+      want.periodDuration >= have.periodDuration
+    )
   }
   if (have.type === 'erc20-token-allowance' && want.type === 'erc20-token-allowance') {
-    return have.token.toLowerCase() === want.token.toLowerCase() && have.recipient.toLowerCase() === want.recipient.toLowerCase() && want.amount <= have.amount
+    return (
+      have.token.toLowerCase() === want.token.toLowerCase() &&
+      have.recipient.toLowerCase() === want.recipient.toLowerCase() &&
+      want.amount <= have.amount
+    )
   }
   return false
 }
@@ -67,26 +89,54 @@ export class AgentPermissions {
 
   /** Validates one request for this agent: the agent is `to`, the operator `from`; the expiry rule is capped per type. */
   parse(agent: AgentRow, request: sdk.PermissionRequest, standing: boolean): PermissionApprovalRequest {
-    if (agent.address === null) throw new AgentFailure('forbidden', 'This agent has no wallet yet', 'agent-unavailable', 'none')
+    if (agent.address === null)
+      throw new AgentFailure('forbidden', 'This agent has no wallet yet', 'agent-unavailable', 'none')
     let parsed: sdk.ParsedPermissionRequest
     try {
-      parsed = sdk.parsePermissionRequest(request, { chainId: this.deps.context.deployment.chainId, agent: agent.address, operator: agent.operator, now: this.deps.now() })
+      parsed = sdk.parsePermissionRequest(request, {
+        chainId: this.deps.context.deployment.chainId,
+        agent: agent.address,
+        operator: agent.operator,
+        now: this.deps.now(),
+      })
     } catch (error) {
-      if (error instanceof sdk.PermissionError) throw new AgentFailure('invalid', error.message, 'permission-request', 'new-key')
+      if (error instanceof sdk.PermissionError)
+        throw new AgentFailure('invalid', error.message, 'permission-request', 'new-key')
       throw error
     }
-    return { terms: termsJson(parsed.terms), expiry: parsed.expiry, adjustable: parsed.adjustable, justification: parsed.justification, standing }
+    return {
+      terms: termsJson(parsed.terms),
+      expiry: parsed.expiry,
+      adjustable: parsed.adjustable,
+      justification: parsed.justification,
+      standing,
+    }
   }
 
   /** The permissions this operator granted this agent, newest first. */
   #rows(agent: AgentRow): GrantRow[] {
-    return this.grants.list(agent.operator).filter(row => row.kind === 'permission' && agent.address !== null && row.delegate.toLowerCase() === agent.address.toLowerCase())
+    return this.grants
+      .list(agent.operator)
+      .filter(
+        (row) =>
+          row.kind === 'permission' &&
+          agent.address !== null &&
+          row.delegate.toLowerCase() === agent.address.toLowerCase(),
+      )
   }
 
   #decision(hash: Hex): (PermissionDecision & { approvalId: string }) | undefined {
-    for (const row of this.deps.sql.all<ApprovalRow>("SELECT * FROM approvals WHERE kind='permission' AND status IN ('approved','executed')")) {
+    for (const row of this.deps.sql.all<ApprovalRow>(
+      "SELECT * FROM approvals WHERE kind='permission' AND status IN ('approved','executed')",
+    )) {
       const decision = JSON.parse(row.decision_json ?? '{}') as Partial<PermissionDecision>
-      if (decision.permissionHash === hash) return { approvalId: row.id, permissionHash: hash, standing: decision.standing === true, adjusted: decision.adjusted === true }
+      if (decision.permissionHash === hash)
+        return {
+          approvalId: row.id,
+          permissionHash: hash,
+          standing: decision.standing === true,
+          adjusted: decision.adjusted === true,
+        }
     }
     return undefined
   }
@@ -97,8 +147,14 @@ export class AgentPermissions {
    */
   covering(agent: AgentRow, request: PermissionApprovalRequest): GrantRow | undefined {
     const want = parseTerms(request.terms)
-    return this.#rows(agent).find(row => row.status === 'live' && row.expires_at > this.deps.now() && row.expires_at >= request.expiry
-      && this.#decision(row.delegation_hash)?.standing === true && covers((this.grants.spec(row.delegation_hash) as sdk.PermissionSpec).terms, want))
+    return this.#rows(agent).find(
+      (row) =>
+        row.status === 'live' &&
+        row.expires_at > this.deps.now() &&
+        row.expires_at >= request.expiry &&
+        this.#decision(row.delegation_hash)?.standing === true &&
+        covers((this.grants.spec(row.delegation_hash) as sdk.PermissionSpec).terms, want),
+    )
   }
 
   /** The ERC-7715 response for a live permission: its context is the signed delegation the agent redeems. */
@@ -118,7 +174,7 @@ export class AgentPermissions {
   }
 
   list(agent: AgentRow) {
-    return this.#rows(agent).map(row => ({
+    return this.#rows(agent).map((row) => ({
       permissionId: row.delegation_hash,
       status: row.status === 'live' && row.expires_at <= this.deps.now() ? 'expired' : row.status,
       expiresAt: row.expires_at,
@@ -133,81 +189,175 @@ export class AgentPermissions {
    */
   prepare(approval: ApprovalRow, operator: Address, adjust: { expiry?: number; amount?: bigint } = {}) {
     const agent = this.agents.owned(approval.agent_id, operator)
-    if (approval.kind !== 'permission' || approval.status !== 'pending' || agent.state !== 'active' || agent.address === null) throw new Error('This approval is unavailable')
+    if (
+      approval.kind !== 'permission' ||
+      approval.status !== 'pending' ||
+      agent.state !== 'active' ||
+      agent.address === null
+    )
+      throw new Error('This approval is unavailable')
     const request = JSON.parse(approval.request_json) as PermissionApprovalRequest
-    const requested: sdk.ParsedPermissionRequest = { terms: parseTerms(request.terms), expiry: request.expiry, adjustable: request.adjustable, justification: request.justification }
-    const adjustment = { ...(adjust.expiry === undefined ? {} : { expiry: adjust.expiry }),
-      ...(adjust.amount === undefined ? {} : requested.terms.type === 'erc20-token-periodic' ? { periodAmount: adjust.amount } : { amount: adjust.amount }) }
+    const requested: sdk.ParsedPermissionRequest = {
+      terms: parseTerms(request.terms),
+      expiry: request.expiry,
+      adjustable: request.adjustable,
+      justification: request.justification,
+    }
+    const adjustment = {
+      ...(adjust.expiry === undefined ? {} : { expiry: adjust.expiry }),
+      ...(adjust.amount === undefined
+        ? {}
+        : requested.terms.type === 'erc20-token-periodic'
+          ? { periodAmount: adjust.amount }
+          : { amount: adjust.amount }),
+    }
     let final: sdk.ParsedPermissionRequest
-    try { final = sdk.adjustPermission(requested, adjustment) }
-    catch (error) { throw error instanceof sdk.PermissionError ? new Error(error.message) : error }
-    if (final.expiry <= this.deps.now()) throw new Error('This permission request has expired; the agent must ask again')
+    try {
+      final = sdk.adjustPermission(requested, adjustment)
+    } catch (error) {
+      throw error instanceof sdk.PermissionError ? new Error(error.message) : error
+    }
+    if (final.expiry <= this.deps.now())
+      throw new Error('This permission request has expired; the agent must ask again')
     const adjusted = final.expiry !== requested.expiry || termsJson(final.terms) !== termsJson(requested.terms)
     // One salt per approval and adjustment: re-preparing the same choice returns the same template. A periodic template's
     // start is its period anchor, so it is reused for one ten-minute window and then replaced (VV2-023); other types'
     // bytes do not contain the start, so they keep one template (VV2-026).
     const salt = BigInt(keccak256(stringToHex(JSON.stringify([approval.id, final.expiry, termsJson(final.terms)]))))
-    const spec: sdk.PermissionSpec = { kind: 'permission', delegator: operator, agent: agent.address, salt, start: this.deps.now(), expiry: final.expiry, terms: final.terms }
+    const spec: sdk.PermissionSpec = {
+      kind: 'permission',
+      delegator: operator,
+      agent: agent.address,
+      salt,
+      start: this.deps.now(),
+      expiry: final.expiry,
+      terms: final.terms,
+    }
     const base = `operator-permission:${salt.toString(16).slice(0, 16)}`
-    const step = final.terms.type === 'erc20-token-periodic' ? `${base}:${Math.floor(this.deps.now() / PERMISSION_TEMPLATE_WINDOW)}` : base
+    const step =
+      final.terms.type === 'erc20-token-periodic'
+        ? `${base}:${Math.floor(this.deps.now() / PERMISSION_TEMPLATE_WINDOW)}`
+        : base
     const frozen = this.agents.step<string>(approval.operation_id, step)
     const prepared = this.grants.prepare(operator, frozen === undefined ? spec : sdk.parsePermissionSpec(frozen))
     if (frozen === undefined) this.agents.freezeStep(approval.operation_id, step, sdk.permissionSpecJson(spec))
     const frozenSpec = this.grants.spec(prepared.hash) as sdk.PermissionSpec
-    return { approval, ...prepared, adjusted, risks: sdk.permissionRisks(this.deps.context.deployment, frozenSpec, { now: this.deps.now(), adjusted }) }
+    return {
+      approval,
+      ...prepared,
+      adjusted,
+      risks: sdk.permissionRisks(this.deps.context.deployment, frozenSpec, { now: this.deps.now(), adjusted }),
+    }
   }
 
   /** Verifies the operator's signature over the exact prepared template, then records the decision. */
-  async decide(approval: ApprovalRow, operator: Address, input: { approved: boolean; hash?: Hex; signature?: Hex; standing?: boolean }): Promise<ApprovalRow> {
+  async decide(
+    approval: ApprovalRow,
+    operator: Address,
+    input: { approved: boolean; hash?: Hex; signature?: Hex; standing?: boolean },
+  ): Promise<ApprovalRow> {
     this.agents.owned(approval.agent_id, operator)
     if (approval.kind !== 'permission') throw new Error('Not a permission approval')
     if (approval.status !== 'pending') return approval
     if (!input.approved) return this.agents.decide(approval.id, operator, false, {})
-    if (input.hash === undefined || input.signature === undefined) throw new Error('Sign the prepared permission before approving it')
+    if (input.hash === undefined || input.signature === undefined)
+      throw new Error('Sign the prepared permission before approving it')
     const row = this.grants.get(input.hash)
-    const steps = this.deps.sql.all<{ value_json: string }>("SELECT value_json FROM agent_operation_steps WHERE operation_id=? AND name LIKE 'operator-permission:%'", approval.operation_id)
-    const prepared = steps.map(step => JSON.parse(step.value_json) as string).map(json => sdk.parsePermissionSpec(json))
-      .find(spec => sdk.delegationHash(sdk.buildGrant(this.deps.context, spec)) === input.hash)
-    if (row === undefined || prepared === undefined || row.kind !== 'permission' || row.expires_at <= this.deps.now()) throw new Error('Sign a permission prepared for this approval')
+    const steps = this.deps.sql.all<{ value_json: string }>(
+      "SELECT value_json FROM agent_operation_steps WHERE operation_id=? AND name LIKE 'operator-permission:%'",
+      approval.operation_id,
+    )
+    const prepared = steps
+      .map((step) => JSON.parse(step.value_json) as string)
+      .map((json) => sdk.parsePermissionSpec(json))
+      .find((spec) => sdk.delegationHash(sdk.buildGrant(this.deps.context, spec)) === input.hash)
+    if (row === undefined || prepared === undefined || row.kind !== 'permission' || row.expires_at <= this.deps.now())
+      throw new Error('Sign a permission prepared for this approval')
     // An old review must not anchor a period that refills almost at once, however long ago it was signed in the browser.
-    if (prepared.terms.type === 'erc20-token-periodic' && prepared.start < this.deps.now() - PERMISSION_TEMPLATE_MAX_AGE)
+    if (
+      prepared.terms.type === 'erc20-token-periodic' &&
+      prepared.start < this.deps.now() - PERMISSION_TEMPLATE_MAX_AGE
+    )
       throw new Error('This prepared permission is out of date; review it again')
     await this.grants.confirm(input.hash, input.signature)
     const request = JSON.parse(approval.request_json) as PermissionApprovalRequest
     const adjusted = prepared.expiry !== request.expiry || termsJson(prepared.terms) !== request.terms
-    return this.agents.decide(approval.id, operator, true, { permissionHash: input.hash, standing: input.standing === true, adjusted } satisfies PermissionDecision)
+    return this.agents.decide(approval.id, operator, true, {
+      permissionHash: input.hash,
+      standing: input.standing === true,
+      adjusted,
+    } satisfies PermissionDecision)
   }
 
   /** The agent's redemption of a live permission: one manager call through its own work grant, sponsored like any. */
   use(agent: AgentRow, permissionId: string, input: { transfer?: { recipient?: unknown; amount?: unknown } }) {
-    const row = this.#rows(agent).find(item => item.delegation_hash.toLowerCase() === permissionId.toLowerCase())
-    if (row === undefined) throw new AgentFailure('not-found', 'No such permission for this agent', 'permission-missing', 'none')
-    if (row.status !== 'live' || row.expires_at <= this.deps.now()) throw new AgentFailure('conflict', 'This permission is not live; request a new one', 'permission-ended', 'new-key')
+    const row = this.#rows(agent).find((item) => item.delegation_hash.toLowerCase() === permissionId.toLowerCase())
+    if (row === undefined)
+      throw new AgentFailure('not-found', 'No such permission for this agent', 'permission-missing', 'none')
+    if (row.status !== 'live' || row.expires_at <= this.deps.now())
+      throw new AgentFailure(
+        'conflict',
+        'This permission is not live; request a new one',
+        'permission-ended',
+        'new-key',
+      )
     const spec = this.grants.spec(row.delegation_hash) as sdk.PermissionSpec
     const t = spec.terms
     let execution: sdk.Execution
     if (t.type === 'sidequest:contract-call') {
-      if (input.transfer !== undefined) throw new AgentFailure('invalid', 'An exact-call permission runs its approved call only', 'permission-request', 'new-key')
+      if (input.transfer !== undefined)
+        throw new AgentFailure(
+          'invalid',
+          'An exact-call permission runs its approved call only',
+          'permission-request',
+          'new-key',
+        )
       execution = { target: t.target, value: t.value, callData: t.callData }
     } else {
-      const amount = typeof input.transfer?.amount === 'string' && /^[0-9]{1,78}$/.test(input.transfer.amount) ? BigInt(input.transfer.amount) : undefined
+      const amount =
+        typeof input.transfer?.amount === 'string' && /^[0-9]{1,78}$/.test(input.transfer.amount)
+          ? BigInt(input.transfer.amount)
+          : undefined
       const recipient = typeof input.transfer?.recipient === 'string' ? input.transfer.recipient : t.recipient
-      if (amount === undefined) throw new AgentFailure('invalid', 'transfer.amount must be base units as a decimal string', 'permission-request', 'new-key')
-      execution = { target: t.token, value: 0n, callData: encodeFunctionData({ abi: erc20Abi, functionName: 'transfer', args: [recipient as Address, amount] }) }
+      if (amount === undefined)
+        throw new AgentFailure(
+          'invalid',
+          'transfer.amount must be base units as a decimal string',
+          'permission-request',
+          'new-key',
+        )
+      execution = {
+        target: t.token,
+        value: 0n,
+        callData: encodeFunctionData({ abi: erc20Abi, functionName: 'transfer', args: [recipient as Address, amount] }),
+      }
     }
-    try { sdk.checkPermissionExecution(spec, execution, this.deps.now()) }
-    catch (error) { throw error instanceof sdk.PermissionError ? new AgentFailure('forbidden', error.message, 'outside-policy', 'none') : error }
+    try {
+      sdk.checkPermissionExecution(spec, execution, this.deps.now())
+    } catch (error) {
+      throw error instanceof sdk.PermissionError
+        ? new AgentFailure('forbidden', error.message, 'outside-policy', 'none')
+        : error
+    }
     return {
       permissionId: row.delegation_hash,
-      transactions: [{ to: this.deps.context.deployment.delegation.manager, data: sdk.redeemCalldata(this.grants.signed(row.delegation_hash), execution), value: '0',
-        description: 'Redeem the operator permission', chainId: this.deps.context.deployment.chainId }],
+      transactions: [
+        {
+          to: this.deps.context.deployment.delegation.manager,
+          data: sdk.redeemCalldata(this.grants.signed(row.delegation_hash), execution),
+          value: '0',
+          description: 'Redeem the operator permission',
+          chainId: this.deps.context.deployment.chainId,
+        },
+      ],
     }
   }
 
   /** The agent gives a permission back: the board stops sponsoring it. Only the operator can disable it on-chain. */
   stop(agent: AgentRow, permissionId: string) {
-    const row = this.#rows(agent).find(item => item.delegation_hash.toLowerCase() === permissionId.toLowerCase())
-    if (row === undefined) throw new AgentFailure('not-found', 'No such permission for this agent', 'permission-missing', 'none')
+    const row = this.#rows(agent).find((item) => item.delegation_hash.toLowerCase() === permissionId.toLowerCase())
+    if (row === undefined)
+      throw new AgentFailure('not-found', 'No such permission for this agent', 'permission-missing', 'none')
     this.grants.stop(row.delegation_hash)
     return { permissionId: row.delegation_hash, status: this.grants.get(row.delegation_hash)!.status }
   }

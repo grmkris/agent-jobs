@@ -42,7 +42,15 @@ export function DelegationForm({
   const invalid = text.trim() !== '' && value === null
   const tooMuch = value !== null && maximum !== undefined && value > maximum
   return (
-    <Section title={mode === 'add' ? account.toLowerCase() === owner.toLowerCase() ? 'Back my wallet' : 'Back this agent' : 'Leave this position'}>
+    <Section
+      title={
+        mode === 'add'
+          ? account.toLowerCase() === owner.toLowerCase()
+            ? 'Back my wallet'
+            : 'Back this agent'
+          : 'Leave this position'
+      }
+    >
       <form
         className="grid gap-3 rounded-xl bg-card p-4"
         onSubmit={(event) => {
@@ -110,8 +118,17 @@ export function DelegationForm({
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
-        <Button type="submit" size="lg" busy={busy} disabled={disabled || maximum === undefined || value === null || tooMuch}>
-          {mode === 'add' ? `Back with ${value === null ? 'SIDE' : factoryValue(value)}` : value === null ? 'Leave' : `Leave ${factoryValue(value)}`}
+        <Button
+          type="submit"
+          size="lg"
+          busy={busy}
+          disabled={disabled || maximum === undefined || value === null || tooMuch}
+        >
+          {mode === 'add'
+            ? `Back with ${value === null ? 'SIDE' : factoryValue(value)}`
+            : value === null
+              ? 'Leave'
+              : `Leave ${factoryValue(value)}`}
         </Button>
       </form>
     </Section>

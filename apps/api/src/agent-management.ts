@@ -1,5 +1,15 @@
 /** Private management RPC: SIWE controls decisions; Privy binds server wallet creation to its owner. */
-import { AgentLifecycle, AgentOnboarding, AgentSigning, AgentStore, BoardError, GrantStore, RelaySender, SponsorDesk, type Sql } from '@sidequest/board'
+import {
+  AgentLifecycle,
+  AgentOnboarding,
+  AgentSigning,
+  AgentStore,
+  BoardError,
+  GrantStore,
+  RelaySender,
+  SponsorDesk,
+  type Sql,
+} from '@sidequest/board'
 import * as sdk from '@sidequest/sdk'
 import { type Address, type Hex, isAddress } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
@@ -11,7 +21,8 @@ import type { AgentRouteRequest } from './routes/agents.ts'
 
 function text(body: Record<string, unknown>, key: string): string {
   const value = body[key]
-  if (typeof value !== 'string' || value.length === 0 || value.length > 1000) throw new BoardError('invalid', `Require ${key}`)
+  if (typeof value !== 'string' || value.length === 0 || value.length > 1000)
+    throw new BoardError('invalid', `Require ${key}`)
   return value
 }
 
@@ -31,13 +42,28 @@ export async function agentManagement(input: {
   readonly relayKey: Hex
   readonly rpcUrl: string
   readonly now: () => number
-  readonly execute: (agentId: string, tool: string, args: Record<string, unknown>, key: string, approvalId?: string, boardId?: string) => Promise<unknown>
+  readonly execute: (
+    agentId: string,
+    tool: string,
+    args: Record<string, unknown>,
+    key: string,
+    approvalId?: string,
+    boardId?: string,
+  ) => Promise<unknown>
 }) {
   const { request, sql, context, operator, bindings, now } = input
   const { action, body } = request
   const id = request.id ?? ''
   const agents = new AgentStore(sql, now)
-  const sponsor = new SponsorDesk({ sql, ctx: context, now, ...(/^0x[0-9a-fA-F]{64}$/.test(input.relayKey) ? { relay: { account: privateKeyToAccount(input.relayKey), rpcUrl: input.rpcUrl } } : {}), fail: (code, message) => new BoardError(code, message) })
+  const sponsor = new SponsorDesk({
+    sql,
+    ctx: context,
+    now,
+    ...(/^0x[0-9a-fA-F]{64}$/.test(input.relayKey)
+      ? { relay: { account: privateKeyToAccount(input.relayKey), rpcUrl: input.rpcUrl } }
+      : {}),
+    fail: (code, message) => new BoardError(code, message),
+  })
   const lifecycle = new AgentLifecycle({ sql, context, now, sponsor })
   if (action === 'list') return { agents: agents.list(operator) }
   if (action === 'approvals') return { approvals: agents.approvals(operator) }
@@ -45,26 +71,53 @@ export async function agentManagement(input: {
   if (action === 'recovery') {
     const agent = agents.owned(id, operator)
     const grants = new GrantStore(sql, context)
-    return { agent, grants: [...grants.list(operator), ...grants.list(agent.address ?? operator)].filter(row => {
-      const spec = grants.spec(row.delegation_hash)
-      return row.delegator.toLowerCase() === agent.address?.toLowerCase() || (spec.kind === 'allowance' || spec.kind === 'allowance-once' || spec.kind === 'permission') && spec.agent.toLowerCase() === agent.address?.toLowerCase()
-    }).map(row => ({ hash: row.delegation_hash, delegation: sdk.parseDelegation(row.delegation_json), status: row.status })) }
+    return {
+      agent,
+      grants: [...grants.list(operator), ...grants.list(agent.address ?? operator)]
+        .filter((row) => {
+          const spec = grants.spec(row.delegation_hash)
+          return (
+            row.delegator.toLowerCase() === agent.address?.toLowerCase() ||
+            ((spec.kind === 'allowance' || spec.kind === 'allowance-once' || spec.kind === 'permission') &&
+              spec.agent.toLowerCase() === agent.address?.toLowerCase())
+          )
+        })
+        .map((row) => ({
+          hash: row.delegation_hash,
+          delegation: sdk.parseDelegation(row.delegation_json),
+          status: row.status,
+        })),
+    }
   }
   if (action === 'allowance-prepare') {
     const token = text(body, 'token')
     const amount = text(body, 'amount')
-    if (!isAddress(token) || !/^[1-9][0-9]{0,77}$/.test(amount)) throw new BoardError('invalid', 'Invalid allowance token or amount')
+    if (!isAddress(token) || !/^[1-9][0-9]{0,77}$/.test(amount))
+      throw new BoardError('invalid', 'Invalid allowance token or amount')
     return lifecycle.prepareAllowance(id, operator, { key: text(body, 'key'), token, amount: BigInt(amount) })
   }
-  if (action === 'allowance-confirm') return lifecycle.confirmAllowance(id, operator, text(body, 'key'), hex(body, 'hash', 64), hex(body, 'signature', 130))
+  if (action === 'allowance-confirm')
+    return lifecycle.confirmAllowance(
+      id,
+      operator,
+      text(body, 'key'),
+      hex(body, 'hash', 64),
+      hex(body, 'signature', 130),
+    )
   if (action === 'stop-access' || action === 'revoke') {
     // Stopping hosted access is authoritative and comes first. Then the agent's event webhooks end: the revocation is
     // recorded where subscribe and delivery check it. Both steps are idempotent, so if the second fails the operator
     // repeats the request (VV2-030).
     const agent = lifecycle.stopAccess(id, operator)
     if (agent.address !== null && bindings.Database !== undefined) {
-      try { await terminateSubscriptions(fromD1(bindings.Database as never), agent.address, now()) }
-      catch { throw new BoardError('unavailable', 'Hosted access is stopped, but its event webhooks have not ended yet. Repeat this request.') }
+      try {
+        await terminateSubscriptions(fromD1(bindings.Database as never), agent.address, now())
+      } catch {
+        throw new BoardError(
+          'unavailable',
+          'Hosted access is stopped, but its event webhooks have not ended yet. Repeat this request.',
+        )
+      }
     }
     return action === 'stop-access' ? agent : lifecycle.revoke(id, operator)
   }
@@ -72,50 +125,112 @@ export async function agentManagement(input: {
     // A permission approval may be adjusted before signing: a shorter expiry or a lower amount, never wider.
     const expiry = body.expiry === undefined ? undefined : Number(body.expiry)
     const amount = body.amount === undefined ? undefined : text(body, 'amount')
-    if (expiry !== undefined && !Number.isSafeInteger(expiry) || amount !== undefined && !/^[1-9][0-9]{0,77}$/.test(amount)) throw new BoardError('invalid', 'Invalid permission adjustment')
-    return lifecycle.prepareApproval(id, operator, { ...(expiry === undefined ? {} : { expiry }), ...(amount === undefined ? {} : { amount: BigInt(amount) }) })
+    if (
+      (expiry !== undefined && !Number.isSafeInteger(expiry)) ||
+      (amount !== undefined && !/^[1-9][0-9]{0,77}$/.test(amount))
+    )
+      throw new BoardError('invalid', 'Invalid permission adjustment')
+    return lifecycle.prepareApproval(id, operator, {
+      ...(expiry === undefined ? {} : { expiry }),
+      ...(amount === undefined ? {} : { amount: BigInt(amount) }),
+    })
   }
   if (action === 'approval-decide' || action === 'approval-retry') {
-    const approval = action === 'approval-decide' ? await lifecycle.decideApproval(id, operator, body.approved === true, body.signature === undefined ? undefined : hex(body, 'signature', 130),
-      { ...(body.hash === undefined ? {} : { hash: hex(body, 'hash', 64) }), ...(body.standing === undefined ? {} : { standing: body.standing === true }) }) : lifecycle.recoverApproval(id, operator)
+    const approval =
+      action === 'approval-decide'
+        ? await lifecycle.decideApproval(
+            id,
+            operator,
+            body.approved === true,
+            body.signature === undefined ? undefined : hex(body, 'signature', 130),
+            {
+              ...(body.hash === undefined ? {} : { hash: hex(body, 'hash', 64) }),
+              ...(body.standing === undefined ? {} : { standing: body.standing === true }),
+            },
+          )
+        : lifecycle.recoverApproval(id, operator)
     const agent = agents.owned(approval.agent_id, operator)
     const operation = agents.operation(approval.operation_id)
-    if (action === 'approval-decide') await recordAgentEvents(bindings.Database === undefined ? undefined : fromD1(bindings.Database as never), context.deployment.network,
-      operator, decisionFeedEvents(context.deployment.network, agent, approval, operation, now()), now())
+    if (action === 'approval-decide')
+      await recordAgentEvents(
+        bindings.Database === undefined ? undefined : fromD1(bindings.Database as never),
+        context.deployment.network,
+        operator,
+        decisionFeedEvents(context.deployment.network, agent, approval, operation, now()),
+        now(),
+      )
     if (approval.status !== 'approved') return { approval }
-    return input.execute(agent.id, operation.tool, JSON.parse(operation.intent_json) as Record<string, unknown>, operation.action_key, approval.id, operation.board_id)
+    return input.execute(
+      agent.id,
+      operation.tool,
+      JSON.parse(operation.intent_json) as Record<string, unknown>,
+      operation.action_key,
+      approval.id,
+      operation.board_id,
+    )
   }
   if (action === 'execute') {
     const agent = agents.owned(id, operator)
     const tool = text(body, 'tool')
-    if (!['sweep_earnings', 'request_unstake', 'withdraw_stake', 'check_operation', 'withdraw_service'].includes(tool)) throw new BoardError('forbidden', 'This website action is unavailable')
-    const args = typeof body.args === 'object' && body.args !== null ? body.args as Record<string, unknown> : {}
+    if (!['sweep_earnings', 'request_unstake', 'withdraw_stake', 'check_operation', 'withdraw_service'].includes(tool))
+      throw new BoardError('forbidden', 'This website action is unavailable')
+    const args = typeof body.args === 'object' && body.args !== null ? (body.args as Record<string, unknown>) : {}
     return input.execute(agent.id, tool, args, text(body, 'operationKey'))
   }
   const appSecret = String(bindings.PRIVY_APP_SECRET ?? '')
   const signerKey = String(bindings.PRIVY_SIGNER_KEY ?? '')
-  if (appSecret === '' || appSecret === 'unset' || signerKey === '' || signerKey === 'unset') throw new BoardError('unavailable', 'Privy agent management is unavailable')
-  const provider = new sdk.PrivyServer({ appId: String(bindings.PRIVY_APP_ID ?? ''), appSecret, sign: await sdk.p256AuthorizationSigner(signerKey) })
+  if (appSecret === '' || appSecret === 'unset' || signerKey === '' || signerKey === 'unset')
+    throw new BoardError('unavailable', 'Privy agent management is unavailable')
+  const provider = new sdk.PrivyServer({
+    appId: String(bindings.PRIVY_APP_ID ?? ''),
+    appSecret,
+    sign: await sdk.p256AuthorizationSigner(signerKey),
+  })
   if (action === 'signer-removed') {
     const agent = agents.owned(id, operator)
-    if (agent.state !== 'revoked' || agent.privy_wallet_id === null) throw new BoardError('conflict', 'Stop hosted access first')
+    if (agent.state !== 'revoked' || agent.privy_wallet_id === null)
+      throw new BoardError('conflict', 'Stop hosted access first')
     const wallet = await provider.getWallet(agent.privy_wallet_id)
-    if (wallet.address.toLowerCase() !== agent.address?.toLowerCase() || wallet.signers.some(signer => signer.signerId === bindings.PRIVY_SIGNER_ID)) throw new BoardError('conflict', 'Privy has not confirmed removal of the routine signer')
-    sql.run('UPDATE agents SET revoke_json=? WHERE id=?', JSON.stringify({ ...JSON.parse(agent.revoke_json), signerRemoved: true, signerRemovedAt: now() }), id)
+    if (
+      wallet.address.toLowerCase() !== agent.address?.toLowerCase() ||
+      wallet.signers.some((signer) => signer.signerId === bindings.PRIVY_SIGNER_ID)
+    )
+      throw new BoardError('conflict', 'Privy has not confirmed removal of the routine signer')
+    sql.run(
+      'UPDATE agents SET revoke_json=? WHERE id=?',
+      JSON.stringify({ ...JSON.parse(agent.revoke_json), signerRemoved: true, signerRemovedAt: now() }),
+      id,
+    )
     return lifecycle.status(id, operator)
   }
   if (!/^0x[0-9a-fA-F]{64}$/.test(input.relayKey)) throw new BoardError('unavailable', 'The relay is unavailable')
-  const onboarding = new AgentOnboarding({ sql, context, now, sponsor, signing: new AgentSigning(sql, context, provider, now), signerId: String(bindings.PRIVY_SIGNER_ID ?? ''), policyId: String(bindings.PRIVY_POLICY_ID ?? ''),
-    relay: new RelaySender(sql, context, privateKeyToAccount(input.relayKey), input.rpcUrl, now) })
+  const onboarding = new AgentOnboarding({
+    sql,
+    context,
+    now,
+    sponsor,
+    signing: new AgentSigning(sql, context, provider, now),
+    signerId: String(bindings.PRIVY_SIGNER_ID ?? ''),
+    policyId: String(bindings.PRIVY_POLICY_ID ?? ''),
+    relay: new RelaySender(sql, context, privateKeyToAccount(input.relayKey), input.rpcUrl, now),
+  })
   if (action === 'create') {
     if (input.privyToken === undefined) throw new BoardError('unauthenticated', 'A current Privy session is required')
-    const userId = await privyOperator({ token: input.privyToken, appId: String(bindings.PRIVY_APP_ID ?? ''), appSecret, operator, now: now() })
-    if (userId === undefined) throw new BoardError('forbidden', 'The Privy user does not own this embedded operator wallet')
+    const userId = await privyOperator({
+      token: input.privyToken,
+      appId: String(bindings.PRIVY_APP_ID ?? ''),
+      appSecret,
+      operator,
+      now: now(),
+    })
+    if (userId === undefined)
+      throw new BoardError('forbidden', 'The Privy user does not own this embedded operator wallet')
     return onboarding.create({ id: text(body, 'id'), operator, userId, name: text(body, 'name') }, provider)
   }
   agents.owned(id, operator)
   if (action === 'resume') return onboarding.resume(id)
   if (action === 'registration-prepare') return onboarding.prepareRegistration(id, operator)
-  if (action === 'registration-confirm') return onboarding.register(id, operator, hex(body, 'hash', 64), hex(body, 'signature', 130))
+  if (action === 'registration-confirm')
+    return onboarding.register(id, operator, hex(body, 'hash', 64), hex(body, 'signature', 130))
   throw new BoardError('not-found', 'No such agent lifecycle action')
 }

@@ -35,7 +35,10 @@ describe('eligibility (R16-04)', () => {
   const now = 1_000
 
   it('parses declared roles', () => {
-    expect(parseDeclaredRoles(' Developer, security-reviewer ,, developer ')).toEqual(['developer', 'security-reviewer'])
+    expect(parseDeclaredRoles(' Developer, security-reviewer ,, developer ')).toEqual([
+      'developer',
+      'security-reviewer',
+    ])
   })
 
   it('open offers admit anyone', () => {
@@ -79,8 +82,12 @@ describe('eligibility (R16-04)', () => {
   })
 
   it('declared and unknown roles', () => {
-    expect(roleGate({ role: 'developer', source: 'declared' }, project(), agent({ declared: ['developer'] }), now).admitted).toBe(true)
-    expect(roleGate({ role: 'designer', source: 'declared' }, project(), agent({ declared: ['designer'] }), now)).toEqual({
+    expect(
+      roleGate({ role: 'developer', source: 'declared' }, project(), agent({ declared: ['developer'] }), now).admitted,
+    ).toBe(true)
+    expect(
+      roleGate({ role: 'designer', source: 'declared' }, project(), agent({ declared: ['designer'] }), now),
+    ).toEqual({
       admitted: false,
       reason: 'unknown-role',
     })
@@ -92,4 +99,3 @@ describe('eligibility (R16-04)', () => {
     expect(roleGate(p, project(), agent({ endorsedBy: { developer: [otherController] } }), now).admitted).toBe(false)
   })
 })
-

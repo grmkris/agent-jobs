@@ -9,7 +9,12 @@ export function radioIndex(key: string, index: number, count: number): number | 
   return null
 }
 
-export function selectRadio(event: KeyboardEvent<HTMLButtonElement>, index: number, count: number, select: (index: number) => void): void {
+export function selectRadio(
+  event: KeyboardEvent<HTMLButtonElement>,
+  index: number,
+  count: number,
+  select: (index: number) => void,
+): void {
   const next = radioIndex(event.key, index, count)
   if (next === null) return
   event.preventDefault()

@@ -19,7 +19,17 @@ import { Popover, PopoverContent } from '../ui/popover.tsx'
 const TILE = 'grid min-w-0 content-start gap-1 rounded-xl bg-card px-4 py-3.5 text-left ring-1 ring-foreground/10'
 const VALUE = 'tabular-nums text-2xl leading-tight font-semibold tracking-tight'
 
-function Stat({ label, value, sub, children }: { label: ReactNode; value: ReactNode; sub?: ReactNode; children?: ReactNode }) {
+function Stat({
+  label,
+  value,
+  sub,
+  children,
+}: {
+  label: ReactNode
+  value: ReactNode
+  sub?: ReactNode
+  children?: ReactNode
+}) {
   return (
     <div className={TILE}>
       <span className="text-xs text-muted-foreground">{label}</span>
@@ -31,12 +41,27 @@ function Stat({ label, value, sub, children }: { label: ReactNode; value: ReactN
 }
 
 /** Gross on the tile (the largest tokens), the per-token breakdown on press or hover. */
-function MoneyStat({ label, totals, net }: { label: string; totals: Record<string, MoneyTotals> | undefined; net: string }) {
+function MoneyStat({
+  label,
+  totals,
+  net,
+}: {
+  label: string
+  totals: Record<string, MoneyTotals> | undefined
+  net: string
+}) {
   const { lines, all, more } = moneyLines(totals)
   if (all.length === 0) return <Stat label={label} value="—" sub="Before Sidequest's fee" />
   return (
     <Popover>
-      <PopoverPrimitive.Trigger openOnHover delay={250} className={cn(TILE, 'cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-ring/50 [@media(hover:hover)]:hover:bg-muted/40')}>
+      <PopoverPrimitive.Trigger
+        openOnHover
+        delay={250}
+        className={cn(
+          TILE,
+          'cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-ring/50 [@media(hover:hover)]:hover:bg-muted/40',
+        )}
+      >
         <span className="text-xs text-muted-foreground">{label}</span>
         <StaticTokens>
           <span className={cn(VALUE, 'grid gap-0.5', lines.length > 1 && 'text-lg')}>
@@ -45,7 +70,9 @@ function MoneyStat({ label, totals, net }: { label: string; totals: Record<strin
             ))}
           </span>
         </StaticTokens>
-        <span className="text-xs text-muted-foreground">{more > 0 ? `+${more} more · ` : ''}Before Sidequest's fee</span>
+        <span className="text-xs text-muted-foreground">
+          {more > 0 ? `+${more} more · ` : ''}Before Sidequest's fee
+        </span>
       </PopoverPrimitive.Trigger>
       <PopoverContent side="bottom" align="start" className="w-80">
         <Breakdown lines={all} net={net} />
@@ -95,8 +122,12 @@ export function HeroStats({ record, now, owner = false }: { record: AgentRecord;
   const posted = record.hiring?.posted ?? 0
   const s = success(a)
   // An older API has no gross/fee/net split: its earnings are what reached the wallet.
-  const earned = record.work?.earned ?? Object.fromEntries(Object.entries(a.earned).map(([token, v]) => [token, { gross: v, fee: '0', net: v }]))
-  const overdue = record.jobs.filter((j) => j.status === 'active' && j.delivery_deadline !== null && j.delivery_deadline < now)
+  const earned =
+    record.work?.earned ??
+    Object.fromEntries(Object.entries(a.earned).map(([token, v]) => [token, { gross: v, fee: '0', net: v }]))
+  const overdue = record.jobs.filter(
+    (j) => j.status === 'active' && j.delivery_deadline !== null && j.delivery_deadline < now,
+  )
   const bondAtStake = overdue.some((j) => j.worker_bond !== null && j.worker_bond !== '0')
   const tiles = (took > 0 ? 2 : 0) + (posted > 0 ? 2 : 0)
   return (
@@ -106,14 +137,24 @@ export function HeroStats({ record, now, owner = false }: { record: AgentRecord;
           {took > 0 && (
             <>
               {s.rate !== null ? (
-                <Stat label="Success" value={`${Math.round(s.rate * 100)} %`} sub={`${s.paid} of ${s.settled} paid${a.inProgress > 0 ? ` · ${a.inProgress} open` : ''}`}>
+                <Stat
+                  label="Success"
+                  value={`${Math.round(s.rate * 100)} %`}
+                  sub={`${s.paid} of ${s.settled} paid${a.inProgress > 0 ? ` · ${a.inProgress} open` : ''}`}
+                >
                   <Meter value={s.rate * 100} aria-label="Share of settled jobs paid" className="mt-1" />
                 </Stat>
               ) : (
                 <Stat
                   label="Paid"
                   value={s.settled === 0 ? '—' : `${s.paid} of ${s.settled}`}
-                  sub={s.settled === 0 ? `${a.inProgress} open · none settled yet` : a.inProgress > 0 ? `${a.inProgress} open` : 'Settled jobs'}
+                  sub={
+                    s.settled === 0
+                      ? `${a.inProgress} open · none settled yet`
+                      : a.inProgress > 0
+                        ? `${a.inProgress} open`
+                        : 'Settled jobs'
+                  }
                 />
               )}
               <MoneyStat label="Earned" totals={earned} net="Net is what reached the agent's wallet." />
@@ -121,7 +162,11 @@ export function HeroStats({ record, now, owner = false }: { record: AgentRecord;
           )}
           {posted > 0 && (
             <>
-              <Stat label="Posted" value={posted} sub={(record.hiring?.open ?? 0) > 0 ? `${record.hiring?.open} open` : 'None open'} />
+              <Stat
+                label="Posted"
+                value={posted}
+                sub={(record.hiring?.open ?? 0) > 0 ? `${record.hiring?.open} open` : 'None open'}
+              />
               <MoneyStat label="Paid out" totals={record.hiring?.paidOut} net="Net is what its workers received." />
             </>
           )}
@@ -132,8 +177,10 @@ export function HeroStats({ record, now, owner = false }: { record: AgentRecord;
         <div role="status" className="flex items-start gap-3 rounded-xl bg-warning/14 px-4 py-3 text-sm leading-snug">
           <TriangleAlert aria-hidden className="mt-0.5 size-4 shrink-0 text-warning-text" />
           <p>
-            <span className="font-medium">Needs attention:</span> {overdue.length === 1 ? 'one job it took is' : `${overdue.length} jobs it took are`} past the delivery
-            deadline with nothing delivered. Anyone can close {overdue.length === 1 ? 'it' : 'them'}; the creator gets the reward back
+            <span className="font-medium">Needs attention:</span>{' '}
+            {overdue.length === 1 ? 'one job it took is' : `${overdue.length} jobs it took are`} past the delivery
+            deadline with nothing delivered. Anyone can close {overdue.length === 1 ? 'it' : 'them'}; the creator gets
+            the reward back
             {bondAtStake ? ' and the deposit at risk burns' : ''}.
           </p>
         </div>
@@ -147,7 +194,8 @@ export function HeroStats({ record, now, owner = false }: { record: AgentRecord;
 
 function TimeLine({ record, now }: { record: AgentRecord; now: number }) {
   const t = record.time
-  if (t === undefined || (t.activeSince === null && t.lastActive === null && t.medianTurnaroundSeconds === null)) return null
+  if (t === undefined || (t.activeSince === null && t.lastActive === null && t.medianTurnaroundSeconds === null))
+    return null
   const parts = [
     t.activeSince !== null && `On Sidequest since ${sinceDay(t.activeSince, now)}`,
     t.lastActive !== null && `last active ${relative(t.lastActive, now)}`,
@@ -166,7 +214,11 @@ function Reputation({ record }: { record: AgentRecord }) {
     <ul aria-label="Ratings" className="flex flex-wrap gap-x-4 gap-y-1.5 px-1 text-sm">
       {rated.map((r) => (
         <li key={r.tag} className="inline-flex items-center gap-1.5">
-          {r.good ? <CircleCheck aria-hidden className="size-4 text-success-text" /> : <CircleX aria-hidden className="size-4 text-destructive-text" />}
+          {r.good ? (
+            <CircleCheck aria-hidden className="size-4 text-success-text" />
+          ) : (
+            <CircleX aria-hidden className="size-4 text-destructive-text" />
+          )}
           <span>
             <span className="tabular-nums font-medium">{r.count}</span> {r.words}
           </span>

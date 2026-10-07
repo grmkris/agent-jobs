@@ -11,7 +11,11 @@ import { type ModelEndpoint, askJson } from './model.ts'
 export type ViolationName = 'None' | 'Quality' | 'Falsified'
 
 /** Why the contract would refuse this ruling (`InvalidRuling`), or undefined when it is allowed. */
-export function rulingRefusal(violation: ViolationName | null, forWorker: boolean, slashLoser: boolean): string | undefined {
+export function rulingRefusal(
+  violation: ViolationName | null,
+  forWorker: boolean,
+  slashLoser: boolean,
+): string | undefined {
   if (!forWorker && slashLoser && (violation === 'None' || violation === null)) {
     return 'the rejection named no violation, so upholding it cannot burn the worker bond'
   }
@@ -38,10 +42,23 @@ export interface DisputeBundle {
     readonly workerBond: string
     readonly deliveryDeadline: number
   }
-  readonly rejection: { readonly violation: ViolationName; readonly reasonHash: Hex; readonly reasonText: string | null }
-  readonly submission: { readonly deliverableHash: Hex | null; readonly submittedAt: number | null; readonly timely: boolean }
+  readonly rejection: {
+    readonly violation: ViolationName
+    readonly reasonHash: Hex
+    readonly reasonText: string | null
+  }
+  readonly submission: {
+    readonly deliverableHash: Hex | null
+    readonly submittedAt: number | null
+    readonly timely: boolean
+  }
   readonly deliverable: { readonly repo: string; readonly branch: string; readonly sha: string } | null
-  readonly evidence: ReadonlyArray<{ readonly conclusion: string; readonly label: string; readonly checks: unknown; readonly txHash: string }>
+  readonly evidence: ReadonlyArray<{
+    readonly conclusion: string
+    readonly label: string
+    readonly checks: unknown
+    readonly txHash: string
+  }>
   readonly statements: ReadonlyArray<{ readonly role: string; readonly text: string }>
 }
 
@@ -58,11 +75,16 @@ export interface Proposal {
 const MAX_REASON = 2000
 
 /** The deterministic gate on a proposal: shape, length, and the contract's own ruling rule. */
-export function validateProposal(bundle: DisputeBundle, raw: unknown): { ok: true; proposal: Proposal } | { ok: false; error: string } {
+export function validateProposal(
+  bundle: DisputeBundle,
+  raw: unknown,
+): { ok: true; proposal: Proposal } | { ok: false; error: string } {
   if (typeof raw !== 'object' || raw === null) return { ok: false, error: 'proposal is not an object' }
   const p = raw as Record<string, unknown>
-  if (typeof p.forWorker !== 'boolean' || typeof p.slashLoser !== 'boolean') return { ok: false, error: 'forWorker and slashLoser must be booleans' }
-  if (typeof p.reason !== 'string' || p.reason.trim().length < 20) return { ok: false, error: 'the reason must explain the ruling (at least 20 characters)' }
+  if (typeof p.forWorker !== 'boolean' || typeof p.slashLoser !== 'boolean')
+    return { ok: false, error: 'forWorker and slashLoser must be booleans' }
+  if (typeof p.reason !== 'string' || p.reason.trim().length < 20)
+    return { ok: false, error: 'the reason must explain the ruling (at least 20 characters)' }
   if (p.reason.length > MAX_REASON) return { ok: false, error: `the reason is longer than ${MAX_REASON} characters` }
   const refusal = rulingRefusal(bundle.rejection.violation, p.forWorker, p.slashLoser)
   if (refusal !== undefined) return { ok: false, error: refusal }
@@ -87,7 +109,8 @@ export function checkRulingRequest(
     return { ok: false, error: 'typed data is not JSON' }
   }
   const d = td.domain ?? {}
-  if (d.name !== 'SidequestEvaluator' || d.version !== '1' || Number(d.chainId) !== expected.chainId) return { ok: false, error: 'wrong domain' }
+  if (d.name !== 'SidequestEvaluator' || d.version !== '1' || Number(d.chainId) !== expected.chainId)
+    return { ok: false, error: 'wrong domain' }
   if (typeof d.verifyingContract !== 'string' || getAddress(d.verifyingContract) !== getAddress(expected.evaluator)) {
     return { ok: false, error: 'the domain is not this stack’s evaluator' }
   }
@@ -102,8 +125,10 @@ export function checkRulingRequest(
     nonce: BigInt(String(m.nonce)),
   }
   if (ruling.jobId.toString() !== bundle.jobId) return { ok: false, error: 'a different job' }
-  if (m.forWorker !== proposal.forWorker || m.slashLoser !== proposal.slashLoser) return { ok: false, error: 'not the proposed decision' }
-  if (ruling.reasonHash !== sdk.hashText(proposal.reason)) return { ok: false, error: 'the reason hash is not the proposed reason' }
+  if (m.forWorker !== proposal.forWorker || m.slashLoser !== proposal.slashLoser)
+    return { ok: false, error: 'not the proposed decision' }
+  if (ruling.reasonHash !== sdk.hashText(proposal.reason))
+    return { ok: false, error: 'the reason hash is not the proposed reason' }
   if (ruling.deadline > BigInt(bundle.arbitrationEndsAt) || ruling.deadline <= BigInt(expected.now)) {
     return { ok: false, error: 'the deadline is outside the arbitration window' }
   }

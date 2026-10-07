@@ -16,7 +16,12 @@ export function createShaderBudget(limit: number) {
     request(granted: (release: () => void) => void): () => void {
       let held = false
       let done = false
-      const free = () => { if (held && !done) { done = true; release() } }
+      const free = () => {
+        if (held && !done) {
+          done = true
+          release()
+        }
+      }
       const attempt = () => {
         if (used >= limit) return false
         used++
@@ -26,9 +31,14 @@ export function createShaderBudget(limit: number) {
         return true
       }
       if (!attempt()) waiting.add(attempt)
-      return () => { waiting.delete(attempt); free() }
+      return () => {
+        waiting.delete(attempt)
+        free()
+      }
     },
-    get used() { return used },
+    get used() {
+      return used
+    },
   }
 }
 
@@ -54,8 +64,15 @@ export function useShaderSlot(wanted: boolean): boolean {
   useEffect(() => {
     if (!wanted || !canRunShaders()) return
     let release: (() => void) | undefined
-    const cancel = budget.request((free) => { release = free; setGranted(true) })
-    return () => { cancel(); release?.(); setGranted(false) }
+    const cancel = budget.request((free) => {
+      release = free
+      setGranted(true)
+    })
+    return () => {
+      cancel()
+      release?.()
+      setGranted(false)
+    }
   }, [wanted])
   return granted
 }
@@ -64,7 +81,11 @@ const REDUCE = '(prefers-reduced-motion: reduce)'
 /** Motion stops when the person asks for less of it; a stopped shader draws one frame and runs no loop. */
 export function usePrefersReducedMotion(): boolean {
   return useSyncExternalStore(
-    (change) => { const query = matchMedia(REDUCE); query.addEventListener('change', change); return () => query.removeEventListener('change', change) },
+    (change) => {
+      const query = matchMedia(REDUCE)
+      query.addEventListener('change', change)
+      return () => query.removeEventListener('change', change)
+    },
     () => matchMedia(REDUCE).matches,
     () => true,
   )

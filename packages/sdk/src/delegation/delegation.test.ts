@@ -11,7 +11,18 @@ import {
   hashDelegation,
 } from '@metamask/delegation-core'
 import { DELEGATOR_CONTRACTS } from '@metamask/delegation-deployments'
-import { type Address, type Hex, concat, decodeFunctionData, domainSeparator, encodePacked, keccak256, pad, recoverTypedDataAddress, toFunctionSelector } from 'viem'
+import {
+  type Address,
+  type Hex,
+  concat,
+  decodeFunctionData,
+  domainSeparator,
+  encodePacked,
+  keccak256,
+  pad,
+  recoverTypedDataAddress,
+  toFunctionSelector,
+} from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { describe, expect, it } from 'vitest'
 import mainnet from '../../../../contracts/config/monad-mainnet.json' with { type: 'json' }
@@ -42,7 +53,8 @@ const advance: AdvanceBudget = { kind: 'advance', token, cap: 2_000_000n, expire
 const call: CallBudget = { kind: 'call', target: token, function: 'function faucet()', cap: 0n, expiresAt: until }
 
 const struct = (x: ReturnType<typeof budgetDelegation>) => ({ ...x, caveats: x.caveats.map((c) => ({ ...c })) })
-const lower = (cs: Array<{ enforcer: Address; terms: Hex; args: Hex }>) => cs.map((c) => ({ ...c, terms: c.terms.toLowerCase() }))
+const lower = (cs: Array<{ enforcer: Address; terms: Hex; args: Hex }>) =>
+  cs.map((c) => ({ ...c, terms: c.terms.toLowerCase() }))
 
 describe('the framework on Monad is the one in the config (MetaMask Delegation Framework v1.3.0)', () => {
   const name: Record<string, string> = {
@@ -55,12 +67,16 @@ describe('the framework on Monad is the one in the config (MetaMask Delegation F
     limitedCalls: 'LimitedCallsEnforcer',
     timestamp: 'TimestampEnforcer',
   }
-  for (const [network, cfg] of [['monad-testnet', testnet], ['monad-mainnet', mainnet]] as const) {
+  for (const [network, cfg] of [
+    ['monad-testnet', testnet],
+    ['monad-mainnet', mainnet],
+  ] as const) {
     it(`${network}: manager, DeleGator and every enforcer are MetaMask's published deployment`, () => {
       const published = DELEGATOR_CONTRACTS['1.3.0']?.[cfg.chainId] as Record<string, string>
       expect(cfg.delegation.manager).toBe(published.DelegationManager)
       expect(cfg.delegation.delegator).toBe(published.EIP7702StatelessDeleGatorImpl)
-      for (const [key, address] of Object.entries(cfg.delegation.enforcers)) expect(address, key).toBe(published[name[key] as string])
+      for (const [key, address] of Object.entries(cfg.delegation.enforcers))
+        expect(address, key).toBe(published[name[key] as string])
     })
   }
 })
@@ -68,26 +84,56 @@ describe('the framework on Monad is the one in the config (MetaMask Delegation F
 describe('a budget as a delegation (ADR-0009)', () => {
   it('an advance: no value, the token, the cap, the worker as the only recipient, the expiry', () => {
     const x = budgetDelegation(d, advance, creator.address, worker, salt, until)
-    expect(x).toMatchObject({ delegate: worker, delegator: creator.address, authority: ROOT_AUTHORITY, salt: BigInt(salt), signature: '0x' })
+    expect(x).toMatchObject({
+      delegate: worker,
+      delegator: creator.address,
+      authority: ROOT_AUTHORITY,
+      salt: BigInt(salt),
+      signature: '0x',
+    })
     const e = d.delegation.enforcers
-    expect(x.caveats).toEqual(lower([
-      { enforcer: e.valueLte, terms: createValueLteTerms({ maxValue: 0n }), args: '0x' },
-      { enforcer: e.erc20TransferAmount, terms: createERC20TransferAmountTerms({ tokenAddress: token, maxAmount: 2_000_000n }), args: '0x' },
-      { enforcer: e.allowedCalldata, terms: createAllowedCalldataTerms({ startIndex: 4, value: pad(worker, { size: 32 }) }), args: '0x' },
-      { enforcer: e.timestamp, terms: createTimestampTerms({ afterThreshold: 0, beforeThreshold: until }), args: '0x' },
-    ]))
+    expect(x.caveats).toEqual(
+      lower([
+        { enforcer: e.valueLte, terms: createValueLteTerms({ maxValue: 0n }), args: '0x' },
+        {
+          enforcer: e.erc20TransferAmount,
+          terms: createERC20TransferAmountTerms({ tokenAddress: token, maxAmount: 2_000_000n }),
+          args: '0x',
+        },
+        {
+          enforcer: e.allowedCalldata,
+          terms: createAllowedCalldataTerms({ startIndex: 4, value: pad(worker, { size: 32 }) }),
+          args: '0x',
+        },
+        {
+          enforcer: e.timestamp,
+          terms: createTimestampTerms({ afterThreshold: 0, beforeThreshold: until }),
+          args: '0x',
+        },
+      ]),
+    )
   })
 
   it('a call: one target, one function, the value cap, one call, the expiry', () => {
     const x = budgetDelegation(d, call, creator.address, worker, salt, until)
     const e = d.delegation.enforcers
-    expect(x.caveats).toEqual(lower([
-      { enforcer: e.allowedTargets, terms: createAllowedTargetsTerms({ targets: [token] }), args: '0x' },
-      { enforcer: e.allowedMethods, terms: createAllowedMethodsTerms({ selectors: [toFunctionSelector('function faucet()')] }), args: '0x' },
-      { enforcer: e.valueLte, terms: createValueLteTerms({ maxValue: 0n }), args: '0x' },
-      { enforcer: e.limitedCalls, terms: createLimitedCallsTerms({ limit: 1 }), args: '0x' },
-      { enforcer: e.timestamp, terms: createTimestampTerms({ afterThreshold: 0, beforeThreshold: until }), args: '0x' },
-    ]))
+    expect(x.caveats).toEqual(
+      lower([
+        { enforcer: e.allowedTargets, terms: createAllowedTargetsTerms({ targets: [token] }), args: '0x' },
+        {
+          enforcer: e.allowedMethods,
+          terms: createAllowedMethodsTerms({ selectors: [toFunctionSelector('function faucet()')] }),
+          args: '0x',
+        },
+        { enforcer: e.valueLte, terms: createValueLteTerms({ maxValue: 0n }), args: '0x' },
+        { enforcer: e.limitedCalls, terms: createLimitedCallsTerms({ limit: 1 }), args: '0x' },
+        {
+          enforcer: e.timestamp,
+          terms: createTimestampTerms({ afterThreshold: 0, beforeThreshold: until }),
+          args: '0x',
+        },
+      ]),
+    )
   })
 
   it('the hash is the framework’s, and the signed digest is its EIP-712 digest under the manager’s domain', () => {
@@ -100,10 +146,19 @@ describe('a budget as a delegation (ADR-0009)', () => {
   it('the typed-data JSON a wallet signs recovers to the creator over that digest', async () => {
     const x = budgetDelegation(d, advance, creator.address, worker, salt, until)
     const signature = await sdk.signTypedDataJson(
-      { account: creator, signTypedData: (a: Parameters<typeof creator.signTypedData>[0]) => creator.signTypedData(a) } as never,
+      {
+        account: creator,
+        signTypedData: (a: Parameters<typeof creator.signTypedData>[0]) => creator.signTypedData(a),
+      } as never,
       delegationTypedData(d, x),
     )
-    const signer = await recoverTypedDataAddress({ domain: delegationDomain(d), types: DELEGATION_TYPES, primaryType: 'Delegation', message: { ...x, caveats: x.caveats.map((c) => ({ enforcer: c.enforcer, terms: c.terms })) }, signature })
+    const signer = await recoverTypedDataAddress({
+      domain: delegationDomain(d),
+      types: DELEGATION_TYPES,
+      primaryType: 'Delegation',
+      message: { ...x, caveats: x.caveats.map((c) => ({ enforcer: c.enforcer, terms: c.terms })) },
+      signature,
+    })
     expect(signer).toBe(creator.address)
   })
 
@@ -115,7 +170,9 @@ describe('a budget as a delegation (ADR-0009)', () => {
     const [contexts, modes, executions] = args as unknown as [Hex[], Hex[], Hex[]]
     expect(contexts).toEqual([encodeDelegations([struct(x)])])
     expect(modes).toEqual([pad('0x00', { size: 32 })])
-    expect(executions).toEqual([encodePacked(['address', 'uint256', 'bytes'], [token, 0n, advanceExecution(token, worker, 500_000n).callData])])
+    expect(executions).toEqual([
+      encodePacked(['address', 'uint256', 'bytes'], [token, 0n, advanceExecution(token, worker, 500_000n).callData]),
+    ])
   })
 
   it('revoke: disableDelegation with the same delegation', () => {

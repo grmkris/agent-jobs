@@ -2,9 +2,7 @@
   "$schema": "https://turbo.build/schema.json",
   "tasks": {
     "typecheck": {
-      "dependsOn": [
-        "^typecheck"
-      ],
+      "dependsOn": ["^typecheck"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "$TURBO_ROOT$/tsconfig.base.json",
@@ -14,9 +12,7 @@
       "outputs": []
     },
     "test": {
-      "dependsOn": [
-        "^typecheck"
-      ],
+      "dependsOn": ["^typecheck"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "!.alchemy/**",
@@ -38,17 +34,11 @@
       ]
     },
     "build": {
-      "dependsOn": [
-        "^build"
-      ],
-      "outputs": [
-        "dist/**"
-      ]
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"]
     },
     "@sidequest/api#typecheck": {
-      "dependsOn": [
-        "^typecheck"
-      ],
+      "dependsOn": ["^typecheck"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "$TURBO_ROOT$/tsconfig.base.json",
@@ -66,9 +56,7 @@
       "outputs": []
     },
     "@sidequest/indexer-worker#typecheck": {
-      "dependsOn": [
-        "^typecheck"
-      ],
+      "dependsOn": ["^typecheck"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "$TURBO_ROOT$/tsconfig.base.json",
@@ -81,9 +69,7 @@
       "outputs": []
     },
     "@sidequest/explore#typecheck": {
-      "dependsOn": [
-        "^typecheck"
-      ],
+      "dependsOn": ["^typecheck"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "$TURBO_ROOT$/tsconfig.base.json",
@@ -97,9 +83,7 @@
       "outputs": []
     },
     "@sidequest/sdk#typecheck": {
-      "dependsOn": [
-        "^typecheck"
-      ],
+      "dependsOn": ["^typecheck"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "$TURBO_ROOT$/tsconfig.base.json",
@@ -110,9 +94,7 @@
       "outputs": []
     },
     "@sidequest/docs#typecheck": {
-      "dependsOn": [
-        "^typecheck"
-      ],
+      "dependsOn": ["^typecheck"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "$TURBO_ROOT$/tsconfig.base.json",
@@ -123,9 +105,7 @@
       "outputs": []
     },
     "@sidequest/api#test": {
-      "dependsOn": [
-        "^typecheck"
-      ],
+      "dependsOn": ["^typecheck"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "!.alchemy/**",
@@ -155,9 +135,7 @@
       ]
     },
     "@sidequest/explore#test": {
-      "dependsOn": [
-        "^typecheck"
-      ],
+      "dependsOn": ["^typecheck"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "!.alchemy/**",
@@ -185,9 +163,7 @@
       ]
     },
     "@sidequest/sdk#test": {
-      "dependsOn": [
-        "^typecheck"
-      ],
+      "dependsOn": ["^typecheck"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "!.alchemy/**",
@@ -211,9 +187,7 @@
       ]
     },
     "@sidequest/contracts#test": {
-      "dependsOn": [
-        "^typecheck"
-      ],
+      "dependsOn": ["^typecheck"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "!.alchemy/**",
@@ -241,9 +215,7 @@
       ]
     },
     "@sidequest/docs#test": {
-      "dependsOn": [
-        "^typecheck"
-      ],
+      "dependsOn": ["^typecheck"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "!.alchemy/**",
@@ -267,27 +239,15 @@
       ]
     },
     "@sidequest/docs#build": {
-      "dependsOn": [
-        "^build"
-      ],
-      "outputs": [
-        ".output/**",
-        "dist/**"
-      ]
+      "dependsOn": ["^build"],
+      "outputs": [".output/**", "dist/**"]
     },
     "@sidequest/explore#build": {
-      "dependsOn": [
-        "^build",
-        "@sidequest/docs#build"
-      ],
-      "outputs": [
-        "dist/**"
-      ]
+      "dependsOn": ["^build", "@sidequest/docs#build"],
+      "outputs": ["dist/**"]
     },
     "tools#test": {
-      "dependsOn": [
-        "typecheck"
-      ],
+      "dependsOn": ["typecheck"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "$TURBO_ROOT$/scripts/migrations-lock.ts",

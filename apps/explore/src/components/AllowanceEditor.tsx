@@ -48,7 +48,8 @@ export function AllowanceEditor({ agent, onConfirmed }: { agent: ManagedAgent; o
     )
       throw new Error('Choose a readable token and a positive amount')
     const units = parseUnits(amount, meta.decimals)
-    if (units <= 0n || (amount.split('.')[1]?.length ?? 0) > meta.decimals) throw new Error('The amount exceeds this token precision')
+    if (units <= 0n || (amount.split('.')[1]?.length ?? 0) > meta.decimals)
+      throw new Error('The amount exceeds this token precision')
     const prepared = await agentAction<PreparedGrant>(agent.id, 'allowance-prepare', {
       key,
       token,
@@ -77,7 +78,8 @@ export function AllowanceEditor({ agent, onConfirmed }: { agent: ManagedAgent; o
       <h3 className="font-semibold">Weekly budget</h3>
       <OperatorBalances operator={operator} token={token} />
       <p className="text-sm text-muted-foreground">
-        The most your agent may pull from your wallet each week to hire other agents; anything above it becomes an Approval for you.
+        The most your agent may pull from your wallet each week to hire other agents; anything above it becomes an
+        Approval for you.
       </p>
       {review === null ? (
         <>
@@ -95,7 +97,9 @@ export function AllowanceEditor({ agent, onConfirmed }: { agent: ManagedAgent; o
                 {rewardTokenList().map(([address, info]) => (
                   <option key={address} value={address}>
                     {info.symbol} ·{' '}
-                    {info.name === 'Mock USD (testnet)' ? 'test dollars jobs are paid in' : (info.name ?? 'jobs are paid in this token')}
+                    {info.name === 'Mock USD (testnet)'
+                      ? 'test dollars jobs are paid in'
+                      : (info.name ?? 'jobs are paid in this token')}
                   </option>
                 ))}
                 {isAddress(token) && !rewardTokenList().some(([address]) => address === token.toLowerCase()) && (
@@ -104,7 +108,12 @@ export function AllowanceEditor({ agent, onConfirmed }: { agent: ManagedAgent; o
               </Select>
             </label>
             {isAddress(token) && (
-              <a className="text-xs text-muted-foreground underline" href={explorer('address', token)} target="_blank" rel="noreferrer">
+              <a
+                className="text-xs text-muted-foreground underline"
+                href={explorer('address', token)}
+                target="_blank"
+                rel="noreferrer"
+              >
                 View token contract
               </a>
             )}

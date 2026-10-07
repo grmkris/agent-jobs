@@ -56,8 +56,22 @@ describe('checkRulingRequest', () => {
   const typed = (over: { domain?: object; message?: object } = {}) =>
     JSON.stringify({
       primaryType: 'Ruling',
-      domain: { name: 'SidequestEvaluator', version: '1', chainId: 10143, verifyingContract: evaluator, ...over.domain },
-      message: { jobId: '9', forWorker: true, slashLoser: false, reasonHash: sdk.hashText(reason), deadline: '1200', nonce: '7', ...over.message },
+      domain: {
+        name: 'SidequestEvaluator',
+        version: '1',
+        chainId: 10143,
+        verifyingContract: evaluator,
+        ...over.domain,
+      },
+      message: {
+        jobId: '9',
+        forWorker: true,
+        slashLoser: false,
+        reasonHash: sdk.hashText(reason),
+        deadline: '1200',
+        nonce: '7',
+        ...over.message,
+      },
     })
   const expected = { chainId: 10143, evaluator, now: 1_100 } as const
 

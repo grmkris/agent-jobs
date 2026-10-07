@@ -15,7 +15,17 @@ describe('agent-first clean break', () => {
     for (const table of [...RETIRED_FLEET_TABLES, 'sponsor_grants']) {
       expect(db.prepare('SELECT name FROM sqlite_master WHERE name=?').get(table)).toBeUndefined()
     }
-    db.prepare('INSERT INTO grants VALUES (?,?,?,?,?,?,?,?,?)').run('hash', 'operator', 'operator', 'relay', 'operator', '{}', null, 'prepared', 100)
+    db.prepare('INSERT INTO grants VALUES (?,?,?,?,?,?,?,?,?)').run(
+      'hash',
+      'operator',
+      'operator',
+      'relay',
+      'operator',
+      '{}',
+      null,
+      'prepared',
+      100,
+    )
     migrateAgentSchema(sql)
     expect(db.prepare('SELECT delegation_hash FROM grants').all()).toEqual([{ delegation_hash: 'hash' }])
     for (const table of ['sponsor_operations', 'sponsor_replacements', 'relay_operations']) {
@@ -27,7 +37,9 @@ describe('agent-first clean break', () => {
   it('rolls back a failed drop and never records an incomplete version', () => {
     const db = new DatabaseSync(':memory:')
     const sql = fromNodeSqlite(db)
-    db.exec("CREATE TABLE sponsor_grants (id TEXT); INSERT INTO sponsor_grants VALUES ('original'); CREATE TABLE grants (conflict TEXT)")
+    db.exec(
+      "CREATE TABLE sponsor_grants (id TEXT); INSERT INTO sponsor_grants VALUES ('original'); CREATE TABLE grants (conflict TEXT)",
+    )
     expect(() => migrateAgentSchema(sql)).toThrow()
     expect(db.prepare('SELECT id FROM sponsor_grants').all()).toEqual([{ id: 'original' }])
     expect(db.prepare("SELECT name FROM sqlite_master WHERE name='schema_versions'").get()).toBeUndefined()

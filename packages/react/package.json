@@ -2,18 +2,18 @@
   "name": "@sidequest/react",
   "version": "0.0.0",
   "private": true,
-  "type": "module",
   "description": "Headless React hooks and a typed client for embedding the sidequest marketplace: boards, tasks, publish and select, with any EIP-1193 wallet.",
+  "type": "module",
   "exports": {
     ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
   },
   "dependencies": {
     "@sidequest/sdk": "workspace:*",
     "viem": "catalog:"
-  },
-  "peerDependencies": {
-    "@tanstack/react-query": "^5",
-    "react": "^19"
   },
   "devDependencies": {
     "@tanstack/react-query": "catalog:",
@@ -23,8 +23,8 @@
     "typescript": "catalog:",
     "vitest": "catalog:"
   },
-  "scripts": {
-    "typecheck": "tsc -p tsconfig.json",
-    "test": "vitest run"
+  "peerDependencies": {
+    "@tanstack/react-query": "^5",
+    "react": "^19"
   }
 }

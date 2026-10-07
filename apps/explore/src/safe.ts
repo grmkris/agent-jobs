@@ -6,7 +6,22 @@
  * transaction first, and it is refused on chain (GS026). Every call is decoded back from the exact calldata before it
  * is signed (`describe`), so what the page shows is what goes out. Pure, so it is unit-tested (safe.test.ts).
  */
-import { type Abi, type Address, type Hex, concat, decodeFunctionData, encodeFunctionData, encodePacked, getAddress, hexToBigInt, hexToNumber, pad, size, slice, zeroAddress } from 'viem'
+import {
+  type Abi,
+  type Address,
+  type Hex,
+  concat,
+  decodeFunctionData,
+  encodeFunctionData,
+  encodePacked,
+  getAddress,
+  hexToBigInt,
+  hexToNumber,
+  pad,
+  size,
+  slice,
+  zeroAddress,
+} from 'viem'
 
 /** The Safe functions this page uses (Safe v1.3/v1.4 share them). */
 export const safeAbi = [
@@ -41,12 +56,22 @@ export const safeAbi = [
 export const MULTI_SEND_CALL_ONLY: Address = '0x9641d764fc13c8B624c04430C7356C1C7C8102e2'
 
 const multiSendAbi = [
-  { type: 'function', name: 'multiSend', stateMutability: 'payable', inputs: [{ name: 'transactions', type: 'bytes' }], outputs: [] },
+  {
+    type: 'function',
+    name: 'multiSend',
+    stateMutability: 'payable',
+    inputs: [{ name: 'transactions', type: 'bytes' }],
+    outputs: [],
+  },
 ] as const
 
 /** `multiSend` calldata for plain calls made in order: each packed as operation 0, to, value 0, length, data. */
 export function multiSend(calls: ReadonlyArray<{ to: Address; data: Hex }>): Hex {
-  const packed = concat(calls.map((c) => encodePacked(['uint8', 'address', 'uint256', 'uint256', 'bytes'], [0, c.to, 0n, BigInt(size(c.data)), c.data])))
+  const packed = concat(
+    calls.map((c) =>
+      encodePacked(['uint8', 'address', 'uint256', 'uint256', 'bytes'], [0, c.to, 0n, BigInt(size(c.data)), c.data]),
+    ),
+  )
   return encodeFunctionData({ abi: multiSendAbi, functionName: 'multiSend', args: [packed] })
 }
 
@@ -78,7 +103,8 @@ export function unpackMultiSend(data: Hex): Array<{ operation: number; to: Addre
 }
 
 /** The owner's pre-validated signature: valid only when that owner sends the transaction. */
-export const preValidated = (owner: Address): Hex => concat([pad(owner, { size: 32 }), pad('0x00', { size: 32 }), '0x01'])
+export const preValidated = (owner: Address): Hex =>
+  concat([pad(owner, { size: 32 }), pad('0x00', { size: 32 }), '0x01'])
 
 /** The Safe's EIP-712 transaction type (v1.3 and v1.4): what an owner's signature over one Safe transaction covers. */
 const SAFE_TX_TYPES = {
@@ -101,7 +127,18 @@ export const safeTxTypedData = (chainId: number, safe: Address, inner: { to: Add
   domain: { chainId, verifyingContract: getAddress(safe) },
   types: SAFE_TX_TYPES,
   primaryType: 'SafeTx' as const,
-  message: { to: getAddress(inner.to), value: 0n, data: inner.data, operation: 0, safeTxGas: 0n, baseGas: 0n, gasPrice: 0n, gasToken: zeroAddress, refundReceiver: zeroAddress, nonce },
+  message: {
+    to: getAddress(inner.to),
+    value: 0n,
+    data: inner.data,
+    operation: 0,
+    safeTxGas: 0n,
+    baseGas: 0n,
+    gasPrice: 0n,
+    gasToken: zeroAddress,
+    refundReceiver: zeroAddress,
+    nonce,
+  },
 })
 
 /**
@@ -130,7 +167,8 @@ export interface Call {
   args?: readonly unknown[]
 }
 
-export const calldata = (c: Call): Hex => encodeFunctionData({ abi: c.abi, functionName: c.functionName, args: c.args ?? [] } as never)
+export const calldata = (c: Call): Hex =>
+  encodeFunctionData({ abi: c.abi, functionName: c.functionName, args: c.args ?? [] } as never)
 
 /**
  * `execTransaction` on `safe` for `inner`, from `owner`: no refund and no gas price, so a failing inner call fails
@@ -157,7 +195,9 @@ export const atomically = (owner: Address, calls: ReadonlyArray<{ to: Address; d
 /** A call as people read it: the function and each argument by name, decoded from the calldata itself. */
 export function describe(abi: Abi, data: Hex): { functionName: string; args: Array<[string, string]> } {
   const { functionName, args = [] } = decodeFunctionData({ abi, data })
-  const fn = abi.find((item) => item.type === 'function' && item.name === functionName && item.inputs.length === args.length)
+  const fn = abi.find(
+    (item) => item.type === 'function' && item.name === functionName && item.inputs.length === args.length,
+  )
   const inputs = fn !== undefined && fn.type === 'function' ? fn.inputs : []
   return { functionName, args: args.map((value, i) => [inputs[i]?.name || `arg${i}`, show(value)]) }
 }
@@ -165,6 +205,9 @@ export function describe(abi: Abi, data: Hex): { functionName: string; args: Arr
 function show(value: unknown): string {
   if (typeof value === 'bigint') return value.toString()
   if (Array.isArray(value)) return `[${value.map(show).join(', ')}]`
-  if (value !== null && typeof value === 'object') return `{ ${Object.entries(value).map(([k, v]) => `${k}: ${show(v)}`).join(', ')} }`
+  if (value !== null && typeof value === 'object')
+    return `{ ${Object.entries(value)
+      .map(([k, v]) => `${k}: ${show(v)}`)
+      .join(', ')} }`
   return String(value)
 }

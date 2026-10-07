@@ -38,7 +38,9 @@ export class SendError extends Error {
 
 export function createTxSender(options: TxSenderOptions) {
   const reads = createPublicClient({ chain: options.chain, transport: http(options.rpcUrl) })
-  const wait = options.waitForReceipt ?? (async (hash: Hex) => ({ status: (await reads.waitForTransactionReceipt({ hash })).status }))
+  const wait =
+    options.waitForReceipt ??
+    (async (hash: Hex) => ({ status: (await reads.waitForTransactionReceipt({ hash })).status }))
   const report = async (taskId: string, hash: Hex) => {
     await options.api.tool('report_transaction', { taskId, txHash: hash })
   }
@@ -54,7 +56,8 @@ export function createTxSender(options: TxSenderOptions) {
       if (options.sendBatch !== undefined && txs.length > 1) {
         const hash = await options.sendBatch([...txs])
         const receipt = await wait(hash)
-        if (receipt.status !== 'success') throw new SendError(`batch reverted: ${hash} (none of the steps happened)`, sent)
+        if (receipt.status !== 'success')
+          throw new SendError(`batch reverted: ${hash} (none of the steps happened)`, sent)
         record(0, txs.map((t) => t.description).join(' + '), hash, false)
         try {
           await report(taskId, hash)

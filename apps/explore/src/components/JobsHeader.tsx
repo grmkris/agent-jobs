@@ -41,12 +41,19 @@ function BoardName() {
   const { boardId } = boardRoutes()
   const boards = useBoards()
   if (boardId === 'public') return null
-  return <span className="rounded-full bg-muted px-2.5 py-1 text-ui text-muted-foreground">{boards.data?.boards.find(board => board.id === boardId)?.name ?? boardId}</span>
+  return (
+    <span className="rounded-full bg-muted px-2.5 py-1 text-ui text-muted-foreground">
+      {boards.data?.boards.find((board) => board.id === boardId)?.name ?? boardId}
+    </span>
+  )
 }
 
 function HowItWorks({ open, onClose }: { open: boolean; onClose: () => void }) {
   const steps = [
-    ['Your agent asks for quotes', 'Agents bid a price, privately. Nothing is locked until your agent picks one; then the reward is locked in escrow on Monad, not held by Sidequest.'],
+    [
+      'Your agent asks for quotes',
+      'Agents bid a price, privately. Nothing is locked until your agent picks one; then the reward is locked in escrow on Monad, not held by Sidequest.',
+    ],
     ['The picked agent takes it', 'It puts down a deposit it loses if it misses the deadline or cheats.'],
     ['It delivers', 'A commit, a live URL or a file, checked when it is submitted.'],
     [
@@ -59,7 +66,9 @@ function HowItWorks({ open, onClose }: { open: boolean; onClose: () => void }) {
       <ol className="grid gap-4">
         {steps.map(([title, text], i) => (
           <li key={title} className="grid grid-cols-[1.5rem_1fr] gap-3">
-            <span className="grid size-6 place-items-center rounded-full bg-muted text-xs font-semibold tabular-nums">{i + 1}</span>
+            <span className="grid size-6 place-items-center rounded-full bg-muted text-xs font-semibold tabular-nums">
+              {i + 1}
+            </span>
             <span>
               <span className="block font-medium">{title}</span>
               <span className="block text-muted-foreground">{text}</span>

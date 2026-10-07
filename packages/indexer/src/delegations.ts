@@ -10,7 +10,12 @@ export interface DelegationFilters {
   readonly toBlock?: number
 }
 
-export async function indexedDelegations(sql: AsyncSql, chainId: number, vault: Address, filters: DelegationFilters = {}): Promise<DelegationCandidate[]> {
+export async function indexedDelegations(
+  sql: AsyncSql,
+  chainId: number,
+  vault: Address,
+  filters: DelegationFilters = {},
+): Promise<DelegationCandidate[]> {
   const rows = await sql.all<{ account: string; delegator: string; generation: string }>(
     `WITH deposits AS (
       SELECT lower(json_extract(args_json,'$.account')) AS account,
@@ -27,10 +32,19 @@ export async function indexedDelegations(sql: AsyncSql, chainId: number, vault: 
         AND (r.block<d.block OR (r.block=d.block AND r.log_index<d.log_index))
       ORDER BY r.block DESC, r.log_index DESC LIMIT 1
     ),'0') AS generation FROM deposits d WHERE d.latest=1 ORDER BY d.account,d.delegator`,
-    chainId, vault, filters.toBlock ?? Number.MAX_SAFE_INTEGER,
-    ...(filters.wallet === undefined ? [] : [filters.wallet]), ...(filters.account === undefined ? [] : [filters.account]), chainId, vault,
+    chainId,
+    vault,
+    filters.toBlock ?? Number.MAX_SAFE_INTEGER,
+    ...(filters.wallet === undefined ? [] : [filters.wallet]),
+    ...(filters.account === undefined ? [] : [filters.account]),
+    chainId,
+    vault,
   )
-  return rows.map(row => ({ account: getAddress(row.account), delegator: getAddress(row.delegator), generation: BigInt(row.generation) }))
+  return rows.map((row) => ({
+    account: getAddress(row.account),
+    delegator: getAddress(row.delegator),
+    generation: BigInt(row.generation),
+  }))
 }
 
 export function delegatorsOf(sql: AsyncSql, chainId: number, vault: Address, account: Address, toBlock?: number) {

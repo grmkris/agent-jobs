@@ -11,15 +11,27 @@ export function v1FlowActions(d: V1FlowDeps, flow: V1CoreFlow, scope: string) {
   async function now() {
     return Number((await ctx.publicClient.getBlock()).timestamp)
   }
-  async function call(label: string, wallet: sdk.Wallet, target: Address, abi: readonly unknown[], fn: string, args: readonly unknown[], gas?: bigint) {
+  async function call(
+    label: string,
+    wallet: sdk.Wallet,
+    target: Address,
+    abi: readonly unknown[],
+    fn: string,
+    args: readonly unknown[],
+    gas?: bigint,
+  ) {
     const receipt = await j.contract(`${scope}/${label}`, wallet, target, abi as Abi, fn, args, gas)
     receipts.set(label, receipt)
     return receipt
   }
   async function approve(label: string, wallet: sdk.Wallet, token: Address, spender: Address, amount: bigint) {
     const needed = await j.once(`${scope}/${label}/needed`, async () => {
-      const allowance = await ctx.publicClient.readContract({ address: token, abi: erc20Abi,
-        functionName: 'allowance', args: [wallet.account.address, spender] })
+      const allowance = await ctx.publicClient.readContract({
+        address: token,
+        abi: erc20Abi,
+        functionName: 'allowance',
+        args: [wallet.account.address, spender],
+      })
       return allowance < amount
     })
     if (needed) await call(label, wallet, token, erc20Abi, 'approve', [spender, amount])
@@ -27,9 +39,13 @@ export function v1FlowActions(d: V1FlowDeps, flow: V1CoreFlow, scope: string) {
   async function publish(pair = ctx, options: { workerBond?: bigint; deliverySeconds?: number } = {}) {
     const p = await j.once(`${scope}/offer`, async () => {
       const t = await now()
-      const deadline = t + (flow === 'missed' ? 120 : options.deliverySeconds ?? 6 * 3600)
+      const deadline = t + (flow === 'missed' ? 120 : (options.deliverySeconds ?? 6 * 3600))
       const limits = sdk.minimumOfferWindows(await sdk.readWindowBounds(pair))
-      const windows = { reviewWindow: limits.reviewSeconds, disputeWindow: limits.disputeSeconds, arbitrationWindow: limits.arbitrationSeconds }
+      const windows = {
+        reviewWindow: limits.reviewSeconds,
+        disputeWindow: limits.disputeSeconds,
+        arbitrationWindow: limits.arbitrationSeconds,
+      }
       return {
         token: d.token,
         reward: d.reward,
@@ -54,7 +70,9 @@ export function v1FlowActions(d: V1FlowDeps, flow: V1CoreFlow, scope: string) {
       try {
         const event = decodeEventLog({ abi, data: log.data, topics: log.topics })
         if (event.eventName === 'Published') jobId = event.args.jobId
-      } catch { /* Other logs. */ }
+      } catch {
+        /* Other logs. */
+      }
     }
     if (jobId === undefined) throw new Error(`${flow}: no canonical Published event`)
     j.state.values[`${scope}/jobId`] = jobId
@@ -64,9 +82,15 @@ export function v1FlowActions(d: V1FlowDeps, flow: V1CoreFlow, scope: string) {
   async function activate(x: Awaited<ReturnType<typeof publish>>, pair = ctx) {
     const selectionData = await j.once(`${scope}/selection`, async () => {
       const listing = await sdk.getListing(pair, x.jobId)
-        sdk.assertActivationTerms(await sdk.getV1Listing(pair, x.jobId), { ...x.p, creator: creator.account.address })
-      const selection = { jobId: x.jobId, worker: worker.account.address, agentId: d.agentId,
-        termsHash: x.p.policyHash, activateBy: x.p.deliveryDeadline - 1, nonce: sdk.randomNonce() }
+      sdk.assertActivationTerms(await sdk.getV1Listing(pair, x.jobId), { ...x.p, creator: creator.account.address })
+      const selection = {
+        jobId: x.jobId,
+        worker: worker.account.address,
+        agentId: d.agentId,
+        termsHash: x.p.policyHash,
+        activateBy: x.p.deliveryDeadline - 1,
+        nonce: sdk.randomNonce(),
+      }
       const sig = await sdk.signSelection(pair, creator, selection)
       return { selection, sig, reward: listing.reward }
     })
@@ -75,7 +99,10 @@ export function v1FlowActions(d: V1FlowDeps, flow: V1CoreFlow, scope: string) {
     if (j.state.sends[`${scope}/activate`] === undefined) {
       const net = (await sdk.quoteActivation(pair, x.jobId, worker.account.address))[2]
       const auth = await sdk.signBudget(pair, worker, {
-        jobId: x.jobId, token: x.p.token, amount: net, deadline: BigInt(await now() + 3600),
+        jobId: x.jobId,
+        token: x.p.token,
+        amount: net,
+        deadline: BigInt((await now()) + 3600),
       })
       data = { ...selectionData, auth, net }
       j.state.values[`${scope}/activation`] = data
@@ -83,16 +110,22 @@ export function v1FlowActions(d: V1FlowDeps, flow: V1CoreFlow, scope: string) {
     } else {
       data = j.state.values[`${scope}/activation`] as typeof data
     }
-    await call('activate', worker, pair.stack.holding, sdk.sidequestHoldingAbi,
-      'activate', [data.selection, data.sig, data.auth])
+    await call('activate', worker, pair.stack.holding, sdk.sidequestHoldingAbi, 'activate', [
+      data.selection,
+      data.sig,
+      data.auth,
+    ])
     return data.net
   }
   function submit(jobId: bigint) {
-    return call('submit', worker, ctx.deployment.core, sdk.coreAbi, 'submit', [jobId, sdk.hashText(`deliverable:${flow}`), '0x'])
+    return call('submit', worker, ctx.deployment.core, sdk.coreAbi, 'submit', [
+      jobId,
+      sdk.hashText(`deliverable:${flow}`),
+      '0x',
+    ])
   }
   function settle(jobId: bigint, pair = ctx) {
-    return call('settle', relay, pair.stack.holding, sdk.sidequestHoldingAbi,
-      'settle', [jobId], sdk.V1_GAS.settle)
+    return call('settle', relay, pair.stack.holding, sdk.sidequestHoldingAbi, 'settle', [jobId], sdk.V1_GAS.settle)
   }
   return { now, receipts, call, approve, publish, activate, submit, settle }
 }

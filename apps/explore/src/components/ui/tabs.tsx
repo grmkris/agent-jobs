@@ -29,9 +29,18 @@ const tabsListVariants = cva(
   },
 )
 
-function TabsList({ className, variant = 'default', ...props }: TabsPrimitive.List.Props & VariantProps<typeof tabsListVariants>) {
+function TabsList({
+  className,
+  variant = 'default',
+  ...props
+}: TabsPrimitive.List.Props & VariantProps<typeof tabsListVariants>) {
   return (
-    <TabsPrimitive.List data-slot="tabs-list" data-variant={variant} className={cn(tabsListVariants({ variant }), className)} {...props} />
+    <TabsPrimitive.List
+      data-slot="tabs-list"
+      data-variant={variant}
+      className={cn(tabsListVariants({ variant }), className)}
+      {...props}
+    />
   )
 }
 
@@ -52,7 +61,13 @@ function TabsTrigger({ className, ...props }: TabsPrimitive.Tab.Props) {
 }
 
 function TabsContent({ className, ...props }: TabsPrimitive.Panel.Props) {
-  return <TabsPrimitive.Panel data-slot="tabs-content" className={cn('flex-1 text-sm outline-hidden', className)} {...props} />
+  return (
+    <TabsPrimitive.Panel
+      data-slot="tabs-content"
+      className={cn('flex-1 text-sm outline-hidden', className)}
+      {...props}
+    />
+  )
 }
 
 export { Tabs, TabsList, TabsTrigger, TabsContent }

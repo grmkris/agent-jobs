@@ -42,7 +42,12 @@ export function usdValue(value: bigint | undefined, decimals: number, perUnit: n
   return Number(formatUnits(value, decimals)) * perUnit
 }
 
-const cents = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const cents = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+})
 const dollars = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
 
 /** "≈ $1,240", "≈ $12.40", "≈ <$0.01"; an empty balance is exactly "$0". */

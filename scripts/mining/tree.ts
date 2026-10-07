@@ -7,7 +7,7 @@ import { encodeAbiParameters, keccak256, concat, type Hex } from './viem.ts'
  * `StandardMerkleTree.load`; tree.test.ts pins roots and proofs computed by the library itself.
  */
 export const LEAF_ENCODING = ['uint256', 'address', 'uint256'] as const
-const LEAF_PARAMS = LEAF_ENCODING.map(type => ({ type }))
+const LEAF_PARAMS = LEAF_ENCODING.map((type) => ({ type }))
 
 /** A leaf value as the dump stores it: decimal strings for the integers, a lowercase address. */
 export type LeafValue = readonly [string, `0x${string}`, string]
@@ -31,10 +31,14 @@ export function buildTree(values: readonly LeafValue[]): TreeDump {
   const hashed = values.map((value, valueIndex) => ({ valueIndex, hash: leafHash(value) }))
   hashed.sort((a, b) => (a.hash < b.hash ? -1 : a.hash > b.hash ? 1 : 0))
   const tree = Array.from<unknown, Hex>({ length: 2 * hashed.length - 1 }, () => '0x')
-  hashed.forEach((h, i) => { tree[tree.length - 1 - i] = h.hash })
+  hashed.forEach((h, i) => {
+    tree[tree.length - 1 - i] = h.hash
+  })
   for (let i = tree.length - 1 - hashed.length; i >= 0; i--) tree[i] = hashPair(tree[2 * i + 1]!, tree[2 * i + 2]!)
-  const indexed = values.map(value => ({ value, treeIndex: 0 }))
-  hashed.forEach((h, leafIndex) => { indexed[h.valueIndex]!.treeIndex = tree.length - 1 - leafIndex })
+  const indexed = values.map((value) => ({ value, treeIndex: 0 }))
+  hashed.forEach((h, leafIndex) => {
+    indexed[h.valueIndex]!.treeIndex = tree.length - 1 - leafIndex
+  })
   return { format: 'standard-v1', leafEncoding: LEAF_ENCODING, tree, values: indexed }
 }
 

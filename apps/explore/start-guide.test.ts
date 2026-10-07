@@ -11,9 +11,7 @@ import { renderStartGuide } from './start-guide.ts'
 import worker from './worker.ts'
 
 const source = readFileSync(new URL('../../skill/start.md', import.meta.url), 'utf8')
-const routes = [
-  ['/start.md', 'text/markdown; charset=utf-8'],
-] as const
+const routes = [['/start.md', 'text/markdown; charset=utf-8']] as const
 
 describe('agent start guide development routes', () => {
   let vite: ViteDevServer
@@ -36,7 +34,8 @@ describe('agent start guide development routes', () => {
 
   afterAll(async () => {
     await vite?.close()
-    if (http !== undefined) await new Promise<void>((resolve, reject) => http.close((error) => error ? reject(error) : resolve()))
+    if (http !== undefined)
+      await new Promise<void>((resolve, reject) => http.close((error) => (error ? reject(error) : resolve())))
   })
 
   it.each(routes)('serves %s from the repo with %s', async (path, type) => {
@@ -71,7 +70,11 @@ describe('agent start guide built assets and deployed routes', () => {
     })
     if ('on' in result) throw new Error('Unexpected build watcher')
     const output = Array.isArray(result) ? result.flatMap((bundle) => bundle.output) : result.output
-    files = Object.fromEntries(output.flatMap((file) => file.type === 'asset' && typeof file.source === 'string' ? [[`/${file.fileName}`, file.source]] : []))
+    files = Object.fromEntries(
+      output.flatMap((file) =>
+        file.type === 'asset' && typeof file.source === 'string' ? [[`/${file.fileName}`, file.source]] : [],
+      ),
+    )
   })
 
   const api = vi.fn(async () => new Response('unexpected API request', { status: 500 }))
@@ -83,11 +86,13 @@ describe('agent start guide built assets and deployed routes', () => {
         const body = files[path]
         return body === undefined
           ? new Response('<html>SPA fallback</html>', { headers: { 'Content-Type': 'text/html' } })
-          : new Response(request.method === 'HEAD' ? null : body, { headers: {
-            'Content-Type': 'application/octet-stream',
-            'Content-Length': String(Buffer.byteLength(body)),
-            ETag: 'template-etag',
-          } })
+          : new Response(request.method === 'HEAD' ? null : body, {
+              headers: {
+                'Content-Type': 'application/octet-stream',
+                'Content-Length': String(Buffer.byteLength(body)),
+                ETag: 'template-etag',
+              },
+            })
       },
     },
   })
@@ -97,45 +102,50 @@ describe('agent start guide built assets and deployed routes', () => {
     expect(files['/llms.txt']).toBeUndefined()
   })
 
-  it.each(['https://dev.sidequest.exchange', 'https://preview.example:8443'])('serves identical bodies with URLs at %s', async (origin) => {
-    const bodies = []
-    for (const [path, type] of routes) {
-      const response = await worker.fetch(new Request(`${origin}${path}?reader=agent`), env())
-      expect(response.status).toBe(200)
-      expect(response.headers.get('content-type')).toBe(type)
-      expect(response.headers.get('content-length')).toBeNull()
-      expect(response.headers.get('etag')).toBeNull()
-      expect(response.headers.get('x-content-type-options')).toBe('nosniff')
-      const body = await response.text()
-      expect(body).toBe(renderStartGuide(source, origin))
-      expect(body).not.toContain('{{SIDEQUEST_ORIGIN}}')
-      expect(body).toContain(`claude mcp add --transport http sidequest ${origin}/mcp`)
-      expect(body).toContain('# Set yourself up on Sidequest')
-      expect(body).toContain(`${origin}/skills/connector/SKILL.md`)
-      expect(body).toContain(`${origin}/skills/worker/SKILL.md`)
-      expect(body).toContain(`${origin}/skills/publisher/SKILL.md`)
-      expect(body).toContain('**work**, **hire**, or **work and hire**')
-      expect(body).toContain('Should I work, hire, or both?')
-      expect(body).toContain('never assume a role')
-      expect(body).toContain('`sidequest:work`, `sidequest:hire`,')
-      expect(body).toContain('| WORK | Find jobs, quote/apply, deliver.')
-      expect(body).toContain('| HIRE | Post jobs or request quotes, pick a worker, review/approve.')
-      expect(body).toContain('weekly allowance pulled from wallet[0]')
-      expect(body).toContain('above it becomes an Approval in Explore')
-      expect(body).toContain('bad delivery can slash it')
-      expect(body).toContain('small creator bond')
-      const loop = body.split('## 5. WORK only:')[1]?.split('## 6. HIRE:')[0]
-      expect(loop).toBeDefined()
-      expect(loop?.match(/WORK only: call inbox with the cursor saved in your journal, follow the worker skill/g)).toHaveLength(3)
-      expect(loop?.match(/do not publish hires/g)).toHaveLength(3)
-      expect(body).toContain(`adds\n\`${origin}/mcp\` as a custom connector`)
-      expect(body).toContain('`request_quotes` → `list_quotes` →')
-      expect(body).toContain('call `approve_work` only after checking the delivered work')
-      bodies.push(body)
-    }
-    expect(bodies).toHaveLength(1)
-    expect(api).not.toHaveBeenCalled()
-  })
+  it.each(['https://dev.sidequest.exchange', 'https://preview.example:8443'])(
+    'serves identical bodies with URLs at %s',
+    async (origin) => {
+      const bodies = []
+      for (const [path, type] of routes) {
+        const response = await worker.fetch(new Request(`${origin}${path}?reader=agent`), env())
+        expect(response.status).toBe(200)
+        expect(response.headers.get('content-type')).toBe(type)
+        expect(response.headers.get('content-length')).toBeNull()
+        expect(response.headers.get('etag')).toBeNull()
+        expect(response.headers.get('x-content-type-options')).toBe('nosniff')
+        const body = await response.text()
+        expect(body).toBe(renderStartGuide(source, origin))
+        expect(body).not.toContain('{{SIDEQUEST_ORIGIN}}')
+        expect(body).toContain(`claude mcp add --transport http sidequest ${origin}/mcp`)
+        expect(body).toContain('# Set yourself up on Sidequest')
+        expect(body).toContain(`${origin}/skills/connector/SKILL.md`)
+        expect(body).toContain(`${origin}/skills/worker/SKILL.md`)
+        expect(body).toContain(`${origin}/skills/publisher/SKILL.md`)
+        expect(body).toContain('**work**, **hire**, or **work and hire**')
+        expect(body).toContain('Should I work, hire, or both?')
+        expect(body).toContain('never assume a role')
+        expect(body).toContain('`sidequest:work`, `sidequest:hire`,')
+        expect(body).toContain('| WORK | Find jobs, quote/apply, deliver.')
+        expect(body).toContain('| HIRE | Post jobs or request quotes, pick a worker, review/approve.')
+        expect(body).toContain('weekly allowance pulled from wallet[0]')
+        expect(body).toContain('above it becomes an Approval in Explore')
+        expect(body).toContain('bad delivery can slash it')
+        expect(body).toContain('small creator bond')
+        const loop = body.split('## 5. WORK only:')[1]?.split('## 6. HIRE:')[0]
+        expect(loop).toBeDefined()
+        expect(
+          loop?.match(/WORK only: call inbox with the cursor saved in your journal, follow the worker skill/g),
+        ).toHaveLength(3)
+        expect(loop?.match(/do not publish hires/g)).toHaveLength(3)
+        expect(body).toContain(`adds\n\`${origin}/mcp\` as a custom connector`)
+        expect(body).toContain('`request_quotes` → `list_quotes` →')
+        expect(body).toContain('call `approve_work` only after checking the delivered work')
+        bodies.push(body)
+      }
+      expect(bodies).toHaveLength(1)
+      expect(api).not.toHaveBeenCalled()
+    },
+  )
 
   it.each(routes)('answers deployed HEAD %s without a body', async (path, type) => {
     const response = await worker.fetch(new Request(`https://dev.sidequest.exchange${path}`, { method: 'HEAD' }), env())
@@ -144,7 +154,12 @@ describe('agent start guide built assets and deployed routes', () => {
   })
 
   it.each(routes)('does not serve the SPA as a missing %s document', async (path) => {
-    const missing = { ...env(), ASSETS: { fetch: async () => new Response('<html>SPA fallback</html>', { headers: { 'Content-Type': 'text/html' } }) } }
+    const missing = {
+      ...env(),
+      ASSETS: {
+        fetch: async () => new Response('<html>SPA fallback</html>', { headers: { 'Content-Type': 'text/html' } }),
+      },
+    }
     const response = await worker.fetch(new Request(`https://dev.sidequest.exchange${path}`), missing)
     expect(response.status).toBe(404)
     expect(await response.text()).toBe('not found')
@@ -153,7 +168,9 @@ describe('agent start guide built assets and deployed routes', () => {
 
 describe('Explore onboarding examples', () => {
   it('gives the landing one role-free prompt that points at the served guide', () => {
-    expect(startPrompt('https://dev.sidequest.exchange')).toBe('Read https://dev.sidequest.exchange/start.md and set yourself up on Sidequest.')
+    expect(startPrompt('https://dev.sidequest.exchange')).toBe(
+      'Read https://dev.sidequest.exchange/start.md and set yourself up on Sidequest.',
+    )
     // start.md asks the human once whether to work, hire or both, so the prompt can stay role-free.
     expect(source).toMatch(/Should I work, hire, or both\?/)
     vi.stubGlobal('window', { location: { origin: 'https://dev.sidequest.exchange' } })

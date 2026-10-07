@@ -29,18 +29,22 @@ export const listMigrationFiles = (root: string): string[] => {
 export const readLock = (root: string): MigrationLock =>
   Schema.decodeUnknownSync(Lock)(JSON.parse(readFileSync(path.join(root, LOCK_FILE), 'utf8')))
 
-const hashesOf = (root: string): Record<string, string> => Object.fromEntries(
-  listMigrationFiles(root).map((file) => [
-    file,
-    createHash('sha256').update(readFileSync(path.join(root, MIGRATIONS_DIR, file))).digest('hex'),
-  ]),
-)
+const hashesOf = (root: string): Record<string, string> =>
+  Object.fromEntries(
+    listMigrationFiles(root).map((file) => [
+      file,
+      createHash('sha256')
+        .update(readFileSync(path.join(root, MIGRATIONS_DIR, file)))
+        .digest('hex'),
+    ]),
+  )
 
 const immutabilityProblems = (lock: MigrationLock, actual: Readonly<Record<string, string>>): string[] => {
   const problems: string[] = []
   for (const [file, hash] of Object.entries(lock.files)) {
     if (actual[file] === undefined) problems.push(`${MIGRATIONS_DIR}/${file}: locked migration deleted or renamed`)
-    else if (actual[file] !== hash) problems.push(`${MIGRATIONS_DIR}/${file}: locked migration edited; add a new migration`)
+    else if (actual[file] !== hash)
+      problems.push(`${MIGRATIONS_DIR}/${file}: locked migration edited; add a new migration`)
   }
   return problems
 }
@@ -51,7 +55,8 @@ export const checkMigrations = (root: string): string[] => {
   const actual = hashesOf(root)
   return [
     ...immutabilityProblems(lock, actual),
-    ...Object.keys(actual).filter((file) => lock.files[file] === undefined)
+    ...Object.keys(actual)
+      .filter((file) => lock.files[file] === undefined)
       .map((file) => `${MIGRATIONS_DIR}/${file}: unrecorded migration; review then run bun run migrations:record`),
   ]
 }
@@ -63,7 +68,9 @@ export const recordMigrations = (root: string): { problems: string[]; recorded: 
   const problems = immutabilityProblems(lock, actual)
   if (problems.length > 0) return { problems, recorded: [] }
   const recorded = Object.keys(actual).filter((file) => lock.files[file] === undefined)
-  const files = Object.fromEntries(Object.entries({ ...lock.files, ...actual }).toSorted(([a], [b]) => a < b ? -1 : a > b ? 1 : 0))
+  const files = Object.fromEntries(
+    Object.entries({ ...lock.files, ...actual }).toSorted(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
+  )
   writeFileSync(path.join(root, LOCK_FILE), `${JSON.stringify({ files }, null, 2)}\n`)
   return { problems: [], recorded }
 }

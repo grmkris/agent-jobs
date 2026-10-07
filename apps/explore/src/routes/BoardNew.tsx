@@ -15,7 +15,8 @@ import { PrivyLogin } from '../components/Privy.tsx'
 import type { useSignedIn } from '../components/Wallet.tsx'
 import { CopyRow, boardMcpUrl, embedSnippet } from './Boards.tsx'
 
-const toggle = (list: string[], set: (v: string[]) => void, v: string) => set(list.includes(v) ? list.filter((x) => x !== v) : [...list, v])
+const toggle = (list: string[], set: (v: string[]) => void, v: string) =>
+  set(list.includes(v) ? list.filter((x) => x !== v) : [...list, v])
 
 /** A multiple choice as Settings draws it: rows with a check on the chosen ones. */
 function Choices({
@@ -32,7 +33,14 @@ function Choices({
       {options.map((o) => (
         <Item
           key={o.value}
-          render={<button type="button" role="checkbox" aria-checked={chosen.includes(o.value)} onClick={() => onToggle(o.value)} />}
+          render={
+            <button
+              type="button"
+              role="checkbox"
+              aria-checked={chosen.includes(o.value)}
+              onClick={() => onToggle(o.value)}
+            />
+          }
         >
           <ItemContent className="flex-1">{o.label}</ItemContent>
           {chosen.includes(o.value) && <Check aria-hidden className="size-4 text-primary" strokeWidth={3} />}
@@ -92,8 +100,8 @@ export function BoardNewPage({ auth }: { auth: ReturnType<typeof useSignedIn> })
             <p className="flex items-start gap-3 text-sm leading-snug">
               <KeyRound aria-hidden className="mt-0.5 size-5 shrink-0 text-warning-text" />
               <span>
-                <span className="font-semibold">Webhook secret, shown once.</span> Copy it now: it signs every event sent to your webhook,
-                and Sidequest can&apos;t show it again.
+                <span className="font-semibold">Webhook secret, shown once.</span> Copy it now: it signs every event
+                sent to your webhook, and Sidequest can&apos;t show it again.
               </span>
             </p>
             <div className="flex items-center gap-2 rounded-xl bg-card py-2 pr-2 pl-3">

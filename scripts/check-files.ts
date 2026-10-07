@@ -121,9 +121,7 @@ const rootChecks = async (files: readonly string[]): Promise<StepResult[]> => {
   return results
 }
 
-const typecheck = async (
-  files: readonly string[],
-): Promise<StepResult[]> => {
+const typecheck = async (files: readonly string[]): Promise<StepResult[]> => {
   const owners = new Set(files.filter((file) => TYPED.test(file)).map(workspaceOf))
   if (owners.size === 0) return [{ step: 'typecheck', outcome: 'skipped', detail: 'no TypeScript or JSON files' }]
   const results: StepResult[] = []

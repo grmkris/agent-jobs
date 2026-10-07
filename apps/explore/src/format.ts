@@ -38,23 +38,34 @@ export const subscribeTokens = (listener: () => void) => {
   return () => tokenListeners.delete(listener)
 }
 
-export function registerTokens(tokens: ReadonlyArray<{ address: string; symbol: string; decimals: number; name?: string }>): void {
+export function registerTokens(
+  tokens: ReadonlyArray<{ address: string; symbol: string; decimals: number; name?: string }>,
+): void {
   let changed = false
   for (const t of tokens) {
     const a = t.address.toLowerCase()
     if (TOKENS[a] === undefined) {
-      TOKENS[a] = { symbol: t.symbol, ...(t.name === undefined ? {} : { name: t.name }), decimals: t.decimals, ...(isListedToken(a) ? {} : { unverified: true }) }
+      TOKENS[a] = {
+        symbol: t.symbol,
+        ...(t.name === undefined ? {} : { name: t.name }),
+        decimals: t.decimals,
+        ...(isListedToken(a) ? {} : { unverified: true }),
+      }
       changed = true
     }
   }
-  if (changed) { registryVersion++; tokenListeners.forEach((listener) => listener()) }
+  if (changed) {
+    registryVersion++
+    tokenListeners.forEach((listener) => listener())
+  }
 }
 
 /** A token's symbol and decimals once known; undefined for one not read yet. */
 export const tokenMeta = (address: string): TokenMeta | undefined => TOKENS[address.toLowerCase()]
 
 /** Every token known so far but the bond token: the listed ones, every board's, and any read from the chain. */
-export const rewardTokenList = () => Object.entries(TOKENS).filter(([a]) => a !== deployment.factory.toLowerCase() && a !== '')
+export const rewardTokenList = () =>
+  Object.entries(TOKENS).filter(([a]) => a !== deployment.factory.toLowerCase() && a !== '')
 
 export function tokenInfo(address: string | null | undefined): TokenMeta {
   const a = (address ?? '').toLowerCase()
@@ -85,7 +96,8 @@ export function budgetCap(eb: AdvanceBudgetTerms | CallBudgetTerms): string {
   return `${formatNumber(BigInt(eb.cap), 18)} MON for ${name}() on ${eb.target.slice(0, 8)}…${eb.target.slice(-4)}`
 }
 
-export const bond = (value: string | null | undefined) => (value === null || value === undefined ? '—' : `${formatNumber(BigInt(value), 18)} SIDE`)
+export const bond = (value: string | null | undefined) =>
+  value === null || value === undefined ? '—' : `${formatNumber(BigInt(value), 18)} SIDE`
 
 /** "3 h 5 min", "2 d 4 h", "40 s": a span of seconds at two units of precision. */
 export function span(seconds: number): string {
@@ -100,11 +112,18 @@ export function span(seconds: number): string {
 }
 
 /** "in 3 h", "2 d ago" relative to `now` (unix seconds). */
-export const relative = (unix: number, now = Date.now() / 1000) => (unix >= now ? `in ${span(unix - now)}` : `${span(now - unix)} ago`)
+export const relative = (unix: number, now = Date.now() / 1000) =>
+  unix >= now ? `in ${span(unix - now)}` : `${span(now - unix)} ago`
 
 /** A moment in the reader's own time zone: "Thu 1 Oct, 14:29". */
 export function localTime(unix: number): string {
-  return new Date(unix * 1000).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+  return new Date(unix * 1000).toLocaleString(undefined, {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 }
 
 export function toBase(value: string, token: string): bigint | null {

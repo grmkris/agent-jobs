@@ -19,17 +19,23 @@ const [input] = argv
 const network = flag('network')
 const out = flag('out')
 if (input === undefined || out === undefined || (network !== 'monad-testnet' && network !== 'monad-mainnet')) {
-  throw new Error('usage: bun scripts/mining/sign-prices.ts <unsigned.json> --network monad-testnet|monad-mainnet --out <signed.json> (--account <name> | --keystore <path>) --password-file <file>')
+  throw new Error(
+    'usage: bun scripts/mining/sign-prices.ts <unsigned.json> --network monad-testnet|monad-mainnet --out <signed.json> (--account <name> | --keystore <path>) --password-file <file>',
+  )
 }
 const configPath = resolve(flag('config') ?? join(import.meta.dirname, '../../contracts/config', `${network}.json`))
-const config = JSON.parse(readFileSync(configPath, 'utf8')) as { chainId: number; deployment: { sidequest?: { distributor: Address } } }
+const config = JSON.parse(readFileSync(configPath, 'utf8')) as {
+  chainId: number
+  deployment: { sidequest?: { distributor: Address } }
+}
 const distributor = config.deployment.sidequest?.distributor
 if (distributor === undefined) throw new Error(`${configPath} records no v1 deployment`)
 
 let signerArgs: string[]
 const keyEnv = flag('private-key-env')
 if (keyEnv !== undefined) {
-  if (network === 'monad-mainnet' || config.chainId === 143) throw new Error('mainnet signs from a keystore, never a raw key')
+  if (network === 'monad-mainnet' || config.chainId === 143)
+    throw new Error('mainnet signs from a keystore, never a raw key')
   const key = process.env[keyEnv]
   if (key === undefined || key === '') throw new Error(`set ${keyEnv}`)
   signerArgs = ['--private-key', key]
@@ -41,13 +47,22 @@ if (keyEnv !== undefined) {
     throw new Error('pass --account <name> or --keystore <path>, and --password-file <file>')
   }
   checkPasswordFile(password)
-  signerArgs = [...(account !== undefined ? ['--account', account] : ['--keystore', keystore!]), '--password-file', password]
+  signerArgs = [
+    ...(account !== undefined ? ['--account', account] : ['--keystore', keystore!]),
+    '--password-file',
+    password,
+  ]
 }
 
 /** Runs cast; a failure reports cast's own stderr, never the command line (it may hold a key). */
 function cast(args: string[]): string {
-  const run = spawnSync('cast', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, NO_COLOR: '1' } })
-  if (run.status !== 0) throw new Error(`cast ${args[0]} ${args[1]} failed: ${(run.stderr ?? '').trim().split('\n').slice(-3).join(' ')}`)
+  const run = spawnSync('cast', args, {
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+    env: { ...process.env, NO_COLOR: '1' },
+  })
+  if (run.status !== 0)
+    throw new Error(`cast ${args[0]} ${args[1]} failed: ${(run.stderr ?? '').trim().split('\n').slice(-3).join(' ')}`)
   return run.stdout.trim()
 }
 
@@ -64,7 +79,10 @@ try {
   const signer = cast(['wallet', 'address', ...signerArgs]).toLowerCase() as Address
   const recovered = await recoverPriceListSigner(list, signature, config.chainId, distributor)
   if (recovered !== signer) throw new Error(`the signature recovers ${recovered}, not the signer ${signer}`)
-  writeFileSync(out, `${JSON.stringify({ domain: typed.domain, message: typed.message, signer, signature }, null, 2)}\n`)
+  writeFileSync(
+    out,
+    `${JSON.stringify({ domain: typed.domain, message: typed.message, signer, signature }, null, 2)}\n`,
+  )
   console.log(`signed epoch ${list.epoch} prices for chain ${config.chainId} as ${signer}: ${out}`)
 } finally {
   rmSync(dir, { recursive: true, force: true })

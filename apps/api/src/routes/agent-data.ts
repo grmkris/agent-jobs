@@ -16,28 +16,38 @@ export interface IdentityReads {
 
 export function identityReads(client: Pick<PublicClient, 'readContract'>, identity: Address): IdentityReads {
   return {
-    owner: (agentId) => client.readContract({ address: identity, abi: sdk.identityAbi, functionName: 'ownerOf', args: [agentId] }),
-    wallet: (agentId) => client.readContract({ address: identity, abi: sdk.identityAbi, functionName: 'getAgentWallet', args: [agentId] }),
+    owner: (agentId) =>
+      client.readContract({ address: identity, abi: sdk.identityAbi, functionName: 'ownerOf', args: [agentId] }),
+    wallet: (agentId) =>
+      client.readContract({ address: identity, abi: sdk.identityAbi, functionName: 'getAgentWallet', args: [agentId] }),
   }
 }
 
-const isRevert = (error: unknown) => error instanceof BaseError && error.walk((e) => e instanceof ContractFunctionRevertedError) !== null
+const isRevert = (error: unknown) =>
+  error instanceof BaseError && error.walk((e) => e instanceof ContractFunctionRevertedError) !== null
 
 /**
  * Whether the agent is registered (null: the registry did not answer in time) and its agent wallet (null when none
  * is set or unknown). A revert of `ownerOf` means no such agent; anything else is "unknown", never "not registered".
  */
-export async function currentIdentity(reads: IdentityReads | undefined, agentId: bigint, timeoutMs = 2_000): Promise<{ registered: boolean | null; wallet: Address | null }> {
+export async function currentIdentity(
+  reads: IdentityReads | undefined,
+  agentId: bigint,
+  timeoutMs = 2_000,
+): Promise<{ registered: boolean | null; wallet: Address | null }> {
   if (reads === undefined) return { registered: null, wallet: null }
   let timer: ReturnType<typeof setTimeout> | undefined
-  const timeout = new Promise<'timeout'>((resolve) => { timer = setTimeout(() => resolve('timeout'), timeoutMs) })
+  const timeout = new Promise<'timeout'>((resolve) => {
+    timer = setTimeout(() => resolve('timeout'), timeoutMs)
+  })
   const settled = Promise.allSettled([reads.owner(agentId), reads.wallet(agentId)])
   try {
     const result = await Promise.race([settled, timeout])
     if (result === 'timeout') return { registered: null, wallet: null }
     const [owner, wallet] = result
     const registered = owner.status === 'fulfilled' ? true : isRevert(owner.reason) ? false : null
-    const address = registered === true && wallet.status === 'fulfilled' && wallet.value !== zeroAddress ? wallet.value : null
+    const address =
+      registered === true && wallet.status === 'fulfilled' && wallet.value !== zeroAddress ? wallet.value : null
     return { registered, wallet: address }
   } finally {
     clearTimeout(timer)
@@ -52,15 +62,35 @@ export async function agentDataBody(sql: AsyncSql, chainId: number, agentId: str
   const detail = await agentDetail(sql, chainId, agentId, identity.wallet === null ? [] : [identity.wallet])
   const meta = { registered: identity.registered, currentWallet: identity.wallet }
   if (detail === undefined) {
-    if (identity.registered !== true) return { ok: false as const, code: 'not-found', message: 'this agent has no record here' }
+    if (identity.registered !== true)
+      return { ok: false as const, code: 'not-found', message: 'this agent has no record here' }
     return {
-      ok: true as const, ...meta,
+      ok: true as const,
+      ...meta,
       agent: { agentId, jobs: 0, completed: 0, inProgress: 0, lost: 0, earned: {}, feedback: {}, lastBlock: 0 },
-      wallets: [], bonds: {}, jobs: [], feedback: [], posted: [],
-      work: { earned: {} }, hiring: { posted: 0, open: 0, paidOut: {} }, time: NONE,
+      wallets: [],
+      bonds: {},
+      jobs: [],
+      feedback: [],
+      posted: [],
+      work: { earned: {} },
+      hiring: { posted: 0, open: 0, paidOut: {} },
+      time: NONE,
     }
   }
-  const boards = await boardsOfTerms(sql, [...detail.jobs, ...detail.posted].map((j) => j.policy_hash)).catch(() => new Map<string, string>())
-  const withBoard = <T extends { policy_hash: string | null }>(job: T) => ({ ...job, board_id: job.policy_hash === null ? null : (boards.get(job.policy_hash.toLowerCase()) ?? null) })
-  return { ok: true as const, ...meta, ...detail, jobs: detail.jobs.map(withBoard), posted: detail.posted.map(withBoard) }
+  const boards = await boardsOfTerms(
+    sql,
+    [...detail.jobs, ...detail.posted].map((j) => j.policy_hash),
+  ).catch(() => new Map<string, string>())
+  const withBoard = <T extends { policy_hash: string | null }>(job: T) => ({
+    ...job,
+    board_id: job.policy_hash === null ? null : (boards.get(job.policy_hash.toLowerCase()) ?? null),
+  })
+  return {
+    ok: true as const,
+    ...meta,
+    ...detail,
+    jobs: detail.jobs.map(withBoard),
+    posted: detail.posted.map(withBoard),
+  }
 }

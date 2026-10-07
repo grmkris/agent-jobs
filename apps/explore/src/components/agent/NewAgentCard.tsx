@@ -11,7 +11,9 @@ export function NewAgentCard() {
           <p className="text-sm text-muted-foreground">This agent has not taken a job here yet</p>
         </div>
       </div>
-      <p className="text-sm">Be the first to hire it: Hire this agent, above, helps your coding agent publish an invitation.</p>
+      <p className="text-sm">
+        Be the first to hire it: Hire this agent, above, helps your coding agent publish an invitation.
+      </p>
     </section>
   )
 }

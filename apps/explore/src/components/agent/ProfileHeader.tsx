@@ -17,17 +17,29 @@ import { AgentOrb } from './AgentOrb.tsx'
 const canonicalAgentUrl = (origin: string, id: string) => `${new URL(origin).origin}/agent/${id}`
 
 function ExplorerMenu({ id, wallet }: { id: string; wallet: `0x${string}` | undefined }) {
-  const links = [...agentExplorerLinks(id).map((link) => ({ label: `Agent on ${link.name}`, href: link.href })), ...(wallet === undefined ? [] : [{ label: 'Wallet on Monadscan', href: explorer('address', wallet) }])]
+  const links = [
+    ...agentExplorerLinks(id).map((link) => ({ label: `Agent on ${link.name}`, href: link.href })),
+    ...(wallet === undefined ? [] : [{ label: 'Wallet on Monadscan', href: explorer('address', wallet) }]),
+  ]
   return (
     <Popover>
-      <PopoverTrigger aria-label="Look it up on an explorer" title="Look it up on an explorer" className={buttonVariants({ variant: 'outline', size: 'icon' })}>
+      <PopoverTrigger
+        aria-label="Look it up on an explorer"
+        title="Look it up on an explorer"
+        className={buttonVariants({ variant: 'outline', size: 'icon' })}
+      >
         <ExternalLink aria-hidden />
       </PopoverTrigger>
       <PopoverContent align="end" className="w-[min(27rem,calc(100vw-1rem))]">
         <PopoverTitle className="sr-only">Explorer links</PopoverTitle>
         {links.map((link) => (
           <div key={link.label} className="flex min-w-0 items-center gap-2 rounded-md p-1">
-            <a href={link.href} target="_blank" rel="noreferrer noopener" className="grid min-w-0 flex-1 gap-0.5 rounded-md px-1 py-1.5 outline-none hover:text-primary focus-visible:ring-2 focus-visible:ring-ring">
+            <a
+              href={link.href}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="grid min-w-0 flex-1 gap-0.5 rounded-md px-1 py-1.5 outline-none hover:text-primary focus-visible:ring-2 focus-visible:ring-ring"
+            >
               <span className="font-medium">{link.label}</span>
               <span className="break-all font-mono text-xs text-muted-foreground">{link.href}</span>
             </a>
@@ -46,14 +58,24 @@ function OwnerDetails({ identity }: { identity: AgentIdentity }) {
   const ignoreClosingFocus = useRef(false)
   const profile = identity.profile
   return (
-    <Popover open={open} onOpenChange={(next, details) => { if (!next && details.reason === 'escape-key') ignoreClosingFocus.current = true; setOpen(next) }}>
+    <Popover
+      open={open}
+      onOpenChange={(next, details) => {
+        if (!next && details.reason === 'escape-key') ignoreClosingFocus.current = true
+        setOpen(next)
+      }}
+    >
       <PopoverTrigger
         aria-label="Agent owner information"
         openOnHover
         delay={150}
         closeDelay={150}
-        onPointerDown={() => { ignoreClosingFocus.current = false }}
-        onKeyDown={(event) => { if (event.key !== 'Tab') ignoreClosingFocus.current = false }}
+        onPointerDown={() => {
+          ignoreClosingFocus.current = false
+        }}
+        onKeyDown={(event) => {
+          if (event.key !== 'Tab') ignoreClosingFocus.current = false
+        }}
         onFocus={(event) => {
           if (ignoreClosingFocus.current) {
             ignoreClosingFocus.current = false
@@ -68,18 +90,37 @@ function OwnerDetails({ identity }: { identity: AgentIdentity }) {
       </PopoverTrigger>
       <PopoverContent align="start">
         <PopoverTitle>Agent owner</PopoverTitle>
-        {identity.owner === undefined ? <p className="text-muted-foreground">Owner information is unavailable.</p> : <Address value={identity.owner} />}
-        {profile?.kind === 'link' && (
-          profile.href === null ? <p className="break-all text-xs text-muted-foreground">{profile.url}</p> : (
-            <a href={profile.href} target="_blank" rel="noreferrer noopener" className="break-all text-sm underline underline-offset-4">{profile.url}</a>
-          )
+        {identity.owner === undefined ? (
+          <p className="text-muted-foreground">Owner information is unavailable.</p>
+        ) : (
+          <Address value={identity.owner} />
         )}
+        {profile?.kind === 'link' &&
+          (profile.href === null ? (
+            <p className="break-all text-xs text-muted-foreground">{profile.url}</p>
+          ) : (
+            <a
+              href={profile.href}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="break-all text-sm underline underline-offset-4"
+            >
+              {profile.url}
+            </a>
+          ))}
       </PopoverContent>
     </Popover>
   )
 }
 
-export function ProfileHeader({ id, identity, wallet, directory, owner, onBack }: {
+export function ProfileHeader({
+  id,
+  identity,
+  wallet,
+  directory,
+  owner,
+  onBack,
+}: {
   id: string
   identity: AgentIdentity
   wallet: `0x${string}` | undefined
@@ -97,7 +138,9 @@ export function ProfileHeader({ id, identity, wallet, directory, owner, onBack }
       <div className="flex items-center gap-5">
         {profile?.image !== null && profile?.image !== undefined ? (
           <img src={profile.image} alt="" className="size-18 shrink-0 rounded-full bg-muted object-cover" />
-        ) : <AgentOrb agentId={id} size="lg" status={status} />}
+        ) : (
+          <AgentOrb agentId={id} size="lg" status={status} />
+        )}
         <div className="grid min-w-0 gap-1">
           <h1 className="text-3xl leading-tight font-semibold tracking-tight [overflow-wrap:anywhere]">{title}</h1>
           <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-muted-foreground">
@@ -114,12 +157,26 @@ export function ProfileHeader({ id, identity, wallet, directory, owner, onBack }
           </div>
         </div>
       </div>
-      {profile?.description !== null && profile?.description !== undefined && <p className="leading-relaxed text-muted-foreground">{profile.description}</p>}
+      {profile?.description !== null && profile?.description !== undefined && (
+        <p className="leading-relaxed text-muted-foreground">{profile.description}</p>
+      )}
       {identity.exists !== false && (
         <div className="flex flex-wrap items-center gap-2">
-          {!owner && <CreateWithAgent context="hire" agentId={id}>Hire this agent</CreateWithAgent>}
-          {wallet !== undefined && <Button variant="secondary" onClick={onBack}>Back this agent</Button>}
-          <CopyButton value={canonicalAgentUrl(window.location.origin, id)} label="Share this agent" className={buttonVariants({ variant: 'outline', size: 'icon' })} />
+          {!owner && (
+            <CreateWithAgent context="hire" agentId={id}>
+              Hire this agent
+            </CreateWithAgent>
+          )}
+          {wallet !== undefined && (
+            <Button variant="secondary" onClick={onBack}>
+              Back this agent
+            </Button>
+          )}
+          <CopyButton
+            value={canonicalAgentUrl(window.location.origin, id)}
+            label="Share this agent"
+            className={buttonVariants({ variant: 'outline', size: 'icon' })}
+          />
           <ExplorerMenu id={id} wallet={wallet} />
         </div>
       )}

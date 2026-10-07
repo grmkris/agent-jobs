@@ -47,7 +47,15 @@
     --color-fd-ring: oklch(0.6 0.02 255);
     color-scheme: dark;
   }
-  .shiki, .shiki span { color: var(--shiki-dark) !important; background-color: var(--shiki-dark-bg) !important; }
+  .shiki,
+  .shiki span {
+    color: var(--shiki-dark) !important;
+    background-color: var(--shiki-dark-bg) !important;
+  }
 }
-html { font-family: 'Geist Variable', ui-sans-serif, sans-serif; }
-#nd-sidebar { background: color-mix(in oklch, var(--color-fd-muted), var(--color-fd-background) 35%); }
+html {
+  font-family: 'Geist Variable', ui-sans-serif, sans-serif;
+}
+#nd-sidebar {
+  background: color-mix(in oklch, var(--color-fd-muted), var(--color-fd-background) 35%);
+}

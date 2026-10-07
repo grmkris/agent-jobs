@@ -48,7 +48,17 @@ export function SidequestProvider({
       provider: p,
       address: a,
       ...(sendBatch === undefined ? {} : { sendBatch }),
-      sender: p === null || a === null ? null : createTxSender({ api, provider: p, from: a, chain, ...(rpcUrl === undefined ? {} : { rpcUrl }), ...(sendBatch === undefined ? {} : { sendBatch }) }),
+      sender:
+        p === null || a === null
+          ? null
+          : createTxSender({
+              api,
+              provider: p,
+              from: a,
+              chain,
+              ...(rpcUrl === undefined ? {} : { rpcUrl }),
+              ...(sendBatch === undefined ? {} : { sendBatch }),
+            }),
     }
   }, [api, chain, rpcUrl, provider, address, sendBatch])
   return <Ctx value={value}>{children}</Ctx>

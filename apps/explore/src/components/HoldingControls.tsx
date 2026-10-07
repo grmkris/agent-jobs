@@ -91,12 +91,15 @@ export function HoldingControls({
               )}
             </p>
             <p className="text-sm text-muted-foreground">
-              Expires {grace === undefined ? 'at an unreadable time' : <When at={Number(pending![1]) + grace} show="time" />}
+              Expires{' '}
+              {grace === undefined ? 'at an unreadable time' : <When at={Number(pending![1]) + grace} show="time" />}
             </p>
             {refused === true ? (
               <Badge variant="destructive">Refused</Badge>
             ) : (
-              <p className="text-sm text-muted-foreground">A Holding you refuse can never reserve this account's backing.</p>
+              <p className="text-sm text-muted-foreground">
+                A Holding you refuse can never reserve this account's backing.
+              </p>
             )}
             {state !== 'expired' && (
               <Button
@@ -114,8 +117,14 @@ export function HoldingControls({
       {denied === true && (
         <Section title="You refused the Holding in use">
           <ItemGroup className="grid gap-3 p-4">
-            <p className="text-sm text-muted-foreground">It cannot reserve this wallet's backing for new job deposits at risk.</p>
-            <Button variant="secondary" disabled={disabled || reads.isError} onClick={() => onVeto(contracts.holding, false)}>
+            <p className="text-sm text-muted-foreground">
+              It cannot reserve this wallet's backing for new job deposits at risk.
+            </p>
+            <Button
+              variant="secondary"
+              disabled={disabled || reads.isError}
+              onClick={() => onVeto(contracts.holding, false)}
+            >
               Allow it again
             </Button>
           </ItemGroup>

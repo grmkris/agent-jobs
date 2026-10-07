@@ -45,7 +45,12 @@ export interface DirectoryAgent {
   agentURI: string
   enrolled: boolean
   ownership: 'verified' | 'unknown' | 'changed'
-  presence: { freshness: 'fresh' | 'stale' | 'unknown'; state: Availability | null; accepting: boolean; lastSeenBucket: number | null }
+  presence: {
+    freshness: 'fresh' | 'stale' | 'unknown'
+    state: Availability | null
+    accepting: boolean
+    lastSeenBucket: number | null
+  }
   ads: Array<ServiceAdvertisement & { adHash: Hex; expiresAt: number }>
   /** A Sidequest-hosted agent's last MCP call, to five minutes; absent for self-run agents. */
   activity?: { lastMcpCallAt: number }
@@ -60,7 +65,10 @@ export function canonicalDirectoryJson(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonicalDirectoryJson).join(',')}]`
   if (typeof value === 'object' && value !== null && Object.getPrototypeOf(value) === Object.prototype) {
     const object = value as Record<string, unknown>
-    return `{${Object.keys(object).toSorted().map((key) => `${JSON.stringify(key)}:${canonicalDirectoryJson(object[key])}`).join(',')}}`
+    return `{${Object.keys(object)
+      .toSorted()
+      .map((key) => `${JSON.stringify(key)}:${canonicalDirectoryJson(object[key])}`)
+      .join(',')}}`
   }
   throw new Error('directory records must be bounded JSON with safe integer numbers')
 }
@@ -80,7 +88,12 @@ export const directoryRecordFields = [
   { name: 'expiresAt', type: 'uint256' },
   { name: 'payloadHash', type: 'bytes32' },
 ] as const
-const RECORD_TYPES = { Enrollment: directoryRecordFields, Heartbeat: directoryRecordFields, ServiceAd: directoryRecordFields, RevokeAd: directoryRecordFields } as const
+const RECORD_TYPES = {
+  Enrollment: directoryRecordFields,
+  Heartbeat: directoryRecordFields,
+  ServiceAd: directoryRecordFields,
+  RevokeAd: directoryRecordFields,
+} as const
 
 /** The directory's EIP-712 domain fields: no contract verifies them, so the audience is bound by `salt`. */
 export const directoryDomainFields = [
@@ -92,7 +105,8 @@ export const directoryDomainFields = [
 ] as const
 
 /** A directory record's domain name: presence (enrollment, heartbeat) or service ads. */
-export const directoryDomainName = (kind: DirectoryKind) => (kind === 'ServiceAd' || kind === 'RevokeAd' ? 'SidequestServiceAd' : 'SidequestPresence')
+export const directoryDomainName = (kind: DirectoryKind) =>
+  kind === 'ServiceAd' || kind === 'RevokeAd' ? 'SidequestServiceAd' : 'SidequestPresence'
 
 export function directoryTypedData(record: DirectoryEnvelope) {
   return {
@@ -129,19 +143,33 @@ export const directoryRecordHash = (record: DirectoryEnvelope): Hex => hashTyped
 export function directoryTypedDataJson(record: DirectoryEnvelope): string {
   const typed = directoryTypedData(record)
   return JSON.stringify(
-    { types: { EIP712Domain: directoryDomainFields, [record.kind]: directoryRecordFields }, primaryType: typed.primaryType, domain: typed.domain, message: typed.message },
+    {
+      types: { EIP712Domain: directoryDomainFields, [record.kind]: directoryRecordFields },
+      primaryType: typed.primaryType,
+      domain: typed.domain,
+      message: typed.message,
+    },
     (_, value) => (typeof value === 'bigint' ? value.toString() : value),
   )
 }
 
 export function directoryProfileURI(profile: DirectoryProfile): string {
-  const file = { type: 'https://eips.ethereum.org/EIPS/eip-8004#registration-v1', name: profile.name, description: profile.description, services: [], active: true }
+  const file = {
+    type: 'https://eips.ethereum.org/EIPS/eip-8004#registration-v1',
+    name: profile.name,
+    description: profile.description,
+    services: [],
+    active: true,
+  }
   return `data:application/json,${encodeURIComponent(JSON.stringify(file))}`
 }
 
 export function prepareDirectoryIdentity(identityRegistry: Address, profile: DirectoryProfile, agentId?: string) {
   const agentURI = directoryProfileURI(profile)
-  if (agentId !== undefined) throw new Error('this deployment does not expose mutable setAgentURI; prepare a new profile transaction through the registry owner')
+  if (agentId !== undefined)
+    throw new Error(
+      'this deployment does not expose mutable setAgentURI; prepare a new profile transaction through the registry owner',
+    )
   const data = encodeFunctionData({ abi: identityAbi, functionName: 'register', args: [agentURI] })
   return { transaction: { to: identityRegistry, data, value: '0' }, agentURI, requiresWalletConfirmation: true }
 }

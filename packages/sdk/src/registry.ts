@@ -21,8 +21,12 @@ export interface AgentWalletConsent {
 }
 
 export function agentWalletTypedData(d: Deployment, consent: AgentWalletConsent): string {
-  return typedDataJson({ name: 'ERC8004IdentityRegistry', version: '1', chainId: d.chainId, verifyingContract: d.identity },
-    agentWalletTypes, 'AgentWalletSet', consent)
+  return typedDataJson(
+    { name: 'ERC8004IdentityRegistry', version: '1', chainId: d.chainId, verifyingContract: d.identity },
+    agentWalletTypes,
+    'AgentWalletSet',
+    consent,
+  )
 }
 
 export function registerCalldata(agentURI: string): Hex {
@@ -31,5 +35,9 @@ export function registerCalldata(agentURI: string): Hex {
 }
 
 export function setAgentWalletCalldata(consent: AgentWalletConsent, signature: Hex): Hex {
-  return encodeFunctionData({ abi: identityAbi, functionName: 'setAgentWallet', args: [consent.agentId, consent.newWallet, consent.deadline, signature] })
+  return encodeFunctionData({
+    abi: identityAbi,
+    functionName: 'setAgentWallet',
+    args: [consent.agentId, consent.newWallet, consent.deadline, signature],
+  })
 }

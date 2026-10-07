@@ -10,7 +10,14 @@ if (input === '' || githubEnv === undefined) {
 }
 try {
   const value = JSON.parse(input)
-  if (typeof value !== 'object' || value === null || typeof value.url !== 'string' || typeof value.authToken !== 'string' || typeof value.accountId !== 'string') throw new Error('invalid credential shape')
+  if (
+    typeof value !== 'object' ||
+    value === null ||
+    typeof value.url !== 'string' ||
+    typeof value.authToken !== 'string' ||
+    typeof value.accountId !== 'string'
+  )
+    throw new Error('invalid credential shape')
 } catch {
   console.log('::error::state-store credential is not valid JSON')
   process.exit(1)

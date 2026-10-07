@@ -71,7 +71,8 @@ export function OperatorGrant({ operator, onReady }: { operator: Address; onRead
   return (
     <div className="grid gap-4">
       <p className="text-sm leading-relaxed text-muted-foreground">
-        First, enable gas sponsorship for your operator wallet. Your browser signs its upgrade and this grant; the relay sends the upgrade.
+        First, enable gas sponsorship for your operator wallet. Your browser signs its upgrade and this grant; the relay
+        sends the upgrade.
       </p>
       {review === null ? (
         <Button busy={busy} onClick={() => void prepare()}>

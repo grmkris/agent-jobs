@@ -31,7 +31,11 @@ import { typedDataArgs } from '../typed-data.ts'
 import { chain, deployment, wagmiConfig } from '../wallet.ts'
 
 const SUB = 'Sidequest pays the gas for your Sidequest transactions.'
-const ENDED = { expired: 'Your last permission expired.', used: 'Your last permission is used up.', revoked: 'You turned it off.' } as const
+const ENDED = {
+  expired: 'Your last permission expired.',
+  used: 'Your last permission is used up.',
+  revoked: 'You turned it off.',
+} as const
 
 /**
  * Gas sponsorship onboarding (U7, ADR B6): one ERC-7710 delegation from the wallet's EIP-7702 DeleGator to Sidequest's
@@ -90,7 +94,9 @@ function Sponsorship({ wallet, rules }: { wallet: string; rules: SponsorRules })
     try {
       if (p.upgrade !== null) {
         if (upgrade === null)
-          throw new Error('Turn this on from your Sidequest email or Google wallet so it can enable sponsored transactions.')
+          throw new Error(
+            'Turn this on from your Sidequest email or Google wallet so it can enable sponsored transactions.',
+          )
         const hash = await upgrade()
         if (hash !== null) await waitForTransactionReceipt(wagmiConfig, { hash, chainId: chain.id })
       }
@@ -174,7 +180,9 @@ function Sponsorship({ wallet, rules }: { wallet: string; rules: SponsorRules })
         ) : (
           <div className="grid gap-2">
             <Alert variant="destructive">
-              <AlertDescription>The permission on file does not read as Sidequest’s: {live.problem} Turn it off.</AlertDescription>
+              <AlertDescription>
+                The permission on file does not read as Sidequest’s: {live.problem} Turn it off.
+              </AlertDescription>
             </Alert>
             <Button variant="destructive" busy={busy === 'revoke'} onClick={() => setTurningOff(true)}>
               Turn off
@@ -192,8 +200,8 @@ function Sponsorship({ wallet, rules }: { wallet: string; rules: SponsorRules })
                   </span>
                 </ItemMedia>
                 <ItemContent className="min-w-0 flex-1 text-sm leading-snug">
-                  You sign one permission. Sidequest’s relay then sends your hires, deliveries, approvals and payouts, and pays their gas:
-                  only calls to Sidequest’s contracts, a limited number of times, until it expires.
+                  You sign one permission. Sidequest’s relay then sends your hires, deliveries, approvals and payouts,
+                  and pays their gas: only calls to Sidequest’s contracts, a limited number of times, until it expires.
                 </ItemContent>
               </Item>
             </ItemGroup>
@@ -288,7 +296,8 @@ function Policy({ policy }: { policy: SponsorPolicy }) {
       </ItemGroup>
       <Details summary="Technical details">
         <p className="text-sm text-muted-foreground">
-          A zero-value ERC-7710 delegation limits the relay to these contracts and methods. The wallet uses EIP-7702 for the initial setup.
+          A zero-value ERC-7710 delegation limits the relay to these contracts and methods. The wallet uses EIP-7702 for
+          the initial setup.
         </p>
         <ItemGroup>
           <Item>

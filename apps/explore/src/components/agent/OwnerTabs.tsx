@@ -25,7 +25,21 @@ const triggerClass = 'flex-none px-0 min-h-9 pointer-coarse:min-h-11 group-data-
  * approvals (waiting first, then the decided ones) and Manage (budget, wallet, backing, connection, access). The tab
  * is kept in the URL; an approval link (`?tab=approvals&approval=<id>`) opens Approvals with that approval in view.
  */
-export function OwnerTabs({ managed, overview, posted, taken, overviewRequest = 0, onBack }: { managed: ManagedAgent; overview: ReactNode; posted: readonly RecordJob[] | undefined; taken: readonly RecordJob[] | undefined; overviewRequest?: number; onBack: () => void }) {
+export function OwnerTabs({
+  managed,
+  overview,
+  posted,
+  taken,
+  overviewRequest = 0,
+  onBack,
+}: {
+  managed: ManagedAgent
+  overview: ReactNode
+  posted: readonly RecordJob[] | undefined
+  taken: readonly RecordJob[] | undefined
+  overviewRequest?: number
+  onBack: () => void
+}) {
   const [tab, setTab] = useState(() => ownerTab(window.location.search))
   const [focus, setFocus] = useState(() => focusedApproval(window.location.search))
   const [scrollTo, setScrollTo] = useState<string | null>(null)
@@ -34,7 +48,12 @@ export function OwnerTabs({ managed, overview, posted, taken, overviewRequest = 
   const mine = (approvals.data?.approvals ?? []).filter((a) => a.agent_id === managed.id)
   const pending = mine.filter((a) => a.status === 'pending').length
   const unfinished = mine.filter(unfinishedApproval).length
-  const status = useQuery({ queryKey: ['managed-agent-status', managed.id, auth.address], queryFn: () => agentStatus(managed.id), refetchInterval: 20000, enabled: managed.state !== 'pending' })
+  const status = useQuery({
+    queryKey: ['managed-agent-status', managed.id, auth.address],
+    queryFn: () => agentStatus(managed.id),
+    refetchInterval: 20000,
+    enabled: managed.state !== 'pending',
+  })
   const now = useNow()
   const items = needsYou({
     pendingApprovals: pending,
@@ -47,11 +66,18 @@ export function OwnerTabs({ managed, overview, posted, taken, overviewRequest = 
     now,
   })
   useEffect(() => {
-    window.history.replaceState(window.history.state, '', `${window.location.pathname}${ownerSearch(window.location.search, tab)}`)
+    window.history.replaceState(
+      window.history.state,
+      '',
+      `${window.location.pathname}${ownerSearch(window.location.search, tab)}`,
+    )
   }, [tab])
   useEffect(() => {
     if (scrollTo === null) return
-    document.getElementById(scrollTo)?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' })
+    document.getElementById(scrollTo)?.scrollIntoView({
+      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+      block: 'start',
+    })
     setScrollTo(null)
   }, [scrollTo, tab])
   // The approval a link pointed at is shown once: leaving Approvals lets it go.
@@ -70,35 +96,39 @@ export function OwnerTabs({ managed, overview, posted, taken, overviewRequest = 
     setScrollTo('profile-backing')
   }, [overviewRequest])
   return (
-      <Tabs value={tab} onValueChange={(value) => go(value as OwnerTab)} className="gap-7">
-        <TabsList variant="line" aria-label="Your agent" className="w-full justify-start gap-5 rounded-none border-b p-0 group-data-horizontal/tabs:h-auto">
-          <TabsTrigger value="overview" className={triggerClass}>
-            Overview
-          </TabsTrigger>
-          <TabsTrigger value="approvals" className={triggerClass}>
-            Approvals
-            {pending + unfinished > 0 && (
-              <span className="tabular-nums rounded-full bg-warning/15 px-1.5 text-micro font-semibold text-warning-text">
-                {pending + unfinished}
-                <span className="sr-only"> need you</span>
-              </span>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="manage" className={triggerClass}>
-            Manage
-          </TabsTrigger>
-        </TabsList>
-        <TabsContent value="overview" className="grid gap-7 text-base">
-          <NeedsYouStrip items={items} onTab={(t) => open(t)} />
-          {overview}
-        </TabsContent>
-        <TabsContent value="approvals" className="grid gap-7 text-base">
-          <Approvals managed={managed} posted={posted} focus={focus} />
-        </TabsContent>
-        <TabsContent value="manage" className="grid gap-7 text-base">
-          <ManagedAgentCard agent={managed} onBack={onBack} />
-        </TabsContent>
-      </Tabs>
+    <Tabs value={tab} onValueChange={(value) => go(value as OwnerTab)} className="gap-7">
+      <TabsList
+        variant="line"
+        aria-label="Your agent"
+        className="w-full justify-start gap-5 rounded-none border-b p-0 group-data-horizontal/tabs:h-auto"
+      >
+        <TabsTrigger value="overview" className={triggerClass}>
+          Overview
+        </TabsTrigger>
+        <TabsTrigger value="approvals" className={triggerClass}>
+          Approvals
+          {pending + unfinished > 0 && (
+            <span className="tabular-nums rounded-full bg-warning/15 px-1.5 text-micro font-semibold text-warning-text">
+              {pending + unfinished}
+              <span className="sr-only"> need you</span>
+            </span>
+          )}
+        </TabsTrigger>
+        <TabsTrigger value="manage" className={triggerClass}>
+          Manage
+        </TabsTrigger>
+      </TabsList>
+      <TabsContent value="overview" className="grid gap-7 text-base">
+        <NeedsYouStrip items={items} onTab={(t) => open(t)} />
+        {overview}
+      </TabsContent>
+      <TabsContent value="approvals" className="grid gap-7 text-base">
+        <Approvals managed={managed} posted={posted} focus={focus} />
+      </TabsContent>
+      <TabsContent value="manage" className="grid gap-7 text-base">
+        <ManagedAgentCard agent={managed} onBack={onBack} />
+      </TabsContent>
+    </Tabs>
   )
 }
 
@@ -107,7 +137,15 @@ export function OwnerTabs({ managed, overview, posted, taken, overviewRequest = 
  * then the decided ones as one-line rows. The one
  * a link points at is scrolled into view once the list has loaded, ringed if it waits and unfolded if it is past.
  */
-function Approvals({ managed, posted, focus }: { managed: ManagedAgent; posted: readonly RecordJob[] | undefined; focus: string | null }) {
+function Approvals({
+  managed,
+  posted,
+  focus,
+}: {
+  managed: ManagedAgent
+  posted: readonly RecordJob[] | undefined
+  focus: string | null
+}) {
   const auth = useAuth()
   const queryClient = useQueryClient()
   const approvals = useManagedApprovals()
@@ -120,9 +158,14 @@ function Approvals({ managed, posted, focus }: { managed: ManagedAgent; posted: 
     if (focus === null || !loaded || shown.current) return
     shown.current = true
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    document.getElementById(approvalAnchor(focus))?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' })
+    document
+      .getElementById(approvalAnchor(focus))
+      ?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' })
   }, [focus, loaded])
-  if (approvals.error !== null) return <p className="text-ui text-destructive-text">Approval records are unavailable. No decision has been submitted.</p>
+  if (approvals.error !== null)
+    return (
+      <p className="text-ui text-destructive-text">Approval records are unavailable. No decision has been submitted.</p>
+    )
   if (approvals.isLoading) return <p className="text-muted-foreground">Reading this agent’s decisions…</p>
   const card = (approval: (typeof mine)[number]) => (
     <div
@@ -139,7 +182,9 @@ function Approvals({ managed, posted, focus }: { managed: ManagedAgent; posted: 
       {recovering.length > 0 && (
         // Approved, but the operation did not finish: each card continues the same operation (VV2-032).
         <div className="grid gap-7">
-          <h2 className="px-1 text-ui font-medium text-muted-foreground">Approved, not finished · {recovering.length}</h2>
+          <h2 className="px-1 text-ui font-medium text-muted-foreground">
+            Approved, not finished · {recovering.length}
+          </h2>
           {recovering.map(card)}
         </div>
       )}
@@ -147,7 +192,9 @@ function Approvals({ managed, posted, focus }: { managed: ManagedAgent; posted: 
         <Empty className="border border-dashed py-8">
           <EmptyHeader>
             <EmptyTitle>Nothing waiting for you</EmptyTitle>
-            <EmptyDescription>Hires within the weekly budget go ahead without asking. Bigger spends wait here for you.</EmptyDescription>
+            <EmptyDescription>
+              Hires within the weekly budget go ahead without asking. Bigger spends wait here for you.
+            </EmptyDescription>
           </EmptyHeader>
         </Empty>
       ) : (

@@ -46,7 +46,11 @@ export function context(network: Network, stackName: StackName, rpcUrl: string):
 
 /** A context for the configured pair found by its Holding (`stackByHolding`). */
 export function contextFor(network: Network, s: Stack, rpcUrl: string): Ctx {
-  return { publicClient: createPublicClient({ chain: chains[network], transport: transport(rpcUrl) }), deployment: deployment(network), stack: s }
+  return {
+    publicClient: createPublicClient({ chain: chains[network], transport: transport(rpcUrl) }),
+    deployment: deployment(network),
+    stack: s,
+  }
 }
 
 export function wallet(network: Network, account: Account, rpcUrl: string): Wallet {

@@ -3,6 +3,10 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
   "dependencies": {
     "@sidequest/board": "workspace:*",
     "@sidequest/indexer": "workspace:*",
@@ -15,9 +19,5 @@
     "@effect/vitest": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
-  },
-  "scripts": {
-    "typecheck": "tsc -p tsconfig.json",
-    "test": "vitest run"
   }
 }

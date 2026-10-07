@@ -1,23 +1,67 @@
 export const readOnlyHostedTools = new Set([
-  'protocol_info', 'whoami', 'list_tasks', 'get_task', 'list_quote_requests', 'list_quotes', 'get_budget', 'task_index',
-  'list_applications', 'list_disputes',
-  'get_dispute_bundle', 'settlement_actions', 'list_boards', 'get_board', 'auth_challenge', 'auth_login',
-  'list_directory', 'get_directory_agent',
+  'protocol_info',
+  'whoami',
+  'list_tasks',
+  'get_task',
+  'list_quote_requests',
+  'list_quotes',
+  'get_budget',
+  'task_index',
+  'list_applications',
+  'list_disputes',
+  'get_dispute_bundle',
+  'settlement_actions',
+  'list_boards',
+  'get_board',
+  'auth_challenge',
+  'auth_login',
+  'list_directory',
+  'get_directory_agent',
   'telegram_status',
-  'sponsor_status', 'sponsor_operation',
-  'get_stake', 'list_delegations', 'fee_quote', 'collect_actions', 'mining_proof',
+  'sponsor_status',
+  'sponsor_operation',
+  'get_stake',
+  'list_delegations',
+  'fee_quote',
+  'collect_actions',
+  'mining_proof',
 ])
 
 export const drainHostedTools = new Set([
-  'submit_work', 'report_transaction', 'approve_work', 'reject_work', 'dispute', 'add_statement',
-  'request_evidence', 'arbiter_lease', 'prepare_ruling', 'submit_ruling', 'cancel_ruling', 'revoke_budget', 'cancel_task', 'sponsor_revoke', 'report_operation',
+  'submit_work',
+  'report_transaction',
+  'approve_work',
+  'reject_work',
+  'dispute',
+  'add_statement',
+  'request_evidence',
+  'arbiter_lease',
+  'prepare_ruling',
+  'submit_ruling',
+  'cancel_ruling',
+  'revoke_budget',
+  'cancel_task',
+  'sponsor_revoke',
+  'report_operation',
 ])
 
 export const recoveryHostedTools = new Set([
-  'submit_work', 'report_transaction', 'approve_work', 'reject_work', 'dispute', 'add_statement',
-  'request_evidence', 'arbiter_lease', 'prepare_ruling', 'submit_ruling', 'cancel_ruling', 'revoke_budget', 'cancel_task', 'sponsor_revoke', 'report_operation',
+  'submit_work',
+  'report_transaction',
+  'approve_work',
+  'reject_work',
+  'dispute',
+  'add_statement',
+  'request_evidence',
+  'arbiter_lease',
+  'prepare_ruling',
+  'submit_ruling',
+  'cancel_ruling',
+  'revoke_budget',
+  'cancel_task',
+  'sponsor_revoke',
+  'report_operation',
 ])
-
 
 /**
  * Every tool which can reach the hosted board.  Production admission is open, but an
@@ -27,17 +71,71 @@ export const recoveryHostedTools = new Set([
 export const hostedToolNames = new Set([
   ...readOnlyHostedTools,
   ...drainHostedTools,
-  'auth_challenge', 'auth_login', 'whoami', 'create_task', 'request_quotes', 'submit_quote', 'pick_quote',
-  'spend_budget', 'spend_budget_call', 'upgrade_account', 'budget_grant_prepare', 'budget_grant_confirm', 'get_budget',
-  'revoke_budget', 'report_transaction', 'list_applications', 'select_worker', 'submit_selection', 'publish_transactions',
-  'cancel_task', 'approve_work', 'reject_work', 'apply', 'prepare_activation', 'build_activation', 'submit_work',
-  'dispute', 'add_statement', 'request_evidence', 'arbiter_lease',
-  'prepare_ruling', 'submit_ruling', 'cancel_ruling', 'settlement_actions', 'list_boards', 'get_board', 'create_board', 'update_board',
-  'prepare_agent_profile', 'prepare_directory_enrollment', 'enroll_directory', 'prepare_heartbeat', 'post_heartbeat',
-  'prepare_service_ad', 'publish_service_ad', 'prepare_revoke_service_ad', 'revoke_service_ad',
-  'telegram_status', 'telegram_link_prepare', 'telegram_link_confirm', 'telegram_unlink',
-  'sponsor_status', 'sponsor_prepare', 'sponsor_confirm', 'sponsor_revoke', 'sponsor_submit', 'sponsor_operation',
-  'top_up', 'stake', 'request_unstake', 'cancel_unstake', 'withdraw_stake', 'get_stake', 'fee_quote', 'collect_actions',
+  'auth_challenge',
+  'auth_login',
+  'whoami',
+  'create_task',
+  'request_quotes',
+  'submit_quote',
+  'pick_quote',
+  'spend_budget',
+  'spend_budget_call',
+  'upgrade_account',
+  'budget_grant_prepare',
+  'budget_grant_confirm',
+  'get_budget',
+  'revoke_budget',
+  'report_transaction',
+  'list_applications',
+  'select_worker',
+  'submit_selection',
+  'publish_transactions',
+  'cancel_task',
+  'approve_work',
+  'reject_work',
+  'apply',
+  'prepare_activation',
+  'build_activation',
+  'submit_work',
+  'dispute',
+  'add_statement',
+  'request_evidence',
+  'arbiter_lease',
+  'prepare_ruling',
+  'submit_ruling',
+  'cancel_ruling',
+  'settlement_actions',
+  'list_boards',
+  'get_board',
+  'create_board',
+  'update_board',
+  'prepare_agent_profile',
+  'prepare_directory_enrollment',
+  'enroll_directory',
+  'prepare_heartbeat',
+  'post_heartbeat',
+  'prepare_service_ad',
+  'publish_service_ad',
+  'prepare_revoke_service_ad',
+  'revoke_service_ad',
+  'telegram_status',
+  'telegram_link_prepare',
+  'telegram_link_confirm',
+  'telegram_unlink',
+  'sponsor_status',
+  'sponsor_prepare',
+  'sponsor_confirm',
+  'sponsor_revoke',
+  'sponsor_submit',
+  'sponsor_operation',
+  'top_up',
+  'stake',
+  'request_unstake',
+  'cancel_unstake',
+  'withdraw_stake',
+  'get_stake',
+  'fee_quote',
+  'collect_actions',
 ])
 
 export interface HostedAdmission {
@@ -51,14 +149,22 @@ export function parseHostedAdmission(drain: string): HostedAdmission {
   return { drain: drain !== '0' && drain.toLowerCase() !== 'false' }
 }
 
-export function admissionFailure(admission: HostedAdmission, network: string, _board: string, tool: string, caller: string | undefined, stage?: string): string | undefined {
+export function admissionFailure(
+  admission: HostedAdmission,
+  network: string,
+  _board: string,
+  tool: string,
+  caller: string | undefined,
+  stage?: string,
+): string | undefined {
   if ((network !== 'monad-mainnet' && stage !== 'prod') || readOnlyHostedTools.has(tool)) return undefined
   if (!hostedToolNames.has(tool)) return 'unknown hosted tool'
   if (admission.drain && !drainHostedTools.has(tool)) return 'production hosted writes are in drain mode'
   if (recoveryHostedTools.has(tool) && caller !== undefined) return undefined
   if (admission.drain && drainHostedTools.has(tool)) return 'production recovery requires an authenticated wallet'
   if (admission.drain) return 'production hosted writes are in drain mode'
-  if (caller === undefined || !/^0x[0-9a-fA-F]{40}$/.test(caller)) return 'production hosted admission requires an authenticated wallet'
+  if (caller === undefined || !/^0x[0-9a-fA-F]{40}$/.test(caller))
+    return 'production hosted admission requires an authenticated wallet'
   return undefined
 }
 

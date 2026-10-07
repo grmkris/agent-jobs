@@ -4,5 +4,9 @@ import type { ReactNode } from 'react'
 type Props = { children?: ReactNode; type?: 'info' | 'warn' | 'error' | 'success'; title?: string }
 export function Callout({ children, type = 'info', title }: Props) {
   if (asMarkdown()) return md.linePrefix('> ')`${title ? `**${title}:** ` : ''}${children}`
-  return <FumadocsCallout type={type} title={title}>{children}</FumadocsCallout>
+  return (
+    <FumadocsCallout type={type} title={title}>
+      {children}
+    </FumadocsCallout>
+  )
 }

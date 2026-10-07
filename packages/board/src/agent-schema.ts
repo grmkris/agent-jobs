@@ -2,10 +2,21 @@
 import type { Sql } from './store.ts'
 
 export const RETIRED_FLEET_TABLES = [
-  'managed_agents', 'agent_pairings', 'agent_approvals', 'agent_activity',
-  'oauth_clients', 'oauth_requests', 'oauth_codes', 'oauth_tokens',
-  'oauth_tokens_v2', 'oauth_token_families_v2', 'oauth_token_families',
-  'agent_gateway_operations', 'approval_execution', 'agent_challenges', 'agent_runtime',
+  'managed_agents',
+  'agent_pairings',
+  'agent_approvals',
+  'agent_activity',
+  'oauth_clients',
+  'oauth_requests',
+  'oauth_codes',
+  'oauth_tokens',
+  'oauth_tokens_v2',
+  'oauth_token_families_v2',
+  'oauth_token_families',
+  'agent_gateway_operations',
+  'approval_execution',
+  'agent_challenges',
+  'agent_runtime',
   'sponsor_grants',
 ] as const
 

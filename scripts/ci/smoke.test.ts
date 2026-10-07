@@ -10,7 +10,10 @@ const transport = (badPath?: string, override?: object): { fetcher: typeof fetch
       expect(init?.method).toBe('POST')
       const request = JSON.parse(String(init?.body)) as { method: string }
       methods.push(request.method)
-      return new Response('{}', { status: badPath === pathname ? 200 : 401, headers: { 'www-authenticate': 'Bearer resource_metadata="test"' } })
+      return new Response('{}', {
+        status: badPath === pathname ? 200 : 401,
+        headers: { 'www-authenticate': 'Bearer resource_metadata="test"' },
+      })
     }
     const documents: Record<string, object> = {
       '/health': { ok: true, runtime: 'Cloudflare-Workers', network: 'monad-testnet', board: 'public' },
@@ -34,7 +37,11 @@ test('smoke refuses an unexpected runtime, closed writes, foreign issuer or miss
     ['/health', { ok: true, runtime: 'local', network: 'monad-testnet', board: 'public' }],
     ['/release.json', { network: 'monad-testnet', writesOpen: false }],
     ['/.well-known/oauth-authorization-server', { issuer: 'https://foreign.example' }],
-    ['/.well-known/oauth-protected-resource', { resource: `${origin}/mcp`, authorization_servers: ['https://foreign.example'] }],
-  ] as const) await expect(smoke('dev', transport(path, override).fetcher)).rejects.toThrow('mismatch')
+    [
+      '/.well-known/oauth-protected-resource',
+      { resource: `${origin}/mcp`, authorization_servers: ['https://foreign.example'] },
+    ],
+  ] as const)
+    await expect(smoke('dev', transport(path, override).fetcher)).rejects.toThrow('mismatch')
   await expect(smoke('dev', transport('/mcp').fetcher)).rejects.toThrow('challenge mismatch')
 })

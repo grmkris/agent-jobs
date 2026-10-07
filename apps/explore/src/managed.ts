@@ -54,7 +54,8 @@ export function useManagedApprovals() {
 /** Decisions still waiting, per managed agent (its server id). The list holds every status; only `pending` waits. */
 export function pendingByAgent(approvals: readonly Pick<AgentApproval, 'agent_id' | 'status'>[]): Map<string, number> {
   const out = new Map<string, number>()
-  for (const approval of approvals) if (approval.status === 'pending') out.set(approval.agent_id, (out.get(approval.agent_id) ?? 0) + 1)
+  for (const approval of approvals)
+    if (approval.status === 'pending') out.set(approval.agent_id, (out.get(approval.agent_id) ?? 0) + 1)
   return out
 }
 
@@ -67,7 +68,10 @@ export function ownedAgent(agents: readonly ManagedAgent[] | undefined, agentId:
  * The operator's own agent behind a public number, only from a list the board has just confirmed: a failed read (an
  * expired or revoked session) keeps React Query's last data, which is no longer authority (VV2-014).
  */
-export function ownerOf(query: { isSuccess: boolean; data?: { agents: ManagedAgent[] } | undefined }, agentId: string): ManagedAgent | undefined {
+export function ownerOf(
+  query: { isSuccess: boolean; data?: { agents: ManagedAgent[] } | undefined },
+  agentId: string,
+): ManagedAgent | undefined {
   return query.isSuccess ? ownedAgent(query.data?.agents, agentId) : undefined
 }
 

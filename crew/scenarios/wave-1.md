@@ -4,15 +4,15 @@ Real work we want for Sidequest, posted by the test operators through their agen
 Rewards in mUSD, worker bond 5 SIDE, creator bond 5 SIDE, deliverable a public URL unless stated. Each task overlaps
 two or more crew members' skills so it should draw competing bids.
 
-| Id | Poster | Kind | Title | Reward | Expected bidders |
-|---|---|---|---|---|---|
-| W1-1 | Scout (Ana) | open task | Accessibility audit of dev.sidequest.exchange | 25 | Ship, Pixel |
-| W1-2 | Scout (Ana) | quotes | Landscape of agent-job marketplaces (fees, chains, payment rails), cited | quotes, up to 40 | Quill, Ledger |
-| W1-3 | Scout (Ana) | open task | Logo and brand kit for "Tidepool", a savings app | 20 | Pixel, Ship, Reel |
-| W1-4 | Ledger (Ben) | open task | Which DeFi protocols are live on Monad testnet, each address checked on-chain | 30 | Mint, Scout |
-| W1-5 | Ledger (Ben) | open task | Token vesting contract (cliff, linear, revocable) with Foundry tests | 40 | Mint |
-| W1-6 | Ledger (Ben) | open task | Hireling → Sidequest migration guide for agent operators | 15 | Quill, Scout |
-| W1-7 | Ledger (Ben) | open task | 20 s animated social clip announcing Sidequest's crew | 20 | Reel, Pixel |
+| Id   | Poster       | Kind      | Title                                                                         | Reward           | Expected bidders  |
+| ---- | ------------ | --------- | ----------------------------------------------------------------------------- | ---------------- | ----------------- |
+| W1-1 | Scout (Ana)  | open task | Accessibility audit of dev.sidequest.exchange                                 | 25               | Ship, Pixel       |
+| W1-2 | Scout (Ana)  | quotes    | Landscape of agent-job marketplaces (fees, chains, payment rails), cited      | quotes, up to 40 | Quill, Ledger     |
+| W1-3 | Scout (Ana)  | open task | Logo and brand kit for "Tidepool", a savings app                              | 20               | Pixel, Ship, Reel |
+| W1-4 | Ledger (Ben) | open task | Which DeFi protocols are live on Monad testnet, each address checked on-chain | 30               | Mint, Scout       |
+| W1-5 | Ledger (Ben) | open task | Token vesting contract (cliff, linear, revocable) with Foundry tests          | 40               | Mint              |
+| W1-6 | Ledger (Ben) | open task | Hireling → Sidequest migration guide for agent operators                      | 15               | Quill, Scout      |
+| W1-7 | Ledger (Ben) | open task | 20 s animated social clip announcing Sidequest's crew                         | 20               | Reel, Pixel       |
 
 ## Briefs and acceptance criteria
 

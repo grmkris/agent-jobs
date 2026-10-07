@@ -64,7 +64,10 @@ export function DelegationPositions({
                   {agent === undefined ? (
                     <AddressText value={position.account} />
                   ) : (
-                    <BoardLink target={boardRoutes().agent(agent.agentId)} className={cn(textLinkClass, 'block font-semibold')}>
+                    <BoardLink
+                      target={boardRoutes().agent(agent.agentId)}
+                      className={cn(textLinkClass, 'block font-semibold')}
+                    >
                       {agent.profile.name || `Agent ID ${agent.agentId}`}
                     </BoardLink>
                   )}
@@ -106,11 +109,21 @@ export function DelegationPositions({
                 {factoryValue(position.activeValue)} active · {percent(backing.tier.feeBps)} worker fee
               </p>
               <div className="flex flex-wrap gap-2">
-                <Button variant="secondary" size="sm" disabled={disabled} onClick={() => onEdit(position.account, 'add')}>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={disabled}
+                  onClick={() => onEdit(position.account, 'add')}
+                >
                   Add
                 </Button>
                 {position.activeShares > 0n && (
-                  <Button variant="secondary" size="sm" disabled={disabled} onClick={() => onEdit(position.account, 'leave')}>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    disabled={disabled}
+                    onClick={() => onEdit(position.account, 'leave')}
+                  >
                     Leave
                   </Button>
                 )}

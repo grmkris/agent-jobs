@@ -30,7 +30,10 @@ export interface Node {
 }
 
 export const zones: Readonly<Record<string, Runtime>> = {
-  scripts: 'tooling', test: 'test', tests: 'test', fixtures: 'test',
+  scripts: 'tooling',
+  test: 'test',
+  tests: 'test',
+  fixtures: 'test',
 }
 
 export const runtimeModules = {
@@ -40,58 +43,96 @@ export const runtimeModules = {
 } as const
 
 export const runtimeAllows: Readonly<Record<Runtime, readonly (keyof typeof runtimeModules)[]>> = {
-  cloud: ['cloudflare', 'node'], shared: ['node'], browser: [], daemon: ['bun', 'node'],
-  test: ['cloudflare', 'node'], tooling: ['bun', 'cloudflare', 'node'],
+  cloud: ['cloudflare', 'node'],
+  shared: ['node'],
+  browser: [],
+  daemon: ['bun', 'node'],
+  test: ['cloudflare', 'node'],
+  tooling: ['bun', 'cloudflare', 'node'],
 }
 
 export const nodes: readonly Node[] = [
   {
-    dir: 'apps/api', name: '@sidequest/api', role: 'the hosted board API and MCP service.', runtime: 'cloud',
+    dir: 'apps/api',
+    name: '@sidequest/api',
+    role: 'the hosted board API and MCP service.',
+    runtime: 'cloud',
     mayImport: ['@sidequest/board', '@sidequest/indexer', '@sidequest/sdk'],
   },
   {
-    dir: 'apps/indexer', name: '@sidequest/indexer-worker', role: 'the hosted chain indexer Worker.', runtime: 'cloud',
+    dir: 'apps/indexer',
+    name: '@sidequest/indexer-worker',
+    role: 'the hosted chain indexer Worker.',
+    runtime: 'cloud',
     mayImport: ['@sidequest/board', '@sidequest/indexer', '@sidequest/sdk'],
   },
   {
-    dir: 'apps/explore', name: '@sidequest/explore', role: 'the browser marketplace and explorer.', runtime: 'browser',
+    dir: 'apps/explore',
+    name: '@sidequest/explore',
+    role: 'the browser marketplace and explorer.',
+    runtime: 'browser',
     mayImport: ['@sidequest/react', '@sidequest/sdk'],
     // The asset-serving Worker runs in Cloudflare rather than the browser bundle.
     zones: { 'worker.ts': 'cloud' },
   },
   {
-    dir: 'apps/arbiter', name: '@sidequest/arbiter', role: 'the arbitration daemon.', runtime: 'daemon',
+    dir: 'apps/arbiter',
+    name: '@sidequest/arbiter',
+    role: 'the arbitration daemon.',
+    runtime: 'daemon',
     mayImport: ['@sidequest/board', '@sidequest/sdk'],
   },
   {
-    dir: 'apps/docs', name: '@sidequest/docs', role: 'the documentation site.', runtime: 'browser',
+    dir: 'apps/docs',
+    name: '@sidequest/docs',
+    role: 'the documentation site.',
+    runtime: 'browser',
     mayImport: ['@sidequest/sdk'],
   },
   {
-    dir: 'packages/sdk', name: '@sidequest/sdk', role: 'the typed client and v1 flow library.', runtime: 'shared',
+    dir: 'packages/sdk',
+    name: '@sidequest/sdk',
+    role: 'the typed client and v1 flow library.',
+    runtime: 'shared',
     mayImport: [],
   },
   {
-    dir: 'packages/board', name: '@sidequest/board', role: 'board domain and persistence contracts.', runtime: 'shared',
+    dir: 'packages/board',
+    name: '@sidequest/board',
+    role: 'board domain and persistence contracts.',
+    runtime: 'shared',
     mayImport: ['@sidequest/sdk'],
   },
   {
-    dir: 'packages/indexer', name: '@sidequest/indexer', role: 'indexing and notification domain logic.', runtime: 'shared',
+    dir: 'packages/indexer',
+    name: '@sidequest/indexer',
+    role: 'indexing and notification domain logic.',
+    runtime: 'shared',
     mayImport: ['@sidequest/board', '@sidequest/sdk'],
   },
   {
-    dir: 'packages/react', name: '@sidequest/react', role: 'React hooks for the client.', runtime: 'shared',
+    dir: 'packages/react',
+    name: '@sidequest/react',
+    role: 'React hooks for the client.',
+    runtime: 'shared',
     mayImport: ['@sidequest/sdk'],
     // Hook implementations run in the consuming browser bundle.
     zones: { src: 'browser' },
   },
   {
-    dir: 'contracts', name: '@sidequest/contracts', role: 'Foundry contracts and scripts.', runtime: 'tooling',
+    dir: 'contracts',
+    name: '@sidequest/contracts',
+    role: 'Foundry contracts and scripts.',
+    runtime: 'tooling',
     mayImport: [],
     seam: { consumer: 'forge and release scripts', reason: 'Contracts are compiled and tested by Foundry.' },
   },
   {
-    dir: 'tools', name: 'tools', role: 'repository quality gates.', runtime: 'tooling', mayImport: [],
+    dir: 'tools',
+    name: 'tools',
+    role: 'repository quality gates.',
+    runtime: 'tooling',
+    mayImport: [],
     seam: { consumer: 'root check scripts', reason: 'Quality tooling is invoked by root scripts and CI.' },
   },
 ]

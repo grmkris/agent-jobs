@@ -27,28 +27,75 @@ fork('delegated backing API with a checked real event index', () => {
     db = new DatabaseSync(':memory:')
     serviceDb = new DatabaseSync(':memory:')
     await migrate(fromNodeSqlite(db))
-    board = new Board(boardSql(serviceDb), { network: 'monad-testnet', contexts: { main: f.ctx }, domain: 'fork', uri: 'https://fork', manifestBaseUrl: '',
-      delegationSnapshot: filters => stakingSnapshot(fromNodeSqlite(db), f.ctx, filters, clock),
-      collectSnapshot: wallet => collectSnapshot(fromNodeSqlite(db), f.ctx, wallet, clock),
+    board = new Board(boardSql(serviceDb), {
+      network: 'monad-testnet',
+      contexts: { main: f.ctx },
+      domain: 'fork',
+      uri: 'https://fork',
+      manifestBaseUrl: '',
+      delegationSnapshot: (filters) => stakingSnapshot(fromNodeSqlite(db), f.ctx, filters, clock),
+      collectSnapshot: (wallet) => collectSnapshot(fromNodeSqlite(db), f.ctx, wallet, clock),
     })
     await sdk.delegate(f.ctx, f.creator, parseEther('30'), f.worker.account.address)
     await sdk.delegate(f.ctx, f.worker, parseEther('20'))
     await indexNow()
   }, forkSetupTimeout())
-  afterAll(() => { db?.close(); serviceDb?.close(); f?.close() })
+  afterAll(() => {
+    db?.close()
+    serviceDb?.close()
+    f?.close()
+  })
 
   async function indexNow() {
     const block = await f.ctx.publicClient.getBlock()
     clock = Number(block.timestamp)
     const contracts = contractsFromDeployment(f.ctx.deployment)
-    const logs = await f.ctx.publicClient.getLogs({ address: f.ctx.deployment.sidequest!.vault, fromBlock: start, toBlock: block.number })
-    const events = logs.map(l => decode(contracts, { address: l.address, block_number: Number(l.blockNumber), log_index: l.logIndex,
-      transaction_hash: l.transactionHash, topic0: l.topics[0] ?? null, topic1: l.topics[1] ?? null,
-      topic2: l.topics[2] ?? null, topic3: l.topics[3] ?? null, data: l.data }))
+    const logs = await f.ctx.publicClient.getLogs({
+      address: f.ctx.deployment.sidequest!.vault,
+      fromBlock: start,
+      toBlock: block.number,
+    })
+    const events = logs.map((l) =>
+      decode(contracts, {
+        address: l.address,
+        block_number: Number(l.blockNumber),
+        log_index: l.logIndex,
+        transaction_hash: l.transactionHash,
+        topic0: l.topics[0] ?? null,
+        topic1: l.topics[1] ?? null,
+        topic2: l.topics[2] ?? null,
+        topic3: l.topics[3] ?? null,
+        data: l.data,
+      }),
+    )
     const sql = fromNodeSqlite(db)
-    await sql.batch(events.flatMap(e => e === undefined ? [] : [stmt('INSERT OR REPLACE INTO protocol_events VALUES (?,?,?,?,?,?,?)',
-      e.chainId, e.contract, e.block, e.logIndex, e.txHash, e.name, JSON.stringify(e.args))]))
-    await sql.batch([stmt('INSERT OR REPLACE INTO checkpoint VALUES (?,?,?,?)', f.ctx.deployment.chainId, Number(block.number + 1n), block.hash, clock)])
+    await sql.batch(
+      events.flatMap((e) =>
+        e === undefined
+          ? []
+          : [
+              stmt(
+                'INSERT OR REPLACE INTO protocol_events VALUES (?,?,?,?,?,?,?)',
+                e.chainId,
+                e.contract,
+                e.block,
+                e.logIndex,
+                e.txHash,
+                e.name,
+                JSON.stringify(e.args),
+              ),
+            ],
+      ),
+    )
+    await sql.batch([
+      stmt(
+        'INSERT OR REPLACE INTO checkpoint VALUES (?,?,?,?)',
+        f.ctx.deployment.chainId,
+        Number(block.number + 1n),
+        block.hash,
+        clock,
+      ),
+    ])
   }
 
   it('exposes outside ownership, aggregate backing and the owner position through public and MCP reads', async () => {
@@ -56,13 +103,25 @@ fork('delegated backing API with a checked real event index', () => {
     const account = f.worker.account.address
     const positions = await board.listDelegations({ address: wallet }, {})
     expect(positions.positions).toHaveLength(1)
-    expect(positions.positions[0]).toMatchObject({ account, delegator: wallet, value: parseEther('30'), shareBps: 6000,
-      backing: { assets: parseEther('50'), active: parseEther('50') } })
-    const result = await tools.list_delegations!.run(board, {}, { account }, { network: 'monad-testnet', mcpSession: undefined }) as Awaited<ReturnType<Board['listDelegations']>>
+    expect(positions.positions[0]).toMatchObject({
+      account,
+      delegator: wallet,
+      value: parseEther('30'),
+      shareBps: 6000,
+      backing: { assets: parseEther('50'), active: parseEther('50') },
+    })
+    const result = (await tools.list_delegations!.run(
+      board,
+      {},
+      { account },
+      { network: 'monad-testnet', mcpSession: undefined },
+    )) as Awaited<ReturnType<Board['listDelegations']>>
     expect(result.positions).toHaveLength(2)
     expect(permittedTool({ scopes: ['sidequest:read'] }, 'list_delegations')).toBe(true)
     expect(await backingCard(fromNodeSqlite(db), f.ctx, account, wallet, clock)).toMatchObject({
-      assets: parseEther('50'), delegatorCount: 2, position: { value: parseEther('30'), shareBps: 6000 },
+      assets: parseEther('50'),
+      delegatorCount: 2,
+      position: { value: parseEther('30'), shareBps: 6000 },
     })
   })
 
@@ -76,9 +135,11 @@ fork('delegated backing API with a checked real event index', () => {
       [`/data/backing/${account}?wallet=${wallet}`, { assets: parseEther('50').toString(), delegatorCount: 2 }],
       [`/data/backing/${empty}?wallet=${wallet}`, { assets: '0', delegatorCount: 0, topDelegators: [] }],
     ] as const) {
-      const response = HttpServerResponse.toWeb(await stakingDataRoute(fromNodeSqlite(db), f.ctx, new URL(path, 'https://fork'), clock))
+      const response = HttpServerResponse.toWeb(
+        await stakingDataRoute(fromNodeSqlite(db), f.ctx, new URL(path, 'https://fork'), clock),
+      )
       expect(response.status).toBe(200)
-      const body = await response.json() as { blockNumber: string }
+      const body = (await response.json()) as { blockNumber: string }
       expect(body).toMatchObject({ ok: true, ...expected })
       expect(body.blockNumber).toMatch(/^\d+$/)
     }
@@ -103,16 +164,16 @@ fork('delegated backing API with a checked real event index', () => {
     await sdk.requestUndelegate(f.ctx, f.creator, parseEther('31'), account)
     const queued = await sdk.getPosition(f.ctx, account, wallet)
     await indexNow()
-    expect((await board.collectActions({}, { wallet })).filter(a => a.kind === 'stakeWithdraw')).toHaveLength(0)
+    expect((await board.collectActions({}, { wallet })).filter((a) => a.kind === 'stakeWithdraw')).toHaveLength(0)
     await f.rpc('evm_setNextBlockTimestamp', [queued.unlockAt + 1])
     await f.rpc('evm_mine')
     await indexNow()
-    const action = (await board.collectActions({}, { wallet })).find(a => a.kind === 'stakeWithdraw')!
+    const action = (await board.collectActions({}, { wallet })).find((a) => a.kind === 'stakeWithdraw')!
     expect(action).toMatchObject({ account, amount: parseEther('31').toString() })
     expect(decodeFunctionData({ abi: sdk.stakeVaultAbi, data: action.transactions[0]!.data }).args).toEqual([account])
     const before = await sdk.balanceOf(f.ctx, f.ctx.stack.factory, wallet)
     await sdk.sendAll(f.creator, f.ctx.publicClient, action.transactions)
-    expect(await sdk.balanceOf(f.ctx, f.ctx.stack.factory, wallet) - before).toBe(parseEther('31'))
+    expect((await sdk.balanceOf(f.ctx, f.ctx.stack.factory, wallet)) - before).toBe(parseEther('31'))
     expect((await sdk.getPosition(f.ctx, account, f.worker.account.address)).value).toBe(parseEther('20'))
   }, 120_000)
 })

@@ -14,8 +14,19 @@ it('canonicalizes origin host case and default ports before deriving object iden
 })
 
 it('refuses malformed and non-HTTP(S) audiences instead of creating opaque scopes', () => {
-  for (const audience of ['', 'sidequest.exchange', 'ftp://sidequest.exchange', 'file:///tmp/directory', 'data:text/plain,test', 'mailto:worker@sidequest.exchange', 'javascript:void(0)', 'blob:https://sidequest.exchange/id']) {
+  for (const audience of [
+    '',
+    'sidequest.exchange',
+    'ftp://sidequest.exchange',
+    'file:///tmp/directory',
+    'data:text/plain,test',
+    'mailto:worker@sidequest.exchange',
+    'javascript:void(0)',
+    'blob:https://sidequest.exchange/id',
+  ]) {
     expect(() => directoryAudience(audience)).toThrow(DirectoryError)
-    expect(() => directoryObjectName(143, '0xregistry', audience, '7')).toThrow('directory audience must be an HTTP(S) origin')
+    expect(() => directoryObjectName(143, '0xregistry', audience, '7')).toThrow(
+      'directory audience must be an HTTP(S) origin',
+    )
   }
 })

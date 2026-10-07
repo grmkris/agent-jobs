@@ -11,16 +11,29 @@ try {
   if (args.length !== 3 || args[1] !== '--stage' || !args[0]) throw new MiningPublishError('usage')
   const selected = stageOf(args[2]!)
   const env = process.env
-  if ((env.SIDEQUEST_STAGE && env.SIDEQUEST_STAGE !== selected.stage) || (env.SIDEQUEST_NETWORK && env.SIDEQUEST_NETWORK !== selected.network)) throw new MiningPublishError('stage-chain-mismatch')
+  if (
+    (env.SIDEQUEST_STAGE && env.SIDEQUEST_STAGE !== selected.stage) ||
+    (env.SIDEQUEST_NETWORK && env.SIDEQUEST_NETWORK !== selected.network)
+  )
+    throw new MiningPublishError('stage-chain-mismatch')
   const rpc = env.MONAD_RPC_URL
   if (!rpc || rpc === 'unset') throw new MiningPublishError('credentials-missing')
   const bytes = readFileSync(resolve(args[0]))
-  const config = JSON.parse(readFileSync(new URL(`../../contracts/config/${selected.network}.json`, import.meta.url), 'utf8')) as DeploymentConfig
+  const config = JSON.parse(
+    readFileSync(new URL(`../../contracts/config/${selected.network}.json`, import.meta.url), 'utf8'),
+  ) as DeploymentConfig
   const c = client(rpc)
-  await publishEpoch(bytes, selected, config, {
-    getChainId: () => c.getChainId(),
-    readRoot: (address, epoch) => c.readContract({ address, abi: epochDistributorAbi, functionName: 'rootOf', args: [epoch] }),
-  }, new CloudflareManifests(env))
+  await publishEpoch(
+    bytes,
+    selected,
+    config,
+    {
+      getChainId: () => c.getChainId(),
+      readRoot: (address, epoch) =>
+        c.readContract({ address, abi: epochDistributorAbi, functionName: 'rootOf', args: [epoch] }),
+    },
+    new CloudflareManifests(env),
+  )
   console.log('mining:publish uploaded and verified')
 } catch (error) {
   // RPC/provider exceptions can contain credentials and request bodies; print only our fixed codes.

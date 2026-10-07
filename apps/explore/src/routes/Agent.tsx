@@ -27,9 +27,27 @@ import type { AgentSummary } from '../agent-summary.ts'
 
 /** The ERC-8004 identity registry's reads the operator console needs (the SDK's ABI has no `tokenURI`). */
 const identityAbi = [
-  { type: 'function', name: 'ownerOf', stateMutability: 'view', inputs: [{ name: 'agentId', type: 'uint256' }], outputs: [{ type: 'address' }] },
-  { type: 'function', name: 'getAgentWallet', stateMutability: 'view', inputs: [{ name: 'agentId', type: 'uint256' }], outputs: [{ type: 'address' }] },
-  { type: 'function', name: 'tokenURI', stateMutability: 'view', inputs: [{ name: 'tokenId', type: 'uint256' }], outputs: [{ type: 'string' }] },
+  {
+    type: 'function',
+    name: 'ownerOf',
+    stateMutability: 'view',
+    inputs: [{ name: 'agentId', type: 'uint256' }],
+    outputs: [{ type: 'address' }],
+  },
+  {
+    type: 'function',
+    name: 'getAgentWallet',
+    stateMutability: 'view',
+    inputs: [{ name: 'agentId', type: 'uint256' }],
+    outputs: [{ type: 'address' }],
+  },
+  {
+    type: 'function',
+    name: 'tokenURI',
+    stateMutability: 'view',
+    inputs: [{ name: 'tokenId', type: 'uint256' }],
+    outputs: [{ type: 'string' }],
+  },
 ] as const
 
 /** An agent number as the registry numbers them: digits only, without leading zeros; null for anything else. */
@@ -47,7 +65,8 @@ type AgentProfile =
   | { kind: 'json'; name: string | null; description: string | null; image: string | null; raw: string }
   | { kind: 'link'; url: string; href: string | null }
 
-const text = (v: unknown, max: number): string | null => (typeof v === 'string' && v.trim() !== '' ? v.trim().slice(0, max) : null)
+const text = (v: unknown, max: number): string | null =>
+  typeof v === 'string' && v.trim() !== '' ? v.trim().slice(0, max) : null
 
 /**
  * Reads what an agent registered (`tokenURI`). A `data:application/json[;base64],…` profile yields its name and
@@ -63,7 +82,8 @@ function parseProfile(uri: string | null | undefined): AgentProfile | null {
     const payload = u.slice(comma + 1)
     let json = payload
     try {
-      if (/;base64$/i.test(meta)) json = new TextDecoder().decode(Uint8Array.from(atob(payload), (c) => c.charCodeAt(0)))
+      if (/;base64$/i.test(meta))
+        json = new TextDecoder().decode(Uint8Array.from(atob(payload), (c) => c.charCodeAt(0)))
       else {
         try {
           json = decodeURIComponent(payload)
@@ -88,7 +108,8 @@ function parseProfile(uri: string | null | undefined): AgentProfile | null {
 }
 
 /** A revert (the registry says no), as opposed to an RPC that did not answer. */
-const isRevert = (e: unknown) => e instanceof BaseError && e.walk((x) => x instanceof ContractFunctionRevertedError) !== null
+const isRevert = (e: unknown) =>
+  e instanceof BaseError && e.walk((x) => x instanceof ContractFunctionRevertedError) !== null
 
 export interface AgentIdentity {
   loading: boolean
@@ -174,7 +195,12 @@ async function fetchAgentRecord(id: string): Promise<AgentRecord | null> {
 }
 
 const useAgentRecord = (id: string | null, refetchInterval = 30_000) =>
-  useQuery({ queryKey: ['data-agent', id], queryFn: () => fetchAgentRecord(id as string), enabled: id !== null, refetchInterval })
+  useQuery({
+    queryKey: ['data-agent', id],
+    queryFn: () => fetchAgentRecord(id as string),
+    enabled: id !== null,
+    refetchInterval,
+  })
 
 /** "once", "twice", "3 times". */
 export const times = (n: number) => (n === 1 ? 'once' : n === 2 ? 'twice' : `${n} times`)
@@ -188,10 +214,17 @@ const RATING: Record<string, { words: string; good: boolean }> = {
 }
 
 /** The evaluator's ratings in plain words, completed first: "11 completed", "2 rejected: not good enough". */
-export function ratings(feedback: Record<string, number>): Array<{ tag: string; count: number; words: string; good: boolean }> {
+export function ratings(
+  feedback: Record<string, number>,
+): Array<{ tag: string; count: number; words: string; good: boolean }> {
   return Object.entries(feedback)
     .filter(([, n]) => n > 0)
-    .map(([tag, count]) => ({ tag, count, words: RATING[tag]?.words ?? tag.replaceAll('-', ' '), good: RATING[tag]?.good ?? false }))
+    .map(([tag, count]) => ({
+      tag,
+      count,
+      words: RATING[tag]?.words ?? tag.replaceAll('-', ' '),
+      good: RATING[tag]?.good ?? false,
+    }))
     .toSorted((a, b) => Number(b.good) - Number(a.good) || b.count - a.count)
 }
 
@@ -222,28 +255,48 @@ export function AgentPage() {
 function Profile({ id }: { id: string }) {
   const identity = useAgentIdentity(id)
   const record = useAgentRecord(id)
-  const directory = useQuery({ queryKey: ['directory-agent', id], queryFn: () => fetchDirectoryAgent(id), refetchInterval: 20_000 })
+  const directory = useQuery({
+    queryKey: ['directory-agent', id],
+    queryFn: () => fetchDirectoryAgent(id),
+    refetchInterval: 20_000,
+  })
   const wallet = (identity.wallet ?? record.data?.currentWallet ?? record.data?.wallets[0]) as `0x${string}` | undefined
   const { address } = useAuth()
   const now = useNow()
   const [backingOpen, setBackingOpen] = useState(false)
   const [overviewRequest, setOverviewRequest] = useState(0)
-  const openBacking = () => { setBackingOpen(true); setOverviewRequest((request) => request + 1) }
+  const openBacking = () => {
+    setBackingOpen(true)
+    setOverviewRequest((request) => request + 1)
+  }
   const again = lastPaidJob(record.data?.jobs ?? [], address, id)
   // The signed-in operator's own agent gets its owner tabs; everyone else, the public profile alone.
   const managed = useOwnedAgent(id)
   useEffect(() => {
     if (managed !== undefined || overviewRequest === 0) return
-    const frame = requestAnimationFrame(() => document.getElementById('profile-backing')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+    const frame = requestAnimationFrame(() =>
+      document.getElementById('profile-backing')?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+    )
     return () => cancelAnimationFrame(frame)
   }, [managed, overviewRequest])
   const overview = (
     <>
-      {managed !== undefined && address !== undefined && <SetupChecklist agent={managed} operator={address} wallet={wallet} backingOpen={backingOpen} onBackingOpenChange={setBackingOpen} />}
+      {managed !== undefined && address !== undefined && (
+        <SetupChecklist
+          agent={managed}
+          operator={address}
+          wallet={wallet}
+          backingOpen={backingOpen}
+          onBackingOpenChange={setBackingOpen}
+        />
+      )}
       {again !== undefined && (
         <div className="grid gap-1.5">
           <HireAgainLink jobId={again.job_id} />
-          <p className="px-4 text-ui text-muted-foreground">You paid this agent for job #{again.job_id}. Hire again gives your publisher that job as context for a fresh hire.</p>
+          <p className="px-4 text-ui text-muted-foreground">
+            You paid this agent for job #{again.job_id}. Hire again gives your publisher that job as context for a fresh
+            hire.
+          </p>
         </div>
       )}
       {record.isLoading ? (
@@ -253,7 +306,9 @@ function Profile({ id }: { id: string }) {
           ))}
         </div>
       ) : record.error !== null ? (
-        <p className="text-ui text-destructive-text">This agent&apos;s record is unavailable right now. Its identity is read from the chain.</p>
+        <p className="text-ui text-destructive-text">
+          This agent&apos;s record is unavailable right now. Its identity is read from the chain.
+        </p>
       ) : record.data === null && identity.exists === false ? (
         <Empty className="border border-dashed">
           <EmptyHeader>
@@ -267,18 +322,36 @@ function Profile({ id }: { id: string }) {
           </EmptyHeader>
         </Empty>
       ) : isNew(record.data) ? (
-        managed === undefined ? <NewAgentCard /> : null
+        managed === undefined ? (
+          <NewAgentCard />
+        ) : null
       ) : (
         <>
           <HeroStats record={record.data!} now={now} owner={managed !== undefined} />
           <AgentJobs record={record.data!} />
         </>
       )}
-      {wallet !== undefined && identity.exists !== false && <BackingStrip wallet={wallet} viewer={address} onBack={openBacking} />}
+      {wallet !== undefined && identity.exists !== false && (
+        <BackingStrip wallet={wallet} viewer={address} onBack={openBacking} />
+      )}
       {directory.data?.agent !== undefined && <DirectorySection agent={directory.data.agent} />}
-      {managed === undefined && backingOpen && wallet !== undefined && <section id="profile-backing" aria-label="Back this agent" className="grid scroll-mt-24 gap-4">{address === undefined ? <><p className="text-sm text-muted-foreground">Sign in to back this agent.</p><PrivyLogin /></> : <BackingManager owner={address} scope={{ kind: 'agent', account: wallet, agentId: id }} />}</section>}
+      {managed === undefined && backingOpen && wallet !== undefined && (
+        <section id="profile-backing" aria-label="Back this agent" className="grid scroll-mt-24 gap-4">
+          {address === undefined ? (
+            <>
+              <p className="text-sm text-muted-foreground">Sign in to back this agent.</p>
+              <PrivyLogin />
+            </>
+          ) : (
+            <BackingManager owner={address} scope={{ kind: 'agent', account: wallet, agentId: id }} />
+          )}
+        </section>
+      )}
       {managed === undefined && identity.exists !== false && (
-        <Link to="/connect" className="justify-self-start px-1 text-ui text-muted-foreground underline decoration-current/30 underline-offset-4 hover:text-foreground">
+        <Link
+          to="/connect"
+          className="justify-self-start px-1 text-ui text-muted-foreground underline decoration-current/30 underline-offset-4 hover:text-foreground"
+        >
           Is this your agent? Connect it
         </Link>
       )}
@@ -286,8 +359,26 @@ function Profile({ id }: { id: string }) {
   )
   return (
     <>
-      <ProfileHeader id={id} identity={identity} wallet={wallet} directory={directory.data?.agent} owner={managed !== undefined} onBack={openBacking} />
-      {managed === undefined ? overview : <OwnerTabs managed={managed} overview={overview} posted={record.data?.posted} taken={record.data?.jobs} overviewRequest={overviewRequest} onBack={openBacking} />}
+      <ProfileHeader
+        id={id}
+        identity={identity}
+        wallet={wallet}
+        directory={directory.data?.agent}
+        owner={managed !== undefined}
+        onBack={openBacking}
+      />
+      {managed === undefined ? (
+        overview
+      ) : (
+        <OwnerTabs
+          managed={managed}
+          overview={overview}
+          posted={record.data?.posted}
+          taken={record.data?.jobs}
+          overviewRequest={overviewRequest}
+          onBack={openBacking}
+        />
+      )}
     </>
   )
 }

@@ -26,7 +26,12 @@ const STALE = /server-time validity window|expired during verification|stale gen
 const failure = (error: unknown): never => {
   if (!(error instanceof DirectoryError)) throw error
   const code = error.code === 'chain' ? 'unavailable' : error.code
-  throw new AgentFailure(code, error.message, `directory-${error.code}`, error.code === 'invalid' || error.code === 'forbidden' ? 'new-key' : 'same-key')
+  throw new AgentFailure(
+    code,
+    error.message,
+    `directory-${error.code}`,
+    error.code === 'invalid' || error.code === 'forbidden' ? 'new-key' : 'same-key',
+  )
 }
 
 const refusing = async <T>(work: () => Promise<T> | T): Promise<T> => {
@@ -38,7 +43,15 @@ const refusing = async <T>(work: () => Promise<T> | T): Promise<T> => {
 }
 
 export class AgentDirectory {
-  constructor(private readonly deps: { agents: AgentStore; signing: AgentSigning; audience: string; boardId: string; port: DirectoryPort }) {}
+  constructor(
+    private readonly deps: {
+      agents: AgentStore
+      signing: AgentSigning
+      audience: string
+      boardId: string
+      port: DirectoryPort
+    },
+  ) {}
 
   /** Lists `ad` for 24 hours, enrolling the agent first (manual mode, no delegate) unless it is enrolled as its current wallet. */
   async advertise(id: string, key: string, ad: unknown): Promise<sdk.DirectoryAgent> {
@@ -50,28 +63,54 @@ export class AgentDirectory {
     const listing = await refusing(() => this.deps.port.read())
     if (!listing.enrolled || listing.ownership !== 'verified') {
       const agent = this.deps.agents.get(id)
-      await this.#record(operation.id, 'enroll', id, 'Enrollment', { profile: { name: agent.name, description: '', services: [checked.name] }, delegate: zeroAddress, adDelegate: false, grantExpiresAt: 0, enrolled: true })
+      await this.#record(operation.id, 'enroll', id, 'Enrollment', {
+        profile: { name: agent.name, description: '', services: [checked.name] },
+        delegate: zeroAddress,
+        adDelegate: false,
+        grantExpiresAt: 0,
+        enrolled: true,
+      })
     }
     return this.#record(operation.id, 'ad', id, 'ServiceAd', checked)
   }
 
   /** Takes one service down (`serviceId`), or without one removes the agent from the directory with all its ads. */
   async withdraw(id: string, key: string, input: { serviceId?: string }): Promise<sdk.DirectoryAgent> {
-    const operation = this.deps.agents.begin(id, key, this.deps.boardId, 'withdraw_service', input.serviceId === undefined ? {} : { serviceId: input.serviceId })
-    if (input.serviceId !== undefined) return this.#record(operation.id, 'revoke', id, 'RevokeAd', { serviceId: input.serviceId })
+    const operation = this.deps.agents.begin(
+      id,
+      key,
+      this.deps.boardId,
+      'withdraw_service',
+      input.serviceId === undefined ? {} : { serviceId: input.serviceId },
+    )
+    if (input.serviceId !== undefined)
+      return this.#record(operation.id, 'revoke', id, 'RevokeAd', { serviceId: input.serviceId })
     const done = this.deps.agents.step<sdk.DirectoryAgent>(operation.id, 'leave:done')
     if (done !== undefined) return done
     const listing = await refusing(() => this.deps.port.read())
-    return this.#record(operation.id, 'leave', id, 'Enrollment', { profile: listing.profile, delegate: zeroAddress, adDelegate: false, grantExpiresAt: 0, enrolled: false })
+    return this.#record(operation.id, 'leave', id, 'Enrollment', {
+      profile: listing.profile,
+      delegate: zeroAddress,
+      adDelegate: false,
+      grantExpiresAt: 0,
+      enrolled: false,
+    })
   }
 
-  async #record(operationId: string, step: string, id: string, kind: sdk.DirectoryKind, payload: unknown): Promise<sdk.DirectoryAgent> {
+  async #record(
+    operationId: string,
+    step: string,
+    id: string,
+    kind: sdk.DirectoryKind,
+    payload: unknown,
+  ): Promise<sdk.DirectoryAgent> {
     const done = this.deps.agents.step<sdk.DirectoryAgent>(operationId, `${step}:done`)
     if (done !== undefined) return done
     for (let attempt = 0; ; attempt++) {
       const name = `${step}:${attempt}`
-      const record = this.deps.agents.step<sdk.DirectoryEnvelope>(operationId, name)
-        ?? this.deps.agents.freezeStep(operationId, name, await refusing(() => this.deps.port.prepare(kind, payload)))
+      const record =
+        this.deps.agents.step<sdk.DirectoryEnvelope>(operationId, name) ??
+        this.deps.agents.freezeStep(operationId, name, await refusing(() => this.deps.port.prepare(kind, payload)))
       const signature = await this.deps.signing.signDirectory(id, record, this.deps.audience, async () => record)
       try {
         return this.deps.agents.freezeStep(operationId, `${step}:done`, await this.deps.port.submit(record, signature))

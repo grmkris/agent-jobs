@@ -8,6 +8,13 @@
     "./release": "./src/release.ts",
     "./docs-site": "./src/docs-site.ts"
   },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "viem": "catalog:"
+  },
   "devDependencies": {
     "@metamask/delegation-core": "catalog:",
     "@metamask/delegation-deployments": "catalog:",
@@ -15,12 +22,5 @@
     "playwright-core": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
-  },
-  "dependencies": {
-    "viem": "catalog:"
-  },
-  "scripts": {
-    "typecheck": "tsc -p tsconfig.json",
-    "test": "vitest run"
   }
 }

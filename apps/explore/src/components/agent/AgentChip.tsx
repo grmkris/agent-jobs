@@ -15,9 +15,16 @@ function useAgentName(id: string, given?: string | null): string | null {
   const client = useQueryClient()
   const managed = useManagedAgents()
   const entry = client.getQueryData<{ agent: DirectoryAgent }>(['directory-agent', id])?.agent
-  const listed = client.getQueryData<InfiniteData<DirectoryPage>>(['data-directory'])?.pages.flatMap((page) => page.agents)
+  const listed = client
+    .getQueryData<InfiniteData<DirectoryPage>>(['data-directory'])
+    ?.pages.flatMap((page) => page.agents)
   const known = agentName(id, { given, managed: managed.data?.agents, entry, directory: listed })
-  const first = useQuery({ queryKey: ['directory-first'], queryFn: () => fetchDirectory(), staleTime: 300_000, enabled: known === null })
+  const first = useQuery({
+    queryKey: ['directory-first'],
+    queryFn: () => fetchDirectory(),
+    staleTime: 300_000,
+    enabled: known === null,
+  })
   return known ?? agentName(id, { directory: first.data?.agents })
 }
 

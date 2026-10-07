@@ -5,8 +5,11 @@ import { privateKeyToAccount } from 'viem/accounts'
 function account(name: string, key: string | undefined) {
   if (!key) throw new Error(`${name} is not set (.env.local)`)
   if (!/^0x[\da-fA-F]{64}$/.test(key)) throw new Error(`${name} is invalid`)
-  try { return privateKeyToAccount(key as Hex) }
-  catch { throw new Error(`${name} is invalid`) }
+  try {
+    return privateKeyToAccount(key as Hex)
+  } catch {
+    throw new Error(`${name} is invalid`)
+  }
 }
 
 export function v1FlowArbitrators(config: { sidequest: { defaultArbitrator: string } }, env: NodeJS.ProcessEnv) {

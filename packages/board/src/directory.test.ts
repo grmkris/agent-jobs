@@ -8,7 +8,9 @@ import { fromNodeSqlite } from './store.ts'
 
 const registry: Address = '0x8004A818BFB912233c491871b3d84c89A494BD9e'
 const databases: DatabaseSync[] = []
-afterEach(() => { for (const database of databases.splice(0)) database.close() })
+afterEach(() => {
+  for (const database of databases.splice(0)) database.close()
+})
 
 function fixture() {
   const database = new DatabaseSync(':memory:')
@@ -18,26 +20,96 @@ function fixture() {
   let now = 1_800_000_000
   let wallet: Address = account.address
   let unavailable = false
-  const verify = vi.fn(async (signer: Address, record: DirectoryEnvelope, signature: Hex) => verifyTypedData({ address: signer, ...directoryTypedData(record), signature }))
-  const deps = { sql: fromNodeSqlite(database), chainId: 10143, identityRegistry: registry, audience: 'https://testnet.example', agentId: '4242', now: () => now, readIdentity: async () => {
-    if (unavailable) throw new Error('RPC unavailable')
-    return { wallet, agentURI: 'https://example.test/agent.json' }
-  }, verify }
+  const verify = vi.fn(async (signer: Address, record: DirectoryEnvelope, signature: Hex) =>
+    verifyTypedData({ address: signer, ...directoryTypedData(record), signature }),
+  )
+  const deps = {
+    sql: fromNodeSqlite(database),
+    chainId: 10143,
+    identityRegistry: registry,
+    audience: 'https://testnet.example',
+    agentId: '4242',
+    now: () => now,
+    readIdentity: async () => {
+      if (unavailable) throw new Error('RPC unavailable')
+      return { wallet, agentURI: 'https://example.test/agent.json' }
+    },
+    verify,
+  }
   const service = new DirectoryService(deps)
   const sign = (record: DirectoryEnvelope, signer = account) => signer.signTypedData(directoryTypedData(record))
-  const submit = async (record: DirectoryEnvelope, signer = account) => service.submit(record, await sign(record, signer))
-  const enroll = async (delegated = false) => submit(await service.prepare('Enrollment', { profile: { name: 'Quill', description: 'Research and writing', services: ['Research'] }, enrolled: true, delegate: delegated ? delegate.address : zeroAddress, adDelegate: delegated, grantExpiresAt: delegated ? now + 3600 : 0 }))
-  const beat = () => service.prepare('Heartbeat', { state: 'available', capacity: 1, sessionId: 'private-process-session', capabilitiesHash: `0x${'11'.repeat(32)}`, endpointHash: `0x${'22'.repeat(32)}` })
-  const ad = () => service.prepare('ServiceAd', { serviceId: 'research', name: 'Source-backed research', description: 'Advisory only', inputs: 'A public question', outputs: 'A report with sources', turnaroundSeconds: 3600, price: { model: 'quote', amountBaseUnits: '0', token: zeroAddress } }, now + 3600)
-  return { database, account, delegate, deps, service, sign, submit, enroll, beat, ad, verify, advance: (seconds: number) => { now += seconds }, rotate: (value: Address) => { wallet = value }, outage: (value: boolean) => { unavailable = value } }
+  const submit = async (record: DirectoryEnvelope, signer = account) =>
+    service.submit(record, await sign(record, signer))
+  const enroll = async (delegated = false) =>
+    submit(
+      await service.prepare('Enrollment', {
+        profile: { name: 'Quill', description: 'Research and writing', services: ['Research'] },
+        enrolled: true,
+        delegate: delegated ? delegate.address : zeroAddress,
+        adDelegate: delegated,
+        grantExpiresAt: delegated ? now + 3600 : 0,
+      }),
+    )
+  const beat = () =>
+    service.prepare('Heartbeat', {
+      state: 'available',
+      capacity: 1,
+      sessionId: 'private-process-session',
+      capabilitiesHash: `0x${'11'.repeat(32)}`,
+      endpointHash: `0x${'22'.repeat(32)}`,
+    })
+  const ad = () =>
+    service.prepare(
+      'ServiceAd',
+      {
+        serviceId: 'research',
+        name: 'Source-backed research',
+        description: 'Advisory only',
+        inputs: 'A public question',
+        outputs: 'A report with sources',
+        turnaroundSeconds: 3600,
+        price: { model: 'quote', amountBaseUnits: '0', token: zeroAddress },
+      },
+      now + 3600,
+    )
+  return {
+    database,
+    account,
+    delegate,
+    deps,
+    service,
+    sign,
+    submit,
+    enroll,
+    beat,
+    ad,
+    verify,
+    advance: (seconds: number) => {
+      now += seconds
+    },
+    rotate: (value: Address) => {
+      wallet = value
+    },
+    outage: (value: boolean) => {
+      unavailable = value
+    },
+  }
 }
 
 describe('signed directory', () => {
   it('enrolls a zero-job identity and keeps chain job tables untouched', async () => {
     const context = fixture()
-    context.database.exec('CREATE TABLE jobs (id INTEGER PRIMARY KEY, state TEXT); INSERT INTO jobs VALUES (61, \'open\')')
+    context.database.exec(
+      "CREATE TABLE jobs (id INTEGER PRIMARY KEY, state TEXT); INSERT INTO jobs VALUES (61, 'open')",
+    )
     const result = await context.enroll()
-    expect(result.agent).toMatchObject({ agentId: '4242', enrolled: true, ownership: 'verified', profileSource: 'operator-supplied', presence: { freshness: 'unknown', accepting: false } })
+    expect(result.agent).toMatchObject({
+      agentId: '4242',
+      enrolled: true,
+      ownership: 'verified',
+      profileSource: 'operator-supplied',
+      presence: { freshness: 'unknown', accepting: false },
+    })
     await context.submit(await context.beat())
     expect(context.database.prepare('SELECT state FROM jobs WHERE id = 61').get()).toEqual({ state: 'open' })
   })
@@ -75,15 +147,30 @@ describe('signed directory', () => {
     await expect(context.submit(old)).rejects.toThrow(/validity window/)
   })
 
-  it.each(['chainId', 'identityRegistry', 'audience', 'agentId'] as const)('rejects a different %s binding before signature verification', async (field) => {
-    const context = fixture()
-    await context.enroll()
-    context.verify.mockClear()
-    const record = await context.beat()
-    const altered = { ...record, [field]: field === 'chainId' ? 143 : field === 'identityRegistry' ? zeroAddress : field === 'agentId' ? '99' : 'https://evil.example' }
-    await expect(context.service.submit(altered, '0x1234')).rejects.toThrow(/wrong chain, registry, audience, or agent/)
-    expect(context.verify).not.toHaveBeenCalled()
-  })
+  it.each(['chainId', 'identityRegistry', 'audience', 'agentId'] as const)(
+    'rejects a different %s binding before signature verification',
+    async (field) => {
+      const context = fixture()
+      await context.enroll()
+      context.verify.mockClear()
+      const record = await context.beat()
+      const altered = {
+        ...record,
+        [field]:
+          field === 'chainId'
+            ? 143
+            : field === 'identityRegistry'
+              ? zeroAddress
+              : field === 'agentId'
+                ? '99'
+                : 'https://evil.example',
+      }
+      await expect(context.service.submit(altered, '0x1234')).rejects.toThrow(
+        /wrong chain, registry, audience, or agent/,
+      )
+      expect(context.verify).not.toHaveBeenCalled()
+    },
+  )
 
   it('accepts only valid current-wallet or scoped-delegate signatures', async () => {
     const context = fixture()
@@ -105,7 +192,13 @@ describe('signed directory', () => {
     context.rotate(smartWallet)
     context.deps.verify = vi.fn(async (signer, _record, signature) => signer === smartWallet && signature === '0x1234')
     const service = new DirectoryService(context.deps)
-    const record = await service.prepare('Enrollment', { profile: { name: 'Smart wallet agent', description: '', services: [] }, enrolled: true, delegate: zeroAddress, adDelegate: false, grantExpiresAt: 0 })
+    const record = await service.prepare('Enrollment', {
+      profile: { name: 'Smart wallet agent', description: '', services: [] },
+      enrolled: true,
+      delegate: zeroAddress,
+      adDelegate: false,
+      grantExpiresAt: 0,
+    })
     expect((await service.submit(record, '0x1234')).agent.wallet).toBe(smartWallet)
     expect(context.deps.verify).toHaveBeenCalledWith(smartWallet, record, '0x1234')
   })
@@ -127,7 +220,13 @@ describe('signed directory', () => {
     context.rotate(context.account.address)
     await context.enroll()
     await expect(context.submit(oldBeat, context.delegate)).rejects.toThrow(/stale generation/)
-    const out = await context.service.prepare('Enrollment', { profile: { name: 'Quill', description: '', services: [] }, enrolled: false, delegate: zeroAddress, adDelegate: false, grantExpiresAt: 0 })
+    const out = await context.service.prepare('Enrollment', {
+      profile: { name: 'Quill', description: '', services: [] },
+      enrolled: false,
+      delegate: zeroAddress,
+      adDelegate: false,
+      grantExpiresAt: 0,
+    })
     expect((await context.submit(out)).agent.enrolled).toBe(false)
     await expect(context.submit(await context.beat())).rejects.toThrow(/enroll the current wallet/)
   })
@@ -136,7 +235,10 @@ describe('signed directory', () => {
     const context = fixture()
     await context.enroll()
     const record = await context.beat()
-    context.deps.verify = vi.fn(async () => { context.rotate(privateKeyToAccount(generatePrivateKey()).address); return true })
+    context.deps.verify = vi.fn(async () => {
+      context.rotate(privateKeyToAccount(generatePrivateKey()).address)
+      return true
+    })
     await expect(context.submit(record)).rejects.toThrow(/wallet changed during verification/)
     expect(context.service.state().heartbeat).toBeNull()
   })
@@ -144,7 +246,13 @@ describe('signed directory', () => {
   it('keeps the signed opt-out tombstone available for a projection retry', async () => {
     const context = fixture()
     await context.enroll()
-    const out = await context.service.prepare('Enrollment', { profile: { name: 'Quill', description: '', services: [] }, enrolled: false, delegate: zeroAddress, adDelegate: false, grantExpiresAt: 0 })
+    const out = await context.service.prepare('Enrollment', {
+      profile: { name: 'Quill', description: '', services: [] },
+      enrolled: false,
+      delegate: zeroAddress,
+      adDelegate: false,
+      grantExpiresAt: 0,
+    })
     const first = await context.submit(out)
     const retry = await context.submit(out)
     expect(first.projection?.enrolled).toBe(false)
@@ -159,7 +267,11 @@ describe('signed directory', () => {
     await context.submit(record)
     context.outage(true)
     await expect(context.submit(record)).rejects.toThrow(/identity registry unavailable/)
-    expect(context.service.publicView()).toMatchObject({ enrolled: true, ownership: 'unknown', presence: { freshness: 'unknown', accepting: false } })
+    expect(context.service.publicView()).toMatchObject({
+      enrolled: true,
+      ownership: 'unknown',
+      presence: { freshness: 'unknown', accepting: false },
+    })
   })
 
   it('keeps price and expiry independent of heartbeat; revocation leaves a replay tombstone', async () => {
@@ -183,7 +295,15 @@ describe('signed directory', () => {
     await context.enroll(true)
     await context.submit(await context.beat(), context.delegate)
     const json = JSON.stringify(context.service.publicView())
-    for (const privateField of ['delegate', 'signature', 'nonce', 'sessionId', 'endpointHash', 'private-process-session']) expect(json).not.toContain(privateField)
+    for (const privateField of [
+      'delegate',
+      'signature',
+      'nonce',
+      'sessionId',
+      'endpointHash',
+      'private-process-session',
+    ])
+      expect(json).not.toContain(privateField)
     expect(context.service.publicView().presence.lastSeenBucket! % 60).toBe(0)
   })
 
@@ -191,7 +311,9 @@ describe('signed directory', () => {
     const context = fixture()
     await context.enroll()
     const record = await context.beat()
-    await expect(context.submit({ ...record, payload: { ...record.payload, role: 'approver' } })).rejects.toThrow(/unknown directory field/)
+    await expect(context.submit({ ...record, payload: { ...record.payload, role: 'approver' } })).rejects.toThrow(
+      /unknown directory field/,
+    )
     for (let index = 0; index < 8; index++) await context.submit(await context.beat())
     await expect(context.submit(await context.beat())).rejects.toThrow(/rate limit/)
     expect(context.service.state().beats).toHaveLength(8)

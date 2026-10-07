@@ -45,7 +45,8 @@ export interface PriceDraft {
 const priceListDomain = (chainId: number, distributor: string) =>
   ({ name: 'Sidequest Mining Prices', version: '1', chainId, verifyingContract: getAddress(distributor) }) as const
 
-const usd = (text: string): bigint | null => (/^\d+(\.\d{1,18})?$/.test(text.trim()) ? parseUnits(text.trim(), 18) : null)
+const usd = (text: string): bigint | null =>
+  /^\d+(\.\d{1,18})?$/.test(text.trim()) ? parseUnits(text.trim(), 18) : null
 
 /** The list a draft describes, or why it cannot be signed: what `parsePriceList` in the mining tool would refuse. */
 export function priceListOf(d: PriceDraft): PriceList | string {
@@ -55,7 +56,8 @@ export function priceListOf(d: PriceDraft): PriceList | string {
     if (row.usd.trim() === '') continue
     if (!isAddress(row.token, { strict: false })) return `${row.token} is not a token address.`
     if (row.decimals === null) return `The decimals of ${row.token} could not be read from the chain.`
-    if (!Number.isInteger(row.decimals) || row.decimals < 0 || row.decimals > 36) return `${row.token} has decimals out of range.`
+    if (!Number.isInteger(row.decimals) || row.decimals < 0 || row.decimals > 36)
+      return `${row.token} has decimals out of range.`
     const price = usd(row.usd)
     if (price === null || price === 0n) return `Enter a USD price above 0 for ${row.token}, at most 18 decimals.`
     if (tokens.some((t) => t.token.toLowerCase() === row.token.toLowerCase())) return `${row.token} is listed twice.`
@@ -87,7 +89,11 @@ export function priceListFile(chainId: number, distributor: string, list: PriceL
     domain: priceListDomain(chainId, distributor),
     message: {
       epoch: list.epoch.toString(),
-      tokens: list.tokens.map((t) => ({ token: getAddress(t.token), decimals: t.decimals, usdPrice: t.usdPrice.toString() })),
+      tokens: list.tokens.map((t) => ({
+        token: getAddress(t.token),
+        decimals: t.decimals,
+        usdPrice: t.usdPrice.toString(),
+      })),
       factoryUsdPrice: list.factoryUsdPrice.toString(),
     },
     signer: signer.toLowerCase(),

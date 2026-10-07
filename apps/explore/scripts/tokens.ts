@@ -21,7 +21,8 @@ import { chromium } from 'playwright-core'
 const SIZE = 96
 const WEB3ICONS_CORE = '4.0.58'
 const here = (p: string) => fileURLToPath(new URL(p, import.meta.url))
-const pkg = (name: string) => (JSON.parse(readFileSync(here(`../node_modules/${name}/package.json`), 'utf8')) as { version: string }).version
+const pkg = (name: string) =>
+  (JSON.parse(readFileSync(here(`../node_modules/${name}/package.json`), 'utf8')) as { version: string }).version
 
 interface Source {
   chainId: number
@@ -39,7 +40,16 @@ async function get(url: string): Promise<{ mime: string; bytes: Uint8Array }> {
   const bytes = new Uint8Array(await res.arrayBuffer())
   if (bytes.byteLength > 512_000) throw new Error(`too large: ${url}`)
   const ext = new URL(url).pathname.split('.').pop()?.toLowerCase()
-  const mime = ext === 'svg' ? 'image/svg+xml' : ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : ''
+  const mime =
+    ext === 'svg'
+      ? 'image/svg+xml'
+      : ext === 'png'
+        ? 'image/png'
+        : ext === 'webp'
+          ? 'image/webp'
+          : ext === 'jpg' || ext === 'jpeg'
+            ? 'image/jpeg'
+            : ''
   if (mime === '') throw new Error(`unknown image type: ${url}`)
   return { mime, bytes }
 }
@@ -47,11 +57,16 @@ async function get(url: string): Promise<{ mime: string; bytes: Uint8Array }> {
 /** A web3icons SVG, read out of its ES module (`var x = '<svg…>'; export { x as default }`) without running it. */
 async function web3icon(kind: 'tokens' | 'networks', name: string): Promise<{ mime: string; bytes: Uint8Array }> {
   for (const variant of ['branded', 'background', 'mono']) {
-    const res = await fetch(`https://cdn.jsdelivr.net/npm/@web3icons/core@${WEB3ICONS_CORE}/dist/svgs/${kind}/${variant}/${name}.svg.js`, { signal: AbortSignal.timeout(15_000) })
+    const res = await fetch(
+      `https://cdn.jsdelivr.net/npm/@web3icons/core@${WEB3ICONS_CORE}/dist/svgs/${kind}/${variant}/${name}.svg.js`,
+      { signal: AbortSignal.timeout(15_000) },
+    )
     if (!res.ok) continue
     const literal = /=\s*('(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")/.exec(await res.text())?.[1]
     if (literal === undefined) continue
-    const svg = JSON.parse(literal.startsWith("'") ? `"${literal.slice(1, -1).replaceAll('"', '\\"').replaceAll("\\'", "'")}"` : literal) as string
+    const svg = JSON.parse(
+      literal.startsWith("'") ? `"${literal.slice(1, -1).replaceAll('"', '\\"').replaceAll("\\'", "'")}"` : literal,
+    ) as string
     if (svg.trimStart().startsWith('<svg')) return { mime: 'image/svg+xml', bytes: new TextEncoder().encode(svg) }
   }
   throw new Error(`no web3icons ${kind} icon ${name}`)
@@ -62,11 +77,21 @@ for (const list of [mainnetTokenList, testnetTokenList]) {
   for (const t of list.tokens) {
     if (t.logoURI === undefined) continue
     const logo = t.logoURI
-    sources.push({ chainId: t.chainId, address: t.address.toLowerCase(), symbol: t.symbol, name: t.name, decimals: t.decimals, source: 'monad-list', fetch: () => get(logo) })
+    sources.push({
+      chainId: t.chainId,
+      address: t.address.toLowerCase(),
+      symbol: t.symbol,
+      name: t.name,
+      decimals: t.decimals,
+      source: 'monad-list',
+      fetch: () => get(logo),
+    })
   }
 }
 // web3icons networks for Monad, by their metadata id; then any token with an address on one of them.
-const monadNetworks = new Map(networks.filter((n) => n.chainId === 143 || n.chainId === 10143).map((n) => [n.id, n.chainId as number]))
+const monadNetworks = new Map(
+  networks.filter((n) => n.chainId === 143 || n.chainId === 10143).map((n) => [n.id, n.chainId as number]),
+)
 for (const t of web3Tokens) {
   for (const [network, address] of Object.entries(t.addresses ?? {})) {
     const chainId = monadNetworks.get(network)
@@ -74,7 +99,15 @@ for (const t of web3Tokens) {
     const key = address.toLowerCase()
     if (sources.some((s) => s.chainId === chainId && s.address === key)) continue
     const file = t.filePath.replace(/^token:/, '')
-    sources.push({ chainId, address: key, symbol: t.symbol.toUpperCase(), name: t.name, decimals: 18, source: 'web3icons', fetch: () => web3icon('tokens', file) })
+    sources.push({
+      chainId,
+      address: key,
+      symbol: t.symbol.toUpperCase(),
+      name: t.name,
+      decimals: 18,
+      source: 'web3icons',
+      fetch: () => web3icon('tokens', file),
+    })
   }
 }
 
@@ -88,8 +121,11 @@ await context.route('**/*', (route) => route.abort())
 async function render(image: { mime: string; bytes: Uint8Array }, path: string) {
   const page = await context.newPage()
   const src = `data:${image.mime};base64,${Buffer.from(image.bytes).toString('base64')}`
-  await page.setContent(`<html><body style="margin:0;background:transparent"><img src="${src}" style="display:block;width:${SIZE}px;height:${SIZE}px;object-fit:contain"></body></html>`)
-  if (!(await page.locator('img').evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0))) throw new Error('image did not decode')
+  await page.setContent(
+    `<html><body style="margin:0;background:transparent"><img src="${src}" style="display:block;width:${SIZE}px;height:${SIZE}px;object-fit:contain"></body></html>`,
+  )
+  if (!(await page.locator('img').evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)))
+    throw new Error('image did not decode')
   await page.screenshot({ path, clip: { x: 0, y: 0, width: SIZE, height: SIZE }, omitBackground: true })
   await page.close()
 }
@@ -100,7 +136,10 @@ for (const s of sources) {
   try {
     mkdirSync(`${out}/${s.chainId}`, { recursive: true })
     await render(await s.fetch(), `${out}/${s.chainId}/${s.address}.png`)
-    entries.push([`${s.chainId}:${s.address}`, { symbol: s.symbol, name: s.name, decimals: s.decimals, source: s.source }])
+    entries.push([
+      `${s.chainId}:${s.address}`,
+      { symbol: s.symbol, name: s.name, decimals: s.decimals, source: s.source },
+    ])
   } catch (error) {
     skipped.push(`${s.chainId}:${s.address} ${s.symbol} (${(error as Error).message})`)
   }

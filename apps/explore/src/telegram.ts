@@ -3,7 +3,8 @@ import { tool } from './api.ts'
 
 /** Sidequest's bot. Its `/start <code>` finishes a link the wallet has signed for. */
 declare const __SIDEQUEST_TELEGRAM_BOT__: string
-export const TELEGRAM_BOT = typeof __SIDEQUEST_TELEGRAM_BOT__ === 'string' ? __SIDEQUEST_TELEGRAM_BOT__ : 'sidequest_excange_dev_bot'
+export const TELEGRAM_BOT =
+  typeof __SIDEQUEST_TELEGRAM_BOT__ === 'string' ? __SIDEQUEST_TELEGRAM_BOT__ : 'sidequest_excange_dev_bot'
 
 /** What the bot DMs about once linked (B9). */
 export const TELEGRAM_NOTICES = [
@@ -51,8 +52,13 @@ const key = (wallet: string) => `sidequest.telegram-link:${wallet.toLowerCase()}
 export const pendingLink = {
   load(wallet: string): { nonce: string; expiresAt: number } | null {
     try {
-      const v = JSON.parse(localStorage.getItem(key(wallet)) ?? 'null') as { nonce?: unknown; expiresAt?: unknown } | null
-      return v !== null && typeof v.nonce === 'string' && typeof v.expiresAt === 'number' ? { nonce: v.nonce, expiresAt: v.expiresAt } : null
+      const v = JSON.parse(localStorage.getItem(key(wallet)) ?? 'null') as {
+        nonce?: unknown
+        expiresAt?: unknown
+      } | null
+      return v !== null && typeof v.nonce === 'string' && typeof v.expiresAt === 'number'
+        ? { nonce: v.nonce, expiresAt: v.expiresAt }
+        : null
     } catch {
       return null
     }

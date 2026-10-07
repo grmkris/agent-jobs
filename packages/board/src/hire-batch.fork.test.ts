@@ -18,7 +18,13 @@ describe.skipIf(!forkEnabled)('atomic S1 hire against real delegation enforcers'
   let approvalSpec: sdk.GrantSpec
   const token = sdk.deployment('monad-testnet').rewardTokens[0]!
   const amount = 10_000_000n
-  const balance = (wallet: sdk.Wallet) => ctx.publicClient.readContract({ address: token, abi: erc20Abi, functionName: 'balanceOf', args: [wallet.account.address] })
+  const balance = (wallet: sdk.Wallet) =>
+    ctx.publicClient.readContract({
+      address: token,
+      abi: erc20Abi,
+      functionName: 'balanceOf',
+      args: [wallet.account.address],
+    })
 
   async function signed(wallet: sdk.Wallet, spec: sdk.GrantSpec): Promise<sdk.Delegation> {
     const grant = sdk.buildGrant(ctx, spec)
@@ -26,18 +32,41 @@ describe.skipIf(!forkEnabled)('atomic S1 hire against real delegation enforcers'
   }
 
   function publish(index: number, invalid = false): Hex {
-    return encodeFunctionData({ abi: sdk.sidequestHoldingAbi, functionName: 'publish', args: [{
-      approver: fixture.worker.account.address, arbitrator: fixture.arbitrator.account.address,
-      manifestHash: keccak256(stringToHex(`manifest-${index}`)), policyHash: keccak256(stringToHex(`policy-${index}`)),
-      token, reward: amount, creatorBond: 0n, workerBond: 0n,
-      deliveryDeadline: invalid ? start - 1 : start + 32 * 86400, expiredAt: start + 40 * 86400,
-      reviewWindow: 3600, disputeWindow: 3600, arbitrationWindow: 43200,
-    }] })
+    return encodeFunctionData({
+      abi: sdk.sidequestHoldingAbi,
+      functionName: 'publish',
+      args: [
+        {
+          approver: fixture.worker.account.address,
+          arbitrator: fixture.arbitrator.account.address,
+          manifestHash: keccak256(stringToHex(`manifest-${index}`)),
+          policyHash: keccak256(stringToHex(`policy-${index}`)),
+          token,
+          reward: amount,
+          creatorBond: 0n,
+          workerBond: 0n,
+          deliveryDeadline: invalid ? start - 1 : start + 32 * 86400,
+          expiredAt: start + 40 * 86400,
+          reviewWindow: 3600,
+          disputeWindow: 3600,
+          arbitrationWindow: 43200,
+        },
+      ],
+    })
   }
 
   function batch(index: number, invalid = false): Hex {
-    return buildHireBatch({ allowance, work, approval, manager: ctx.deployment.delegation.manager, holding: ctx.stack.holding,
-      token, agent: fixture.contributor.account.address, amount, publish: publish(index, invalid) })
+    return buildHireBatch({
+      allowance,
+      work,
+      approval,
+      manager: ctx.deployment.delegation.manager,
+      holding: ctx.stack.holding,
+      token,
+      agent: fixture.contributor.account.address,
+      amount,
+      publish: publish(index, invalid),
+    })
   }
 
   async function send(data: Hex) {
@@ -49,13 +78,45 @@ describe.skipIf(!forkEnabled)('atomic S1 hire against real delegation enforcers'
     fixture = await startSidequestFork()
     ctx = { ...fixture.ctx, deployment: { ...fixture.ctx.deployment, relay: fixture.admin.account.address } }
     for (const wallet of [fixture.creator, fixture.contributor]) {
-      const authorization = await wallet.signAuthorization({ contractAddress: ctx.deployment.delegation.delegator, executor: fixture.admin.account.address })
-      const hash = await fixture.admin.sendTransaction({ to: wallet.account.address, data: '0x', authorizationList: [authorization] })
+      const authorization = await wallet.signAuthorization({
+        contractAddress: ctx.deployment.delegation.delegator,
+        executor: fixture.admin.account.address,
+      })
+      const hash = await fixture.admin.sendTransaction({
+        to: wallet.account.address,
+        data: '0x',
+        authorizationList: [authorization],
+      })
       expect((await ctx.publicClient.waitForTransactionReceipt({ hash })).status).toBe('success')
     }
-    await fixture.send(token, [...erc20Abi, { type: 'function', name: 'mint', inputs: [{ name: 'to', type: 'address' }, { name: 'amount', type: 'uint256' }], outputs: [], stateMutability: 'nonpayable' }], 'mint', [fixture.creator.account.address, 100_000_000n])
+    await fixture.send(
+      token,
+      [
+        ...erc20Abi,
+        {
+          type: 'function',
+          name: 'mint',
+          inputs: [
+            { name: 'to', type: 'address' },
+            { name: 'amount', type: 'uint256' },
+          ],
+          outputs: [],
+          stateMutability: 'nonpayable',
+        },
+      ],
+      'mint',
+      [fixture.creator.account.address, 100_000_000n],
+    )
     start = Number((await ctx.publicClient.getBlock()).timestamp)
-    allowanceSpec = { kind: 'allowance', delegator: fixture.creator.account.address, agent: fixture.contributor.account.address, token, amount: 25_000_000n, salt: 1n, start }
+    allowanceSpec = {
+      kind: 'allowance',
+      delegator: fixture.creator.account.address,
+      agent: fixture.contributor.account.address,
+      token,
+      amount: 25_000_000n,
+      salt: 1n,
+      start,
+    }
     workSpec = { kind: 'agent-work', delegator: fixture.contributor.account.address, salt: 2n, start }
     approvalSpec = { kind: 'agent-approve', delegator: fixture.contributor.account.address, salt: 3n, start }
     allowance = await signed(fixture.creator, allowanceSpec)
@@ -64,19 +125,34 @@ describe.skipIf(!forkEnabled)('atomic S1 hire against real delegation enforcers'
   }, forkSetupTimeout())
   afterAll(() => fixture?.close())
 
-
-
   it('publishes with zero agent funds and matches every transfer and approval to the exact reward', async () => {
     const data = batch(1)
     const entries = decodeGrantBatch(data)
-    const checked = entries.map((entry, index) => ({ spec: index === 1 ? approvalSpec : workSpec,
-      checked: checkGrantCall(ctx, index === 1 ? approvalSpec : workSpec, { to: entry.execution.target, data: entry.execution.callData }) }))
-    expect(checkHireFunding(ctx, fixture.creator.account.address, fixture.contributor.account.address, checked, () => ({ spec: allowanceSpec, grant: allowance }))).toBe(1)
+    const checked = entries.map((entry, index) => ({
+      spec: index === 1 ? approvalSpec : workSpec,
+      checked: checkGrantCall(ctx, index === 1 ? approvalSpec : workSpec, {
+        to: entry.execution.target,
+        data: entry.execution.callData,
+      }),
+    }))
+    expect(
+      checkHireFunding(ctx, fixture.creator.account.address, fixture.contributor.account.address, checked, () => ({
+        spec: allowanceSpec,
+        grant: allowance,
+      })),
+    ).toBe(1)
     const before = await balance(fixture.creator)
     expect((await send(data)).status).toBe('success')
     expect(await balance(fixture.creator)).toBe(before - amount)
     expect(await balance(fixture.contributor)).toBe(0n)
-    expect(await ctx.publicClient.readContract({ address: token, abi: erc20Abi, functionName: 'allowance', args: [fixture.contributor.account.address, ctx.stack.holding] })).toBe(0n)
+    expect(
+      await ctx.publicClient.readContract({
+        address: token,
+        abi: erc20Abi,
+        functionName: 'allowance',
+        args: [fixture.contributor.account.address, ctx.stack.holding],
+      }),
+    ).toBe(0n)
     expect(await sdk.callsMade(ctx, sdk.delegationHash(work))).toBe(2n)
     expect(await sdk.callsMade(ctx, sdk.delegationHash(approval))).toBe(1n)
   }, 120_000)
@@ -90,7 +166,14 @@ describe.skipIf(!forkEnabled)('atomic S1 hire against real delegation enforcers'
     expect(await balance(fixture.contributor)).toBe(0n)
     expect(await sdk.callsMade(ctx, sdk.delegationHash(work))).toBe(workBefore)
     expect(await sdk.callsMade(ctx, sdk.delegationHash(approval))).toBe(approvalBefore)
-    expect(await ctx.publicClient.readContract({ address: token, abi: erc20Abi, functionName: 'allowance', args: [fixture.contributor.account.address, ctx.stack.holding] })).toBe(0n)
+    expect(
+      await ctx.publicClient.readContract({
+        address: token,
+        abi: erc20Abi,
+        functionName: 'allowance',
+        args: [fixture.contributor.account.address, ctx.stack.holding],
+      }),
+    ).toBe(0n)
   }, 120_000)
 
   it('enforces the cap and permits the next fixed period only with fresh gas grants', async () => {
@@ -109,11 +192,21 @@ describe.skipIf(!forkEnabled)('atomic S1 hire against real delegation enforcers'
 
   it('uses an exact one-off allowance once and refuses a disabled grant', async () => {
     const nextStart = Number((await ctx.publicClient.getBlock()).timestamp)
-    allowance = await signed(fixture.creator, { kind: 'allowance-once', delegator: fixture.creator.account.address,
-      agent: fixture.contributor.account.address, token, amount, salt: 6n, start: nextStart })
+    allowance = await signed(fixture.creator, {
+      kind: 'allowance-once',
+      delegator: fixture.creator.account.address,
+      agent: fixture.contributor.account.address,
+      token,
+      amount,
+      salt: 6n,
+      start: nextStart,
+    })
     expect((await send(batch(6))).status).toBe('success')
     expect((await send(batch(7))).status).toBe('reverted')
-    const hash = await fixture.contributor.sendTransaction({ to: ctx.deployment.delegation.manager, data: sdk.disableCalldata(work) })
+    const hash = await fixture.contributor.sendTransaction({
+      to: ctx.deployment.delegation.manager,
+      data: sdk.disableCalldata(work),
+    })
     expect((await ctx.publicClient.waitForTransactionReceipt({ hash })).status).toBe('success')
     expect(await sdk.isDisabled(ctx, sdk.delegationHash(work))).toBe(true)
     expect((await send(batch(8))).status).toBe('reverted')
@@ -121,21 +214,60 @@ describe.skipIf(!forkEnabled)('atomic S1 hire against real delegation enforcers'
   it('pins an approved unlisted-token hire to the exact amount and a single approval call', async () => {
     const startNow = Number((await ctx.publicClient.getBlock()).timestamp)
     const agent = fixture.contributor.account.address
-    const freshWork = await signed(fixture.contributor, { kind: 'agent-work', delegator: agent, salt: 43n, start: startNow })
-    const oneOffAllowance = await signed(fixture.creator, { kind: 'allowance-once', delegator: fixture.creator.account.address, agent, token, amount, salt: 41n, start: startNow })
-    const spec: sdk.GrantSpec = { kind: 'agent-approve-once', delegator: agent, token, amount, salt: 42n, start: startNow, operationId: sdk.EMPTY_HASH }
+    const freshWork = await signed(fixture.contributor, {
+      kind: 'agent-work',
+      delegator: agent,
+      salt: 43n,
+      start: startNow,
+    })
+    const oneOffAllowance = await signed(fixture.creator, {
+      kind: 'allowance-once',
+      delegator: fixture.creator.account.address,
+      agent,
+      token,
+      amount,
+      salt: 41n,
+      start: startNow,
+    })
+    const spec: sdk.GrantSpec = {
+      kind: 'agent-approve-once',
+      delegator: agent,
+      token,
+      amount,
+      salt: 42n,
+      start: startNow,
+      operationId: sdk.EMPTY_HASH,
+    }
     const unlisted = { ...ctx, deployment: { ...ctx.deployment, rewardTokens: [] } }
     const unsigned = sdk.buildGrant(unlisted, spec)
-    const oneOffApproval = { ...unsigned, signature: await sdk.signTypedDataJson(fixture.contributor, sdk.delegationTypedData(ctx.deployment, unsigned)) }
-    const approve = (spender: `0x${string}`, value: bigint, target = token) => sdk.redeemCallsCalldata(oneOffApproval, [{ target, value: 0n,
-      callData: encodeFunctionData({ abi: erc20Abi, functionName: 'approve', args: [spender, value] }) }])
+    const oneOffApproval = {
+      ...unsigned,
+      signature: await sdk.signTypedDataJson(fixture.contributor, sdk.delegationTypedData(ctx.deployment, unsigned)),
+    }
+    const approve = (spender: `0x${string}`, value: bigint, target = token) =>
+      sdk.redeemCallsCalldata(oneOffApproval, [
+        {
+          target,
+          value: 0n,
+          callData: encodeFunctionData({ abi: erc20Abi, functionName: 'approve', args: [spender, value] }),
+        },
+      ])
     expect((await send(approve(ctx.stack.holding, amount + 1n))).status).toBe('reverted')
     expect((await send(approve(fixture.worker.account.address, amount))).status).toBe('reverted')
     expect((await send(approve(ctx.stack.holding, amount, ctx.deployment.rewardTokens[1]!))).status).toBe('reverted')
     expect(await sdk.callsMade(ctx, sdk.delegationHash(oneOffApproval))).toBe(0n)
     const before = await balance(fixture.creator)
-    const hire = buildHireBatch({ allowance: oneOffAllowance, work: freshWork, approval: oneOffApproval,
-      manager: ctx.deployment.delegation.manager, holding: ctx.stack.holding, token, agent, amount, publish: publish(41) })
+    const hire = buildHireBatch({
+      allowance: oneOffAllowance,
+      work: freshWork,
+      approval: oneOffApproval,
+      manager: ctx.deployment.delegation.manager,
+      holding: ctx.stack.holding,
+      token,
+      agent,
+      amount,
+      publish: publish(41),
+    })
     expect((await send(hire)).status).toBe('success')
     expect(await balance(fixture.creator)).toBe(before - amount)
     expect(await balance(fixture.contributor)).toBe(0n)

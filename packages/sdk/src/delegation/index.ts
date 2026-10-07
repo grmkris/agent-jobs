@@ -37,7 +37,6 @@ export interface Caveat {
   readonly args: Hex
 }
 
-
 type ExecutionBudget = AdvanceBudget | CallBudget
 
 interface AdvanceBudget {
@@ -141,7 +140,14 @@ const caveat = (enforcer: Address, terms: Hex): Caveat => ({ enforcer, terms: te
  * `salt` is the offer's terms hash: one delegation per hire, so a re-prepared grant is the same delegation and a
  * revoked one stays revoked.
  */
-export function budgetDelegation(d: Deployment, budget: ExecutionBudget, creator: Address, worker: Address, salt: Hex, until: number): Delegation {
+export function budgetDelegation(
+  d: Deployment,
+  budget: ExecutionBudget,
+  creator: Address,
+  worker: Address,
+  salt: Hex,
+  until: number,
+): Delegation {
   const e = d.delegation.enforcers
   const window = caveat(e.timestamp, encodePacked(['uint128', 'uint128'], [0n, BigInt(until)]))
   const caveats =
@@ -159,7 +165,14 @@ export function budgetDelegation(d: Deployment, budget: ExecutionBudget, creator
           caveat(e.limitedCalls, uint(1n)),
           window,
         ]
-  return { delegate: worker, delegator: creator, authority: ROOT_AUTHORITY, caveats, salt: BigInt(salt), signature: '0x' }
+  return {
+    delegate: worker,
+    delegator: creator,
+    authority: ROOT_AUTHORITY,
+    caveats,
+    salt: BigInt(salt),
+    signature: '0x',
+  }
 }
 
 function signable(x: Delegation) {
@@ -173,7 +186,12 @@ function signable(x: Delegation) {
 }
 
 export function delegationDomain(d: Deployment) {
-  return { name: 'DelegationManager', version: '1', chainId: d.chainId, verifyingContract: d.delegation.manager } as const
+  return {
+    name: 'DelegationManager',
+    version: '1',
+    chainId: d.chainId,
+    verifyingContract: d.delegation.manager,
+  } as const
 }
 
 /** What the enforcers key their counters by and `disabledDelegations` is indexed by: the EIP-712 struct hash. */
@@ -183,7 +201,12 @@ export function delegationHash(x: Delegation): Hex {
 
 /** The digest the creator signs; the DeleGator on the creator's account checks its own key against it (ERC-1271). */
 export function delegationDigest(d: Deployment, x: Delegation): Hex {
-  return hashTypedData({ domain: delegationDomain(d), types: DELEGATION_TYPES, primaryType: 'Delegation', message: signable(x) })
+  return hashTypedData({
+    domain: delegationDomain(d),
+    types: DELEGATION_TYPES,
+    primaryType: 'Delegation',
+    message: signable(x),
+  })
 }
 
 /** The `eth_signTypedData_v4` JSON of the delegation, for the creator's wallet. */
@@ -200,7 +223,11 @@ export interface Execution {
 
 /** The transfer an advance draw executes: `amount` of the budget token to the worker. */
 export function advanceExecution(token: Address, worker: Address, amount: bigint): Execution {
-  return { target: token, value: 0n, callData: encodeFunctionData({ abi: erc20Abi, functionName: 'transfer', args: [worker, amount] }) }
+  return {
+    target: token,
+    value: 0n,
+    callData: encodeFunctionData({ abi: erc20Abi, functionName: 'transfer', args: [worker, amount] }),
+  }
 }
 
 /** `redeemDelegations` calldata for the signed delegation and one execution; the worker sends it to the manager. */
@@ -219,31 +246,55 @@ export function redeemCallsCalldata(signed: Delegation, executions: readonly Exe
   return encodeFunctionData({
     abi: delegationManagerAbi,
     functionName: 'redeemDelegations',
-    args: [executions.map(() => context), executions.map(() => SINGLE_DEFAULT_MODE),
-      executions.map(execution => encodePacked(['address', 'uint256', 'bytes'], [execution.target, execution.value, execution.callData]))],
+    args: [
+      executions.map(() => context),
+      executions.map(() => SINGLE_DEFAULT_MODE),
+      executions.map((execution) =>
+        encodePacked(['address', 'uint256', 'bytes'], [execution.target, execution.value, execution.callData]),
+      ),
+    ],
   })
 }
 
 /** `disableDelegation` calldata; only the delegator (the creator's account) may send it. */
 export function disableCalldata(x: Delegation): Hex {
-  return encodeFunctionData({ abi: delegationManagerAbi, functionName: 'disableDelegation', args: [{ ...x, caveats: [...x.caveats] }] })
+  return encodeFunctionData({
+    abi: delegationManagerAbi,
+    functionName: 'disableDelegation',
+    args: [{ ...x, caveats: [...x.caveats] }],
+  })
 }
 
 /** An advance's running total, as the ERC-20 amount enforcer counts it. */
 export function drawn(ctx: Ctx, hash: Hex): Promise<bigint> {
   const d = ctx.deployment.delegation
-  return ctx.publicClient.readContract({ address: d.enforcers.erc20TransferAmount, abi: countersAbi, functionName: 'spentMap', args: [d.manager, hash] })
+  return ctx.publicClient.readContract({
+    address: d.enforcers.erc20TransferAmount,
+    abi: countersAbi,
+    functionName: 'spentMap',
+    args: [d.manager, hash],
+  })
 }
 
 /** How many times a call budget was redeemed. */
 export function callsMade(ctx: Ctx, hash: Hex): Promise<bigint> {
   const d = ctx.deployment.delegation
-  return ctx.publicClient.readContract({ address: d.enforcers.limitedCalls, abi: countersAbi, functionName: 'callCounts', args: [d.manager, hash] })
+  return ctx.publicClient.readContract({
+    address: d.enforcers.limitedCalls,
+    abi: countersAbi,
+    functionName: 'callCounts',
+    args: [d.manager, hash],
+  })
 }
 
 export function isDisabled(ctx: Ctx, hash: Hex): Promise<boolean> {
   const d = ctx.deployment.delegation
-  return ctx.publicClient.readContract({ address: d.manager, abi: delegationManagerAbi, functionName: 'disabledDelegations', args: [hash] })
+  return ctx.publicClient.readContract({
+    address: d.manager,
+    abi: delegationManagerAbi,
+    functionName: 'disabledDelegations',
+    args: [hash],
+  })
 }
 
 /** The delegation as stored: JSON with the salt as a decimal string. */

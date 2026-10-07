@@ -11,7 +11,14 @@ import { Button } from '../ui/button.tsx'
 import { useAuth } from '../Wallet.tsx'
 import { useNow } from '../Time.tsx'
 import { ListingCard } from './ListingCard.tsx'
-import { AgentOwnedBacking, Connection, ManageCard, WalletEarnings, WeeklyBudget, useAgentAction } from './ManageCards.tsx'
+import {
+  AgentOwnedBacking,
+  Connection,
+  ManageCard,
+  WalletEarnings,
+  WeeklyBudget,
+  useAgentAction,
+} from './ManageCards.tsx'
 
 /**
  * One managed agent, for its operator, as the Manage tab: setup while it is unfinished, then its weekly budget, wallet
@@ -22,7 +29,11 @@ export function ManagedAgentCard({ agent, onBack }: { agent: ManagedAgent; onBac
   const auth = useAuth()
   const queryClient = useQueryClient()
   const { removeSigners } = useSigners()
-  const status = useQuery({ queryKey: ['managed-agent-status', agent.id, auth.address], queryFn: () => agentStatus(agent.id), refetchInterval: 20000 })
+  const status = useQuery({
+    queryKey: ['managed-agent-status', agent.id, auth.address],
+    queryFn: () => agentStatus(agent.id),
+    refetchInterval: 20000,
+  })
   const now = useNow()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -74,8 +85,10 @@ export function ManagedAgentCard({ agent, onBack }: { agent: ManagedAgent; onBac
         </h2>
         <p className="text-sm text-muted-foreground">
           <strong className="font-medium text-foreground">Last activity:</strong>{' '}
-          {agent.last_activity_at == null ? 'Unknown · no observed MCP call' : `${relative(agent.last_activity_at, now)}${now - agent.last_activity_at > 86400 ? ' · stale' : ''}`}. This is
-          server-observed activity, not a health signal.
+          {agent.last_activity_at == null
+            ? 'Unknown · no observed MCP call'
+            : `${relative(agent.last_activity_at, now)}${now - agent.last_activity_at > 86400 ? ' · stale' : ''}`}
+          . This is server-observed activity, not a health signal.
         </p>
       </header>
 
@@ -94,7 +107,11 @@ export function ManagedAgentCard({ agent, onBack }: { agent: ManagedAgent; onBac
         </section>
       )}
 
-      <ManageCard title="Access" tone="danger" note="Stopping access ends hosted actions at once, removes the Privy signer and disables the agent's on-chain permissions.">
+      <ManageCard
+        title="Access"
+        tone="danger"
+        note="Stopping access ends hosted actions at once, removes the Privy signer and disables the agent's on-chain permissions."
+      >
         <div className="grid gap-1 text-sm">
           <p>
             Agent wallet: <Address value={agent.address} />
@@ -109,7 +126,10 @@ export function ManagedAgentCard({ agent, onBack }: { agent: ManagedAgent; onBac
                 ? 'Server stopped · provider status unknown'
                 : 'Enabled'}
           </p>
-          <p>On-chain permissions: {revocation?.onchainPermissionsDisabled ? 'Disabled · confirmed receipts' : 'Disablement unconfirmed'}</p>
+          <p>
+            On-chain permissions:{' '}
+            {revocation?.onchainPermissionsDisabled ? 'Disabled · confirmed receipts' : 'Disablement unconfirmed'}
+          </p>
           {revocation?.receipts?.map((receipt) => (
             <p key={receipt.tx_hash} className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
               {receipt.status} · <TxLink hash={receipt.tx_hash} />

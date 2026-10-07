@@ -9,10 +9,23 @@ const other: `0x${string}` = '0x2222222222222222222222222222222222222222'
 const distributor: `0x${string}` = '0x00000000000000000000000000000000000000d5'
 const ctx: MiningClaimContext = { chainId: 10143, distributor, wallet: me }
 const claim = (epoch: bigint, account: string, amount: bigint) =>
-  encodeFunctionData({ abi: sdk.epochDistributorAbi as Abi, functionName: 'claim', args: [epoch, account, amount, [`0x${'aa'.repeat(32)}`]] })
-const row = (patch: Partial<CollectAction> = {}, data: `0x${string}` = claim(0n, me, 1234n * W), to = distributor): CollectAction => ({
-  kind: 'miningClaim', epoch: '0', token: '0x00000000000000000000000000000000000000f1', amount: (1234n * W).toString(),
-  description: 'Claim work mining into your SIDE stake.', transactions: [{ description: 'Claim', chainId: 10143, to, data, value: '0', gas: '500000' }], ...patch,
+  encodeFunctionData({
+    abi: sdk.epochDistributorAbi as Abi,
+    functionName: 'claim',
+    args: [epoch, account, amount, [`0x${'aa'.repeat(32)}`]],
+  })
+const row = (
+  patch: Partial<CollectAction> = {},
+  data: `0x${string}` = claim(0n, me, 1234n * W),
+  to = distributor,
+): CollectAction => ({
+  kind: 'miningClaim',
+  epoch: '0',
+  token: '0x00000000000000000000000000000000000000f1',
+  amount: (1234n * W).toString(),
+  description: 'Claim work mining into your SIDE stake.',
+  transactions: [{ description: 'Claim', chainId: 10143, to, data, value: '0', gas: '500000' }],
+  ...patch,
 })
 
 const problem = (r: CollectAction, c = ctx) => {
@@ -35,7 +48,9 @@ describe('a mining claim row', () => {
     // The type says '0'; the board's JSON is not checked by it.
     expect(problem(row({ transactions: [{ ...row().transactions[0]!, value: '1' as '0' }] }))).toMatch(/distributor/)
     expect(problem(row({}, '0x01'))).toMatch(/distributor/)
-    expect(problem(row({}, encodeFunctionData({ abi: sdk.epochDistributorAbi as Abi, functionName: 'available' })))).toMatch(/distributor/)
+    expect(
+      problem(row({}, encodeFunctionData({ abi: sdk.epochDistributorAbi as Abi, functionName: 'available' }))),
+    ).toMatch(/distributor/)
     expect(problem(row({}, claim(1n, me, 1234n * W)))).toMatch(/epoch or amount/)
     expect(problem(row({}, claim(0n, me, 1235n * W)))).toMatch(/epoch or amount/)
     expect(problem(row({}, claim(0n, other, 1234n * W)))).toMatch(/another wallet/)

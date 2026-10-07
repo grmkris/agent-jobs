@@ -6,7 +6,8 @@ export function AgentGrantReview({ description }: { description: ReturnType<type
   return (
     <div className="grid gap-3">
       <p className="text-sm leading-relaxed text-muted-foreground">
-        Review the permission before your wallet signs. It expires on {new Date(description.expiresAt * 1000).toLocaleString()}.
+        Review the permission before your wallet signs. It expires on{' '}
+        {new Date(description.expiresAt * 1000).toLocaleString()}.
       </p>
       <ItemGroup>
         <Item>

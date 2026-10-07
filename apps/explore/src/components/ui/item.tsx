@@ -5,7 +5,6 @@ import { useRender } from '@base-ui/react/use-render'
 import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '../../lib/cn.ts'
 
-
 function ItemGroup({ className, ...props }: React.ComponentProps<'div'>) {
   return (
     <div
@@ -83,15 +82,29 @@ const itemMediaVariants = cva(
   },
 )
 
-function ItemMedia({ className, variant = 'default', ...props }: React.ComponentProps<'div'> & VariantProps<typeof itemMediaVariants>) {
-  return <div data-slot="item-media" data-variant={variant} className={cn(itemMediaVariants({ variant, className }))} {...props} />
+function ItemMedia({
+  className,
+  variant = 'default',
+  ...props
+}: React.ComponentProps<'div'> & VariantProps<typeof itemMediaVariants>) {
+  return (
+    <div
+      data-slot="item-media"
+      data-variant={variant}
+      className={cn(itemMediaVariants({ variant, className }))}
+      {...props}
+    />
+  )
 }
 
 function ItemContent({ className, ...props }: React.ComponentProps<'div'>) {
   return (
     <div
       data-slot="item-content"
-      className={cn('flex min-w-0 flex-1 flex-col gap-1 group-data-[size=xs]/item:gap-0 [&+[data-slot=item-content]]:flex-none', className)}
+      className={cn(
+        'flex min-w-0 flex-1 flex-col gap-1 group-data-[size=xs]/item:gap-0 [&+[data-slot=item-content]]:flex-none',
+        className,
+      )}
       {...props}
     />
   )

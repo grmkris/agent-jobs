@@ -1,8 +1,28 @@
 import { parseEther } from 'viem'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { forkEnabled, forkSetupTimeout, startSidequestFork } from '../test/sidequest-fixture.ts'
-import { activate, balanceOf, cancel, claimTopUpRefund, getJob, getV1Listing, hashText, publish, quoteActivation,
-  registerAgent, requestUndelegate, settle, settleDeferred, signSelection, delegate, submit, accept, topUp, withdraw, type ActivationTerms } from './actions.ts'
+import {
+  activate,
+  balanceOf,
+  cancel,
+  claimTopUpRefund,
+  getJob,
+  getV1Listing,
+  hashText,
+  publish,
+  quoteActivation,
+  registerAgent,
+  requestUndelegate,
+  settle,
+  settleDeferred,
+  signSelection,
+  delegate,
+  submit,
+  accept,
+  topUp,
+  withdraw,
+  type ActivationTerms,
+} from './actions.ts'
 import { getBacking, getPosition } from './staking.ts'
 import { coreAbi } from './abi/index.ts'
 import { sidequestLifecycle, sidequestState } from './sidequest.ts'
@@ -26,11 +46,28 @@ fork('SDK v1 against real bytecode on a local Monad fork', () => {
     const { ctx, creator, worker, arbitrator } = f
     const now = Number((await ctx.publicClient.getBlock()).timestamp)
     const policy = hashText(`local-fork-${sequence++}`)
-    const expected: ActivationTerms = { creator: creator.account.address, approver: creator.account.address,
-      token: ctx.stack.factory, reward: 101n, creatorBond: parseEther('10'), workerBond: parseEther('10'),
-      arbitrator: arbitrator.account.address, reviewWindow: 3600, disputeWindow: 7200, arbitrationWindow: 43200, deliveryDeadline: now + 3600 }
+    const expected: ActivationTerms = {
+      creator: creator.account.address,
+      approver: creator.account.address,
+      token: ctx.stack.factory,
+      reward: 101n,
+      creatorBond: parseEther('10'),
+      workerBond: parseEther('10'),
+      arbitrator: arbitrator.account.address,
+      reviewWindow: 3600,
+      disputeWindow: 7200,
+      arbitrationWindow: 43200,
+      deliveryDeadline: now + 3600,
+    }
     const { jobId } = await publish(ctx, creator, { ...expected, manifestHash: hashText('fork'), termsHash: policy })
-    const selection: Selection = { jobId, worker: worker.account.address, agentId, termsHash: policy, activateBy: now + 1800, nonce: BigInt(sequence) }
+    const selection: Selection = {
+      jobId,
+      worker: worker.account.address,
+      agentId,
+      termsHash: policy,
+      activateBy: now + 1800,
+      nonce: BigInt(sequence),
+    }
     return { jobId, expected, selection, creatorSig: await signSelection(ctx, creator, selection) }
   }
 
@@ -38,7 +75,9 @@ fork('SDK v1 against real bytecode on a local Monad fork', () => {
     const x = await listed()
     expect(await quoteActivation(f.ctx, x.jobId, f.worker.account.address)).toEqual([3000, 31n, 70n])
     const nonce = await f.ctx.publicClient.getTransactionCount({ address: f.worker.account.address })
-    await expect(activate(f.ctx, f.worker, x.selection, x.creatorSig, { ...x.expected, workerBond: 1n })).rejects.toThrow('workerBond')
+    await expect(
+      activate(f.ctx, f.worker, x.selection, x.creatorSig, { ...x.expected, workerBond: 1n }),
+    ).rejects.toThrow('workerBond')
     expect(await f.ctx.publicClient.getTransactionCount({ address: f.worker.account.address })).toBe(nonce)
     await activate(f.ctx, f.worker, x.selection, x.creatorSig, x.expected)
     expect((await getJob(f.ctx, x.jobId)).budget).toBe(70n)
@@ -72,7 +111,10 @@ fork('SDK v1 against real bytecode on a local Monad fork', () => {
     await settleDeferred(f.ctx, f.contributor, x.jobId)
     expect((await balanceOf(f.ctx, f.ctx.stack.factory, f.worker.account.address)) - before).toBe(70n)
     expect((await getJob(f.ctx, x.jobId)).statusName).toBe('Rejected')
-    expect(lifecycle(await sidequestLifecycle(f.ctx, x.jobId))).toMatchObject({ key: 'completed', beneficiary: 'worker' })
+    expect(lifecycle(await sidequestLifecycle(f.ctx, x.jobId))).toMatchObject({
+      key: 'completed',
+      beneficiary: 'worker',
+    })
   }, 120_000)
 
   it('refunds a cancelled offer and a contributor top-up after a missed delivery, then withdraws cooled backing', async () => {

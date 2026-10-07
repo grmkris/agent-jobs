@@ -9,13 +9,25 @@ import type { Hex } from 'viem'
 import { signTypedDataWith } from './client.ts'
 import { useSidequest } from './provider.tsx'
 import type { SendProgress } from './send.ts'
-import type { BoardInfo, ChainJob, CreatedTask, DeliverableSpec, SignRequest, TaskIndexEntry, TxRequest } from './types.ts'
+import type {
+  BoardInfo,
+  ChainJob,
+  CreatedTask,
+  DeliverableSpec,
+  SignRequest,
+  TaskIndexEntry,
+  TxRequest,
+} from './types.ts'
 
 const KEY = 'sidequest'
 
 export function useBoard() {
   const { api } = useSidequest()
-  return useQuery({ queryKey: [KEY, api.boardId, 'board'], queryFn: async () => (await api.tool<{ board: BoardInfo }>('get_board')).board, staleTime: 60_000 })
+  return useQuery({
+    queryKey: [KEY, api.boardId, 'board'],
+    queryFn: async () => (await api.tool<{ board: BoardInfo }>('get_board')).board,
+    staleTime: 60_000,
+  })
 }
 
 /** SIWE sign-in with the host's wallet; the token lives in the client's storage and is valid on every board. */
@@ -45,7 +57,11 @@ export interface TaskListItem {
 /** The board's tasks: the board's records merged with the indexed chain facts (drafts and not-yet-indexed jobs included). */
 export function useTasks(refetchInterval = 20_000) {
   const { api } = useSidequest()
-  const tasks = useQuery({ queryKey: [KEY, api.boardId, 'task_index'], queryFn: () => api.tool<TaskIndexEntry[]>('task_index'), refetchInterval })
+  const tasks = useQuery({
+    queryKey: [KEY, api.boardId, 'task_index'],
+    queryFn: () => api.tool<TaskIndexEntry[]>('task_index'),
+    refetchInterval,
+  })
   const chain = useQuery({
     queryKey: [KEY, api.boardId, 'jobs'],
     queryFn: () => api.jobs<{ jobs: ChainJob[]; index: { next_block: number; updated_at: number } | null }>(),
@@ -61,17 +77,35 @@ export function useTasks(refetchInterval = 20_000) {
     }
     return [...byJob.values(), ...out].toSorted((a, b) => Number(b.jobId ?? 1e9) - Number(a.jobId ?? 1e9))
   }, [tasks.data, chain.data])
-  return { items, index: chain.data?.index ?? null, isLoading: tasks.isLoading || chain.isLoading, error: tasks.error ?? chain.error, refetch: () => Promise.all([tasks.refetch(), chain.refetch()]) }
+  return {
+    items,
+    index: chain.data?.index ?? null,
+    isLoading: tasks.isLoading || chain.isLoading,
+    error: tasks.error ?? chain.error,
+    refetch: () => Promise.all([tasks.refetch(), chain.refetch()]),
+  }
 }
 
 export function useTask<T = Record<string, unknown>>(taskId: string | undefined, refetchInterval = 15_000) {
   const { api } = useSidequest()
-  return useQuery({ queryKey: [KEY, api.boardId, 'task', taskId], queryFn: () => api.tool<T>('get_task', { taskId }), enabled: taskId !== undefined, refetchInterval })
+  return useQuery({
+    queryKey: [KEY, api.boardId, 'task', taskId],
+    queryFn: () => api.tool<T>('get_task', { taskId }),
+    enabled: taskId !== undefined,
+    refetchInterval,
+  })
 }
 
-export function useApplications<T = Array<{ id: string; worker: string; agentId: string; note: string }>>(taskId: string | undefined) {
+export function useApplications<T = Array<{ id: string; worker: string; agentId: string; note: string }>>(
+  taskId: string | undefined,
+) {
   const { api } = useSidequest()
-  return useQuery({ queryKey: [KEY, api.boardId, 'applications', taskId], queryFn: () => api.tool<T>('list_applications', { taskId }), enabled: taskId !== undefined, refetchInterval: 15_000 })
+  return useQuery({
+    queryKey: [KEY, api.boardId, 'applications', taskId],
+    queryFn: () => api.tool<T>('list_applications', { taskId }),
+    enabled: taskId !== undefined,
+    refetchInterval: 15_000,
+  })
 }
 
 /** The sender for this wallet, or null until one is connected. */
@@ -124,7 +158,10 @@ export function usePublish() {
       const hashes = await sender.send(created.taskId, created.transactions, onProgress)
       const task = await api.tool<{ jobId: string | null }>('get_task', { taskId: created.taskId })
       if (input.invite !== undefined && created.applicationId !== undefined) {
-        const sel = await api.tool<{ nonce: string; sign: SignRequest }>('select_worker', { taskId: created.taskId, applicationId: created.applicationId })
+        const sel = await api.tool<{ nonce: string; sign: SignRequest }>('select_worker', {
+          taskId: created.taskId,
+          applicationId: created.applicationId,
+        })
         const signature = await signTypedDataWith(provider, address, sel.sign.typedData)
         await api.tool('submit_selection', { taskId: created.taskId, nonce: sel.nonce, signature })
       }
@@ -159,7 +196,13 @@ export function useApprove() {
 
 export function useReject() {
   const act = useTxAction('reject_work')
-  return useCallback((input: { taskId: string; violation: 'None' | 'Quality' | 'Falsified'; reason: string }, onProgress?: (p: SendProgress) => void) => act(input, onProgress), [act])
+  return useCallback(
+    (
+      input: { taskId: string; violation: 'None' | 'Quality' | 'Falsified'; reason: string },
+      onProgress?: (p: SendProgress) => void,
+    ) => act(input, onProgress),
+    [act],
+  )
 }
 
 export function useCancel() {

@@ -32,7 +32,8 @@ export const countdownText = (parts: readonly CountdownPart[]): string =>
   parts.map((p) => `${String(p.value).padStart(p.pad, '0')}${p.unit}`).join(' ')
 
 /** What a countdown re-renders on: the seconds left, floored to the minute while an hour or more is left. */
-export const countdownTick = (left: number): number => (left <= 0 ? 0 : left >= HOUR ? Math.floor(left / 60) * 60 : Math.floor(left))
+export const countdownTick = (left: number): number =>
+  left <= 0 ? 0 : left >= HOUR ? Math.floor(left / 60) * 60 : Math.floor(left)
 
 /** Under an hour left: the countdown ticks seconds and turns amber. */
 export const countdownUrgent = (left: number): boolean => left > 0 && left < HOUR

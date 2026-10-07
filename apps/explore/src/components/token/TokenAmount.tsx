@@ -68,7 +68,15 @@ export function TokenAmount({
   )
 }
 
-function TokenPopover({ token, className, children }: { token: string; className?: string | undefined; children: ReactNode }) {
+function TokenPopover({
+  token,
+  className,
+  children,
+}: {
+  token: string
+  className?: string | undefined
+  children: ReactNode
+}) {
   const trigger = useRef<HTMLButtonElement>(null)
   // A popup portalled to <body> renders under an open modal <dialog> (a Sheet's top layer): portal into the dialog.
   const [container, setContainer] = useState<HTMLElement | undefined>(undefined)
@@ -110,10 +118,14 @@ function TokenCard({ token }: { token: string }) {
         <TokenIcon token={a} className="size-8 align-middle text-base" />
         <div className="grid min-w-0">
           <span className="truncate font-medium">{meta?.symbol ?? listed?.symbol ?? 'Unknown token'}</span>
-          <span className="truncate text-xs text-muted-foreground">{meta?.name ?? listed?.name ?? 'Name unavailable'}</span>
+          <span className="truncate text-xs text-muted-foreground">
+            {meta?.name ?? listed?.name ?? 'Name unavailable'}
+          </span>
         </div>
       </div>
-      <p className={cn('text-xs', source === 'unlisted' ? 'text-warning-text' : 'text-muted-foreground')}>{SOURCE[source]}</p>
+      <p className={cn('text-xs', source === 'unlisted' ? 'text-warning-text' : 'text-muted-foreground')}>
+        {SOURCE[source]}
+      </p>
       <button
         type="button"
         onClick={() =>

@@ -8,7 +8,12 @@ import { countdownParts, countdownText, countdownUrgent } from '../countdown.ts'
 import { cn } from '../lib/cn.ts'
 import { useRemaining, utc } from './Time.tsx'
 
-export function RollingCountdown({ to, passed = 'passed', size = 'row', className }: {
+export function RollingCountdown({
+  to,
+  passed = 'passed',
+  size = 'row',
+  className,
+}: {
   to: number
   /** What it reads once the deadline is behind it: "closed", "overdue". */
   passed?: string
@@ -17,7 +22,12 @@ export function RollingCountdown({ to, passed = 'passed', size = 'row', classNam
 }) {
   const left = useRemaining(to)
   const at = new Date(to * 1000).toISOString()
-  if (left <= 0) return <time dateTime={at} title={utc(to)} className={cn('text-muted-foreground', className)}>{passed}</time>
+  if (left <= 0)
+    return (
+      <time dateTime={at} title={utc(to)} className={cn('text-muted-foreground', className)}>
+        {passed}
+      </time>
+    )
   const parts = countdownParts(left)
   return (
     <time

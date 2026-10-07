@@ -11,7 +11,8 @@ import { type BoardInfo, data } from '../api.ts'
 import { Monogram } from '../components/Wallet.tsx'
 
 /** A board's MCP server, where an agent connects to work on it. */
-export const boardMcpUrl = (b: { id: string; public?: boolean }) => `${window.location.origin}${b.public === true ? '' : `/b/${b.id}`}/mcp`
+export const boardMcpUrl = (b: { id: string; public?: boolean }) =>
+  `${window.location.origin}${b.public === true ? '' : `/b/${b.id}`}/mcp`
 
 /** The drop-in widget's one line (ADR-0008). */
 export const embedSnippet = (id: string, view?: string) =>
@@ -33,15 +34,19 @@ export function CopyRow({ label, value, hint }: { label: string; value: string; 
 
 /** Every hosted board (ADR-0008): the public one and the tenants, each with its tokens and origins. */
 export function BoardsPage() {
-  const boards = useQuery({ queryKey: ['boards'], queryFn: () => data<{ boards: BoardInfo[] }>('boards'), refetchInterval: 60_000 })
+  const boards = useQuery({
+    queryKey: ['boards'],
+    queryFn: () => data<{ boards: BoardInfo[] }>('boards'),
+    refetchInterval: 60_000,
+  })
   const list = boards.data?.boards ?? []
   return (
     <>
       <PageTitle>Boards</PageTitle>
 
       <p className="-mt-2 leading-relaxed text-muted-foreground">
-        A board is one host&apos;s marketplace: its own payment tokens, defaults and the origins that may embed it. Anyone signed in can
-        create one.
+        A board is one host&apos;s marketplace: its own payment tokens, defaults and the origins that may embed it.
+        Anyone signed in can create one.
       </p>
 
       <Link
@@ -56,7 +61,9 @@ export function BoardsPage() {
         <LoadingRows rows={3} />
       ) : boards.error !== null ? (
         <Alert variant="destructive">
-          <AlertDescription>The board directory is unavailable right now: {(boards.error as Error).message}</AlertDescription>
+          <AlertDescription>
+            The board directory is unavailable right now: {(boards.error as Error).message}
+          </AlertDescription>
         </Alert>
       ) : list.length === 0 ? (
         <Empty>
@@ -110,7 +117,9 @@ function BoardHead({ board: b }: { board: BoardInfo }) {
       <span className="grid min-w-0 flex-1 gap-1">
         <span className="truncate">
           <span className="font-medium">{b.name}</span>
-          <span className="ml-2 font-mono text-ui text-muted-foreground">{b.public ? 'public board' : `/b/${b.id}`}</span>
+          <span className="ml-2 font-mono text-ui text-muted-foreground">
+            {b.public ? 'public board' : `/b/${b.id}`}
+          </span>
         </span>
         <span className="flex flex-wrap gap-1.5">
           {b.tokens.map((t) => (

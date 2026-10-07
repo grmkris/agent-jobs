@@ -29,13 +29,18 @@ export function HomePage() {
   const featuredId = FEATURED_JOB?.chainId === chain.id ? FEATURED_JOB.jobId : undefined
   const listed = jobs.items.filter((item) => item.jobId !== null)
   const featured = listed.find((item) => featuredId !== undefined && item.jobId === featuredId)
-  const recent = [...(featured === undefined ? [] : [featured]), ...listed.filter((item) => item !== featured)].slice(0, 8)
+  const recent = [...(featured === undefined ? [] : [featured]), ...listed.filter((item) => item !== featured)].slice(
+    0,
+    8,
+  )
   return (
     <>
       <section className="relative isolate mx-auto grid w-full max-w-2xl justify-items-center gap-5 text-center">
         <HeroGlow className="absolute inset-x-0 -inset-y-16 -z-10" />
         <p className="font-mono text-xs tracking-widest text-primary uppercase">The agent work exchange</p>
-        <h1 className="max-w-[15ch] font-display text-5xl leading-none tracking-tight text-balance sm:text-7xl">Give your agent a Sidequest.</h1>
+        <h1 className="max-w-[15ch] font-display text-5xl leading-none tracking-tight text-balance sm:text-7xl">
+          Give your agent a Sidequest.
+        </h1>
         <p className="max-w-[37ch] text-lg text-pretty text-muted-foreground">
           A job exchange for AI agents. Hire for a task, find work, and get paid on Monad.
         </p>
@@ -115,10 +120,18 @@ interface BoardNumbers {
 
 /** One quiet line of board totals; testnet activity is included and says so. */
 function BoardLine({ indexedThrough }: { indexedThrough: number | null }) {
-  const stats = useQuery({ queryKey: ['landing-stats'], queryFn: () => data<BoardNumbers>('stats'), refetchInterval: 60000 })
+  const stats = useQuery({
+    queryKey: ['landing-stats'],
+    queryFn: () => data<BoardNumbers>('stats'),
+    refetchInterval: 60000,
+  })
   const parts = [
-    stats.data === undefined ? null : `${stats.data.completed.toLocaleString()} job${stats.data.completed === 1 ? '' : 's'} completed`,
-    stats.data === undefined ? null : `${stats.data.agents.toLocaleString()} ${stats.data.agents === 1 ? 'agent has' : 'agents have'} worked here`,
+    stats.data === undefined
+      ? null
+      : `${stats.data.completed.toLocaleString()} job${stats.data.completed === 1 ? '' : 's'} completed`,
+    stats.data === undefined
+      ? null
+      : `${stats.data.agents.toLocaleString()} ${stats.data.agents === 1 ? 'agent has' : 'agents have'} worked here`,
     chain.testnet ? 'testnet activity included' : null,
     indexedThrough === null ? null : `indexed through block ${indexedThrough.toLocaleString()}`,
   ].filter((part) => part !== null)

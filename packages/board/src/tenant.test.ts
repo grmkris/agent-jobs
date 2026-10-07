@@ -1,9 +1,21 @@
 import { describe, expect, it } from 'vitest'
 import * as sdk from '@sidequest/sdk'
-import { isAllowedOrigin, originOf, publicTenant, tenantDefaults, tenantRefusal, tenantToken, validateBoardInput } from './tenant.ts'
+import {
+  isAllowedOrigin,
+  originOf,
+  publicTenant,
+  tenantDefaults,
+  tenantRefusal,
+  tenantToken,
+  validateBoardInput,
+} from './tenant.ts'
 
 const deployment = sdk.deployment('monad-testnet')
-const tokens = deployment.rewardTokens.map((address, i) => ({ address, symbol: ['mUSD', 'mEUR', 'CHOMP'][i] ?? `T${i}`, decimals: 18 }))
+const tokens = deployment.rewardTokens.map((address, i) => ({
+  address,
+  symbol: ['mUSD', 'mEUR', 'CHOMP'][i] ?? `T${i}`,
+  decimals: 18,
+}))
 /** A user's token nobody lists (ADR-0010): any ERC-20 by address. */
 const userToken = { address: '0x00000000000000000000000000000000000c40a1' as const, symbol: 'PET', decimals: 18 }
 const resolveToken = async (address: `0x${string}`) => {
@@ -27,7 +39,14 @@ describe('tenant', () => {
 
   it('validates a board: slug, stacks, tokens by symbol or address, origins', async () => {
     const t = await validateBoardInput(
-      { slug: 'monad-pet', name: 'Monad Pet', stacks: ['main'], rewardTokens: ['mUSD', tokens[1]!.address], allowedOrigins: ['https://pet.example', 'http://localhost:*'], drip: true },
+      {
+        slug: 'monad-pet',
+        name: 'Monad Pet',
+        stacks: ['main'],
+        rewardTokens: ['mUSD', tokens[1]!.address],
+        allowedOrigins: ['https://pet.example', 'http://localhost:*'],
+        drip: true,
+      },
       deployment,
       owner,
       1000,
@@ -38,22 +57,64 @@ describe('tenant', () => {
     expect(isAllowedOrigin(t, 'https://pet.example', 'api.example')).toBe(true)
     expect(isAllowedOrigin(t, 'http://localhost:5173', 'api.example')).toBe(true)
     expect(isAllowedOrigin(t, 'https://pet.example.evil', 'api.example')).toBe(false)
-    await expect(validateBoardInput({ slug: 'Bad Slug', name: 'x' }, deployment, owner, 1, resolveToken)).rejects.toThrow(/slug/)
-    await expect(validateBoardInput({ slug: 'public', name: 'x' }, deployment, owner, 1, resolveToken)).rejects.toThrow(/hosted board/)
-    await expect(validateBoardInput({ slug: 'ok-slug', name: 'x', stacks: ['nope'] }, deployment, owner, 1, resolveToken)).rejects.toThrow(/unknown stack/)
-    await expect(validateBoardInput({ slug: 'ok-slug', name: 'x', rewardTokens: ['DOGE'] }, deployment, owner, 1, resolveToken)).rejects.toThrow(/by its address/)
     await expect(
-      validateBoardInput({ slug: 'ok-slug', name: 'x', rewardTokens: ['0x00000000000000000000000000000000000dead1'] }, deployment, owner, 1, resolveToken),
+      validateBoardInput({ slug: 'Bad Slug', name: 'x' }, deployment, owner, 1, resolveToken),
+    ).rejects.toThrow(/slug/)
+    await expect(validateBoardInput({ slug: 'public', name: 'x' }, deployment, owner, 1, resolveToken)).rejects.toThrow(
+      /hosted board/,
+    )
+    await expect(
+      validateBoardInput({ slug: 'ok-slug', name: 'x', stacks: ['nope'] }, deployment, owner, 1, resolveToken),
+    ).rejects.toThrow(/unknown stack/)
+    await expect(
+      validateBoardInput({ slug: 'ok-slug', name: 'x', rewardTokens: ['DOGE'] }, deployment, owner, 1, resolveToken),
+    ).rejects.toThrow(/by its address/)
+    await expect(
+      validateBoardInput(
+        { slug: 'ok-slug', name: 'x', rewardTokens: ['0x00000000000000000000000000000000000dead1'] },
+        deployment,
+        owner,
+        1,
+        resolveToken,
+      ),
     ).rejects.toThrow(/not an ERC-20/)
-    const own = await validateBoardInput({ slug: 'pet-board', name: 'Pet', rewardTokens: [userToken.address] }, deployment, owner, 1, resolveToken)
+    const own = await validateBoardInput(
+      { slug: 'pet-board', name: 'Pet', rewardTokens: [userToken.address] },
+      deployment,
+      owner,
+      1,
+      resolveToken,
+    )
     expect(own.tokens).toEqual([userToken])
     expect(tenantRefusal(own, { token: 'mUSD' })).toMatch(/pays in PET/)
-    await expect(validateBoardInput({ slug: 'ok-slug', name: 'x', allowedOrigins: ['https://a.example/path'] }, deployment, owner, 1, resolveToken)).rejects.toThrow(/origin/)
-    await expect(validateBoardInput({ slug: 'ok-slug', name: 'x', allowedOrigins: ['http://a.example'] }, deployment, owner, 1, resolveToken)).rejects.toThrow(/https/)
+    await expect(
+      validateBoardInput(
+        { slug: 'ok-slug', name: 'x', allowedOrigins: ['https://a.example/path'] },
+        deployment,
+        owner,
+        1,
+        resolveToken,
+      ),
+    ).rejects.toThrow(/origin/)
+    await expect(
+      validateBoardInput(
+        { slug: 'ok-slug', name: 'x', allowedOrigins: ['http://a.example'] },
+        deployment,
+        owner,
+        1,
+        resolveToken,
+      ),
+    ).rejects.toThrow(/https/)
   })
 
   it('refuses a stack or token outside the board and fills defaults', async () => {
-    const t = await validateBoardInput({ slug: 'monad-pet', name: 'Monad Pet', stacks: ['main'], rewardTokens: ['mUSD'], defaultApprover: owner }, deployment, owner, 1, resolveToken)
+    const t = await validateBoardInput(
+      { slug: 'monad-pet', name: 'Monad Pet', stacks: ['main'], rewardTokens: ['mUSD'], defaultApprover: owner },
+      deployment,
+      owner,
+      1,
+      resolveToken,
+    )
     expect(tenantRefusal(t, { stack: 'demo' })).toMatch(/stacks main/)
     expect(tenantRefusal(t, { token: 'mEUR' })).toMatch(/pays in mUSD/)
     expect(tenantRefusal(t, { tokens: ['mUSD', 'mEUR'] })).toMatch(/pays in mUSD/)
@@ -62,7 +123,9 @@ describe('tenant', () => {
     expect(tenantRefusal(t, { budget: { token: 'mUSD', max: '5' } })).toBeUndefined()
     expect(tenantRefusal(t, { stack: 'main', token: tokens[0]!.address })).toBeUndefined()
     expect(tenantDefaults(t, { title: 'x' })).toEqual({ title: 'x', stack: 'main', approver: owner })
-    expect(tenantDefaults(t, { stack: 'main', approver: '0x0000000000000000000000000000000000000001' }).approver).toBe('0x0000000000000000000000000000000000000001')
+    expect(tenantDefaults(t, { stack: 'main', approver: '0x0000000000000000000000000000000000000001' }).approver).toBe(
+      '0x0000000000000000000000000000000000000001',
+    )
     expect(tenantToken(t, 'musd')?.symbol).toBe('mUSD')
     expect(tenantToken(t, 'mEUR')).toBeUndefined()
   })

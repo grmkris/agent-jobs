@@ -37,10 +37,12 @@ export const Route = createFileRoute('/docs/$')({
       { title: loaderData ? `${loaderData.title} · Sidequest` : 'Sidequest docs' },
       { name: 'description', content: loaderData?.description ?? 'Sidequest protocol documentation.' },
     ],
-    links: loaderData ? [
-      { rel: 'alternate', type: 'text/markdown', href: loaderData.markdownUrl },
-      { rel: 'canonical', href: new URL(loaderData.url, __DOCS_ORIGIN__).href },
-    ] : [],
+    links: loaderData
+      ? [
+          { rel: 'alternate', type: 'text/markdown', href: loaderData.markdownUrl },
+          { rel: 'canonical', href: new URL(loaderData.url, __DOCS_ORIGIN__).href },
+        ]
+      : [],
   }),
 })
 function Content({ path, markdownUrl }: { path: string; markdownUrl: string }) {
@@ -52,12 +54,22 @@ function Content({ path, markdownUrl }: { path: string; markdownUrl: string }) {
     <DocsPage toc={toc}>
       <DocsTitle>{page.title}</DocsTitle>
       <DocsDescription>{page.description}</DocsDescription>
-      <div className="-mt-4 mb-6 flex items-center border-b pb-6"><MarkdownCopyButton markdownUrl={markdownUrl} /></div>
-      <DocsBody><MDX components={useMDXComponents()} /></DocsBody>
+      <div className="-mt-4 mb-6 flex items-center border-b pb-6">
+        <MarkdownCopyButton markdownUrl={markdownUrl} />
+      </div>
+      <DocsBody>
+        <MDX components={useMDXComponents()} />
+      </DocsBody>
     </DocsPage>
   )
 }
 function Page() {
   const { pageTree, path, markdownUrl } = useFumadocsLoader(Route.useLoaderData())
-  return <DocsLayout {...baseOptions()} tree={pageTree}><Suspense><Content path={path} markdownUrl={markdownUrl} /></Suspense></DocsLayout>
+  return (
+    <DocsLayout {...baseOptions()} tree={pageTree}>
+      <Suspense>
+        <Content path={path} markdownUrl={markdownUrl} />
+      </Suspense>
+    </DocsLayout>
+  )
 }

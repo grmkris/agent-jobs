@@ -10,13 +10,22 @@ test('testnet policy remains open', () => {
 
 test('production reads are public and every authenticated wallet and board can write', () => {
   expect(admissionFailure(admission, 'monad-mainnet', 'other', 'protocol_info', undefined)).toBeUndefined()
-  expect(admissionFailure(admission, 'monad-mainnet', 'ops', 'create_task', undefined)).toContain('authenticated wallet')
+  expect(admissionFailure(admission, 'monad-mainnet', 'ops', 'create_task', undefined)).toContain(
+    'authenticated wallet',
+  )
   expect(admissionFailure(admission, 'monad-mainnet', 'ops', 'create_task', '0xdef')).toContain('authenticated wallet')
-  for (const board of ['public', 'ops', 'new-board']) expect(admissionFailure(admission, 'monad-mainnet', board, 'create_task', wallet)).toBeUndefined()
+  for (const board of ['public', 'ops', 'new-board'])
+    expect(admissionFailure(admission, 'monad-mainnet', board, 'create_task', wallet)).toBeUndefined()
 })
 
 test('account upgrades and budgets are open', () => {
-  for (const tool of ['upgrade_account', 'spend_budget', 'spend_budget_call', 'budget_grant_prepare', 'budget_grant_confirm']) {
+  for (const tool of [
+    'upgrade_account',
+    'spend_budget',
+    'spend_budget_call',
+    'budget_grant_prepare',
+    'budget_grant_confirm',
+  ]) {
     expect(admissionFailure(admission, 'monad-mainnet', 'public', tool, wallet)).toBeUndefined()
   }
 })

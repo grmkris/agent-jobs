@@ -73,7 +73,10 @@ async function takeLease(sql: AsyncSql, cfg: IndexerConfig, now: number): Promis
       `INSERT INTO lease (id, holder, expires_at) VALUES (?, ?, ?)
        ON CONFLICT (id) DO UPDATE SET holder = excluded.holder, expires_at = excluded.expires_at
        WHERE lease.expires_at <= ? OR lease.holder = excluded.holder`,
-      id, cfg.runner, now + (cfg.leaseSeconds ?? 120), now,
+      id,
+      cfg.runner,
+      now + (cfg.leaseSeconds ?? 120),
+      now,
     ),
   ])
   const [row] = await sql.all<{ holder: string }>('SELECT holder FROM lease WHERE id = ?', id)
@@ -81,17 +84,26 @@ async function takeLease(sql: AsyncSql, cfg: IndexerConfig, now: number): Promis
 }
 
 export async function releaseLease(sql: AsyncSql, cfg: IndexerConfig): Promise<void> {
-  await sql.batch([stmt('DELETE FROM lease WHERE id = ? AND holder = ?', `indexer:${cfg.contracts.chainId}`, cfg.runner)])
+  await sql.batch([
+    stmt('DELETE FROM lease WHERE id = ? AND holder = ?', `indexer:${cfg.contracts.chainId}`, cfg.runner),
+  ])
 }
 
 const eventKey = (e: IndexedEvent) => `${e.contract}:${e.block}:${e.logIndex}`
 
 /** Re-folds `jobIds` from their stored events plus `fresh` (deduplicated by event identity). */
-async function refold(sql: AsyncSql, cfg: IndexerConfig, jobIds: Iterable<string>, fresh: readonly IndexedEvent[]): Promise<Statement[]> {
+async function refold(
+  sql: AsyncSql,
+  cfg: IndexerConfig,
+  jobIds: Iterable<string>,
+  fresh: readonly IndexedEvent[],
+): Promise<Statement[]> {
   const chainId = cfg.contracts.chainId
   const out: Statement[] = []
   for (const jobId of jobIds) {
-    const stored = (await sql.all<EventRow>('SELECT * FROM events WHERE chain_id = ? AND job_id = ?', chainId, jobId)).map((r) => toEvent(chainId, r))
+    const stored = (
+      await sql.all<EventRow>('SELECT * FROM events WHERE chain_id = ? AND job_id = ?', chainId, jobId)
+    ).map((r) => toEvent(chainId, r))
     const all = new Map(stored.map((e) => [eventKey(e), e]))
     for (const e of fresh) if (e.jobId === jobId) all.set(eventKey(e), e)
     out.push(...foldJob(cfg.contracts, chainId, jobId, [...all.values()].toSorted(byChainOrder)))
@@ -102,35 +114,68 @@ async function refold(sql: AsyncSql, cfg: IndexerConfig, jobIds: Iterable<string
 /** Drops everything from `block` on and re-folds the jobs it touched; the checkpoint moves back to `block`. */
 async function rewindTo(sql: AsyncSql, cfg: IndexerConfig, block: number, now: number): Promise<void> {
   const chainId = cfg.contracts.chainId
-  const touched = await sql.all<{ job_id: string }>('SELECT DISTINCT job_id FROM events WHERE chain_id = ? AND block >= ?', chainId, block)
+  const touched = await sql.all<{ job_id: string }>(
+    'SELECT DISTINCT job_id FROM events WHERE chain_id = ? AND block >= ?',
+    chainId,
+    block,
+  )
   const deleteLater = stmt('DELETE FROM events WHERE chain_id = ? AND block >= ?', chainId, block)
   // Fold from the events that remain below `block`.
   const statements: Statement[] = []
   for (const { job_id } of touched) {
-    const kept = (await sql.all<EventRow>('SELECT * FROM events WHERE chain_id = ? AND job_id = ? AND block < ?', chainId, job_id, block)).map((r) => toEvent(chainId, r))
+    const kept = (
+      await sql.all<EventRow>(
+        'SELECT * FROM events WHERE chain_id = ? AND job_id = ? AND block < ?',
+        chainId,
+        job_id,
+        block,
+      )
+    ).map((r) => toEvent(chainId, r))
     statements.push(...foldJob(cfg.contracts, chainId, job_id, kept))
   }
   await sql.batch([
     deleteLater,
     stmt('DELETE FROM protocol_events WHERE chain_id = ? AND block >= ?', chainId, block),
     ...statements,
-    stmt('INSERT OR REPLACE INTO checkpoint (chain_id, next_block, block_hash, updated_at) VALUES (?, ?, NULL, ?)', chainId, block, now),
+    stmt(
+      'INSERT OR REPLACE INTO checkpoint (chain_id, next_block, block_hash, updated_at) VALUES (?, ?, NULL, ?)',
+      chainId,
+      block,
+      now,
+    ),
   ])
 }
 
 export async function runOnce(sql: AsyncSql, cfg: IndexerConfig): Promise<RunResult> {
   const now = (cfg.now ?? (() => Math.floor(Date.now() / 1000)))()
   const chainId = cfg.contracts.chainId
-  if (!(await takeLease(sql, cfg, now))) return { lease: false, pages: 0, events: 0, protocolEvents: 0, jobs: 0, nextBlock: null, caughtUp: false, rewound: false, backfilled: 0 }
+  if (!(await takeLease(sql, cfg, now)))
+    return {
+      lease: false,
+      pages: 0,
+      events: 0,
+      protocolEvents: 0,
+      jobs: 0,
+      nextBlock: null,
+      caughtUp: false,
+      rewound: false,
+      backfilled: 0,
+    }
   const addresses = [...cfg.contracts.roles.keys()]
-  let [cp] = await sql.all<{ next_block: number; block_hash: string | null }>('SELECT next_block, block_hash FROM checkpoint WHERE chain_id = ?', chainId)
+  let [cp] = await sql.all<{ next_block: number; block_hash: string | null }>(
+    'SELECT next_block, block_hash FROM checkpoint WHERE chain_id = ?',
+    chainId,
+  )
   let rewound = false
   if (cp !== undefined && cp.block_hash !== null && cp.next_block > cfg.deployBlock) {
     const onChain = await cfg.head.blockHash(cp.next_block - 1)
     if (onChain !== null && onChain.toLowerCase() !== cp.block_hash.toLowerCase()) {
       await rewindTo(sql, cfg, Math.max(cfg.deployBlock, cp.next_block - (cfg.rewindBlocks ?? 100)), now)
       rewound = true
-      ;[cp] = await sql.all<{ next_block: number; block_hash: string | null }>('SELECT next_block, block_hash FROM checkpoint WHERE chain_id = ?', chainId)
+      ;[cp] = await sql.all<{ next_block: number; block_hash: string | null }>(
+        'SELECT next_block, block_hash FROM checkpoint WHERE chain_id = ?',
+        chainId,
+      )
     }
   }
   let next = cp?.next_block ?? cfg.deployBlock
@@ -142,21 +187,53 @@ export async function runOnce(sql: AsyncSql, cfg: IndexerConfig): Promise<RunRes
   while (pages < (cfg.maxPages ?? 5) && next <= finalized) {
     const page = await cfg.source.logs({ fromBlock: next, toBlock: finalized + 1, addresses })
     const fresh = page.logs.map((l) => decode(cfg.contracts, l)).filter((e): e is IndexedEvent => e !== undefined)
-    const pageJobs = new Set(fresh.flatMap((e) => e.jobId === null ? [] : [e.jobId]))
+    const pageJobs = new Set(fresh.flatMap((e) => (e.jobId === null ? [] : [e.jobId])))
     const upTo = Math.min(Math.max(page.nextBlock, next), finalized + 1)
     const hash = await cfg.head.blockHash(upTo - 1)
     const eventBlocks = new Set(fresh.map((e) => e.block))
     await sql.batch([
-      ...fresh.map((e) => e.jobId === null
-        ? stmt('INSERT OR IGNORE INTO protocol_events (chain_id, contract, block, log_index, tx_hash, name, args_json) VALUES (?, ?, ?, ?, ?, ?, ?)',
-          chainId, e.contract, e.block, e.logIndex, e.txHash, e.name, JSON.stringify(e.args))
-        : stmt('INSERT OR IGNORE INTO events (chain_id, contract, block, log_index, tx_hash, job_id, name, args_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-          chainId, e.contract, e.block, e.logIndex, e.txHash, e.jobId, e.name, JSON.stringify(e.args))),
+      ...fresh.map((e) =>
+        e.jobId === null
+          ? stmt(
+              'INSERT OR IGNORE INTO protocol_events (chain_id, contract, block, log_index, tx_hash, name, args_json) VALUES (?, ?, ?, ?, ?, ?, ?)',
+              chainId,
+              e.contract,
+              e.block,
+              e.logIndex,
+              e.txHash,
+              e.name,
+              JSON.stringify(e.args),
+            )
+          : stmt(
+              'INSERT OR IGNORE INTO events (chain_id, contract, block, log_index, tx_hash, job_id, name, args_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+              chainId,
+              e.contract,
+              e.block,
+              e.logIndex,
+              e.txHash,
+              e.jobId,
+              e.name,
+              JSON.stringify(e.args),
+            ),
+      ),
       ...(page.blockTimes ?? [])
         .filter((b) => eventBlocks.has(b.block))
-        .map((b) => stmt('INSERT OR IGNORE INTO block_times (chain_id, block, timestamp) VALUES (?, ?, ?)', chainId, b.block, b.timestamp)),
+        .map((b) =>
+          stmt(
+            'INSERT OR IGNORE INTO block_times (chain_id, block, timestamp) VALUES (?, ?, ?)',
+            chainId,
+            b.block,
+            b.timestamp,
+          ),
+        ),
       ...(await refold(sql, cfg, pageJobs, fresh)),
-      stmt('INSERT OR REPLACE INTO checkpoint (chain_id, next_block, block_hash, updated_at) VALUES (?, ?, ?, ?)', chainId, upTo, hash, now),
+      stmt(
+        'INSERT OR REPLACE INTO checkpoint (chain_id, next_block, block_hash, updated_at) VALUES (?, ?, ?, ?)',
+        chainId,
+        upTo,
+        hash,
+        now,
+      ),
     ])
     pages++
     const jobEvents = fresh.filter((e) => e.jobId !== null).length
@@ -168,7 +245,17 @@ export async function runOnce(sql: AsyncSql, cfg: IndexerConfig): Promise<RunRes
   }
   if (cfg.offers !== undefined) await hydrateForeignOffers(sql, chainId, cfg.offers, now)
   const backfilled = await backfillBlockTimes(sql, cfg)
-  return { lease: true, pages, events, protocolEvents, jobs: jobs.size, nextBlock: next, caughtUp: next > finalized, rewound, backfilled }
+  return {
+    lease: true,
+    pages,
+    events,
+    protocolEvents,
+    jobs: jobs.size,
+    nextBlock: next,
+    caughtUp: next > finalized,
+    rewound,
+    backfilled,
+  }
 }
 
 /** Looks up the times of a few event blocks that have none (indexed before block times were stored), newest first. */
@@ -182,11 +269,21 @@ async function backfillBlockTimes(sql: AsyncSql, cfg: IndexerConfig): Promise<nu
      ) e WHERE e.chain_id = ?
      AND NOT EXISTS (SELECT 1 FROM block_times b WHERE b.chain_id = e.chain_id AND b.block = e.block)
      ORDER BY e.block DESC LIMIT ?`,
-    chainId, cfg.backfillBlocks ?? 40,
+    chainId,
+    cfg.backfillBlocks ?? 40,
   )
   const found = await Promise.all(missing.map(async ({ block }) => ({ block, timestamp: await lookup(block) })))
   const rows = found.filter((f): f is { block: number; timestamp: number } => f.timestamp !== null)
-  await sql.batch(rows.map((r) => stmt('INSERT OR IGNORE INTO block_times (chain_id, block, timestamp) VALUES (?, ?, ?)', chainId, r.block, r.timestamp)))
+  await sql.batch(
+    rows.map((r) =>
+      stmt(
+        'INSERT OR IGNORE INTO block_times (chain_id, block, timestamp) VALUES (?, ?, ?)',
+        chainId,
+        r.block,
+        r.timestamp,
+      ),
+    ),
+  )
   return rows.length
 }
 

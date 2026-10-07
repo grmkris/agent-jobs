@@ -4,7 +4,16 @@
  * reward, both bonds, deadlines, approver, criteria, evidence policy, the originating quote when there is one, and
  * the deployment it is valid on; the listing must match it on every enforceable field.
  */
-import { type AbiFunction, type Address, type Hex, isAddress, keccak256, parseAbiItem, stringToHex, zeroAddress } from 'viem'
+import {
+  type AbiFunction,
+  type Address,
+  type Hex,
+  isAddress,
+  keccak256,
+  parseAbiItem,
+  stringToHex,
+  zeroAddress,
+} from 'viem'
 import { type JobTag, type WindowBounds, validateOfferWindows, windowBounds } from '@sidequest/sdk'
 import { type DeliverableSpec, validateSpec } from './deliverable.ts'
 import type { EligibilityPolicy } from './roles.ts'
@@ -31,7 +40,6 @@ export interface OfferDefaults {
   windows: EvaluatorWindows
   evidencePolicy?: EvidencePolicy
 }
-
 
 /**
  * An execution budget (ADR-0009): what the creator approved for the worker's running costs, apart from the reward.
@@ -155,7 +163,8 @@ function parseBudget(b: Record<string, unknown>): ExecutionBudget {
   const cap = BigInt(b.cap as string)
   const expiresAt = b.expiresAt as number
   if (b.kind === 'advance') return { kind: 'advance', token: b.token as Address, cap, expiresAt }
-  if (b.kind === 'call') return { kind: 'call', target: b.target as Address, function: b.function as string, cap, expiresAt }
+  if (b.kind === 'call')
+    return { kind: 'call', target: b.target as Address, function: b.function as string, cap, expiresAt }
   throw new TermsError('invalid-budget', `unknown execution budget kind: ${String(b.kind)}`)
 }
 
@@ -183,11 +192,26 @@ export class TermsError extends Error {
  * publish that must revert, and against the deployed evaluator's windows.
  * @param now Unix seconds.
  */
-export function validateOffer(offer: OfferTerms, evaluator: EvaluatorWindows, now: number, _kind: 'sidequest-v1' = 'sidequest-v1', bounds: WindowBounds = windowBounds()): void {
+export function validateOffer(
+  offer: OfferTerms,
+  evaluator: EvaluatorWindows,
+  now: number,
+  _kind: 'sidequest-v1' = 'sidequest-v1',
+  bounds: WindowBounds = windowBounds(),
+): void {
   validateSidequestWindows(offer.windows, bounds)
   const a = offer.arbitrator
-  if (a === undefined || !isAddress(a) || a.toLowerCase() === zeroAddress || eq(a, offer.creator) || eq(a, offer.approver)) {
-    throw new TermsError('invalid-arbitrator', 'A v1 offer needs a nonzero arbitrator distinct from its creator and approver.')
+  if (
+    a === undefined ||
+    !isAddress(a) ||
+    a.toLowerCase() === zeroAddress ||
+    eq(a, offer.creator) ||
+    eq(a, offer.approver)
+  ) {
+    throw new TermsError(
+      'invalid-arbitrator',
+      'A v1 offer needs a nonzero arbitrator distinct from its creator and approver.',
+    )
   }
   if (offer.reward <= 0n || offer.creatorBond < 0n || offer.workerBond < 0n) {
     throw new TermsError('invalid-amounts', 'The reward must be positive and bonds not negative.')
@@ -197,13 +221,17 @@ export function validateOffer(offer: OfferTerms, evaluator: EvaluatorWindows, no
     const problem = validateSpec(offer.deliverable)
     if (problem !== undefined) throw new TermsError('invalid-deliverable', `Deliverable: ${problem}.`)
     if (offer.evidencePolicy !== null && !offer.deliverable.accepts.includes('git')) {
-      throw new TermsError('invalid-deliverable', 'An evidence policy reads CI checks on a commit, so the offer must accept git.')
+      throw new TermsError(
+        'invalid-deliverable',
+        'An evidence policy reads CI checks on a commit, so the offer must accept git.',
+      )
     }
   }
   const b = offer.executionBudget
   if (b !== undefined) {
     if (b.kind === 'advance' && b.cap <= 0n) throw new TermsError('invalid-budget', 'An advance must be positive.')
-    if (b.kind === 'call' && b.cap < 0n) throw new TermsError('invalid-budget', 'A call budget cannot send negative value.')
+    if (b.kind === 'call' && b.cap < 0n)
+      throw new TermsError('invalid-budget', 'A call budget cannot send negative value.')
     if (b.kind === 'call') {
       try {
         callFunction(b)
@@ -212,7 +240,10 @@ export function validateOffer(offer: OfferTerms, evaluator: EvaluatorWindows, no
       }
     }
     if (!Number.isSafeInteger(b.expiresAt) || b.expiresAt <= now || b.expiresAt > offer.deliveryDeadline) {
-      throw new TermsError('invalid-budget', 'An execution budget expires in the future and no later than the delivery deadline.')
+      throw new TermsError(
+        'invalid-budget',
+        'An execution budget expires in the future and no later than the delivery deadline.',
+      )
     }
   }
 }
@@ -247,7 +278,9 @@ export function listingMatches(offer: OfferTerms, hash: Hex, listing: OnChainLis
     listing.creatorBond === offer.creatorBond &&
     listing.workerBond === offer.workerBond &&
     listing.deliveryDeadline === offer.deliveryDeadline &&
-    (listing.arbitrator !== undefined && offer.arbitrator !== undefined && eq(listing.arbitrator, offer.arbitrator))
+    listing.arbitrator !== undefined &&
+    offer.arbitrator !== undefined &&
+    eq(listing.arbitrator, offer.arbitrator)
   )
 }
 
@@ -259,6 +292,9 @@ export interface SidequestWindows {
 
 /** V1 bounds come from chain/config clocks; production is the fallback for records without clock configuration. */
 export function validateSidequestWindows(windows: SidequestWindows, bounds: WindowBounds = windowBounds()): void {
-  try { validateOfferWindows(windows, bounds) }
-  catch (error) { throw new TermsError('windows-bounds', (error as Error).message) }
+  try {
+    validateOfferWindows(windows, bounds)
+  } catch (error) {
+    throw new TermsError('windows-bounds', (error as Error).message)
+  }
 }

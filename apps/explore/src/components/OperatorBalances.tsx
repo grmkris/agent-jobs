@@ -6,7 +6,13 @@ import { deployment } from '../wallet.ts'
 import { TokenIcon } from './token/TokenIcon.tsx'
 import { TokenAmount } from './token/TokenAmount.tsx'
 
-export function OperatorBalances({ operator, token = deployment.rewardTokens[0]! }: { operator: Address | undefined; token?: string }) {
+export function OperatorBalances({
+  operator,
+  token = deployment.rewardTokens[0]!,
+}: {
+  operator: Address | undefined
+  token?: string
+}) {
   const balances = useOperatorBalances(operator, token)
   const meta = useToken(token)
   const rewardSymbol = typeof meta === 'object' ? meta.symbol : 'Job token'
@@ -16,15 +22,32 @@ export function OperatorBalances({ operator, token = deployment.rewardTokens[0]!
       <dl className="flex flex-wrap gap-x-5 gap-y-2 tabular-nums">
         <div>
           <dt className="text-muted-foreground">SIDE</dt>
-          <dd className="font-semibold"><TokenAmount value={balances.factory} token={deployment.factory} static text={balances.factory === undefined ? 'Unavailable' : undefined} /></dd>
+          <dd className="font-semibold">
+            <TokenAmount
+              value={balances.factory}
+              token={deployment.factory}
+              static
+              text={balances.factory === undefined ? 'Unavailable' : undefined}
+            />
+          </dd>
         </div>
         <div>
           <dt className="text-muted-foreground">{rewardSymbol}</dt>
-          <dd className="font-semibold"><TokenAmount value={balances.reward} token={token} static text={balances.reward === undefined ? 'Unavailable' : undefined} /></dd>
+          <dd className="font-semibold">
+            <TokenAmount
+              value={balances.reward}
+              token={token}
+              static
+              text={balances.reward === undefined ? 'Unavailable' : undefined}
+            />
+          </dd>
         </div>
         <div>
           <dt className="text-muted-foreground">MON</dt>
-          <dd className="inline-flex items-center gap-1.5 font-semibold"><TokenIcon token={zeroAddress} />{balances.native === undefined ? 'Unavailable' : formatNumber(balances.native, 18)}</dd>
+          <dd className="inline-flex items-center gap-1.5 font-semibold">
+            <TokenIcon token={zeroAddress} />
+            {balances.native === undefined ? 'Unavailable' : formatNumber(balances.native, 18)}
+          </dd>
         </div>
       </dl>
     </div>

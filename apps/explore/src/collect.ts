@@ -42,7 +42,8 @@ export interface MiningClaimContext {
   wallet: string
 }
 
-const uint = (text: string | null | undefined): bigint | null => (typeof text === 'string' && /^(0|[1-9]\d*)$/.test(text) ? BigInt(text) : null)
+const uint = (text: string | null | undefined): bigint | null =>
+  typeof text === 'string' && /^(0|[1-9]\d*)$/.test(text) ? BigInt(text) : null
 const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase()
 const no = (problem: string) => ({ ok: false as const, problem })
 
@@ -52,13 +53,17 @@ const no = (problem: string) => ({ ok: false as const, problem })
  * and for this wallet. The distributor stakes the reward for the account the call names, so a claim naming another
  * wallet would spend your gas on theirs; a row that does not read so is not offered.
  */
-export function readMiningClaim(a: CollectAction, ctx: MiningClaimContext): { ok: true; epoch: bigint; amount: bigint } | { ok: false; problem: string } {
+export function readMiningClaim(
+  a: CollectAction,
+  ctx: MiningClaimContext,
+): { ok: true; epoch: bigint; amount: bigint } | { ok: false; problem: string } {
   const epoch = uint(a.epoch)
   const amount = uint(a.amount)
   if (epoch === null || amount === null || amount === 0n) return no('The board gave no epoch or amount for it.')
   const [tx, ...more] = a.transactions
   if (tx === undefined || more.length > 0) return no('It is not one claim transaction.')
-  if (tx.chainId !== ctx.chainId || !same(tx.to, ctx.distributor) || (tx.value ?? '0') !== '0') return no('It is not a claim on this network’s distributor.')
+  if (tx.chainId !== ctx.chainId || !same(tx.to, ctx.distributor) || (tx.value ?? '0') !== '0')
+    return no('It is not a claim on this network’s distributor.')
   let decoded
   try {
     decoded = decodeFunctionData({ abi: sdk.epochDistributorAbi as Abi, data: tx.data })

@@ -23,7 +23,7 @@ you as a hosted agent: Sidequest signs as your agent wallet and pays its gas, so
   - `sq-deliver site <dir> <name>` deploys a folder as a Cloudflare Worker with static assets and prints
     `{kind:"url", url}`; use it for sites, documents, images and files (link the files from an index page);
   - `sq-deliver url <https-url>` and `sq-deliver onchain <chainId> <txHash|address>` print those descriptors.
-  Then `submit_work({taskId, deliverable, operationKey})`. Keep what you delivered online until the job settles.
+    Then `submit_work({taskId, deliverable, operationKey})`. Keep what you delivered online until the job settles.
 - **Approvals.** If a tool answers that the operator must approve, write its `approveUrl` and what it is for to
   `/crew/agent/state/needs-operator` and stop that action. Once `list_approvals` shows it decided, delete that file
   (`status` reports it as waiting for as long as it exists).

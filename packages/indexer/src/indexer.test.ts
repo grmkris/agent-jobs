@@ -37,7 +37,10 @@ const hashOf = (b: number) => `0x${b.toString(16).padStart(64, '0')}` as const
 const timeOf = (b: number) => 1_790_000_000 + (b - deployBlock)
 
 /** Pages of at most `perPage` blocks' worth of logs, like HyperSync's partial answers. */
-function pagedSource(perPage: number, opts: { repeatFirst?: boolean; emptyFirst?: boolean; times?: boolean } = {}): LogSource & { calls: number } {
+function pagedSource(
+  perPage: number,
+  opts: { repeatFirst?: boolean; emptyFirst?: boolean; times?: boolean } = {},
+): LogSource & { calls: number } {
   let calls = 0
   const src = {
     calls: 0,
@@ -48,7 +51,11 @@ function pagedSource(perPage: number, opts: { repeatFirst?: boolean; emptyFirst?
       const end = Math.min(toBlock, fromBlock + perPage)
       const page = logs.filter((l) => l.block_number >= fromBlock && l.block_number < end)
       if (opts.times !== true) return { logs: page, nextBlock: end }
-      return { logs: page, nextBlock: end, blockTimes: [...new Set(page.map((l) => l.block_number))].map((block) => ({ block, timestamp: timeOf(block) })) }
+      return {
+        logs: page,
+        nextBlock: end,
+        blockTimes: [...new Set(page.map((l) => l.block_number))].map((block) => ({ block, timestamp: timeOf(block) })),
+      }
     },
   }
   return src
@@ -60,7 +67,16 @@ const head = (hashes: (b: number) => `0x${string}` = hashOf): ChainHead => ({
 })
 
 function config(over: Partial<IndexerConfig> = {}): IndexerConfig {
-  return { contracts, deployBlock, source: pagedSource(2000), head: head(), runner: 'a', now: () => 1_000, maxPages: 10_000, ...over }
+  return {
+    contracts,
+    deployBlock,
+    source: pagedSource(2000),
+    head: head(),
+    runner: 'a',
+    now: () => 1_000,
+    maxPages: 10_000,
+    ...over,
+  }
 }
 
 async function freshDb(): Promise<AsyncSql> {
@@ -79,7 +95,17 @@ async function runToEnd(sql: AsyncSql, cfg: IndexerConfig) {
 
 async function snapshot(sql: AsyncSql) {
   const out: Record<string, unknown[]> = {}
-  for (const t of ['events', 'protocol_events', 'jobs', 'submissions', 'evidence', 'rulings', 'reward_outcomes', 'bond_outcomes', 'feedback']) {
+  for (const t of [
+    'events',
+    'protocol_events',
+    'jobs',
+    'submissions',
+    'evidence',
+    'rulings',
+    'reward_outcomes',
+    'bond_outcomes',
+    'feedback',
+  ]) {
     out[t] = await sql.all(`SELECT * FROM ${t} ORDER BY 1, 2, 3, 4`)
   }
   return out
@@ -96,17 +122,24 @@ beforeEach(async () => {
 
 describe('indexer on synthetic v1 logs', () => {
   it('folds known jobs: ruled for the worker, ruled for the creator with a burn, an approved hire', async () => {
-    const job = async (id: number) => (await liveDb.all<Record<string, unknown>>('SELECT * FROM jobs WHERE job_id = ?', String(id)))[0]
+    const job = async (id: number) =>
+      (await liveDb.all<Record<string, unknown>>('SELECT * FROM jobs WHERE job_id = ?', String(id)))[0]
     expect(await job(9)).toMatchObject({ status: 'completed', stack: 'main', mode: 'hire', violation: 'None' })
-    expect(await liveDb.all('SELECT for_worker, slash_loser FROM rulings WHERE job_id = ?', '9')).toEqual([{ for_worker: 1, slash_loser: 0 }])
+    expect(await liveDb.all('SELECT for_worker, slash_loser FROM rulings WHERE job_id = ?', '9')).toEqual([
+      { for_worker: 1, slash_loser: 0 },
+    ])
     expect(await job(10)).toMatchObject({ status: 'rejected', violation: 'Quality' })
-    expect(await liveDb.all("SELECT side FROM bond_outcomes WHERE job_id = ? AND outcome = 'burned'", '10')).toEqual([{ side: 'worker' }])
+    expect(await liveDb.all("SELECT side FROM bond_outcomes WHERE job_id = ? AND outcome = 'burned'", '10')).toEqual([
+      { side: 'worker' },
+    ])
     expect(await job(8)).toMatchObject({ status: 'completed', mode: 'hire' })
     // Evidence matches the submitted hire deliverable.
-    expect(await liveDb.all('SELECT matches_onchain FROM evidence WHERE job_id = ?', '8')).toEqual([{ matches_onchain: 1 }])
-    expect(await liveDb.all('SELECT recipient, amount FROM reward_outcomes WHERE job_id = ? AND kind = ?', '8', 'paid')).toEqual([
-      { recipient: '0x0000000000000000000000000000000000000015', amount: '7000000' },
+    expect(await liveDb.all('SELECT matches_onchain FROM evidence WHERE job_id = ?', '8')).toEqual([
+      { matches_onchain: 1 },
     ])
+    expect(
+      await liveDb.all('SELECT recipient, amount FROM reward_outcomes WHERE job_id = ? AND kind = ?', '8', 'paid'),
+    ).toEqual([{ recipient: '0x0000000000000000000000000000000000000015', amount: '7000000' }])
   })
 
   it('small pages, a duplicate page and an empty page with an advancing next block give the live state', async () => {
@@ -132,7 +165,10 @@ describe('indexer on synthetic v1 logs', () => {
     }
     await expect(runToEnd(crashing, config({ source: pagedSource(300) }))).rejects.toThrow('crash')
     const [cp] = await sql.all<{ next_block: number }>('SELECT next_block FROM checkpoint')
-    const events = await sql.all<{ n: number }>('SELECT count(*) AS n FROM events WHERE block >= ?', cp?.next_block ?? 0)
+    const events = await sql.all<{ n: number }>(
+      'SELECT count(*) AS n FROM events WHERE block >= ?',
+      cp?.next_block ?? 0,
+    )
     expect(events[0]?.n).toBe(0)
     await runToEnd(sql, config({ source: pagedSource(300), now: () => 2_000 }))
     expect(await snapshot(sql)).toEqual(live)
@@ -199,7 +235,9 @@ describe('block times for job timelines', () => {
   it('backfills blocks indexed without times, a bounded number per run, newest first', async () => {
     const sql = await freshDb()
     await runToEnd(sql, config())
-    const [{ n: blocks } = { n: 0 }] = await sql.all<{ n: number }>('SELECT count(*) AS n FROM (SELECT block FROM events UNION SELECT block FROM protocol_events)')
+    const [{ n: blocks } = { n: 0 }] = await sql.all<{ n: number }>(
+      'SELECT count(*) AS n FROM (SELECT block FROM events UNION SELECT block FROM protocol_events)',
+    )
     expect(blocks).toBeGreaterThan(10)
     const lookups: number[] = []
     const timed: ChainHead = { ...head(), blockTimestamp: async (b) => (lookups.push(b), timeOf(b)) }

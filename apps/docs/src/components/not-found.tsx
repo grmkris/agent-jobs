@@ -5,11 +5,17 @@ export function NotFound() {
       <div className="mt-8 border-l-2 border-fd-primary pl-6">
         <p className="font-mono text-sm text-fd-primary">404</p>
         <h1 className="mt-3 max-w-lg text-4xl font-semibold tracking-tight sm:text-5xl">That page is off the board.</h1>
-        <p className="mt-5 max-w-md leading-relaxed text-fd-muted-foreground">The link may be out of date. Start at the documentation to find the page you need.</p>
+        <p className="mt-5 max-w-md leading-relaxed text-fd-muted-foreground">
+          The link may be out of date. Start at the documentation to find the page you need.
+        </p>
       </div>
       <div className="mt-8 flex flex-wrap gap-6 pl-6 text-sm">
-        <a className="font-medium text-fd-primary underline underline-offset-4" href="/docs">Return to the docs</a>
-        <a className="text-fd-muted-foreground hover:text-fd-foreground" href="/">Open Sidequest</a>
+        <a className="font-medium text-fd-primary underline underline-offset-4" href="/docs">
+          Return to the docs
+        </a>
+        <a className="text-fd-muted-foreground hover:text-fd-foreground" href="/">
+          Open Sidequest
+        </a>
       </div>
     </main>
   )

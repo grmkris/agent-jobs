@@ -5,7 +5,14 @@
  * kept in localStorage (so a new tab stays signed in until it expires) and is valid on every board. Which address it
  * belongs to is kept beside it (`Wallet.tsx`), so another wallet never inherits it.
  */
-import { ApiError, type BoardApi, type ChainJob as BaseChainJob, PUBLIC_BOARD_ID, type TaskIndexEntry, createBoardApi } from '@sidequest/react'
+import {
+  ApiError,
+  type BoardApi,
+  type ChainJob as BaseChainJob,
+  PUBLIC_BOARD_ID,
+  type TaskIndexEntry,
+  createBoardApi,
+} from '@sidequest/react'
 import type { ForeignOffer } from './job-offer.tsx'
 import type { DirectoryAgent } from '@sidequest/sdk'
 import { LAUNCH_MESSAGE, toolAllowed } from './launch.ts'
@@ -76,7 +83,13 @@ export function boardApi(id = currentBoardId()): BoardApi {
     // Mainnet before launch (D16): only the board's read tools leave the browser, whatever page asks.
     api = writesOpen
       ? client
-      : { ...client, tool: <T,>(name: string, args?: Record<string, unknown>) => (toolAllowed(name, false) ? client.tool<T>(name, args) : Promise.reject(new ApiError('launching', LAUNCH_MESSAGE))) }
+      : {
+          ...client,
+          tool: <T>(name: string, args?: Record<string, unknown>) =>
+            toolAllowed(name, false)
+              ? client.tool<T>(name, args)
+              : Promise.reject(new ApiError('launching', LAUNCH_MESSAGE)),
+        }
     apis.set(id, api)
   }
   return api
@@ -84,15 +97,21 @@ export function boardApi(id = currentBoardId()): BoardApi {
 
 export const session = (): string | null => boardApi().session()
 export const setSession = (token: string | null): void => boardApi().setSession(token)
-export const tool = <T = any>(name: string, args: Record<string, unknown> = {}): Promise<T> => boardApi().tool<T>(name, args)
+export const tool = <T = any>(name: string, args: Record<string, unknown> = {}): Promise<T> =>
+  boardApi().tool<T>(name, args)
 export const data = <T = any>(path: string): Promise<T> => boardApi().data<T>(path)
 
 /**
  * A board's chain jobs on Sidequest v1, newest first, and how far the index has read. Explore serves v1 only: jobs on
  * earlier pairs are not shown anywhere.
  */
-export async function chainJobs(boardId = currentBoardId()): Promise<{ jobs: ChainJob[]; index: { next_block: number; updated_at: number } | null }> {
-  const r = await boardApi(boardId).jobs<{ jobs: ChainJob[]; index: { next_block: number; updated_at: number } | null }>()
+export async function chainJobs(
+  boardId = currentBoardId(),
+): Promise<{ jobs: ChainJob[]; index: { next_block: number; updated_at: number } | null }> {
+  const r = await boardApi(boardId).jobs<{
+    jobs: ChainJob[]
+    index: { next_block: number; updated_at: number } | null
+  }>()
   return { ...r, jobs: r.jobs.filter((j) => j.kind === 'sidequest-v1') }
 }
 
@@ -110,16 +129,19 @@ export interface DirectoryPage {
   scope: string
 }
 
-export const fetchDirectory = (after?: string) => data<DirectoryPage>(`directory${after === undefined ? '' : `?after=${encodeURIComponent(after)}`}`)
+export const fetchDirectory = (after?: string) =>
+  data<DirectoryPage>(`directory${after === undefined ? '' : `?after=${encodeURIComponent(after)}`}`)
 
-export const fetchDirectoryAgent = (agentId: string) => data<{ agent: DirectoryAgent }>(`directory/${encodeURIComponent(agentId)}`)
+export const fetchDirectoryAgent = (agentId: string) =>
+  data<{ agent: DirectoryAgent }>(`directory/${encodeURIComponent(agentId)}`)
 
 /** An agent's directory listing, or null when it is not listed; any other failure throws. */
 export async function directoryListing(agentId: string): Promise<DirectoryAgent | null> {
   const response = await fetch(`/data/directory/${encodeURIComponent(agentId)}`)
   if (response.status === 404) return null
-  const body = await response.json() as { ok?: boolean; agent?: DirectoryAgent; message?: string }
-  if (!response.ok || body.ok !== true || body.agent === undefined) throw new ApiError('data', body.message ?? 'The directory is unavailable')
+  const body = (await response.json()) as { ok?: boolean; agent?: DirectoryAgent; message?: string }
+  if (!response.ok || body.ok !== true || body.agent === undefined)
+    throw new ApiError('data', body.message ?? 'The directory is unavailable')
   return body.agent
 }
 
@@ -133,14 +155,24 @@ export interface ManagedAgent {
   revoke_json: string
 }
 
-export async function agentEndpoint<T>(path: string, method: 'GET' | 'POST' = 'GET', body?: Record<string, unknown>, privyToken?: string): Promise<T> {
+export async function agentEndpoint<T>(
+  path: string,
+  method: 'GET' | 'POST' = 'GET',
+  body?: Record<string, unknown>,
+  privyToken?: string,
+): Promise<T> {
   if (method === 'POST' && !writesOpen) throw new ApiError('launching', LAUNCH_MESSAGE)
   const response = await fetch(boardPrefix() + path, {
     method,
-    headers: { ...(method === 'POST' ? { 'content-type': 'application/json' } : {}), ...(session() === null ? {} : { authorization: 'Bearer ' + session() }), ...(privyToken === undefined ? {} : { 'x-privy-token': privyToken }) },
+    headers: {
+      ...(method === 'POST' ? { 'content-type': 'application/json' } : {}),
+      ...(session() === null ? {} : { authorization: 'Bearer ' + session() }),
+      ...(privyToken === undefined ? {} : { 'x-privy-token': privyToken }),
+    },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   })
-  const json = await response.json() as { ok?: boolean; result?: T; code?: string; message?: string }
-  if (!response.ok || json.ok === false) throw new ApiError(json.code ?? 'error', json.message ?? 'Agent request failed')
+  const json = (await response.json()) as { ok?: boolean; result?: T; code?: string; message?: string }
+  if (!response.ok || json.ok === false)
+    throw new ApiError(json.code ?? 'error', json.message ?? 'Agent request failed')
   return (json.result ?? json) as T
 }

@@ -1,28 +1,45 @@
 import { describe, expect, it } from 'vitest'
-import { guardedSnapshot, reconcileSend, retryAction, walletRefused, walletStepRequest, withWalletStepLock, type StepLocks } from './txOperation.ts'
+import {
+  guardedSnapshot,
+  reconcileSend,
+  retryAction,
+  walletRefused,
+  walletStepRequest,
+  withWalletStepLock,
+  type StepLocks,
+} from './txOperation.ts'
 
 const hash = `0x${'1'.repeat(64)}` as const
 
 describe('wallet step retry reconciliation', () => {
   it('serializes stale tabs and rereads the shared pending/hash journal before a second prompt', async () => {
     let queue = Promise.resolve()
-    const locks: StepLocks = { request: async (_name, fn) => {
-      const previous = queue
-      let release!: () => void
-      queue = new Promise<void>(resolve => { release = resolve })
-      await previous
-      try { return await fn() } finally { release() }
-    } }
+    const locks: StepLocks = {
+      request: async (_name, fn) => {
+        const previous = queue
+        let release!: () => void
+        queue = new Promise<void>((resolve) => {
+          release = resolve
+        })
+        await previous
+        try {
+          return await fn()
+        } finally {
+          release()
+        }
+      },
+    }
     let journal: 'idle' | 'pending' | 'sent' = 'idle'
     let prompts = 0
-    const staleTab = () => withWalletStepLock(locks, 'same-operation', async () => {
-      // The read happens inside the lock, not at component mount.
-      if (journal !== 'idle') return
-      journal = 'pending'
-      prompts++
-      await Promise.resolve()
-      journal = 'sent'
-    })
+    const staleTab = () =>
+      withWalletStepLock(locks, 'same-operation', async () => {
+        // The read happens inside the lock, not at component mount.
+        if (journal !== 'idle') return
+        journal = 'pending'
+        prompts++
+        await Promise.resolve()
+        journal = 'sent'
+      })
     await Promise.all([staleTab(), staleTab()])
     expect(prompts).toBe(1)
     expect(journal).toBe('sent')
@@ -32,14 +49,31 @@ describe('wallet step retry reconciliation', () => {
   it('refuses unsent approval steps after expiry, including expiry during chain reads', async () => {
     let now = 99
     let readCount = 0
-    const guard = () => now >= 100 ? 'The operation expired.' : null
-    const reads = { nonce: async () => { readCount++; return 5 }, blockNumber: async () => 10n }
+    const guard = () => (now >= 100 ? 'The operation expired.' : null)
+    const reads = {
+      nonce: async () => {
+        readCount++
+        return 5
+      },
+      blockNumber: async () => 10n,
+    }
     expect(await guardedSnapshot(reads, guard)).toEqual({ nonce: 5, block: '10' })
     now = 100
     await expect(guardedSnapshot(reads, guard)).rejects.toThrow(/expired/)
     expect(readCount).toBe(1)
     now = 99
-    await expect(guardedSnapshot({ ...reads, blockNumber: async () => { now = 100; return 10n } }, guard)).rejects.toThrow(/expired/)
+    await expect(
+      guardedSnapshot(
+        {
+          ...reads,
+          blockNumber: async () => {
+            now = 100
+            return 10n
+          },
+        },
+        guard,
+      ),
+    ).rejects.toThrow(/expired/)
     // Reconciliation does not depend on approval freshness.
     expect(retryAction({ at: 'failed', error: 'Expired after broadcast', hash })).toBe('receipt')
   })
@@ -73,9 +107,21 @@ describe('wallet step retry reconciliation', () => {
 describe('ambiguous send reconciliation', () => {
   const owner = '0x1111111111111111111111111111111111111111'
   const call = { to: '0x2222222222222222222222222222222222222222', data: '0xabcdef' as const }
-  const tx = (n: number, input: `0x${string}`, from = owner, to = call.to) => ({ hash: `0x${n.toString(16).padStart(64, '0')}` as `0x${string}`, from, to, input, nonce: n })
+  const tx = (n: number, input: `0x${string}`, from = owner, to = call.to) => ({
+    hash: `0x${n.toString(16).padStart(64, '0')}` as `0x${string}`,
+    from,
+    to,
+    input,
+    nonce: n,
+  })
   /** A chain whose block 100 + k holds the listed transactions; reads fail when `down`. */
-  const chain = (opts: { mined: number; pending?: number; blocks?: Record<number, ReturnType<typeof tx>[]>; head?: number; down?: boolean }) => {
+  const chain = (opts: {
+    mined: number
+    pending?: number
+    blocks?: Record<number, ReturnType<typeof tx>[]>
+    head?: number
+    down?: boolean
+  }) => {
     const reads = { blocks: 0 }
     return {
       reads,
@@ -103,16 +149,30 @@ describe('ambiguous send reconciliation', () => {
     expect(await reconcileSend(chain({ mined: 5, pending: 6 }).chain, snapshot, owner, call)).toEqual({ at: 'pending' })
   })
   it('finds the mined transaction that carries this exact call', async () => {
-    const { chain: c, reads } = chain({ mined: 6, blocks: { 102: [tx(9, '0xabcdef', '0x3333333333333333333333333333333333333333'), tx(5, '0xABCDEF')] } })
+    const { chain: c, reads } = chain({
+      mined: 6,
+      blocks: { 102: [tx(9, '0xabcdef', '0x3333333333333333333333333333333333333333'), tx(5, '0xABCDEF')] },
+    })
     expect(await reconcileSend(c, snapshot, owner, call)).toEqual({ at: 'found', hash: tx(5, '0x').hash })
     expect(reads.blocks).toBe(3)
   })
   it('distinguishes two native transfers to the same recipient by their reviewed amount', async () => {
     const native = { ...call, data: '0x' as const, value: 500n }
-    const wrong = { ...tx(5, '0x'), value: 499n }, right = { ...tx(6, '0x'), value: 500n }
-    expect(await reconcileSend(chain({ mined: 6, blocks: { 101: [wrong] } }).chain, snapshot, owner, native)).toEqual({ at: 'not-sent' })
-    expect(await reconcileSend(chain({ mined: 7, blocks: { 101: [wrong], 102: [right] } }).chain, snapshot, owner, native)).toEqual({ at: 'found', hash: right.hash })
-    const request = { description: 'Fund worker', chainId: 10143, to: call.to as `0x${string}`, data: '0x' as const, value: '500' }
+    const wrong = { ...tx(5, '0x'), value: 499n },
+      right = { ...tx(6, '0x'), value: 500n }
+    expect(await reconcileSend(chain({ mined: 6, blocks: { 101: [wrong] } }).chain, snapshot, owner, native)).toEqual({
+      at: 'not-sent',
+    })
+    expect(
+      await reconcileSend(chain({ mined: 7, blocks: { 101: [wrong], 102: [right] } }).chain, snapshot, owner, native),
+    ).toEqual({ at: 'found', hash: right.hash })
+    const request = {
+      description: 'Fund worker',
+      chainId: 10143,
+      to: call.to as `0x${string}`,
+      data: '0x' as const,
+      value: '500',
+    }
     expect(walletStepRequest(request, owner, 10143)).toMatchObject({ value: 500n })
     expect(() => walletStepRequest(request, owner, 143)).toThrow(/network/)
   })
@@ -123,6 +183,8 @@ describe('ambiguous send reconciliation', () => {
   })
   it('does not guess when the chain cannot answer or the blocks run past the limit', async () => {
     expect(await reconcileSend(chain({ mined: 5, down: true }).chain, snapshot, owner, call)).toEqual({ at: 'unknown' })
-    expect(await reconcileSend(chain({ mined: 6, head: 400 }).chain, snapshot, owner, call, 50)).toEqual({ at: 'unknown' })
+    expect(await reconcileSend(chain({ mined: 6, head: 400 }).chain, snapshot, owner, call, 50)).toEqual({
+      at: 'unknown',
+    })
   })
 })

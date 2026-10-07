@@ -15,7 +15,11 @@ export interface AgentSummary {
 }
 
 export const useAgents = () =>
-  useQuery({ queryKey: ['data-agents'], queryFn: () => data<{ agents: AgentSummary[] }>('agents'), refetchInterval: 30_000 })
+  useQuery({
+    queryKey: ['data-agents'],
+    queryFn: () => data<{ agents: AgentSummary[] }>('agents'),
+    refetchInterval: 30_000,
+  })
 
 /** Earnings as "45 mUSD" plus how many other tokens. */
 export function earnedLine(earned: Record<string, string>): { first: string; more: number } {

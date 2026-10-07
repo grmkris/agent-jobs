@@ -24,11 +24,37 @@ import { Button } from '../ui/button.tsx'
 import { Meter } from '../ui/meter.tsx'
 
 /** A titled card of the Manage tab; `id` lets the Overview's next steps scroll to it. */
-export function ManageCard({ id, title, note, children, tone }: { id?: string; title: string; note?: ReactNode; children: ReactNode; tone?: 'danger' }) {
+export function ManageCard({
+  id,
+  title,
+  note,
+  children,
+  tone,
+}: {
+  id?: string
+  title: string
+  note?: ReactNode
+  children: ReactNode
+  tone?: 'danger'
+}) {
   return (
     <section id={id} aria-label={title} className="grid scroll-mt-20 gap-2">
-      <h2 className={cn('px-1 text-ui font-medium', tone === 'danger' ? 'text-destructive-text' : 'text-muted-foreground')}>{title}</h2>
-      <div className={cn('grid gap-3 rounded-xl bg-card p-4 ring-1', tone === 'danger' ? 'ring-destructive/30' : 'ring-foreground/10')}>{children}</div>
+      <h2
+        className={cn(
+          'px-1 text-ui font-medium',
+          tone === 'danger' ? 'text-destructive-text' : 'text-muted-foreground',
+        )}
+      >
+        {title}
+      </h2>
+      <div
+        className={cn(
+          'grid gap-3 rounded-xl bg-card p-4 ring-1',
+          tone === 'danger' ? 'ring-destructive/30' : 'ring-foreground/10',
+        )}
+      >
+        {children}
+      </div>
       {note !== undefined && <p className="px-1 text-ui text-muted-foreground">{note}</p>}
     </section>
   )
@@ -46,7 +72,11 @@ export function useAgentAction(agent: ManagedAgent, operationKey: string, onConf
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState<{ tool: string; args: Record<string, unknown>; key: string } | null>(() => {
     try {
-      return JSON.parse(localStorage.getItem(journalKey) ?? 'null') as { tool: string; args: Record<string, unknown>; key: string } | null
+      return JSON.parse(localStorage.getItem(journalKey) ?? 'null') as {
+        tool: string
+        args: Record<string, unknown>
+        key: string
+      } | null
     } catch {
       return null
     }
@@ -55,12 +85,18 @@ export function useAgentAction(agent: ManagedAgent, operationKey: string, onConf
     setBusy(true)
     setError(null)
     try {
-      if (pending !== null && (pending.tool !== tool || JSON.stringify(pending.args) !== JSON.stringify(args))) throw new Error('Reconcile the saved action before starting another')
+      if (pending !== null && (pending.tool !== tool || JSON.stringify(pending.args) !== JSON.stringify(args)))
+        throw new Error('Reconcile the saved action before starting another')
       const intent = pending ?? { tool, args, key: operationKey }
       localStorage.setItem(journalKey, JSON.stringify(intent))
-      if (localStorage.getItem(journalKey) !== JSON.stringify(intent)) throw new Error('Action journal is not durable; nothing may start')
+      if (localStorage.getItem(journalKey) !== JSON.stringify(intent))
+        throw new Error('Action journal is not durable; nothing may start')
       setPending(intent)
-      const result = await agentAction<{ status: string; operationId: string }>(agent.id, 'execute', { tool, args, operationKey: intent.key })
+      const result = await agentAction<{ status: string; operationId: string }>(agent.id, 'execute', {
+        tool,
+        args,
+        operationKey: intent.key,
+      })
       if (result.status === 'confirmed') {
         localStorage.removeItem(journalKey)
         setPending(null)
@@ -86,23 +122,43 @@ function SavedAction({ action }: { action: AgentAction }) {
   return (
     <>
       {action.pending !== null && (
-        <Button variant="secondary" busy={action.busy} onClick={() => void action.execute(action.pending!.tool, action.pending!.args)}>
+        <Button
+          variant="secondary"
+          busy={action.busy}
+          onClick={() => void action.execute(action.pending!.tool, action.pending!.args)}
+        >
           Reconcile saved action
         </Button>
       )}
-      {action.error !== null && <p className="text-ui text-destructive-text [overflow-wrap:anywhere]">{action.error}</p>}
+      {action.error !== null && (
+        <p className="text-ui text-destructive-text [overflow-wrap:anywhere]">{action.error}</p>
+      )}
     </>
   )
 }
 
 /** The weekly budget: what is left of each allowance, when it resets, and the editor to change or renew it. */
-export function WeeklyBudget({ agent, status, onChanged }: { agent: ManagedAgent; status: { data?: AgentStatus | undefined; error: unknown }; onChanged: () => void }) {
+export function WeeklyBudget({
+  agent,
+  status,
+  onChanged,
+}: {
+  agent: ManagedAgent
+  status: { data?: AgentStatus | undefined; error: unknown }
+  onChanged: () => void
+}) {
   const allowances = status.data?.allowances ?? []
   useTokenList(allowances.map((row) => row.token))
   return (
-    <ManageCard id="manage-budget" title="Weekly budget" note="Hires within the weekly budget go ahead without asking. Bigger ones wait in Approvals.">
+    <ManageCard
+      id="manage-budget"
+      title="Weekly budget"
+      note="Hires within the weekly budget go ahead without asking. Bigger ones wait in Approvals."
+    >
       {status.error !== null && status.error !== undefined ? (
-        <p className="text-ui text-destructive-text">Weekly budget usage is unavailable; no remaining budget is assumed.</p>
+        <p className="text-ui text-destructive-text">
+          Weekly budget usage is unavailable; no remaining budget is assumed.
+        </p>
       ) : status.data === undefined ? (
         <p className="text-sm text-muted-foreground">Reading the weekly budget…</p>
       ) : allowances.length === 0 ? (
@@ -112,13 +168,20 @@ export function WeeklyBudget({ agent, status, onChanged }: { agent: ManagedAgent
           const limit = BigInt(row.limit)
           const used = BigInt(row.used)
           return (
-            <Meter key={row.hash} value={limit === 0n ? 0 : Number((used * 10_000n) / limit) / 100} aria-label="Weekly budget used" className="gap-1.5">
+            <Meter
+              key={row.hash}
+              value={limit === 0n ? 0 : Number((used * 10_000n) / limit) / 100}
+              aria-label="Weekly budget used"
+              className="gap-1.5"
+            >
               <div className="flex flex-wrap items-baseline justify-between gap-x-3">
                 <span className="font-medium">
-                  <TokenAmount value={row.left} token={row.token} /> left of <TokenAmount value={row.limit} token={row.token} />
+                  <TokenAmount value={row.left} token={row.token} /> left of{' '}
+                  <TokenAmount value={row.limit} token={row.token} />
                 </span>
                 <span className="text-xs text-muted-foreground">
-                  Resets {localTime(row.periodEnd)} · expires {new Date(row.expiresAt * 1000).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
+                  Resets {localTime(row.periodEnd)} · expires{' '}
+                  {new Date(row.expiresAt * 1000).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
                 </span>
               </div>
             </Meter>
@@ -128,7 +191,9 @@ export function WeeklyBudget({ agent, status, onChanged }: { agent: ManagedAgent
       {/* With no live budget the editor is the next step, so it starts open. */}
       <details className="group/details -mx-1 rounded-lg" open={status.data !== undefined && allowances.length === 0}>
         <summary className="inline-flex min-h-8 cursor-pointer list-none items-center rounded-md px-1 text-sm font-medium select-none pointer-coarse:min-h-11 [&::-webkit-details-marker]:hidden">
-          {status.data !== undefined && allowances.length === 0 ? 'Set a weekly budget' : 'Change or renew the weekly budget'}
+          {status.data !== undefined && allowances.length === 0
+            ? 'Set a weekly budget'
+            : 'Change or renew the weekly budget'}
         </summary>
         <div className="mt-3 px-1">
           <AllowanceEditor agent={agent} onConfirmed={onChanged} />
@@ -143,7 +208,16 @@ export function WalletEarnings({ agent, action }: { agent: ManagedAgent; action:
   const tokens = [...new Set(deployment.rewardTokens.concat(deployment.factory))]
   useTokenList(tokens)
   const reads = useReadContracts({
-    contracts: tokens.map((token) => ({ address: token, abi: erc20Abi, functionName: 'balanceOf', args: [agent.address as Address], chainId: chain.id }) as const),
+    contracts: tokens.map(
+      (token) =>
+        ({
+          address: token,
+          abi: erc20Abi,
+          functionName: 'balanceOf',
+          args: [agent.address as Address],
+          chainId: chain.id,
+        }) as const,
+    ),
     query: { refetchInterval: 15000 },
   })
   return (
@@ -152,8 +226,17 @@ export function WalletEarnings({ agent, action }: { agent: ManagedAgent; action:
         {tokens.map((token, index) => {
           const balance = reads.data?.[index]
           return (
-            <div key={token} className="flex min-h-11 flex-wrap items-center justify-between gap-3 border-t border-border/70 py-1.5 first:border-t-0">
-              <span>{balance?.status === 'success' ? <TokenAmount value={balance.result} token={token} /> : 'Balance unavailable'}</span>
+            <div
+              key={token}
+              className="flex min-h-11 flex-wrap items-center justify-between gap-3 border-t border-border/70 py-1.5 first:border-t-0"
+            >
+              <span>
+                {balance?.status === 'success' ? (
+                  <TokenAmount value={balance.result} token={token} />
+                ) : (
+                  'Balance unavailable'
+                )}
+              </span>
               <Button
                 variant="secondary"
                 size="sm"
@@ -173,7 +256,15 @@ export function WalletEarnings({ agent, action }: { agent: ManagedAgent; action:
 }
 
 /** The position the agent owns itself (mining rewards claimed into the vault); operator backing is managed elsewhere. */
-export function AgentOwnedBacking({ agent, action, onBack }: { agent: ManagedAgent; action: AgentAction; onBack?: (() => void) | undefined }) {
+export function AgentOwnedBacking({
+  agent,
+  action,
+  onBack,
+}: {
+  agent: ManagedAgent
+  action: AgentAction
+  onBack?: (() => void) | undefined
+}) {
   const wallet = agent.address as Address
   const backingRead = useBacking(wallet, wallet)
   const now = useNow()
@@ -182,7 +273,8 @@ export function AgentOwnedBacking({ agent, action, onBack }: { agent: ManagedAge
   const position = backingRead.data?.position
   const stale = backingRead.isError
   const quantity = factoryAmount(unstake)
-  const requestReady = !stale && position !== null && position !== undefined && quantity !== null && quantity <= position.activeValue
+  const requestReady =
+    !stale && position !== null && position !== undefined && quantity !== null && quantity <= position.activeValue
   const queued = position !== null && position !== undefined && position.queuedShares > 0n
   const leaving = queued && position.unlockAt > now
   const bonded = queued && backing !== undefined && backing.assets - position.queued < backing.reserved
@@ -193,16 +285,23 @@ export function AgentOwnedBacking({ agent, action, onBack }: { agent: ManagedAge
       note="Operator-funded backing belongs to the operator; only agent-owned mining positions can be left here."
     >
       <p className="text-sm">
-        Total backing: {backing === undefined ? 'unavailable' : <TokenAmount value={backing.assets} token={deployment.factory} />}
+        Total backing:{' '}
+        {backing === undefined ? 'unavailable' : <TokenAmount value={backing.assets} token={deployment.factory} />}
       </p>
       {position === undefined || position === null || stale ? (
-        <p className="text-sm text-muted-foreground">The agent-owned position is unavailable. Actions wait for current chain facts.</p>
+        <p className="text-sm text-muted-foreground">
+          The agent-owned position is unavailable. Actions wait for current chain facts.
+        </p>
       ) : (
         <>
           <p className="text-sm">
             Agent-owned position: <TokenAmount value={position.value} token={deployment.factory} />
           </p>
-          {position.shares === 0n && <p className="rounded-lg bg-muted p-3 text-sm text-muted-foreground">This agent does not own a position. Operator backing belongs to the operator wallet.</p>}
+          {position.shares === 0n && (
+            <p className="rounded-lg bg-muted p-3 text-sm text-muted-foreground">
+              This agent does not own a position. Operator backing belongs to the operator wallet.
+            </p>
+          )}
           {queued && (
             <p role="status" className="rounded-lg bg-warning/14 p-3 text-sm text-warning-text">
               Leaving <TokenAmount value={position.queued} token={deployment.factory} static />.{' '}
@@ -228,19 +327,33 @@ export function AgentOwnedBacking({ agent, action, onBack }: { agent: ManagedAge
                 inputMode="decimal"
                 className="min-h-8 w-full min-w-0 flex-1 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm pointer-coarse:min-h-11 dark:bg-input/30"
               />
-              <Button variant="secondary" busy={action.busy} disabled={!requestReady} onClick={() => void action.execute('request_unstake', { amount: unstake }, () => backingRead.refetch())}>
+              <Button
+                variant="secondary"
+                busy={action.busy}
+                disabled={!requestReady}
+                onClick={() => void action.execute('request_unstake', { amount: unstake }, () => backingRead.refetch())}
+              >
                 Request leaving approval
               </Button>
             </div>
           )}
           {queued && (
-            <Button variant="secondary" busy={action.busy} disabled={leaving || bonded} onClick={() => void action.execute('withdraw_stake', {}, () => backingRead.refetch())}>
+            <Button
+              variant="secondary"
+              busy={action.busy}
+              disabled={leaving || bonded}
+              onClick={() => void action.execute('withdraw_stake', {}, () => backingRead.refetch())}
+            >
               Withdraw agent-owned position
             </Button>
           )}
         </>
       )}
-      {onBack !== undefined && <Button variant="link" className="justify-self-start" onClick={onBack}>Back it from your own wallet</Button>}
+      {onBack !== undefined && (
+        <Button variant="link" className="justify-self-start" onClick={onBack}>
+          Back it from your own wallet
+        </Button>
+      )}
       <SavedAction action={action} />
     </ManageCard>
   )

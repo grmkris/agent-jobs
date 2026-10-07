@@ -78,7 +78,11 @@ export function createBoardApi(options: BoardApiOptions) {
     const body = (await res.json()) as { ok: boolean; result?: T; code?: string; message?: string; reason?: string }
     if (!body.ok) {
       if (body.code === 'unauthenticated') setSession(null)
-      throw new ApiError(body.code ?? String(res.status), body.message ?? 'request failed', typeof body.reason === 'string' ? body.reason : undefined)
+      throw new ApiError(
+        body.code ?? String(res.status),
+        body.message ?? 'request failed',
+        typeof body.reason === 'string' ? body.reason : undefined,
+      )
     }
     return body.result as T
   }
@@ -97,7 +101,8 @@ export function createBoardApi(options: BoardApiOptions) {
     session,
     setSession,
     /** The board's chain jobs, scoped to this board unless it is the public one. */
-    jobs: <T = unknown>() => data<T>(boardId === PUBLIC_BOARD_ID ? 'jobs' : `jobs?board=${encodeURIComponent(boardId)}`),
+    jobs: <T = unknown>() =>
+      data<T>(boardId === PUBLIC_BOARD_ID ? 'jobs' : `jobs?board=${encodeURIComponent(boardId)}`),
     /** SIWE sign-in with any signer of a plain message (a wallet's `personal_sign`, viem's `signMessage`). */
     async signIn(address: string, signMessage: (message: string) => Promise<Hex>): Promise<SignInResult> {
       const { message } = await tool<{ message: string }>('auth_challenge', { address })
@@ -108,7 +113,11 @@ export function createBoardApi(options: BoardApiOptions) {
     },
     /** SIWE sign-in through an EIP-1193 provider (`personal_sign`). */
     signInWith(provider: Eip1193Provider, address: string) {
-      return this.signIn(address, async (message) => (await provider.request({ method: 'personal_sign', params: [stringToHex(message), address] })) as Hex)
+      return this.signIn(
+        address,
+        async (message) =>
+          (await provider.request({ method: 'personal_sign', params: [stringToHex(message), address] })) as Hex,
+      )
     },
     signOut: () => setSession(null),
   }
@@ -117,6 +126,10 @@ export function createBoardApi(options: BoardApiOptions) {
 export type BoardApi = ReturnType<typeof createBoardApi>
 
 /** Signs the `eth_signTypedData_v4` JSON a board tool returned, through an EIP-1193 provider. */
-export async function signTypedDataWith(provider: Eip1193Provider, address: string, typedDataJson: string): Promise<Hex> {
+export async function signTypedDataWith(
+  provider: Eip1193Provider,
+  address: string,
+  typedDataJson: string,
+): Promise<Hex> {
   return (await provider.request({ method: 'eth_signTypedData_v4', params: [address, typedDataJson] })) as Hex
 }

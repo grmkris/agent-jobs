@@ -46,7 +46,10 @@ export function sponsorRules(): SponsorRules {
 }
 
 /** The rules for a given deployment: the same mapping the board's SponsorDesk builds its delegation from. */
-export function sponsorRulesFor(contracts: { holding: string; evaluator: string; vault: string }, d: Pick<sdk.Deployment, 'chainId' | 'core' | 'relay' | 'delegation'>): SponsorRules {
+export function sponsorRulesFor(
+  contracts: { holding: string; evaluator: string; vault: string },
+  d: Pick<sdk.Deployment, 'chainId' | 'core' | 'relay' | 'delegation'>,
+): SponsorRules {
   const targets: SponsorRules['targets'] = {
     [contracts.holding.toLowerCase()]: { name: 'Holding', abi: sdk.sidequestHoldingAbi as Abi },
     [contracts.evaluator.toLowerCase()]: { name: 'Evaluator', abi: sdk.sidequestEvaluatorAbi as Abi },
@@ -54,7 +57,13 @@ export function sponsorRulesFor(contracts: { holding: string; evaluator: string;
     [d.core.toLowerCase()]: { name: 'Core', abi: sdk.coreAbi as Abi },
     [d.delegation.manager.toLowerCase()]: { name: 'Delegation manager', abi: sdk.delegationManagerAbi as Abi },
   }
-  return { chainId: d.chainId, manager: d.delegation.manager, relay: d.relay, enforcers: d.delegation.enforcers, targets }
+  return {
+    chainId: d.chainId,
+    manager: d.delegation.manager,
+    relay: d.relay,
+    enforcers: d.delegation.enforcers,
+    targets,
+  }
 }
 
 type Json = Record<string, unknown>
@@ -67,7 +76,11 @@ const refused = (problem: string) => ({ ok: false as const, problem })
  * names: only Sidequest's contracts, only listed functions, a number of calls, an end time. Without the targets limit
  * the relay could act as the wallet anywhere (a token transfer, say), so that is refused whatever the board says.
  */
-export function readDelegation(typedData: string, wallet: string, rules: SponsorRules): { ok: true; policy: SponsorPolicy } | { ok: false; problem: string } {
+export function readDelegation(
+  typedData: string,
+  wallet: string,
+  rules: SponsorRules,
+): { ok: true; policy: SponsorPolicy } | { ok: false; problem: string } {
   let parsed: { primaryType?: unknown; domain?: Json; message?: Json }
   try {
     parsed = JSON.parse(typedData) as typeof parsed
@@ -76,14 +89,16 @@ export function readDelegation(typedData: string, wallet: string, rules: Sponsor
   }
   const { domain = {}, message = {} } = parsed
   if (parsed.primaryType !== 'Delegation') return refused('This is not a delegation.')
-  if (Number(domain.chainId) !== rules.chainId || !same(domain.verifyingContract, rules.manager)) return refused('The permission is for another network or contract.')
+  if (Number(domain.chainId) !== rules.chainId || !same(domain.verifyingContract, rules.manager))
+    return refused('The permission is for another network or contract.')
   if (!same(message.delegator, wallet)) return refused('The permission is not from your wallet.')
   if (!same(message.delegate, rules.relay)) return refused('The permission is not to Sidequest’s relay.')
   if (!same(message.authority, ROOT_AUTHORITY)) return refused('The permission derives from another one.')
   const caveats = Array.isArray(message.caveats) ? (message.caveats as Json[]) : []
   if (caveats.length === 0) return refused('The permission has no limits.')
   const known = Object.values(rules.enforcers) as string[]
-  if (!caveats.every((c) => known.some((e) => same(c?.enforcer, e)) && typeof c?.terms === 'string' && isHex(c.terms))) return refused('The permission uses a limit Sidequest does not know.')
+  if (!caveats.every((c) => known.some((e) => same(c?.enforcer, e)) && typeof c?.terms === 'string' && isHex(c.terms)))
+    return refused('The permission uses a limit Sidequest does not know.')
   const terms = (enforcer: string): Hex | null => {
     const found = caveats.filter((c) => same(c.enforcer, enforcer)).map((c) => c.terms as Hex)
     return found.length === 1 ? (found[0] ?? null) : null
@@ -92,15 +107,19 @@ export function readDelegation(typedData: string, wallet: string, rules: Sponsor
   const m = terms(rules.enforcers.allowedMethods)
   const n = terms(rules.enforcers.limitedCalls)
   const w = terms(rules.enforcers.timestamp)
-  if (t === null || m === null || n === null || w === null) return refused('The permission is missing a limit on contracts, functions, calls or time.')
-  if (size(t) === 0 || size(t) % 20 !== 0 || size(m) === 0 || size(m) % 4 !== 0 || size(n) !== 32 || size(w) !== 32) return refused('A limit in the permission is malformed.')
+  if (t === null || m === null || n === null || w === null)
+    return refused('The permission is missing a limit on contracts, functions, calls or time.')
+  if (size(t) === 0 || size(t) % 20 !== 0 || size(m) === 0 || size(m) % 4 !== 0 || size(n) !== 32 || size(w) !== 32)
+    return refused('A limit in the permission is malformed.')
 
   const targets = Array.from({ length: size(t) / 20 }, (_, i) => getAddress(slice(t, i * 20, (i + 1) * 20)))
   const unknown = targets.find((a) => rules.targets[a.toLowerCase()] === undefined)
-  if (unknown !== undefined) return refused(`The permission lets the relay call ${unknown}, which is not a Sidequest contract.`)
+  if (unknown !== undefined)
+    return refused(`The permission lets the relay call ${unknown}, which is not a Sidequest contract.`)
   const names = new Map<string, string>()
   for (const a of targets) {
-    for (const item of rules.targets[a.toLowerCase()]?.abi ?? []) if (item.type === 'function') names.set(toFunctionSelector(item), item.name)
+    for (const item of rules.targets[a.toLowerCase()]?.abi ?? [])
+      if (item.type === 'function') names.set(toFunctionSelector(item), item.name)
   }
   const methods = Array.from({ length: size(m) / 4 }, (_, i) => {
     const selector = slice(m, i * 4, (i + 1) * 4)
@@ -110,7 +129,15 @@ export function readDelegation(typedData: string, wallet: string, rules: Sponsor
   // The board's timestamp terms: 16 bytes "valid after", then 16 bytes "valid before" (0 = no bound).
   const validUntil = Number(hexToBigInt(slice(w, 16, 32)))
   if (calls === 0n || validUntil === 0) return refused('The permission has no call count or no end time.')
-  return { ok: true, policy: { targets: targets.map((address) => ({ address, name: rules.targets[address.toLowerCase()]?.name ?? address })), methods, calls, validUntil } }
+  return {
+    ok: true,
+    policy: {
+      targets: targets.map((address) => ({ address, name: rules.targets[address.toLowerCase()]?.name ?? address })),
+      methods,
+      calls,
+      validUntil,
+    },
+  }
 }
 
 /**
@@ -118,7 +145,10 @@ export function readDelegation(typedData: string, wallet: string, rules: Sponsor
  * and how many calls it has used. `settled` is false while the status is still loading, so a step does not open the
  * wallet for something Sidequest would have paid for.
  */
-export function useLiveSponsorship(wallet: string | undefined, signedIn: boolean): { live: { policy: SponsorPolicy; callsUsed: number } | null; settled: boolean } {
+export function useLiveSponsorship(
+  wallet: string | undefined,
+  signedIn: boolean,
+): { live: { policy: SponsorPolicy; callsUsed: number } | null; settled: boolean } {
   const rules = sponsorRules()
   const status = useSponsorStatus(wallet, signedIn)
   if (wallet === undefined || !signedIn) return { live: null, settled: true }
@@ -166,15 +196,29 @@ export const SPONSOR_BATCH = 8
  * value, each to a contract and function the signed delegation allows, and with that many calls left on it. Anything
  * else (an ERC-20 approve, a Safe transaction, the delegation's own revocation) goes from the wallet.
  */
-export function sponsorable(txs: readonly TxRequest[], live: { policy: SponsorPolicy; callsUsed: number } | null, chainId: number, now = Date.now() / 1000): boolean {
+export function sponsorable(
+  txs: readonly TxRequest[],
+  live: { policy: SponsorPolicy; callsUsed: number } | null,
+  chainId: number,
+  now = Date.now() / 1000,
+): boolean {
   if (live === null || txs.length === 0 || txs.length > SPONSOR_BATCH) return false
   if (BigInt(live.callsUsed + txs.length) > live.policy.calls || live.policy.validUntil <= now + 60) return false
   const targets = new Set(live.policy.targets.map((t) => t.address.toLowerCase()))
   const methods = new Set(live.policy.methods.map((m) => m.selector.toLowerCase()))
-  return txs.every((t) => t.chainId === chainId && (t.value ?? '0') === '0' && targets.has(t.to.toLowerCase()) && isHex(t.data) && t.data.length >= 10 && methods.has(t.data.slice(0, 10).toLowerCase()))
+  return txs.every(
+    (t) =>
+      t.chainId === chainId &&
+      (t.value ?? '0') === '0' &&
+      targets.has(t.to.toLowerCase()) &&
+      isHex(t.data) &&
+      t.data.length >= 10 &&
+      methods.has(t.data.slice(0, 10).toLowerCase()),
+  )
 }
 
-export const sponsorCalls = (txs: readonly TxRequest[]): SponsorCall[] => txs.map((t) => ({ to: t.to, data: t.data, value: '0' }))
+export const sponsorCalls = (txs: readonly TxRequest[]): SponsorCall[] =>
+  txs.map((t) => ({ to: t.to, data: t.data, value: '0' }))
 
 /**
  * What a failed `sponsor_submit` means for the steps. A refusal with a reason (or a 4xx-style code) is final and
@@ -195,14 +239,23 @@ const WHY: Record<string, string> = {
 
 export function submitFailure(e: unknown): SubmitFailure {
   if (!(e instanceof ApiError)) return { kind: 'lost' }
-  if (e.reason === 'simulation') return { kind: 'failed', message: 'Sidequest checked these steps against the chain and they would fail, so nothing was sent.' }
-  if (e.reason === 'pending') return { kind: 'failed', message: 'Sidequest’s relay is finishing an earlier transaction, so nothing was sent. Try again in a moment.' }
+  if (e.reason === 'simulation')
+    return {
+      kind: 'failed',
+      message: 'Sidequest checked these steps against the chain and they would fail, so nothing was sent.',
+    }
+  if (e.reason === 'pending')
+    return {
+      kind: 'failed',
+      message: 'Sidequest’s relay is finishing an earlier transaction, so nothing was sent. Try again in a moment.',
+    }
   if (e.reason !== undefined && WHY[e.reason] !== undefined) return { kind: 'wallet', why: WHY[e.reason] as string }
   if (e.code === 'rate-limited') return { kind: 'wallet', why: WHY.rate as string }
   if (e.code === 'unavailable') return { kind: 'wallet', why: WHY.unavailable as string }
   if (e.code === 'unauthenticated') return { kind: 'wallet', why: 'you are not signed in to Sidequest' }
   if (e.code === 'conflict') return { kind: 'wallet', why: 'your gas sponsorship is not active' }
-  if (e.code === 'forbidden' || e.code === 'invalid' || e.code === 'not-found') return { kind: 'wallet', why: WHY.policy as string }
+  if (e.code === 'forbidden' || e.code === 'invalid' || e.code === 'not-found')
+    return { kind: 'wallet', why: WHY.policy as string }
   return { kind: 'lost' }
 }
 

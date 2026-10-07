@@ -11,9 +11,11 @@ export function checkPasswordFile(path: string): void {
   const uid = process.getuid?.()
   const file = lstatSync(path, { throwIfNoEntry: false })
   if (file === undefined) throw new Error(`password file ${path} does not exist`)
-  if (file.isSymbolicLink() || !file.isFile()) throw new Error(`password file ${path} must be a regular file, not a symlink`)
+  if (file.isSymbolicLink() || !file.isFile())
+    throw new Error(`password file ${path} must be a regular file, not a symlink`)
   const mode = file.mode & 0o777
-  if (file.uid !== uid || (mode !== 0o600 && mode !== 0o400)) throw new Error(`password file ${path} must be yours with mode 600 or 400`)
+  if (file.uid !== uid || (mode !== 0o600 && mode !== 0o400))
+    throw new Error(`password file ${path} must be yours with mode 600 or 400`)
   const dir = lstatSync(dirname(path))
   if (dir.isSymbolicLink() || dir.uid !== uid || (dir.mode & 0o022) !== 0) {
     throw new Error(`the directory of password file ${path} must be yours and writable by nobody else`)

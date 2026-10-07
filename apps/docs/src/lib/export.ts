@@ -17,14 +17,16 @@ export async function exportDocs(): Promise<DocsExportPage[]> {
     if (page.data.mcp === false) continue
     const slug = page.slugs.join('/') || 'index'
     const markdown = await pageMarkdown(page)
-    const structured = typeof page.data.structuredData === 'function'
-      ? await page.data.structuredData()
-      : page.data.structuredData
+    const structured =
+      typeof page.data.structuredData === 'function' ? await page.data.structuredData() : page.data.structuredData
     const contents = structured?.contents ?? []
     const sections = (structured?.headings ?? []).map(({ content, id }) => ({
       heading: content,
       id,
-      text: contents.filter(item => item.heading === id).map(item => item.content).join('\n\n'),
+      text: contents
+        .filter((item) => item.heading === id)
+        .map((item) => item.content)
+        .join('\n\n'),
     }))
     exported.push({
       slug,
@@ -35,5 +37,5 @@ export async function exportDocs(): Promise<DocsExportPage[]> {
       sections,
     })
   }
-  return exported.toSorted((left, right) => left.slug < right.slug ? -1 : left.slug > right.slug ? 1 : 0)
+  return exported.toSorted((left, right) => (left.slug < right.slug ? -1 : left.slug > right.slug ? 1 : 0))
 }

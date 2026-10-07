@@ -14,15 +14,38 @@ export const directoryProbeHandler = Effect.gen(function* () {
   const boards = yield* Board
   const directory = yield* DirectoryObject
   const facts = yield* Cloudflare.D1.QueryDatabase(Database)
-  return { fetch: Effect.gen(function* () {
-    const req = yield* HttpServerRequest.HttpServerRequest
-    const body = (yield* req.json) as unknown as { name: string; call: DirectoryCall; admit?: AdmissionCall; seed?: { token: string; wallet: string } }
-    const sql = fromD1((yield* facts.raw) as never)
-    yield* Effect.promise(() => sql.batch(SESSION_SCHEMA.map(query => ({ query, params: [] }))))
-    if (body.seed !== undefined) yield* Effect.promise(() => sql.batch([{ query: 'INSERT OR REPLACE INTO sessions (id, address, origin, board_id, expires_at) VALUES (?, ?, ?, ?, ?)', params: [body.seed!.token, body.seed!.wallet, 'https://test.invalid', 'public', Math.floor(Date.now() / 1000) + 3600] }]))
-    const reply = body.admit === undefined ? yield* directory.getByName(body.name).call(body.call)
-      : yield* boards.getByName(ADMISSION_OBJECT_NAME).admit(body.admit)
-    return HttpServerResponse.text(reply, { headers: { 'content-type': 'application/json' } })
-  }) }
+  return {
+    fetch: Effect.gen(function* () {
+      const req = yield* HttpServerRequest.HttpServerRequest
+      const body = (yield* req.json) as unknown as {
+        name: string
+        call: DirectoryCall
+        admit?: AdmissionCall
+        seed?: { token: string; wallet: string }
+      }
+      const sql = fromD1((yield* facts.raw) as never)
+      yield* Effect.promise(() => sql.batch(SESSION_SCHEMA.map((query) => ({ query, params: [] }))))
+      if (body.seed !== undefined)
+        yield* Effect.promise(() =>
+          sql.batch([
+            {
+              query:
+                'INSERT OR REPLACE INTO sessions (id, address, origin, board_id, expires_at) VALUES (?, ?, ?, ?, ?)',
+              params: [
+                body.seed!.token,
+                body.seed!.wallet,
+                'https://test.invalid',
+                'public',
+                Math.floor(Date.now() / 1000) + 3600,
+              ],
+            },
+          ]),
+        )
+      const reply =
+        body.admit === undefined
+          ? yield* directory.getByName(body.name).call(body.call)
+          : yield* boards.getByName(ADMISSION_OBJECT_NAME).admit(body.admit)
+      return HttpServerResponse.text(reply, { headers: { 'content-type': 'application/json' } })
+    }),
+  }
 }).pipe(Effect.provide(Cloudflare.D1.QueryDatabaseBinding))
-

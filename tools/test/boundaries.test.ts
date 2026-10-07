@@ -19,13 +19,19 @@ tester.run('no-cross-boundary-import', noCrossBoundaryImport, {
   ],
   invalid: [
     {
-      code: "import { x } from '@sidequest/board'", filename: at('packages/sdk/src/a.ts'),
+      code: "import { x } from '@sidequest/board'",
+      filename: at('packages/sdk/src/a.ts'),
       errors: [{ messageId: 'workspace' }],
     },
     { code: "import { x } from 'bun'", filename: at('apps/api/src/a.ts'), errors: [{ messageId: 'runtime' }] },
-    { code: "import { x } from 'node:fs'", filename: at('packages/react/src/a.ts'), errors: [{ messageId: 'runtime' }] },
     {
-      code: "import { x } from 'cloudflare:workers'", filename: at('packages/board/src/a.ts'),
+      code: "import { x } from 'node:fs'",
+      filename: at('packages/react/src/a.ts'),
+      errors: [{ messageId: 'runtime' }],
+    },
+    {
+      code: "import { x } from 'cloudflare:workers'",
+      filename: at('packages/board/src/a.ts'),
       errors: [{ messageId: 'runtime' }],
     },
   ],

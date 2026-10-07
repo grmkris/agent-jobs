@@ -23,7 +23,9 @@ export function PostHint({ children, className }: { children?: ReactNode; classN
         <span className="flex min-w-0 max-w-full items-center gap-1">
           <span className="shrink-0">Tell yours:</span>
           <q className="min-w-0 truncate font-mono text-xs text-foreground">{shown}</q>
-          <span className="shrink-0"><CopyButton value={prompt} label="Copy the instruction" /></span>
+          <span className="shrink-0">
+            <CopyButton value={prompt} label="Copy the instruction" />
+          </span>
         </span>
         {children}
       </div>

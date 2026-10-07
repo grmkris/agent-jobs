@@ -48,7 +48,13 @@ export interface FaucetDeps {
 }
 
 export function faucetChain(deps: DripDeps): FaucetChain | undefined {
-  if (deps.network !== 'monad-testnet' || !/^0x[0-9a-fA-F]{64}$/.test(deps.relayKey) || deps.rpcUrl === '' || deps.relaySend === undefined) return undefined
+  if (
+    deps.network !== 'monad-testnet' ||
+    !/^0x[0-9a-fA-F]{64}$/.test(deps.relayKey) ||
+    deps.rpcUrl === '' ||
+    deps.relaySend === undefined
+  )
+    return undefined
   const ctx = sdk.context(deps.network, 'main', deps.rpcUrl)
   const faucet = ctx.deployment.testnetFaucet
   if (faucet === null) return undefined
@@ -56,14 +62,25 @@ export function faucetChain(deps: DripDeps): FaucetChain | undefined {
   return {
     chainId: ctx.deployment.chainId,
     call: (to) => sdk.dripCall(ctx, to),
-    lastDrip: (to) => ctx.publicClient.readContract({ address: faucet, abi: sdk.testnetFaucetAbi, functionName: 'lastDrip', args: [to] }),
+    lastDrip: (to) =>
+      ctx.publicClient.readContract({
+        address: faucet,
+        abi: sdk.testnetFaucetAbi,
+        functionName: 'lastDrip',
+        args: [to],
+      }),
     nextDripAt: (to) => sdk.nextDripAt(ctx, to),
     balance: (address) => ctx.publicClient.getBalance({ address }),
     relay: relay.address,
     relaySend: async (tx) => {
       const decoded = decodeFunctionData({ abi: sdk.testnetFaucetAbi, data: tx.data })
       if (decoded.functionName !== 'drip') throw new Error('Invalid faucet method')
-      const last = await ctx.publicClient.readContract({ address: faucet, abi: sdk.testnetFaucetAbi, functionName: 'lastDrip', args: [decoded.args[0]] })
+      const last = await ctx.publicClient.readContract({
+        address: faucet,
+        abi: sdk.testnetFaucetAbi,
+        functionName: 'lastDrip',
+        args: [decoded.args[0]],
+      })
       return deps.relaySend!({ ...tx, gas: DRIP_GAS.toString(), key: `faucet:${tx.data}:${last}` })
     },
     receipt: async (hash, wait) => {
@@ -82,7 +99,8 @@ export async function claimFaucet(deps: FaucetDeps, input: { address: Address })
   if (chain === undefined) return { status: 'unavailable', reason: 'no faucet is configured' }
   const key = `faucet:${await chain.lastDrip(input.address)}`
   const existing = await dripState(deps.sql, key, input.address)
-  if (existing?.status === 'reserved') return { status: 'pending', reason: 'a claim for this address is already in flight' }
+  if (existing?.status === 'reserved')
+    return { status: 'pending', reason: 'a claim for this address is already in flight' }
   if (existing?.status === 'sent' && existing.tx_hash !== null) {
     // The faucet still shows the old claim time: the send is unconfirmed, or it reverted and may be retried.
     const status = await chain.receipt(existing.tx_hash as Hex, false)
@@ -92,9 +110,13 @@ export async function claimFaucet(deps: FaucetDeps, input: { address: Address })
   const nextAt = await chain.nextDripAt(input.address)
   if (nextAt !== 0) return { status: 'cooldown', nextAt }
   const call = chain.call(input.address)
-  if (await chain.balance(input.address) >= parseEther(SELF_PAY_MON)) return { status: 'self', transaction: { ...call, chainId: chain.chainId } }
-  if (await chain.balance(chain.relay) < parseEther(RELAY_RESERVE_MON)) {
-    return { status: 'unavailable', reason: 'the faucet relay is low on MON; get MON from faucet.monad.xyz and claim from your wallet' }
+  if ((await chain.balance(input.address)) >= parseEther(SELF_PAY_MON))
+    return { status: 'self', transaction: { ...call, chainId: chain.chainId } }
+  if ((await chain.balance(chain.relay)) < parseEther(RELAY_RESERVE_MON)) {
+    return {
+      status: 'unavailable',
+      reason: 'the faucet relay is low on MON; get MON from faucet.monad.xyz and claim from your wallet',
+    }
   }
   const token = [...crypto.getRandomValues(new Uint8Array(8))].map((b) => b.toString(16).padStart(2, '0')).join('')
   const own = existing === undefined ? await dripReserve(deps.sql, key, input.address, token, deps.now()) : true
@@ -102,7 +124,8 @@ export async function claimFaucet(deps: FaucetDeps, input: { address: Address })
   try {
     const txHash = await chain.relaySend(call)
     await dripFinish(deps.sql, key, input.address, 'sent', txHash)
-    if (await chain.receipt(txHash, true) === 'reverted') return { status: 'unavailable', reason: 'the faucet claim reverted; try again later' }
+    if ((await chain.receipt(txHash, true)) === 'reverted')
+      return { status: 'unavailable', reason: 'the faucet claim reverted; try again later' }
     // A wallet with no MON cannot use what it was given; the once-per-address MON drip covers its first gas.
     return { status: 'sent', txHash, mon: await chain.dripMon(input.address) }
   } catch (e) {

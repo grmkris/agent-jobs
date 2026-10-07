@@ -13,7 +13,9 @@ const fixture = (): string => {
   expect(recordMigrations(root)).toEqual({ problems: [], recorded: ['0001.sql'] })
   return root
 }
-afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }) })
+afterEach(() => {
+  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
+})
 
 describe('migration history', () => {
   test('unrecorded nested files fail check and recording adds their hashes', () => {

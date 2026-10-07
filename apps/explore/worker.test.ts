@@ -20,9 +20,21 @@ function env(files: Record<string, string> = {}) {
         fetch: async (r: Request) => {
           const pathname = new URL(r.url).pathname
           const path = pathname in files ? pathname : `${pathname}.html` in files ? `${pathname}.html` : pathname
-          const type = path.endsWith('.png') ? 'image/png' : path.endsWith('.webmanifest') ? 'application/manifest+json' : path.endsWith('.md') ? 'text/markdown' : path.endsWith('.json') ? 'application/json' : path.endsWith('.js') ? 'text/javascript' : 'text/html'
+          const type = path.endsWith('.png')
+            ? 'image/png'
+            : path.endsWith('.webmanifest')
+              ? 'application/manifest+json'
+              : path.endsWith('.md')
+                ? 'text/markdown'
+                : path.endsWith('.json')
+                  ? 'application/json'
+                  : path.endsWith('.js')
+                    ? 'text/javascript'
+                    : 'text/html'
           return path in files
-            ? new Response(files[path], { headers: { 'content-type': type, 'content-length': String(files[path]?.length ?? 0), etag: 'fixture' } })
+            ? new Response(files[path], {
+                headers: { 'content-type': type, 'content-length': String(files[path]?.length ?? 0), etag: 'fixture' },
+              })
             : new Response(INDEX, { headers: { 'content-type': 'text/html' } })
         },
       },
@@ -30,7 +42,8 @@ function env(files: Record<string, string> = {}) {
   }
 }
 
-const get = (path: string, e: ReturnType<typeof env>) => worker.fetch(new Request(`https://dev.sidequest.exchange${path}`), e.env)
+const get = (path: string, e: ReturnType<typeof env>) =>
+  worker.fetch(new Request(`https://dev.sidequest.exchange${path}`), e.env)
 
 describe('explore worker routing', () => {
   it('sends the board API to the API, under a board prefix too', () => {
@@ -48,7 +61,14 @@ describe('explore worker routing', () => {
   })
 
   it("serves a board's pages from the app", () => {
-    for (const p of ['/b/monad-pet', '/b/monad-pet/', '/b/monad-pet/job/54', '/b/monad-pet/publish', '/b/monad-pet/quotes/3', '/b/monad-pet/agent/1942']) {
+    for (const p of [
+      '/b/monad-pet',
+      '/b/monad-pet/',
+      '/b/monad-pet/job/54',
+      '/b/monad-pet/publish',
+      '/b/monad-pet/quotes/3',
+      '/b/monad-pet/agent/1942',
+    ]) {
       expect(isApiPath(p), p).toBe(false)
     }
   })
@@ -124,8 +144,8 @@ describe('explore worker routing', () => {
   })
 })
 
-
-const DOC_HTML = '<!doctype html><html><head><meta name="generator" content="sidequest-docs"></head><body><h1>Quickstart</h1><script>window.app=1</script><script src="/docs/_assets/app.js"></script></body></html>'
+const DOC_HTML =
+  '<!doctype html><html><head><meta name="generator" content="sidequest-docs"></head><body><h1>Quickstart</h1><script>window.app=1</script><script src="/docs/_assets/app.js"></script></body></html>'
 const DOC_FILES = {
   '/docs.html': DOC_HTML,
   '/docs/quickstart.html': DOC_HTML,
@@ -133,20 +153,25 @@ const DOC_FILES = {
   '/docs/index.md': '# Sidequest\n',
   '/docs/quickstart.md': '# Quickstart\n\nStart here.',
   '/docs/search.json': '{"count":1}',
-  '/llms.txt': '# Sidequest\n', '/llms-full.txt': '# Full docs\n',
-  '/docs/_assets/app.js': 'console.log(1)', '/__tsr/staticServerFnCache/one.json': '{}',
+  '/llms.txt': '# Sidequest\n',
+  '/llms-full.txt': '# Full docs\n',
+  '/docs/_assets/app.js': 'console.log(1)',
+  '/__tsr/staticServerFnCache/one.json': '{}',
 }
-const docsRequest = (path: string, options: RequestInit = {}, e = env(DOC_FILES)) => worker.fetch(new Request(`https://dev.sidequest.exchange${path}`, options), e.env)
+const docsRequest = (path: string, options: RequestInit = {}, e = env(DOC_FILES)) =>
+  worker.fetch(new Request(`https://dev.sidequest.exchange${path}`, options), e.env)
 describe('Explore docs worker', () => {
   it('puts a fresh CSP nonce on every script and advertises Markdown', async () => {
     const first = await docsRequest('/docs/quickstart')
     const second = await docsRequest('/docs/quickstart')
     const policy = first.headers.get('content-security-policy')!
     const nonce = /'nonce-([^']+)'/.exec(policy)![1]
-    const scriptPolicy = policy.split(';').find(part => part.trim().startsWith('script-src'))!
+    const scriptPolicy = policy.split(';').find((part) => part.trim().startsWith('script-src'))!
     expect(scriptPolicy).not.toContain("'unsafe-inline'")
     expect(first.headers.get('vary')).toBe('Accept')
-    expect(first.headers.get('link')).toBe('<https://dev.sidequest.exchange/docs/quickstart.md>; rel="alternate"; type="text/markdown"')
+    expect(first.headers.get('link')).toBe(
+      '<https://dev.sidequest.exchange/docs/quickstart.md>; rel="alternate"; type="text/markdown"',
+    )
     expect(first.headers.get('content-length')).toBeNull()
     expect(first.headers.get('etag')).toBeNull()
     const body = await first.text()
@@ -184,20 +209,30 @@ describe('Explore docs worker', () => {
     expect(missingMd.headers.get('content-type')).toContain('text/plain')
     expect((await docsRequest('/docs/search.json', {}, env())).status).toBe(404)
   })
-  it.each(['/docs', '/docs/quickstart.md', '/docs/search.json', '/docs/nope', '/llms.txt', '/docs/_assets/app.js'])('answers HEAD %s with the GET status and no body', async (path) => {
-    const head = await docsRequest(path, { method: 'HEAD' })
-    const getRes = await docsRequest(path)
-    expect(head.status).toBe(getRes.status)
-    expect(head.headers.get('content-type')).toBe(getRes.headers.get('content-type'))
-    expect(await head.text()).toBe('')
-  })
-  it.each(['/docs/', '/docs', '/docs/quickstart.md', '/docs/search.json', '/docs/_assets/app.js', '/llms-full.txt'])('limits %s to GET/HEAD', async (path) => {
-    const res = await docsRequest(path, { method: 'POST' })
-    expect(res.status).toBe(405)
-    expect(res.headers.get('allow')).toBe('GET, HEAD')
-  })
+  it.each(['/docs', '/docs/quickstart.md', '/docs/search.json', '/docs/nope', '/llms.txt', '/docs/_assets/app.js'])(
+    'answers HEAD %s with the GET status and no body',
+    async (path) => {
+      const head = await docsRequest(path, { method: 'HEAD' })
+      const getRes = await docsRequest(path)
+      expect(head.status).toBe(getRes.status)
+      expect(head.headers.get('content-type')).toBe(getRes.headers.get('content-type'))
+      expect(await head.text()).toBe('')
+    },
+  )
+  it.each(['/docs/', '/docs', '/docs/quickstart.md', '/docs/search.json', '/docs/_assets/app.js', '/llms-full.txt'])(
+    'limits %s to GET/HEAD',
+    async (path) => {
+      const res = await docsRequest(path, { method: 'POST' })
+      expect(res.status).toBe(405)
+      expect(res.headers.get('allow')).toBe('GET, HEAD')
+    },
+  )
   it('redirects canonical HTML URLs and the docs root slash', async () => {
-    for (const [path, status, location] of [['/docs/', 308, '/docs'], ['/docs/quickstart.html', 301, '/docs/quickstart'], ['/docs.html', 301, '/docs']] as const) {
+    for (const [path, status, location] of [
+      ['/docs/', 308, '/docs'],
+      ['/docs/quickstart.html', 301, '/docs/quickstart'],
+      ['/docs.html', 301, '/docs'],
+    ] as const) {
       const res = await docsRequest(path)
       expect(res.status).toBe(status)
       expect(res.headers.get('location')).toBe(location)
@@ -209,8 +244,11 @@ describe('Explore docs worker', () => {
     expect(search.headers.get('content-type')).toBe('application/json; charset=utf-8')
     expect(search.headers.get('cache-control')).toBe('public, max-age=300')
     expect(await search.json()).toEqual({ count: 1 })
-    for (const path of ['/llms.txt', '/llms-full.txt']) expect((await docsRequest(path, {}, e)).headers.get('content-type')).toBe('text/plain; charset=utf-8')
-    expect((await docsRequest('/docs/_assets/app.js', {}, e)).headers.get('cache-control')).toBe('public, max-age=31536000, immutable')
+    for (const path of ['/llms.txt', '/llms-full.txt'])
+      expect((await docsRequest(path, {}, e)).headers.get('content-type')).toBe('text/plain; charset=utf-8')
+    expect((await docsRequest('/docs/_assets/app.js', {}, e)).headers.get('cache-control')).toBe(
+      'public, max-age=31536000, immutable',
+    )
     expect(await (await docsRequest('/__tsr/staticServerFnCache/one.json', {}, e)).json()).toEqual({})
     expect(e.api).toEqual([])
   })

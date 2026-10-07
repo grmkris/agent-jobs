@@ -27,7 +27,8 @@
   open.target = '_blank'
   open.rel = 'noreferrer'
   open.textContent = 'Open in Sidequest ↗'
-  open.style.cssText = 'display:inline-block;margin-top:6px;font:12px/1.4 system-ui,sans-serif;color:#6b7280;text-decoration:underline'
+  open.style.cssText =
+    'display:inline-block;margin-top:6px;font:12px/1.4 system-ui,sans-serif;color:#6b7280;text-decoration:underline'
   wrap.appendChild(open)
   script.insertAdjacentElement('afterend', wrap)
 
@@ -47,7 +48,8 @@
     if (e.origin !== base) return
     const m = e.data
     if (!m || m.source !== 'sidequest' || m.board !== board) return
-    if (m.type === 'resize' && m.payload && m.payload.height) iframe.style.minHeight = `${Math.max(240, m.payload.height)}px`
+    if (m.type === 'resize' && m.payload && m.payload.height)
+      iframe.style.minHeight = `${Math.max(240, m.payload.height)}px`
     for (const fn of listeners[m.type] || []) fn(m.payload, m)
     for (const fn of listeners['*'] || []) fn(m)
   })

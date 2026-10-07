@@ -12,13 +12,19 @@ import { chain, deployed, deployment } from './wallet.ts'
 /** Configured and board-known wallet tokens, kept in address order and deduplicated without guessing by symbol. */
 export function useWalletTokens(): `0x${string}`[] {
   useSyncExternalStore(subscribeTokens, tokenRegistryVersion, tokenRegistryVersion)
-  const tokens = [...new Set([
-    deployment.factory,
-    ...deployment.rewardTokens,
-    ...(deployment.market === null ? [] : [deployment.market.quote]),
-    ...(deployment.x402 === null ? [] : [deployment.x402.usdc]),
-    ...rewardTokenList().map(([address]) => address),
-  ].filter((address) => address !== zeroAddress).map((address) => address.toLowerCase() as `0x${string}`))]
+  const tokens = [
+    ...new Set(
+      [
+        deployment.factory,
+        ...deployment.rewardTokens,
+        ...(deployment.market === null ? [] : [deployment.market.quote]),
+        ...(deployment.x402 === null ? [] : [deployment.x402.usdc]),
+        ...rewardTokenList().map(([address]) => address),
+      ]
+        .filter((address) => address !== zeroAddress)
+        .map((address) => address.toLowerCase() as `0x${string}`),
+    ),
+  ]
   useTokenList(tokens)
   return tokens
 }
@@ -47,7 +53,8 @@ export interface WalletBalances {
   totalUsd: number | undefined
 }
 
-const status = (value: unknown, pending: boolean): BalanceStatus => (value !== undefined ? 'value' : pending ? 'loading' : 'unavailable')
+const status = (value: unknown, pending: boolean): BalanceStatus =>
+  value !== undefined ? 'value' : pending ? 'loading' : 'unavailable'
 
 /** A wallet's balances of every token Explore knows, and of SIDE staked behind agents, with dollar estimates. */
 export function useWalletBalances(address: Address): WalletBalances {

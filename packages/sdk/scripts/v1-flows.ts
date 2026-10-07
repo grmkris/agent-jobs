@@ -20,175 +20,293 @@ import { v1FlowArbitrators } from './v1-flow-keys.ts'
 
 const names = [...sdk.V1_CORE_FLOWS, ...sdk.V1_HOSTED_FLOWS, ...sdk.V1_ADMIN_FLOWS, 'owed-blocklist', 'owed-gas']
 const args = process.argv.slice(2)
-if (args.includes('--list')) { console.log(names.join('\n')); process.exit(0) }
+if (args.includes('--list')) {
+  console.log(names.join('\n'))
+  process.exit(0)
+}
 const stageFlag = args.indexOf('--stage')
-const stageName = stageFlag === -1 ? process.env.SIDEQUEST_STAGE ?? 'dev' : args[stageFlag + 1]
-if (stageFlag !== -1 && (stageName !== 'dev' && stageName !== 'prod')) throw new Error('--stage requires dev or prod')
-const stageEnv = stageFlag === -1 ? process.env : { ...process.env, ...parseEnv(readFileSync(join(homedir(), '.config', 'sidequest', `${stageName}.env`), 'utf8')) }
-const flowArg = args.find((arg, index) => (stageFlag === -1 || index !== stageFlag && index !== stageFlag + 1) && !arg.startsWith('--'))
-const requested = (flowArg === 'all' ? names.join(',') : flowArg ?? 'hire,cancel,topup-paid').split(',').map(name => name.trim()).filter(Boolean)
-for (const name of requested) if (!names.includes(name as typeof names[number])) throw new Error(`unknown v1 flow ${name}; use --list`)
+const stageName = stageFlag === -1 ? (process.env.SIDEQUEST_STAGE ?? 'dev') : args[stageFlag + 1]
+if (stageFlag !== -1 && stageName !== 'dev' && stageName !== 'prod') throw new Error('--stage requires dev or prod')
+const stageEnv =
+  stageFlag === -1
+    ? process.env
+    : { ...process.env, ...parseEnv(readFileSync(join(homedir(), '.config', 'sidequest', `${stageName}.env`), 'utf8')) }
+const flowArg = args.find(
+  (arg, index) => (stageFlag === -1 || (index !== stageFlag && index !== stageFlag + 1)) && !arg.startsWith('--'),
+)
+const requested = (flowArg === 'all' ? names.join(',') : (flowArg ?? 'hire,cancel,topup-paid'))
+  .split(',')
+  .map((name) => name.trim())
+  .filter(Boolean)
+for (const name of requested)
+  if (!names.includes(name as (typeof names)[number])) throw new Error(`unknown v1 flow ${name}; use --list`)
 
 const env = (name: string, optional = false) => {
   const value = stageEnv[name]
-  if ((value === undefined || value === '') && !optional) throw new Error(`${name} is not set (chosen stage environment)`)
+  if ((value === undefined || value === '') && !optional)
+    throw new Error(`${name} is not set (chosen stage environment)`)
   return value
 }
 async function main() {
-const selected = stageProfile(stageName) ?? stageProfile('dev')!
-if (selected.network !== 'monad-testnet') throw new Error('v1 flow runner is testnet only')
-sdk.setRelayOverride(selected.relay)
-const localEnv = stageFlag === -1 && (stageEnv.SIDEQUEST_STAGE === undefined || stageEnv.SIDEQUEST_STAGE === 'local' || stageEnv.NODE_ENV === 'test')
-const rpc = env('MONAD_RPC_URL', true) ?? env(localEnv ? 'MONAD_TESTNET_RPC_URL' : 'MONAD_RPC_URL')!
-const network = 'monad-testnet' as const
-const ctx = sdk.context(network, 'main', rpc)
-if (ctx.deployment.chainId !== 10143 || ctx.stack.kind !== 'sidequest-v1' || ctx.deployment.sidequest === null)
-  throw new Error('testnet v1 flows require a promoted Sidequest v1 main pair')
-const creator = sdk.wallet(network, privateKeyToAccount(env('TESTNET_CREATOR_PRIVATE_KEY') as Hex), rpc)
-const worker = sdk.wallet(network, privateKeyToAccount(env('TESTNET_WORKER_PRIVATE_KEY') as Hex), rpc)
-const relay = sdk.wallet(network, privateKeyToAccount(env('RELAY_PRIVATE_KEY') as Hex), rpc)
-const arbiters = v1FlowArbitrators(config, stageEnv)
-const arbitrator = sdk.wallet(network, arbiters.v1, rpc)
-const explorer = 'https://testnet.monadscan.com/tx/'
-const yieldBeforeChainTime = stageEnv.V1_FLOW_YIELD === '1'
-const profile = env('V1_FLOW_PROFILE', true) ?? 'default'
-if (!/^[A-Za-z0-9_-]{1,80}$/.test(profile)) throw new Error('V1_FLOW_PROFILE must be a short alphanumeric label')
-const stateDir = new URL(`./.v1-flows/${profile}/`, import.meta.url)
-ensureFlowDirectory(stateDir)
-const stateUrl = new URL('journal.json', stateDir)
-const lockUrl = new URL('runner.lock', stateDir)
-if (existsSync(lockUrl)) {
-  const pid = Number(readFileSync(lockUrl, 'utf8'))
-  if (!Number.isSafeInteger(pid) || pid <= 0) throw new Error('invalid flow lock; inspect it before retrying')
-  let alive = true
-  try { process.kill(pid, 0) } catch (error) { if ((error as NodeJS.ErrnoException).code === 'ESRCH') alive = false }
-  if (alive) throw new Error('another runner owns this flow journal')
-  unlinkSync(lockUrl)
-}
-const lock = openSync(lockUrl, 'wx', 0o600)
-writeFileSync(lock, String(process.pid)); closeSync(lock)
-process.once('exit', () => unlinkSync(lockUrl))
-process.once('SIGINT', () => process.exit(130))
-process.once('SIGTERM', () => process.exit(143))
-
-const load = (): sdk.FlowState => existsSync(stateUrl) ? sdk.parseFlowJson(readFileSync(stateUrl, 'utf8')) : { binding: '', values: {}, sends: {} }
-const state = load()
-const binding = sdk.hashText(sdk.flowJson({ deployment: ctx.deployment, creator: creator.account.address, worker: worker.account.address,
-  relay: relay.account.address, arbitrator: arbitrator.account.address, reward: env('V1_FLOW_REWARD', true) ?? '1', bond: env('V1_FLOW_BOND', true) ?? '10' }))
-if (state.binding !== '' && state.binding !== binding) throw new Error('flow journal belongs to a different testnet deployment or wallet set')
-state.binding = binding
-const save = (next: sdk.FlowState) => saveFlowState(stateDir, next)
-const log = (label: string, hash: Hex) => console.log(`[${label}] ${explorer}${hash}`)
-const journal = new sdk.FlowJournal(ctx, state, save, log)
-if (relay.account.address.toLowerCase() !== ctx.deployment.relay.toLowerCase()) throw new Error('relay key does not match the selected stage')
-
-async function waitUntil(label: string, target: number) {
-  for (;;) {
-    const current = Number((await ctx.publicClient.getBlock()).timestamp)
-    if (current >= target) return
-    if (yieldBeforeChainTime) {
-      state.values[`wait/${label}`] = target
-      save(state)
-      throw new sdk.FlowWaiting(label, target)
-    }
-    console.log(`[${label}] waiting ${target - current}s of chain time`)
-    await new Promise(resolve => setTimeout(resolve, Math.min(30, target - current) * 1000))
-  }
-}
-
-async function setupAgent(): Promise<bigint> {
-  const saved = state.values['setup/agentId']
-  if (typeof saved === 'bigint' && (await sdk.agentWallet(ctx, saved)).toLowerCase() === worker.account.address.toLowerCase()) return saved
-  const configured = env('TESTNET_AGENT_ID', true)
-  if (configured !== undefined) {
-    const id = BigInt(configured)
-    if ((await sdk.agentWallet(ctx, id)).toLowerCase() !== worker.account.address.toLowerCase()) throw new Error('TESTNET_AGENT_ID is owned by another wallet')
-    state.values['setup/agentId'] = id; save(state); return id
-  }
-  const receipt = await journal.contract('setup/register', worker, ctx.deployment.identity, sdk.identityAbi, 'register', ['https://sidequest.exchange/testnet-v1-worker'])
-  let id: bigint | undefined
-  for (const entry of receipt.logs) {
-    if (entry.address.toLowerCase() !== ctx.deployment.identity.toLowerCase()) continue
+  const selected = stageProfile(stageName) ?? stageProfile('dev')!
+  if (selected.network !== 'monad-testnet') throw new Error('v1 flow runner is testnet only')
+  sdk.setRelayOverride(selected.relay)
+  const localEnv =
+    stageFlag === -1 &&
+    (stageEnv.SIDEQUEST_STAGE === undefined || stageEnv.SIDEQUEST_STAGE === 'local' || stageEnv.NODE_ENV === 'test')
+  const rpc = env('MONAD_RPC_URL', true) ?? env(localEnv ? 'MONAD_TESTNET_RPC_URL' : 'MONAD_RPC_URL')!
+  const network = 'monad-testnet' as const
+  const ctx = sdk.context(network, 'main', rpc)
+  if (ctx.deployment.chainId !== 10143 || ctx.stack.kind !== 'sidequest-v1' || ctx.deployment.sidequest === null)
+    throw new Error('testnet v1 flows require a promoted Sidequest v1 main pair')
+  const creator = sdk.wallet(network, privateKeyToAccount(env('TESTNET_CREATOR_PRIVATE_KEY') as Hex), rpc)
+  const worker = sdk.wallet(network, privateKeyToAccount(env('TESTNET_WORKER_PRIVATE_KEY') as Hex), rpc)
+  const relay = sdk.wallet(network, privateKeyToAccount(env('RELAY_PRIVATE_KEY') as Hex), rpc)
+  const arbiters = v1FlowArbitrators(config, stageEnv)
+  const arbitrator = sdk.wallet(network, arbiters.v1, rpc)
+  const explorer = 'https://testnet.monadscan.com/tx/'
+  const yieldBeforeChainTime = stageEnv.V1_FLOW_YIELD === '1'
+  const profile = env('V1_FLOW_PROFILE', true) ?? 'default'
+  if (!/^[A-Za-z0-9_-]{1,80}$/.test(profile)) throw new Error('V1_FLOW_PROFILE must be a short alphanumeric label')
+  const stateDir = new URL(`./.v1-flows/${profile}/`, import.meta.url)
+  ensureFlowDirectory(stateDir)
+  const stateUrl = new URL('journal.json', stateDir)
+  const lockUrl = new URL('runner.lock', stateDir)
+  if (existsSync(lockUrl)) {
+    const pid = Number(readFileSync(lockUrl, 'utf8'))
+    if (!Number.isSafeInteger(pid) || pid <= 0) throw new Error('invalid flow lock; inspect it before retrying')
+    let alive = true
     try {
-      const event = decodeEventLog({ abi: parseAbi(['event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)']), data: entry.data, topics: entry.topics })
-      if (event.args.to.toLowerCase() === worker.account.address.toLowerCase()) id = event.args.tokenId
-    } catch { /* Other identity logs. */ }
+      process.kill(pid, 0)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ESRCH') alive = false
+    }
+    if (alive) throw new Error('another runner owns this flow journal')
+    unlinkSync(lockUrl)
   }
-  if (id === undefined || (await sdk.agentWallet(ctx, id)).toLowerCase() !== worker.account.address.toLowerCase()) throw new Error('registration did not mint the worker identity')
-  state.values['setup/agentId'] = id; save(state)
-  return id
-}
+  const lock = openSync(lockUrl, 'wx', 0o600)
+  writeFileSync(lock, String(process.pid))
+  closeSync(lock)
+  process.once('exit', () => unlinkSync(lockUrl))
+  process.once('SIGINT', () => process.exit(130))
+  process.once('SIGTERM', () => process.exit(143))
 
-async function setupStake() {
-  const h = ctx.deployment.sidequest!
-  const decimals = await ctx.publicClient.readContract({ address: h.factory, abi: erc20Abi, functionName: 'decimals' })
-  const target = parseUnits(env('V1_STAKE_TARGET', true) ?? '100', decimals)
-  for (const [name, wallet] of [['creator', creator], ['worker', worker] ] as const) {
-    const amount = await journal.once(`setup/${name}/stakeAmount`, async () => { const current = await sdk.getBacking(ctx, wallet.account.address); return current.active >= target ? 0n : target - current.active })
-    if (amount === 0n) continue
-    const allowance = await ctx.publicClient.readContract({ address: h.factory, abi: erc20Abi, functionName: 'allowance', args: [wallet.account.address, h.vault] })
-    if (allowance < amount) await journal.contract(`setup/${name}/approve`, wallet, h.factory, erc20Abi, 'approve', [h.vault, amount])
-    await journal.contract(`setup/${name}/stake`, wallet, h.vault, sdk.stakeVaultAbi, 'delegate', [wallet.account.address, amount])
-  }
-}
+  const load = (): sdk.FlowState =>
+    existsSync(stateUrl) ? sdk.parseFlowJson(readFileSync(stateUrl, 'utf8')) : { binding: '', values: {}, sends: {} }
+  const state = load()
+  const binding = sdk.hashText(
+    sdk.flowJson({
+      deployment: ctx.deployment,
+      creator: creator.account.address,
+      worker: worker.account.address,
+      relay: relay.account.address,
+      arbitrator: arbitrator.account.address,
+      reward: env('V1_FLOW_REWARD', true) ?? '1',
+      bond: env('V1_FLOW_BOND', true) ?? '10',
+    }),
+  )
+  if (state.binding !== '' && state.binding !== binding)
+    throw new Error('flow journal belongs to a different testnet deployment or wallet set')
+  state.binding = binding
+  const save = (next: sdk.FlowState) => saveFlowState(stateDir, next)
+  const log = (label: string, hash: Hex) => console.log(`[${label}] ${explorer}${hash}`)
+  const journal = new sdk.FlowJournal(ctx, state, save, log)
+  if (relay.account.address.toLowerCase() !== ctx.deployment.relay.toLowerCase())
+    throw new Error('relay key does not match the selected stage')
 
-const rewardToken = ctx.deployment.rewardTokens[0]
-if (rewardToken === undefined) throw new Error('testnet deployment has no configured reward token')
-const rewardDecimals = await ctx.publicClient.readContract({ address: rewardToken, abi: erc20Abi, functionName: 'decimals' })
-const factoryDecimals = await ctx.publicClient.readContract({ address: ctx.deployment.sidequest.factory, abi: erc20Abi, functionName: 'decimals' })
-const reward = parseUnits(env('V1_FLOW_REWARD', true) ?? '1', rewardDecimals)
-const bond = parseUnits(env('V1_FLOW_BOND', true) ?? '10', factoryDecimals)
-if (reward <= 0n || bond <= 0n) throw new Error('live money verification needs positive reward and bond amounts')
-const hosted = requested.some(name => (sdk.V1_HOSTED_FLOWS as readonly string[]).includes(name))
-const boardUrl = hosted ? env('V1_BOARD_URL', true) ?? selected.origin : ''
-const clients = new Map<string, ReturnType<typeof sdk.boardClient>>()
-const call = async <T = any>(wallet: sdk.Wallet, tool: string, input: Record<string, unknown>): Promise<T> => {
-  let client = clients.get(wallet.account.address)
-  if (client === undefined) {
-    client = sdk.boardClient(boardUrl); await client.signIn(wallet.account as import('viem').LocalAccount); clients.set(wallet.account.address, client)
+  async function waitUntil(label: string, target: number) {
+    for (;;) {
+      const current = Number((await ctx.publicClient.getBlock()).timestamp)
+      if (current >= target) return
+      if (yieldBeforeChainTime) {
+        state.values[`wait/${label}`] = target
+        save(state)
+        throw new sdk.FlowWaiting(label, target)
+      }
+      console.log(`[${label}] waiting ${target - current}s of chain time`)
+      await new Promise((resolve) => setTimeout(resolve, Math.min(30, target - current) * 1000))
+    }
   }
-  return client.call<T>(tool, input)
-}
-if (hosted) {
-  const info = await call<{ chainId: number; contracts: { stacks: { main: { holding: string } } } }>(creator, 'protocol_info', {})
-  if (info.chainId !== 10143 || info.contracts.stacks.main.holding.toLowerCase() !== ctx.stack.holding.toLowerCase()) throw new Error('V1_BOARD_URL is not this testnet deployment')
-}
-const agentId = await setupAgent()
-await setupStake()
-const waiting: string[] = []
-for (const name of requested) {
-  const deps = { ctx, journal, creator, worker, relay, arbitrator, agentId, token: rewardToken,
-    reward, bond, waitUntil, log: (text: string) => console.log(`[${name}] ${text}`) }
-  try {
-    if ((sdk.V1_CORE_FLOWS as readonly string[]).includes(name)) await sdk.runV1CoreFlow(deps, name as sdk.V1CoreFlow)
-    else if ((sdk.V1_HOSTED_FLOWS as readonly string[]).includes(name)) await sdk.runV1HostedFlow({ ...deps, call }, name as sdk.V1HostedFlow)
-    else if ((sdk.V1_ADMIN_FLOWS as readonly string[]).includes(name)) {
-      const safeOwner = sdk.wallet(network, privateKeyToAccount(env('SAFE_BACKUP_TESTNET_PRIVATE_KEY') as Hex), rpc)
-      await sdk.runV1AdminFlow({ ...deps, safeOwner }, name as sdk.V1AdminFlow)
-    } else if (name.startsWith('owed-')) {
-      const kind = name === 'owed-gas' ? 'gasBurner' as const : 'blocklist' as const
-      const record = config as unknown as { deployment: { oddTokens?: { blocklist: Hex; gasBurner: Hex } } }
-      const token = record.deployment.oddTokens?.[kind]
-      if (token === undefined) throw new Error('G1 must promote the real testnet OddTokens addresses')
-      const owner = sdk.wallet(network, privateKeyToAccount(env('TESTNET_ODD_OWNER_PRIVATE_KEY') as Hex), rpc)
-      const decimals = await ctx.publicClient.readContract({ address: token, abi: erc20Abi, functionName: 'decimals' })
-      await sdk.runV1CoreFlow({ ...deps, token, reward: parseUnits(env('V1_FLOW_REWARD', true) ?? '1', decimals), refusingToken: { kind, owner } }, 'hire', name)
-    } else throw new Error(`unknown v1 flow ${name}`)
-  } catch (error) {
-    if (error instanceof sdk.FlowWaiting) { waiting.push(name); continue }
-    throw error
-  }
-}
-if (waiting.length > 0) console.log(`[pending] resume after chain time: ${waiting.join(',')}`)
 
+  async function setupAgent(): Promise<bigint> {
+    const saved = state.values['setup/agentId']
+    if (
+      typeof saved === 'bigint' &&
+      (await sdk.agentWallet(ctx, saved)).toLowerCase() === worker.account.address.toLowerCase()
+    )
+      return saved
+    const configured = env('TESTNET_AGENT_ID', true)
+    if (configured !== undefined) {
+      const id = BigInt(configured)
+      if ((await sdk.agentWallet(ctx, id)).toLowerCase() !== worker.account.address.toLowerCase())
+        throw new Error('TESTNET_AGENT_ID is owned by another wallet')
+      state.values['setup/agentId'] = id
+      save(state)
+      return id
+    }
+    const receipt = await journal.contract(
+      'setup/register',
+      worker,
+      ctx.deployment.identity,
+      sdk.identityAbi,
+      'register',
+      ['https://sidequest.exchange/testnet-v1-worker'],
+    )
+    let id: bigint | undefined
+    for (const entry of receipt.logs) {
+      if (entry.address.toLowerCase() !== ctx.deployment.identity.toLowerCase()) continue
+      try {
+        const event = decodeEventLog({
+          abi: parseAbi(['event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)']),
+          data: entry.data,
+          topics: entry.topics,
+        })
+        if (event.args.to.toLowerCase() === worker.account.address.toLowerCase()) id = event.args.tokenId
+      } catch {
+        /* Other identity logs. */
+      }
+    }
+    if (id === undefined || (await sdk.agentWallet(ctx, id)).toLowerCase() !== worker.account.address.toLowerCase())
+      throw new Error('registration did not mint the worker identity')
+    state.values['setup/agentId'] = id
+    save(state)
+    return id
+  }
+
+  async function setupStake() {
+    const h = ctx.deployment.sidequest!
+    const decimals = await ctx.publicClient.readContract({
+      address: h.factory,
+      abi: erc20Abi,
+      functionName: 'decimals',
+    })
+    const target = parseUnits(env('V1_STAKE_TARGET', true) ?? '100', decimals)
+    for (const [name, wallet] of [
+      ['creator', creator],
+      ['worker', worker],
+    ] as const) {
+      const amount = await journal.once(`setup/${name}/stakeAmount`, async () => {
+        const current = await sdk.getBacking(ctx, wallet.account.address)
+        return current.active >= target ? 0n : target - current.active
+      })
+      if (amount === 0n) continue
+      const allowance = await ctx.publicClient.readContract({
+        address: h.factory,
+        abi: erc20Abi,
+        functionName: 'allowance',
+        args: [wallet.account.address, h.vault],
+      })
+      if (allowance < amount)
+        await journal.contract(`setup/${name}/approve`, wallet, h.factory, erc20Abi, 'approve', [h.vault, amount])
+      await journal.contract(`setup/${name}/stake`, wallet, h.vault, sdk.stakeVaultAbi, 'delegate', [
+        wallet.account.address,
+        amount,
+      ])
+    }
+  }
+
+  const rewardToken = ctx.deployment.rewardTokens[0]
+  if (rewardToken === undefined) throw new Error('testnet deployment has no configured reward token')
+  const rewardDecimals = await ctx.publicClient.readContract({
+    address: rewardToken,
+    abi: erc20Abi,
+    functionName: 'decimals',
+  })
+  const factoryDecimals = await ctx.publicClient.readContract({
+    address: ctx.deployment.sidequest.factory,
+    abi: erc20Abi,
+    functionName: 'decimals',
+  })
+  const reward = parseUnits(env('V1_FLOW_REWARD', true) ?? '1', rewardDecimals)
+  const bond = parseUnits(env('V1_FLOW_BOND', true) ?? '10', factoryDecimals)
+  if (reward <= 0n || bond <= 0n) throw new Error('live money verification needs positive reward and bond amounts')
+  const hosted = requested.some((name) => (sdk.V1_HOSTED_FLOWS as readonly string[]).includes(name))
+  const boardUrl = hosted ? (env('V1_BOARD_URL', true) ?? selected.origin) : ''
+  const clients = new Map<string, ReturnType<typeof sdk.boardClient>>()
+  const call = async <T = any>(wallet: sdk.Wallet, tool: string, input: Record<string, unknown>): Promise<T> => {
+    let client = clients.get(wallet.account.address)
+    if (client === undefined) {
+      client = sdk.boardClient(boardUrl)
+      await client.signIn(wallet.account as import('viem').LocalAccount)
+      clients.set(wallet.account.address, client)
+    }
+    return client.call<T>(tool, input)
+  }
+  if (hosted) {
+    const info = await call<{ chainId: number; contracts: { stacks: { main: { holding: string } } } }>(
+      creator,
+      'protocol_info',
+      {},
+    )
+    if (info.chainId !== 10143 || info.contracts.stacks.main.holding.toLowerCase() !== ctx.stack.holding.toLowerCase())
+      throw new Error('V1_BOARD_URL is not this testnet deployment')
+  }
+  const agentId = await setupAgent()
+  await setupStake()
+  const waiting: string[] = []
+  for (const name of requested) {
+    const deps = {
+      ctx,
+      journal,
+      creator,
+      worker,
+      relay,
+      arbitrator,
+      agentId,
+      token: rewardToken,
+      reward,
+      bond,
+      waitUntil,
+      log: (text: string) => console.log(`[${name}] ${text}`),
+    }
+    try {
+      if ((sdk.V1_CORE_FLOWS as readonly string[]).includes(name)) await sdk.runV1CoreFlow(deps, name as sdk.V1CoreFlow)
+      else if ((sdk.V1_HOSTED_FLOWS as readonly string[]).includes(name))
+        await sdk.runV1HostedFlow({ ...deps, call }, name as sdk.V1HostedFlow)
+      else if ((sdk.V1_ADMIN_FLOWS as readonly string[]).includes(name)) {
+        const safeOwner = sdk.wallet(network, privateKeyToAccount(env('SAFE_BACKUP_TESTNET_PRIVATE_KEY') as Hex), rpc)
+        await sdk.runV1AdminFlow({ ...deps, safeOwner }, name as sdk.V1AdminFlow)
+      } else if (name.startsWith('owed-')) {
+        const kind = name === 'owed-gas' ? ('gasBurner' as const) : ('blocklist' as const)
+        const record = config as unknown as { deployment: { oddTokens?: { blocklist: Hex; gasBurner: Hex } } }
+        const token = record.deployment.oddTokens?.[kind]
+        if (token === undefined) throw new Error('G1 must promote the real testnet OddTokens addresses')
+        const owner = sdk.wallet(network, privateKeyToAccount(env('TESTNET_ODD_OWNER_PRIVATE_KEY') as Hex), rpc)
+        const decimals = await ctx.publicClient.readContract({
+          address: token,
+          abi: erc20Abi,
+          functionName: 'decimals',
+        })
+        await sdk.runV1CoreFlow(
+          {
+            ...deps,
+            token,
+            reward: parseUnits(env('V1_FLOW_REWARD', true) ?? '1', decimals),
+            refusingToken: { kind, owner },
+          },
+          'hire',
+          name,
+        )
+      } else throw new Error(`unknown v1 flow ${name}`)
+    } catch (error) {
+      if (error instanceof sdk.FlowWaiting) {
+        waiting.push(name)
+        continue
+      }
+      throw error
+    }
+  }
+  if (waiting.length > 0) console.log(`[pending] resume after chain time: ${waiting.join(',')}`)
 }
-try { await main() } catch (error) {
+try {
+  await main()
+} catch (error) {
   const failure = error as { shortMessage?: string; message?: string }
-  let message = (failure.shortMessage ?? failure.message ?? "live flow failed").split("\n")[0]!
+  let message = (failure.shortMessage ?? failure.message ?? 'live flow failed').split('\n')[0]!
   for (const [name, value] of Object.entries(process.env)) {
-    if (value && /KEY|TOKEN|SECRET|RPC_URL/i.test(name)) message = message.replaceAll(value, "[redacted]")
+    if (value && /KEY|TOKEN|SECRET|RPC_URL/i.test(name)) message = message.replaceAll(value, '[redacted]')
   }
-  console.error(message.replace(/https?:\/\/\S+/g, "[RPC]"))
-  console.error("Flow journal preserved; retry the same case to reconcile its saved transaction.")
+  console.error(message.replace(/https?:\/\/\S+/g, '[RPC]'))
+  console.error('Flow journal preserved; retry the same case to reconcile its saved transaction.')
   process.exitCode = 1
 }

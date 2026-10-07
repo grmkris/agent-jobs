@@ -35,5 +35,6 @@ export function BoardLink({ target, ...props }: { target: LinkTarget } & Omit<Co
 
 export function useBoardNavigate() {
   const navigate = useNavigate()
-  return (target: LinkTarget) => navigate({ to: target.to as '/', params: (target.params ?? {}) as never, search: target.search as never })
+  return (target: LinkTarget) =>
+    navigate({ to: target.to as '/', params: (target.params ?? {}) as never, search: target.search as never })
 }

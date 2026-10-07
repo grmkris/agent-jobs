@@ -13,7 +13,9 @@ import { createSiweMessage, parseSiweMessage } from 'viem/siwe'
 export type SessionSqlValue = string | number | null
 export interface SessionSql {
   all<T>(query: string, ...params: SessionSqlValue[]): Promise<T[]>
-  batch(statements: ReadonlyArray<{ readonly query: string; readonly params: readonly SessionSqlValue[] }>): Promise<void>
+  batch(
+    statements: ReadonlyArray<{ readonly query: string; readonly params: readonly SessionSqlValue[] }>,
+  ): Promise<void>
 }
 
 export const SESSION_SCHEMA: readonly string[] = [
@@ -77,12 +79,23 @@ export class SessionDesk {
   }
 
   /** A SIWE message for `address` to sign, bound to `domain` (the page's host) and this board; valid ten minutes, once. */
-  async challenge(input: { address: string; domain: string; uri: string; chainId: number; boardId: string }): Promise<{ message: string }> {
+  async challenge(input: {
+    address: string
+    domain: string
+    uri: string
+    chainId: number
+    boardId: string
+  }): Promise<{ message: string }> {
     if (!isAddress(input.address)) throw new SessionError('invalid', 'address must be a 0x address')
     const address = getAddress(input.address)
     const nonce = randomId(12)
     const now = this.#now()
-    await this.#sql.batch([{ query: 'INSERT INTO siwe_nonces (nonce, address, domain, expires_at, used) VALUES (?, ?, ?, ?, 0)', params: [nonce, address, input.domain, now + NONCE_SECONDS] }])
+    await this.#sql.batch([
+      {
+        query: 'INSERT INTO siwe_nonces (nonce, address, domain, expires_at, used) VALUES (?, ?, ?, ?, 0)',
+        params: [nonce, address, input.domain, now + NONCE_SECONDS],
+      },
+    ])
     const message = createSiweMessage({
       address,
       chainId: input.chainId,
@@ -109,31 +122,56 @@ export class SessionDesk {
   }): Promise<{ session: string; address: Address; expiresAt: number }> {
     const fields = parseSiweMessage(input.message)
     const now = this.#now()
-    if (fields.address === undefined || fields.nonce === undefined || fields.domain === undefined) throw new SessionError('invalid', 'not a SIWE message')
+    if (fields.address === undefined || fields.nonce === undefined || fields.domain === undefined)
+      throw new SessionError('invalid', 'not a SIWE message')
     const [nonce] = await this.#sql.all<{ address: string; domain: string; expires_at: number; used: number }>(
       'SELECT address, domain, expires_at, used FROM siwe_nonces WHERE nonce = ?',
       fields.nonce,
     )
-    if (nonce === undefined || nonce.used !== 0 || nonce.expires_at < now || nonce.address.toLowerCase() !== fields.address.toLowerCase()) {
+    if (
+      nonce === undefined ||
+      nonce.used !== 0 ||
+      nonce.expires_at < now ||
+      nonce.address.toLowerCase() !== fields.address.toLowerCase()
+    ) {
       throw new SessionError('forbidden', 'unknown, used or expired sign-in nonce; request a new auth_challenge')
     }
     if (fields.domain !== nonce.domain) throw new SessionError('forbidden', 'SIWE domain mismatch')
-    if (!input.domainAllowed(fields.domain)) throw new SessionError('forbidden', `domain "${fields.domain}" may not sign in on board "${input.boardId}"`)
+    if (!input.domainAllowed(fields.domain))
+      throw new SessionError('forbidden', `domain "${fields.domain}" may not sign in on board "${input.boardId}"`)
     if (!/^0x[0-9a-fA-F]+$/.test(input.signature)) throw new SessionError('invalid', 'signature must be 0x hex')
-    const valid = await this.#verify({ address: fields.address, message: input.message, signature: input.signature as `0x${string}` })
+    const valid = await this.#verify({
+      address: fields.address,
+      message: input.message,
+      signature: input.signature as `0x${string}`,
+    })
     if (!valid) throw new SessionError('forbidden', 'signature does not match the address')
     const session = randomId(32)
     const expiresAt = now + SESSION_SECONDS
-    const origin = fields.uri === undefined ? '' : (() => { try { return new URL(fields.uri).origin } catch { return '' } })()
+    const origin =
+      fields.uri === undefined
+        ? ''
+        : (() => {
+            try {
+              return new URL(fields.uri).origin
+            } catch {
+              return ''
+            }
+          })()
     await this.#sql.batch([
       { query: 'UPDATE siwe_nonces SET used = 1 WHERE nonce = ?', params: [fields.nonce] },
-      { query: 'INSERT INTO sessions (id, address, origin, board_id, expires_at) VALUES (?, ?, ?, ?, ?)', params: [session, getAddress(fields.address), origin, input.boardId, expiresAt] },
+      {
+        query: 'INSERT INTO sessions (id, address, origin, board_id, expires_at) VALUES (?, ?, ?, ?, ?)',
+        params: [session, getAddress(fields.address), origin, input.boardId, expiresAt],
+      },
     ])
     return { session, address: getAddress(fields.address), expiresAt }
   }
 
   /** The wallet behind a live session token, if any. */
-  async sessionAddress(session: string | undefined): Promise<{ address: Address; origin: string; boardId: string } | undefined> {
+  async sessionAddress(
+    session: string | undefined,
+  ): Promise<{ address: Address; origin: string; boardId: string } | undefined> {
     if (session === undefined || session === '') return undefined
     const [row] = await this.#sql.all<{ address: string; origin: string; board_id: string; expires_at: number }>(
       'SELECT address, origin, board_id, expires_at FROM sessions WHERE id = ?',
@@ -145,15 +183,27 @@ export class SessionDesk {
 
   /** Binds an MCP session to a signed-in session, so an agent that signed in through a tool stays signed in. */
   async bindMcp(mcpSession: string, session: string): Promise<void> {
-    await this.#sql.batch([{ query: 'INSERT INTO mcp_sessions (id, session) VALUES (?, ?) ON CONFLICT (id) DO UPDATE SET session = excluded.session', params: [mcpSession, session] }])
+    await this.#sql.batch([
+      {
+        query:
+          'INSERT INTO mcp_sessions (id, session) VALUES (?, ?) ON CONFLICT (id) DO UPDATE SET session = excluded.session',
+        params: [mcpSession, session],
+      },
+    ])
   }
 
   /** The caller behind a bearer token or, failing that, a bound MCP session. */
-  async resolve(auth: { bearer?: string | undefined; mcpSession?: string | undefined }): Promise<{ address: Address; origin: string; boardId: string } | undefined> {
+  async resolve(auth: {
+    bearer?: string | undefined
+    mcpSession?: string | undefined
+  }): Promise<{ address: Address; origin: string; boardId: string } | undefined> {
     const direct = await this.sessionAddress(auth.bearer)
     if (direct !== undefined) return direct
     if (auth.mcpSession === undefined) return undefined
-    const [row] = await this.#sql.all<{ session: string }>('SELECT session FROM mcp_sessions WHERE id = ?', auth.mcpSession)
+    const [row] = await this.#sql.all<{ session: string }>(
+      'SELECT session FROM mcp_sessions WHERE id = ?',
+      auth.mcpSession,
+    )
     return this.sessionAddress(row?.session)
   }
 }

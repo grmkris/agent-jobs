@@ -49,8 +49,8 @@ function FundPanel({ address, onClose }: { address: `0x${string}`; onClose: () =
         </button>
       </div>
       <p className="mb-2 text-xs text-muted-foreground">
-        Send {chain.nativeCurrency.symbol} for gas and the tokens you pay with and SIDE for deposits at risk to this address on {chain.name}
-        , from any wallet you already have.
+        Send {chain.nativeCurrency.symbol} for gas and the tokens you pay with and SIDE for deposits at risk to this
+        address on {chain.name}, from any wallet you already have.
       </p>
       <Details summary="Technical details" className="mb-3">
         <div className="flex items-center gap-2">
@@ -75,12 +75,19 @@ function FundPanel({ address, onClose }: { address: `0x${string}`; onClose: () =
             <TokenIcon token={zeroAddress} />
             {chain.nativeCurrency.symbol}
           </span>
-          <span>{mon.isError || mon.data === undefined ? (mon.isPending ? '…' : 'Unavailable') : formatNumber(mon.data.value, 18)}</span>
+          <span>
+            {mon.isError || mon.data === undefined
+              ? mon.isPending
+                ? '…'
+                : 'Unavailable'
+              : formatNumber(mon.data.value, 18)}
+          </span>
         </li>
         {tokens.map((t, i) => {
           const read = balances.data?.[i]
-          const v = !balances.isError && read?.status === 'success' ? read.result as bigint : undefined
-          const info = t.toLowerCase() === deployment.factory.toLowerCase() ? { symbol: 'SIDE', decimals: 18 } : tokenInfo(t)
+          const v = !balances.isError && read?.status === 'success' ? (read.result as bigint) : undefined
+          const info =
+            t.toLowerCase() === deployment.factory.toLowerCase() ? { symbol: 'SIDE', decimals: 18 } : tokenInfo(t)
           return (
             <li key={t} className="flex justify-between">
               <span>{info.symbol}</span>
@@ -109,10 +116,23 @@ function FundPanel({ address, onClose }: { address: `0x${string}`; onClose: () =
 }
 
 const WHAT: Record<BalanceRow['role'], string> = { bond: 'For deposits at risk', pay: 'Paid in', gas: 'Gas' }
-const shown = (row: { status: BalanceRow['status'] }) => (row.status === 'value' ? undefined : row.status === 'loading' ? '…' : 'Unavailable')
+const shown = (row: { status: BalanceRow['status'] }) =>
+  row.status === 'value' ? undefined : row.status === 'loading' ? '…' : 'Unavailable'
 
 /** An amount and, when it has a price, its dollar estimate beneath. */
-function Amount({ token, value, decimals, text, usd }: { token: string | null; value: bigint | undefined; decimals: number; text: string | undefined; usd: number | undefined }) {
+function Amount({
+  token,
+  value,
+  decimals,
+  text,
+  usd,
+}: {
+  token: string | null
+  value: bigint | undefined
+  decimals: number
+  text: string | undefined
+  usd: number | undefined
+}) {
   return (
     <span className="grid min-w-0 max-w-[60%] justify-items-end gap-0.5 text-right">
       {token === null ? (
@@ -121,7 +141,13 @@ function Amount({ token, value, decimals, text, usd }: { token: string | null; v
           {text ?? formatNumber(value!, decimals)}
         </span>
       ) : (
-        <TokenAmount value={value} token={token} static text={text} className="min-w-0 font-medium whitespace-normal [overflow-wrap:anywhere]" />
+        <TokenAmount
+          value={value}
+          token={token}
+          static
+          text={text}
+          className="min-w-0 font-medium whitespace-normal [overflow-wrap:anywhere]"
+        />
       )}
       {usd !== undefined && <span className="text-xs tabular-nums text-muted-foreground">{approxUsd(usd)}</span>}
     </span>
@@ -141,8 +167,8 @@ export function WalletCard({ address }: { address: `0x${string}` }) {
       note={
         isMainnet ? (
           <>
-            Send {chain.nativeCurrency.symbol} for gas and the tokens you pay with and SIDE for deposits at risk to this address, from any
-            wallet you already have.
+            Send {chain.nativeCurrency.symbol} for gas and the tokens you pay with and SIDE for deposits at risk to this
+            address, from any wallet you already have.
           </>
         ) : (
           <>
@@ -176,9 +202,17 @@ export function WalletCard({ address }: { address: `0x${string}` }) {
               <Item>
                 <ItemContent className="min-w-0 flex-1">
                   SIDE staked
-                  <ItemDescription className="block text-xs text-muted-foreground">Backing agents, unstaking included</ItemDescription>
+                  <ItemDescription className="block text-xs text-muted-foreground">
+                    Backing agents, unstaking included
+                  </ItemDescription>
                 </ItemContent>
-                <Amount token={deployment.factory} value={staked.value} decimals={18} text={undefined} usd={staked.usd} />
+                <Amount
+                  token={deployment.factory}
+                  value={staked.value}
+                  decimals={18}
+                  text={undefined}
+                  usd={staked.usd}
+                />
               </Item>
             )}
           </Fragment>

@@ -67,11 +67,14 @@ function manifest() {
  * built file; post-deploy probes can read it from the live origin. Writes are open on testnet, and on mainnet only
  * once `MAINNET_LIVE` is true and the contracts are in the config, as in the app (`writesOpen` in wallet.ts).
  */
-const releaseInfo = () => `${JSON.stringify({ network, mainnetLive: MAINNET_LIVE, writesOpen: (network !== 'monad-mainnet' || MAINNET_LIVE) && deployed }, null, 2)}\n`
+const releaseInfo = () =>
+  `${JSON.stringify({ network, mainnetLive: MAINNET_LIVE, writesOpen: (network !== 'monad-mainnet' || MAINNET_LIVE) && deployed }, null, 2)}\n`
 function release() {
   return {
     name: 'sidequest-release',
-    configureServer(server: { middlewares: { use(fn: (req: IncomingMessage, res: ServerResponse, next: () => void) => void): void } }) {
+    configureServer(server: {
+      middlewares: { use(fn: (req: IncomingMessage, res: ServerResponse, next: () => void) => void): void }
+    }) {
       server.middlewares.use((req, res, next) => {
         if ((req.url ?? '').split('?')[0] !== '/release.json') return next()
         res.setHeader('Content-Type', 'application/json; charset=utf-8')
@@ -90,20 +93,29 @@ function release() {
  * dev.
  */
 const SKILL_ROLES = ['connector', 'worker', 'publisher', 'arbitrator'] as const
-const skillSource = (role: string) => readFileSync(fileURLToPath(new URL(`../../skill/${role}/SKILL.md`, import.meta.url)), 'utf8')
+const skillSource = (role: string) =>
+  readFileSync(fileURLToPath(new URL(`../../skill/${role}/SKILL.md`, import.meta.url)), 'utf8')
 function skills() {
   return {
     name: 'sidequest-skills',
-    configureServer(server: { middlewares: { use(fn: (req: IncomingMessage, res: ServerResponse, next: () => void) => void): void } }) {
+    configureServer(server: {
+      middlewares: { use(fn: (req: IncomingMessage, res: ServerResponse, next: () => void) => void): void }
+    }) {
       server.middlewares.use((req, res, next) => {
         const role = /^\/skills\/([a-z]+)\/SKILL\.md$/.exec((req.url ?? '').split('?')[0] ?? '')?.[1]
         if (role === undefined || !(SKILL_ROLES as readonly string[]).includes(role)) return next()
         res.setHeader('Content-Type', 'text/markdown; charset=utf-8')
-        res.end(skillSource(role).replaceAll('{{SIDEQUEST_ORIGIN}}', profile?.origin ?? `http://${req.headers.host ?? 'localhost:5173'}`))
+        res.end(
+          skillSource(role).replaceAll(
+            '{{SIDEQUEST_ORIGIN}}',
+            profile?.origin ?? `http://${req.headers.host ?? 'localhost:5173'}`,
+          ),
+        )
       })
     },
     generateBundle(this: { emitFile(f: { type: 'asset'; fileName: string; source: string }): void }) {
-      for (const role of SKILL_ROLES) this.emitFile({ type: 'asset', fileName: `skills/${role}/SKILL.md`, source: skillSource(role) })
+      for (const role of SKILL_ROLES)
+        this.emitFile({ type: 'asset', fileName: `skills/${role}/SKILL.md`, source: skillSource(role) })
     },
   }
 }
@@ -116,7 +128,9 @@ export default defineConfig({
     __SIDEQUEST_NETWORK__: JSON.stringify(network),
     __SIDEQUEST_STAGE__: JSON.stringify(stage),
     __SIDEQUEST_RELAY__: JSON.stringify(profile?.relay ?? ''),
-    __SIDEQUEST_TELEGRAM_BOT__: JSON.stringify(profile?.telegram.botUsername ?? stageProfile('dev')!.telegram.botUsername),
+    __SIDEQUEST_TELEGRAM_BOT__: JSON.stringify(
+      profile?.telegram.botUsername ?? stageProfile('dev')!.telegram.botUsername,
+    ),
     __PRIVY_APP_ID__: JSON.stringify(process.env.PRIVY_APP_ID ?? ''),
   },
   // Pre-bundle the shader package. Found mid-run, the dev optimizer reloads, and a stale chunk keeps a second React, so a

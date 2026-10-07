@@ -142,9 +142,15 @@ export function tenantRefusal(tenant: TenantConfig, args: Record<string, unknown
   if (typeof stack === 'string' && !tenant.stacks.includes(stack as sdk.StackName)) {
     return `board "${tenant.id}" offers stacks ${tenant.stacks.join(', ')}, not "${stack}"`
   }
-  const named = typeof args.token === 'string' ? [args.token] : Array.isArray(args.tokens) ? (args.tokens as unknown[]).filter((t): t is string => typeof t === 'string') : []
+  const named =
+    typeof args.token === 'string'
+      ? [args.token]
+      : Array.isArray(args.tokens)
+        ? (args.tokens as unknown[]).filter((t): t is string => typeof t === 'string')
+        : []
   // A quote request's budget names its token too, and may be the only place it does.
-  const budget = typeof args.budget === 'object' && args.budget !== null ? (args.budget as { token?: unknown }).token : undefined
+  const budget =
+    typeof args.budget === 'object' && args.budget !== null ? (args.budget as { token?: unknown }).token : undefined
   const tokens = typeof budget === 'string' ? [...named, budget] : named
   if (tenant.anyToken === true) return undefined
   for (const t of tokens) {
@@ -160,8 +166,12 @@ export function tenantDefaults(tenant: TenantConfig, args: Record<string, unknow
   return {
     ...args,
     ...(args.stack === undefined ? { stack: tenant.defaultStack } : {}),
-    ...(args.approver === undefined && tenant.defaultApprover !== undefined ? { approver: tenant.defaultApprover } : {}),
-    ...(args.deliverable === undefined && tenant.deliverableDefault !== undefined ? { deliverable: tenant.deliverableDefault } : {}),
+    ...(args.approver === undefined && tenant.defaultApprover !== undefined
+      ? { approver: tenant.defaultApprover }
+      : {}),
+    ...(args.deliverable === undefined && tenant.deliverableDefault !== undefined
+      ? { deliverable: tenant.deliverableDefault }
+      : {}),
   }
 }
 
@@ -183,12 +193,14 @@ export async function validateBoardInput(
   if (name === '' || name.length > 80) throw new TenantError('invalid', 'name must be 1–80 characters')
   const deployed = Object.keys(deployment.stacks) as sdk.StackName[]
   const stacks = (input.stacks ?? deployed).map((s) => {
-    if (!deployed.includes(s as sdk.StackName)) throw new TenantError('invalid', `unknown stack "${s}"; deployed: ${deployed.join(', ')}`)
+    if (!deployed.includes(s as sdk.StackName))
+      throw new TenantError('invalid', `unknown stack "${s}"; deployed: ${deployed.join(', ')}`)
     return s as sdk.StackName
   })
   if (stacks.length === 0) throw new TenantError('invalid', 'a board offers at least one stack')
   const defaultStack = (input.defaultStack ?? stacks[0]) as sdk.StackName
-  if (!stacks.includes(defaultStack)) throw new TenantError('invalid', `defaultStack "${defaultStack}" is not one of the board's stacks`)
+  if (!stacks.includes(defaultStack))
+    throw new TenantError('invalid', `defaultStack "${defaultStack}" is not one of the board's stacks`)
   const wanted = input.rewardTokens ?? deployment.rewardTokens
   const tokens: TenantToken[] = []
   for (const t of wanted) {
@@ -207,7 +219,8 @@ export async function validateBoardInput(
         }
       }
     }
-    if (resolved === undefined) throw new TenantError('invalid', `"${t}" is not a known token symbol; name the token by its address (any ERC-20)`)
+    if (resolved === undefined)
+      throw new TenantError('invalid', `"${t}" is not a known token symbol; name the token by its address (any ERC-20)`)
     if (!tokens.some((x) => x.address === resolved.address)) tokens.push(resolved)
   }
   if (tokens.length === 0) throw new TenantError('invalid', 'a board pays in at least one reward token')
@@ -215,24 +228,32 @@ export async function validateBoardInput(
     if (o === 'http://localhost:*') return o
     const origin = originOf(o)
     if (origin === undefined || origin !== o || !/^https?:$/.test(new URL(o).protocol)) {
-      throw new TenantError('invalid', `origin "${o}" must be scheme://host[:port] with no path (or http://localhost:*)`)
+      throw new TenantError(
+        'invalid',
+        `origin "${o}" must be scheme://host[:port] with no path (or http://localhost:*)`,
+      )
     }
-    if (new URL(o).protocol === 'http:' && !/^http:\/\/localhost(:\d+)?$/.test(o)) throw new TenantError('invalid', `origin "${o}" must be https (http only for localhost)`)
+    if (new URL(o).protocol === 'http:' && !/^http:\/\/localhost(:\d+)?$/.test(o))
+      throw new TenantError('invalid', `origin "${o}" must be https (http only for localhost)`)
     return origin
   })
   if (input.deliverableDefault !== undefined) validateSpec(input.deliverableDefault)
-  if (input.defaultApprover !== undefined && !isAddress(input.defaultApprover)) throw new TenantError('invalid', 'defaultApprover must be a 0x address')
+  if (input.defaultApprover !== undefined && !isAddress(input.defaultApprover))
+    throw new TenantError('invalid', 'defaultApprover must be a 0x address')
   const sponsor = (input.sponsor ?? 'none') as SponsorMode
-  if (!['none', 'privy', 'pimlico'].includes(sponsor)) throw new TenantError('invalid', 'sponsor is none, privy or pimlico')
+  if (!['none', 'privy', 'pimlico'].includes(sponsor))
+    throw new TenantError('invalid', 'sponsor is none, privy or pimlico')
   const verifiers: Record<string, Address[]> = {}
   for (const [producer, addrs] of Object.entries(input.verifiers ?? {})) {
-    if (!/^[a-z0-9-]{1,32}$/.test(producer)) throw new TenantError('invalid', `producer id "${producer}" must be a-z, 0-9 and "-"`)
+    if (!/^[a-z0-9-]{1,32}$/.test(producer))
+      throw new TenantError('invalid', `producer id "${producer}" must be a-z, 0-9 and "-"`)
     verifiers[producer] = addrs.map((a) => {
       if (!isAddress(a)) throw new TenantError('invalid', `verifier "${a}" is not a 0x address`)
       return getAddress(a)
     })
   }
-  if (input.webhookUrl !== undefined && !input.webhookUrl.startsWith('https://')) throw new TenantError('invalid', 'webhookUrl must be https')
+  if (input.webhookUrl !== undefined && !input.webhookUrl.startsWith('https://'))
+    throw new TenantError('invalid', 'webhookUrl must be https')
   return {
     id: input.slug,
     name,

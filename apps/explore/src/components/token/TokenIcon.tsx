@@ -23,7 +23,9 @@ export function tokenSource(address: string): TokenSource {
 }
 
 /** The icon for an address: a drawn one, a vendored logo's path, or null for the letter disc. */
-function tokenIcon(address: string): { kind: 'drawn'; Icon: typeof FactoryIcon } | { kind: 'logo'; src: string } | null {
+function tokenIcon(
+  address: string,
+): { kind: 'drawn'; Icon: typeof FactoryIcon } | { kind: 'logo'; src: string } | null {
   const a = address.toLowerCase()
   if (isFactory(a)) return { kind: 'drawn', Icon: FactoryIcon }
   // A listed token's symbol is ours (format.ts TOKENS), so it can pick a drawn icon; an unlisted one's cannot.
@@ -47,7 +49,16 @@ export function TokenIcon({ token, className }: { token: string; className?: str
   const icon = tokenIcon(token)
   const box = cn('inline-block size-[1.15em] shrink-0 rounded-full align-[-0.22em]', className)
   if (icon?.kind === 'drawn') return <icon.Icon className={box} />
-  if (icon?.kind === 'logo') return <img src={icon.src} alt="" aria-hidden draggable={false} className={cn(box, 'bg-muted object-contain select-none')} />
+  if (icon?.kind === 'logo')
+    return (
+      <img
+        src={icon.src}
+        alt=""
+        aria-hidden
+        draggable={false}
+        className={cn(box, 'bg-muted object-contain select-none')}
+      />
+    )
   const a = token.toLowerCase()
   const symbol = tokenMeta(a)?.symbol ?? '?'
   const h = hue(a)
@@ -58,10 +69,18 @@ export function TokenIcon({ token, className }: { token: string; className?: str
     <span
       aria-hidden
       data-label={symbol.replace(/^\$/, '').slice(0, 1).toUpperCase()}
-      className={cn(box, 'relative leading-none font-bold before:absolute before:inset-0 before:grid before:place-items-center before:text-[0.62em] before:content-[attr(data-label)]')}
-      style={{ background: `linear-gradient(140deg, hsl(${h} 55% 52%), hsl(${(h + 40) % 360} 50% 40%))`, color: '#fff' }}
+      className={cn(
+        box,
+        'relative leading-none font-bold before:absolute before:inset-0 before:grid before:place-items-center before:text-[0.62em] before:content-[attr(data-label)]',
+      )}
+      style={{
+        background: `linear-gradient(140deg, hsl(${h} 55% 52%), hsl(${(h + 40) % 360} 50% 40%))`,
+        color: '#fff',
+      }}
     >
-      {tokenSource(a) === 'unlisted' && <span className="absolute -top-px -right-px size-[0.42em] rounded-full bg-warning ring-1 ring-background" />}
+      {tokenSource(a) === 'unlisted' && (
+        <span className="absolute -top-px -right-px size-[0.42em] rounded-full bg-warning ring-1 ring-background" />
+      )}
     </span>
   )
 }

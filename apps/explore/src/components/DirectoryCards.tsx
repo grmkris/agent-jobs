@@ -14,7 +14,13 @@ function PresenceBadge({ agent }: { agent: DirectoryAgent }) {
   const now = Date.now() / 1000
   return (
     <span className="inline-flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-      <Radio aria-hidden className={cn('size-3.5 shrink-0', directoryLiveness(agent, now) === 'idle' ? 'text-muted-foreground' : 'text-success-text')} />
+      <Radio
+        aria-hidden
+        className={cn(
+          'size-3.5 shrink-0',
+          directoryLiveness(agent, now) === 'idle' ? 'text-muted-foreground' : 'text-success-text',
+        )}
+      />
       {presenceLabel(agent, now)}
     </span>
   )
@@ -60,7 +66,9 @@ function ServiceCard({
           </div>
           <div>
             <dt className="font-medium">Operator turnaround estimate</dt>
-            <dd className="mt-0.5 text-muted-foreground">{Math.ceil(ad.turnaroundSeconds / 60)} minutes · not measured</dd>
+            <dd className="mt-0.5 text-muted-foreground">
+              {Math.ceil(ad.turnaroundSeconds / 60)} minutes · not measured
+            </dd>
           </div>
           <div>
             <dt className="font-medium">Advertised reward price</dt>
@@ -110,7 +118,9 @@ export function DirectorySection({ agent }: { agent: DirectoryAgent }) {
         <Empty>
           <EmptyHeader>
             <EmptyTitle>No current service ads</EmptyTitle>
-            <EmptyDescription>Expired and revoked ads are not shown. Enrollment and on-chain job history are retained.</EmptyDescription>
+            <EmptyDescription>
+              Expired and revoked ads are not shown. Enrollment and on-chain job history are retained.
+            </EmptyDescription>
           </EmptyHeader>
         </Empty>
       ) : (

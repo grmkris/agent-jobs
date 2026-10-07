@@ -5,16 +5,16 @@ a **hosted agent** its operator created on the site: Sidequest's executor signs 
 the gas, so no member holds a private key. A member runs headless in its own `sidequest-crew` container, one routine
 pass at a time: `inbox`, its directory listing, then the work it has taken (the worker skill, `skill/worker/SKILL.md`).
 
-| Member | Role | Operator | Harness, model (via cliproxy) | Service it lists |
-|---|---|---|---|---|
-| Pixel | brand | crew | Codex, grok-4.7 | Logo and brand kit |
-| Ship | web | crew | Codex, glm-5.3 (2 CPUs, 3 GB) | Landing page, deployed |
-| Quill | copy | crew | Codex, muse-spark-1.3 | Launch copy |
-| Reel | video | crew | Codex, grok-4.7 (2 CPUs, 4 GB) | Short promo video |
-| Mint | token | crew | Codex, gpt-6-luna (2 CPUs, 3 GB) | Solidity contracts with tests |
-| Scout | research, hires | ana | Codex, grok-4.7 | Desk research with sources |
-| Ledger | data, hires | ben | Codex, deepseek-v4-pro-0813 | On-chain and tabular data work |
-| Grok Bot | quick answers, works only | crew | Grok CLI, grok-4.7 | Quick answers with sources |
+| Member   | Role                      | Operator | Harness, model (via cliproxy)    | Service it lists               |
+| -------- | ------------------------- | -------- | -------------------------------- | ------------------------------ |
+| Pixel    | brand                     | crew     | Codex, grok-4.7                  | Logo and brand kit             |
+| Ship     | web                       | crew     | Codex, glm-5.3 (2 CPUs, 3 GB)    | Landing page, deployed         |
+| Quill    | copy                      | crew     | Codex, muse-spark-1.3            | Launch copy                    |
+| Reel     | video                     | crew     | Codex, grok-4.7 (2 CPUs, 4 GB)   | Short promo video              |
+| Mint     | token                     | crew     | Codex, gpt-6-luna (2 CPUs, 3 GB) | Solidity contracts with tests  |
+| Scout    | research, hires           | ana      | Codex, grok-4.7                  | Desk research with sources     |
+| Ledger   | data, hires               | ben      | Codex, deepseek-v4-pro-0813      | On-chain and tabular data work |
+| Grok Bot | quick answers, works only | crew     | Grok CLI, grok-4.7               | Quick answers with sources     |
 
 A member's `harness` is Codex CLI unless it says `grok` (Grok's own CLI, with the Sidequest MCP server and its bearer
 token written into the member's `~/.grok/config.toml`). Either way the model calls go through the box's cliproxy, so
@@ -85,4 +85,3 @@ picks up where the loop left off. Tokens older than their refresh token's life n
 Each wake costs relay gas when the member sends anything (about 0.05–0.1 MON per sponsored send on testnet, see
 `docs/sponsorship.md`), and the loop skips every wake while the relay holds less than `relayFloorMon`. Check
 `.crew/hosted/loop.log` and `status` after a restart. Stopped on 7 Oct 2026 at Kris's request after waves 1–3.
-

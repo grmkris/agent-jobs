@@ -11,11 +11,22 @@ it('VV2-005 encodes empty delegation lists and nested backing/position bigints t
   const pool = { assets: 10n ** 30n, reserved: 2n, shares, queuedShares: 0n, generation: 1n }
   const backing = backingOf(pool, { thresholds: [0n], bps: [3000] })
   const position = positionIn(pool, { shares, queuedShares: 0n, generation: 1n, unlockAt: 0 })
-  const response = HttpServerResponse.toWeb(jsonResponse({ ok: true, blockNumber, ...backing, position }, {
-    status: 200, headers: { 'access-control-allow-origin': 'https://sidequest.example' },
-  }))
+  const response = HttpServerResponse.toWeb(
+    jsonResponse(
+      { ok: true, blockNumber, ...backing, position },
+      {
+        status: 200,
+        headers: { 'access-control-allow-origin': 'https://sidequest.example' },
+      },
+    ),
+  )
   expect(response.status).toBe(200)
   expect(response.headers.get('access-control-allow-origin')).toBe('https://sidequest.example')
-  expect(await response.json()).toMatchObject({ blockNumber: '99', assets: pool.assets.toString(), shares: shares.toString(),
-    tier: { threshold: '0', needed: '0', nextThreshold: null }, position: { value: pool.assets.toString(), queued: '0', unlockAt: 0, staleGeneration: false } })
+  expect(await response.json()).toMatchObject({
+    blockNumber: '99',
+    assets: pool.assets.toString(),
+    shares: shares.toString(),
+    tier: { threshold: '0', needed: '0', nextThreshold: null },
+    position: { value: pool.assets.toString(), queued: '0', unlockAt: 0, staleGeneration: false },
+  })
 })

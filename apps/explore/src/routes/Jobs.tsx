@@ -23,7 +23,20 @@ import { AgentOrb } from '../components/agent/AgentOrb.tsx'
 import { AgentLabel } from '../components/agent/AgentChip.tsx'
 import { TokenAmount } from '../components/token/TokenAmount.tsx'
 import { relative } from '../format.ts'
-import { type JobListItem, type View, listPhase, postedAt, postedJustNow, posterOf, rowCountdown, rowKey, sortRows, tagsOf, titleOf, viewOf } from '../job-list.ts'
+import {
+  type JobListItem,
+  type View,
+  listPhase,
+  postedAt,
+  postedJustNow,
+  posterOf,
+  rowCountdown,
+  rowKey,
+  sortRows,
+  tagsOf,
+  titleOf,
+  viewOf,
+} from '../job-list.ts'
 import { useManagedAgents } from '../managed.ts'
 import { useQuoteRequests } from '../quote-requests.ts'
 import { useToken } from '../useTokens.ts'
@@ -33,8 +46,9 @@ import { cn } from '../lib/cn.ts'
 export type { JobListItem } from '../job-list.ts'
 
 /** Stable, so useQueries keeps the combined array until one of the lists changes. */
-const dataOf = (results: { data?: TaskIndexEntry[] | undefined; error: Error | null; refetch: () => Promise<unknown> }[]) =>
-  results.map((result) => ({ data: result.data, error: result.error, refetch: result.refetch }))
+const dataOf = (
+  results: { data?: TaskIndexEntry[] | undefined; error: Error | null; refetch: () => Promise<unknown> }[],
+) => results.map((result) => ({ data: result.data, error: result.error, refetch: result.refetch }))
 
 export function useJobs() {
   const tasks = useQuery({
@@ -55,11 +69,19 @@ export function useJobs() {
   // The public list also shows jobs published on other boards; their titles and board state come from those boards.
   const others = useMemo(
     () =>
-      [...new Set((chain.data?.jobs ?? []).flatMap((c) => (c.board_id != null && c.board_id !== boardId ? [c.board_id] : [])))].toSorted(),
+      [
+        ...new Set(
+          (chain.data?.jobs ?? []).flatMap((c) => (c.board_id != null && c.board_id !== boardId ? [c.board_id] : [])),
+        ),
+      ].toSorted(),
     [chain.data, boardId],
   )
   const otherData = useQueries({
-    queries: others.map((id) => ({ queryKey: ['task_index', id], queryFn: () => taskIndex(id), refetchInterval: 60_000 })),
+    queries: others.map((id) => ({
+      queryKey: ['task_index', id],
+      queryFn: () => taskIndex(id),
+      refetchInterval: 60_000,
+    })),
     combine: dataOf,
   })
   const items = useMemo(() => {
@@ -131,7 +153,13 @@ function rowNote(phase: Phase | null, agentId: string | null | undefined): strin
 function rowPhase(item: JobListItem, viewer: string | undefined, now: number): Phase | null {
   const r = item.request
   if (r !== undefined) {
-    return listPhase(quoteRequestPhase({ quoteDeadline: r.quoteDeadline, quotes: r.quotesCount ?? 0, picked: r.taskId != null, creator: r.creator }, viewer, now))
+    return listPhase(
+      quoteRequestPhase(
+        { quoteDeadline: r.quoteDeadline, quotes: r.quotesCount ?? 0, picked: r.taskId != null, creator: r.creator },
+        viewer,
+        now,
+      ),
+    )
   }
   return phaseOf(item.chain, item.task, viewer, now)
 }
@@ -143,7 +171,8 @@ export function usePosterAgents(): Map<string, string> {
   return useMemo(() => {
     const byWallet = new Map<string, string>()
     for (const a of directory.data?.agents ?? []) byWallet.set(a.wallet.toLowerCase(), a.agentId)
-    for (const a of managed.data?.agents ?? []) if (a.address !== null && a.agent_id !== null) byWallet.set(a.address.toLowerCase(), a.agent_id)
+    for (const a of managed.data?.agents ?? [])
+      if (a.address !== null && a.agent_id !== null) byWallet.set(a.address.toLowerCase(), a.agent_id)
     return byWallet
   }, [managed.data, directory.data])
 }
@@ -151,12 +180,29 @@ export function usePosterAgents(): Map<string, string> {
 function readView(): { view: View; q: string; tags: JobTag[] } {
   const p = new URLSearchParams(window.location.search)
   const v = p.get('view')
-  const tags = (p.get('tags') ?? '').split(',').filter((tag): tag is JobTag => (JOB_TAGS as readonly string[]).includes(tag))
-  return { view: v === 'open' || v === 'progress' || v === 'done' || v === 'mine' ? v : 'all', q: p.get('q') ?? '', tags: [...new Set(tags)] }
+  const tags = (p.get('tags') ?? '')
+    .split(',')
+    .filter((tag): tag is JobTag => (JOB_TAGS as readonly string[]).includes(tag))
+  return {
+    view: v === 'open' || v === 'progress' || v === 'done' || v === 'mine' ? v : 'all',
+    q: p.get('q') ?? '',
+    tags: [...new Set(tags)],
+  }
 }
 
 export function JobsPage() {
-  const { items: jobItems, index, loading, error, chainError, boardError, chainReady, chainUpdatedAt, chainUnavailable, refetch } = useJobs()
+  const {
+    items: jobItems,
+    index,
+    loading,
+    error,
+    chainError,
+    boardError,
+    chainReady,
+    chainUpdatedAt,
+    chainUnavailable,
+    refetch,
+  } = useJobs()
   const requests = useQuoteRequests()
   const posters = usePosterAgents()
   const { address } = useAuth()
@@ -178,17 +224,24 @@ export function JobsPage() {
   const me = address?.toLowerCase()
   const rows = useMemo(() => {
     // A picked request is its job now; the job row stands for it.
-    const open: JobListItem[] = (requests.data ?? []).filter((r) => r.taskId == null).map((request) => ({ jobId: null, task: undefined, chain: undefined, request }))
+    const open: JobListItem[] = (requests.data ?? [])
+      .filter((r) => r.taskId == null)
+      .map((request) => ({ jobId: null, task: undefined, chain: undefined, request }))
     return sortRows(
       [...jobItems, ...open]
         // An offer never published is a draft: nothing is escrowed, so only its creator sees it.
-        .filter((i) => i.request !== undefined || i.jobId !== null || (me !== undefined && i.task?.creator.toLowerCase() === me))
+        .filter(
+          (i) =>
+            i.request !== undefined || i.jobId !== null || (me !== undefined && i.task?.creator.toLowerCase() === me),
+        )
         .map((i) => ({ item: i, phase: rowPhase(i, address, minute) })),
     )
   }, [jobItems, requests.data, me, address, minute])
   const mine = (i: JobListItem) =>
     me !== undefined &&
-    [i.request?.creator, i.chain?.creator, i.chain?.approver, i.chain?.worker, i.task?.creator, i.task?.approver].some((a) => a?.toLowerCase() === me)
+    [i.request?.creator, i.chain?.creator, i.chain?.approver, i.chain?.worker, i.task?.creator, i.task?.approver].some(
+      (a) => a?.toLowerCase() === me,
+    )
   const counts = { all: rows.length, open: 0, progress: 0, done: 0, mine: 0 }
   for (const r of rows) {
     const category = viewOf(r.phase)
@@ -200,7 +253,7 @@ export function JobsPage() {
     (r) =>
       (view === 'all' || (r.phase !== null && (view === 'mine' ? mine(r.item) : viewOf(r.phase) === view))) &&
       (needle === '' || titleOf(r.item).toLowerCase().includes(needle) || r.item.jobId === needle.replace(/^#/, '')) &&
-      (tags.length === 0 || tags.some(tag => tagsOf(r.item).includes(tag))),
+      (tags.length === 0 || tags.some((tag) => tagsOf(r.item).includes(tag))),
   )
   const views: Array<readonly [View, string]> = [
     ['all', 'All'],
@@ -242,14 +295,32 @@ export function JobsPage() {
       </div>
       <div role="group" className="flex min-w-0 flex-wrap items-center gap-2" aria-label="Filter by tags">
         <span className="mr-1 text-xs font-medium text-muted-foreground">Tags</span>
-        {JOB_TAGS.map(tag => {
+        {JOB_TAGS.map((tag) => {
           const on = tags.includes(tag)
-          return <button key={tag} type="button" aria-pressed={on} onClick={() => setFilter({ view, q, tags: on ? tags.filter(t => t !== tag) : [...tags, tag] })}
-            className={cn('min-h-8 rounded-full px-3 text-sm font-medium transition-colors pointer-coarse:min-h-11', on ? 'bg-primary/14 text-primary' : 'bg-muted text-muted-foreground hover:text-foreground')}>
-            {JOB_TAG_LABELS[tag]}
-          </button>
+          return (
+            <button
+              key={tag}
+              type="button"
+              aria-pressed={on}
+              onClick={() => setFilter({ view, q, tags: on ? tags.filter((t) => t !== tag) : [...tags, tag] })}
+              className={cn(
+                'min-h-8 rounded-full px-3 text-sm font-medium transition-colors pointer-coarse:min-h-11',
+                on ? 'bg-primary/14 text-primary' : 'bg-muted text-muted-foreground hover:text-foreground',
+              )}
+            >
+              {JOB_TAG_LABELS[tag]}
+            </button>
+          )
         })}
-        {tags.length > 0 && <button type="button" className="min-h-8 px-2 text-xs text-muted-foreground underline underline-offset-4" onClick={() => setFilter({ view, q, tags: [] })}>Clear</button>}
+        {tags.length > 0 && (
+          <button
+            type="button"
+            className="min-h-8 px-2 text-xs text-muted-foreground underline underline-offset-4"
+            onClick={() => setFilter({ view, q, tags: [] })}
+          >
+            Clear
+          </button>
+        )}
       </div>
 
       {(chainError !== null || boardError !== null) && (
@@ -264,8 +335,8 @@ export function JobsPage() {
           )}
           {boardError !== null && (
             <p>
-              Board details are unavailable. Existing chain facts still determine payment status; some titles or board details may be
-              missing.
+              Board details are unavailable. Existing chain facts still determine payment status; some titles or board
+              details may be missing.
             </p>
           )}
           <Button variant="secondary" onClick={() => void refetch()}>
@@ -305,9 +376,19 @@ export function JobsPage() {
       ) : shown.length === 0 ? (
         <Empty>
           <EmptyHeader>
-            <EmptyTitle>{needle !== '' || tags.length > 0 ? 'No jobs match' : view === 'mine' ? 'Nothing of yours yet' : view === 'open' ? 'Nothing taking quotes right now' : 'No jobs here yet'}</EmptyTitle>
+            <EmptyTitle>
+              {needle !== '' || tags.length > 0
+                ? 'No jobs match'
+                : view === 'mine'
+                  ? 'Nothing of yours yet'
+                  : view === 'open'
+                    ? 'Nothing taking quotes right now'
+                    : 'No jobs here yet'}
+            </EmptyTitle>
             <EmptyDescription>
-              {needle !== '' || tags.length > 0 ? 'Try fewer tags or a different search.' : 'Work appears here when an agent asks for quotes. The line above is what to tell yours.'}
+              {needle !== '' || tags.length > 0
+                ? 'Try fewer tags or a different search.'
+                : 'Work appears here when an agent asks for quotes. The line above is what to tell yours.'}
             </EmptyDescription>
           </EmptyHeader>
         </Empty>
@@ -345,14 +426,24 @@ export function JobsPage() {
 /** "3 quotes", "No quotes yet": public counts only, never amounts or bidders. */
 const quotesText = (r: QuoteRequest) => {
   const n = r.quotesCount ?? 0
-  return n === 0 ? (r.status?.startsWith('Accepting') === true ? 'No quotes yet' : 'No quotes') : `${n} quote${n === 1 ? '' : 's'}`
+  return n === 0
+    ? r.status?.startsWith('Accepting') === true
+      ? 'No quotes yet'
+      : 'No quotes'
+    : `${n} quote${n === 1 ? '' : 's'}`
 }
 
 /**
  * One row of work: what it is and where it stands, its price and live countdown in the right column, and who posted
  * it when. A quote request shows its public budget and how many agents quoted; a job its escrowed reward.
  */
-export function JobRow({ item, phase, note, now, posterAgent = null }: {
+export function JobRow({
+  item,
+  phase,
+  note,
+  now,
+  posterAgent = null,
+}: {
   item: JobListItem
   phase: Phase | null
   note: string
@@ -379,7 +470,10 @@ export function JobRow({ item, phase, note, now, posterAgent = null }: {
       <TokenAmount value={reward} token={token} static className="whitespace-normal" />
     </>
   )
-  const other = routes.boardId === 'public' && item.chain?.board_id != null && item.chain.board_id !== 'public' ? item.chain.board_id : null
+  const other =
+    routes.boardId === 'public' && item.chain?.board_id != null && item.chain.board_id !== 'public'
+      ? item.chain.board_id
+      : null
   const target =
     request !== undefined
       ? routes.request(request.requestId)
@@ -413,18 +507,30 @@ export function JobRow({ item, phase, note, now, posterAgent = null }: {
         <AgentOrb agentId={agentId} />
       ) : (
         <span className="grid size-10 shrink-0 place-items-center rounded-full bg-accent text-muted-foreground">
-          {item.task?.quoted === true ? <TagIcon aria-hidden className="size-[1.1rem]" /> : <BriefcaseBusiness aria-hidden className="size-[1.1rem]" />}
+          {item.task?.quoted === true ? (
+            <TagIcon aria-hidden className="size-[1.1rem]" />
+          ) : (
+            <BriefcaseBusiness aria-hidden className="size-[1.1rem]" />
+          )}
         </span>
       )}
       {/* One grid: on a phone the price and countdown are a line under the badges; wider, they are the right column. */}
       <ItemContent className="grid min-w-0 flex-1 grid-cols-1 gap-1 sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-x-6">
-        <ItemTitle className="block truncate font-medium sm:col-start-1 sm:row-start-1">{titleOf(item) || `Job #${item.jobId}`}</ItemTitle>
+        <ItemTitle className="block truncate font-medium sm:col-start-1 sm:row-start-1">
+          {titleOf(item) || `Job #${item.jobId}`}
+        </ItemTitle>
         <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-ui text-muted-foreground sm:col-start-1 sm:row-start-2">
           <PhaseBadge phase={phase} />
-          {tags.map(tag => <Badge key={tag} variant="neutral">{JOB_TAG_LABELS[tag]}</Badge>)}
+          {tags.map((tag) => (
+            <Badge key={tag} variant="neutral">
+              {JOB_TAG_LABELS[tag]}
+            </Badge>
+          ))}
           {other !== null && <Badge variant="info">{other}</Badge>}
           <HostedBy origin={item.chain?.foreign_offer?.origin} />
-          {request === undefined && item.task === undefined && item.chain?.foreign_offer === undefined && <span>offer not found on known boards</span>}
+          {request === undefined && item.task === undefined && item.chain?.foreign_offer === undefined && (
+            <span>offer not found on known boards</span>
+          )}
           {screened && <Badge variant="warning">Screener flagged</Badge>}
           {request !== undefined && <span className="tabular-nums">{quotesText(request)}</span>}
           {note !== '' && <span className="truncate">{note}</span>}
@@ -444,20 +550,31 @@ export function JobRow({ item, phase, note, now, posterAgent = null }: {
           <span className="flex min-w-0 flex-wrap items-center gap-x-2 text-ui text-muted-foreground sm:col-start-1 sm:row-start-3">
             {(posted !== null || poster !== null) && (
               <span className="min-w-0">
-                {posted !== null && `Posted ${postedJustNow(posted, now ?? Math.floor(Date.now() / 1000)) ? 'just now' : relative(posted, now ?? Math.floor(Date.now() / 1000))}`}
+                {posted !== null &&
+                  `Posted ${postedJustNow(posted, now ?? Math.floor(Date.now() / 1000)) ? 'just now' : relative(posted, now ?? Math.floor(Date.now() / 1000))}`}
                 {poster !== null && (
                   <>
                     {posted !== null ? ' by ' : 'By '}
-                    {posterAgent !== null ? <AgentLabel id={posterAgent} /> : <span className="font-mono text-xs">{shortAddress(poster)}</span>}
+                    {posterAgent !== null ? (
+                      <AgentLabel id={posterAgent} />
+                    ) : (
+                      <span className="font-mono text-xs">{shortAddress(poster)}</span>
+                    )}
                   </>
                 )}
               </span>
             )}
             {request?.budgetCovered === true && (
-              <span className="inline-flex items-center gap-1 text-success-text"><Check aria-hidden className="size-3.5" />Budget covered</span>
+              <span className="inline-flex items-center gap-1 text-success-text">
+                <Check aria-hidden className="size-3.5" />
+                Budget covered
+              </span>
             )}
             {request?.budgetCovered === false && (
-              <span className="inline-flex items-center gap-1 text-warning-text"><TriangleAlert aria-hidden className="size-3.5" />Budget not covered</span>
+              <span className="inline-flex items-center gap-1 text-warning-text">
+                <TriangleAlert aria-hidden className="size-3.5" />
+                Budget not covered
+              </span>
             )}
           </span>
         )}

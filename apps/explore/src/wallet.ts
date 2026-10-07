@@ -16,7 +16,8 @@ export const privyAppId: string = typeof __PRIVY_APP_ID__ === 'string' ? __PRIVY
 
 export const network: sdk.Network = typeof __SIDEQUEST_NETWORK__ === 'string' ? __SIDEQUEST_NETWORK__ : 'monad-testnet'
 export const stage = typeof __SIDEQUEST_STAGE__ === 'string' ? __SIDEQUEST_STAGE__ : 'local'
-if (typeof __SIDEQUEST_RELAY__ === 'string' && (__SIDEQUEST_RELAY__ as string) !== '') sdk.setRelayOverride(__SIDEQUEST_RELAY__)
+if (typeof __SIDEQUEST_RELAY__ === 'string' && (__SIDEQUEST_RELAY__ as string) !== '')
+  sdk.setRelayOverride(__SIDEQUEST_RELAY__)
 export const isMainnet = network === 'monad-mainnet'
 
 /**
@@ -30,7 +31,10 @@ export const chain: Chain = isMainnet
   : { ...monadTestnet, blockExplorers: { default: { name: 'Monadscan', url: 'https://testnet.monadscan.com' } } }
 
 /** A deployment with Sidequest v1: its contracts and the v1 `main` pair. The only kind of network Explore serves. */
-export type V1Deployment = sdk.Deployment & { readonly sidequest: sdk.SidequestDeployment; readonly stacks: { readonly main: sdk.Stack } }
+export type V1Deployment = sdk.Deployment & {
+  readonly sidequest: sdk.SidequestDeployment
+  readonly stacks: { readonly main: sdk.Stack }
+}
 
 const isV1 = (d: sdk.Deployment): d is V1Deployment => d.sidequest !== null && d.stacks.main?.kind === 'sidequest-v1'
 
@@ -54,13 +58,46 @@ export const deployed = loaded !== null
 export const deployment: V1Deployment = loaded ?? undeployed()
 function undeployed(): V1Deployment {
   const none = zeroAddress
-  const enforcers = { erc20PeriodTransfer: none, erc20TransferAmount: none, allowedCalldata: none, valueLte: none, allowedTargets: none, allowedMethods: none, limitedCalls: none, timestamp: none }
-  const sidequest = { block: 0n, safe: none, factory: none, vault: none, feeSchedule: none, distributor: none, miningReserve: none, teamVesting: none, t0: 0 }
+  const enforcers = {
+    erc20PeriodTransfer: none,
+    erc20TransferAmount: none,
+    allowedCalldata: none,
+    valueLte: none,
+    allowedTargets: none,
+    allowedMethods: none,
+    limitedCalls: none,
+    timestamp: none,
+  }
+  const sidequest = {
+    block: 0n,
+    safe: none,
+    factory: none,
+    vault: none,
+    feeSchedule: none,
+    distributor: none,
+    miningReserve: none,
+    teamVesting: none,
+    t0: 0,
+  }
   return {
-    network, chainId: chain.id, core: none, factory: none, sidequest, rewardTokens: [],
-    stacks: { main: { kind: 'sidequest-v1', factory: none, holding: none, evaluator: none, openTokens: false } }, identity: none,
-    reputation: none, delegation: { manager: none, delegator: none, enforcers }, admin: none, arbitrator: none, attester: none,
-    relay: none, x402: null, testnetFaucet: null, market: null, deployBlock: 0n,
+    network,
+    chainId: chain.id,
+    core: none,
+    factory: none,
+    sidequest,
+    rewardTokens: [],
+    stacks: { main: { kind: 'sidequest-v1', factory: none, holding: none, evaluator: none, openTokens: false } },
+    identity: none,
+    reputation: none,
+    delegation: { manager: none, delegator: none, enforcers },
+    admin: none,
+    arbitrator: none,
+    attester: none,
+    relay: none,
+    x402: null,
+    testnetFaucet: null,
+    market: null,
+    deployBlock: 0n,
   }
 }
 
@@ -80,7 +117,9 @@ let privyProvider: EIP1193Provider | undefined
 export const setPrivyProvider = (p: EIP1193Provider | undefined) => {
   privyProvider = p
 }
-const privyConnector = injected({ target: { id: 'privy', name: 'Privy', provider: () => closeWrites(privyProvider, writesOpen) } })
+const privyConnector = injected({
+  target: { id: 'privy', name: 'Privy', provider: () => closeWrites(privyProvider, writesOpen) },
+})
 /**
  * A browser wallet (`window.ethereum`) for the embedded widget only (`/embed/<board>?wallet=injected`, ADR-0008):
  * a host page that already has a wallet passes it through. Explore's own sign-in stays Privy only; nothing here
@@ -88,28 +127,46 @@ const privyConnector = injected({ target: { id: 'privy', name: 'Privy', provider
  */
 const injectedConnector = writesOpen
   ? injected()
-  : injected({ target: { id: 'injected', name: 'Browser wallet', provider: () => closeWrites((globalThis as { ethereum?: EIP1193Provider }).ethereum, false) } })
+  : injected({
+      target: {
+        id: 'injected',
+        name: 'Browser wallet',
+        provider: () => closeWrites((globalThis as { ethereum?: EIP1193Provider }).ethereum, false),
+      },
+    })
 
 export const wagmiConfig = createConfig({
   chains: [chain] as [Chain],
   // Sign-in is Privy only (email or social login with an embedded wallet); the injected connector serves the widget.
   connectors: privyAppId === '' ? [injectedConnector] : [privyConnector, injectedConnector],
   // With no contracts deployed there is nothing to read: every chain request is refused here, none goes out.
-  transports: { [chain.id]: deployed ? http() : custom({ request: () => Promise.reject(new Error('Sidequest is not deployed on this network yet')) }) },
+  transports: {
+    [chain.id]: deployed
+      ? http()
+      : custom({ request: () => Promise.reject(new Error('Sidequest is not deployed on this network yet')) }),
+  },
   // Monad makes a block about every 0.4 s; viem's 4 s default left a confirmed send looking stuck for seconds.
   pollingInterval: 1_000,
 })
 
 /** The core's pause flag (admin power, README Trust): while set, every core call reverts and the board hands out none. */
 export function usePaused(): boolean {
-  const { data } = useReadContract({ address: deployment.core, abi: sdk.coreAbi, functionName: 'paused', chainId: chain.id, query: { refetchInterval: 30_000, enabled: deployed } })
+  const { data } = useReadContract({
+    address: deployment.core,
+    abi: sdk.coreAbi,
+    functionName: 'paused',
+    chainId: chain.id,
+    query: { refetchInterval: 30_000, enabled: deployed },
+  })
   return data === true
 }
 
-export const explorer = (kind: 'tx' | 'address' | 'nft', value: string) => `${chain.blockExplorers?.default.url ?? ''}/${kind}/${value}`
+export const explorer = (kind: 'tx' | 'address' | 'nft', value: string) =>
+  `${chain.blockExplorers?.default.url ?? ''}/${kind}/${value}`
 
 /** An agent's ERC-8004 identity off this site: its NFT on Monadscan and its profile on 8004scan. */
-export const agentExplorerLinks = (agentId: string) => [
-  { name: 'Monadscan', href: explorer('nft', `${deployment.identity}/${agentId}`) },
-  { name: '8004scan', href: `https://8004scan.io/agents/${isMainnet ? 'monad' : 'monad-testnet'}/${agentId}` },
-] as const
+export const agentExplorerLinks = (agentId: string) =>
+  [
+    { name: 'Monadscan', href: explorer('nft', `${deployment.identity}/${agentId}`) },
+    { name: '8004scan', href: `https://8004scan.io/agents/${isMainnet ? 'monad' : 'monad-testnet'}/${agentId}` },
+  ] as const

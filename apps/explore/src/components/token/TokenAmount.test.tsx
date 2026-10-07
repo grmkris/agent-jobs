@@ -17,7 +17,10 @@ const text = (html: string) => html.replace(/<[^>]*>/g, '')
 const musd = deployment.rewardTokens[0]!
 const fakeUsdc = '0x00000000000000000000000000000000000fa4e1'
 const realUsdc = '0x534b2f3A21130d7a60830c2Df862319e593943A3'
-registerTokens([{ address: fakeUsdc, symbol: 'USDC', decimals: 6 }, { address: realUsdc, symbol: 'USDC', decimals: 6 }])
+registerTokens([
+  { address: fakeUsdc, symbol: 'USDC', decimals: 6 },
+  { address: realUsdc, symbol: 'USDC', decimals: 6 },
+])
 
 describe('token chip', () => {
   it('reads as exactly its amount: one text span, an icon that adds no text, no popover until opened', () => {
@@ -36,7 +39,11 @@ describe('token chip', () => {
   })
 
   it('is plain inside a link or button', () => {
-    const html = render(<StaticTokens><TokenAmount value={4500000n} token={musd} /></StaticTokens>)
+    const html = render(
+      <StaticTokens>
+        <TokenAmount value={4500000n} token={musd} />
+      </StaticTokens>,
+    )
     expect(html).not.toContain('<button')
     expect(text(html)).toBe('4.5 mUSD')
   })
@@ -53,6 +60,8 @@ describe('token chip', () => {
   })
 
   it('draws the tokens Sidequest deploys', () => {
-    expect(render(<TokenAmount value="10000000000000000000000" token={deployment.factory} static />)).toMatch(/<svg[^>]*aria-hidden="true"[\s\S]*10,000 SIDE/)
+    expect(render(<TokenAmount value="10000000000000000000000" token={deployment.factory} static />)).toMatch(
+      /<svg[^>]*aria-hidden="true"[\s\S]*10,000 SIDE/,
+    )
   })
 })

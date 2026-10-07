@@ -45,7 +45,9 @@ export function contractsOf(network: sdk.Network): Contracts {
 
 /** Use an archived deployment when replaying historical logs offline. */
 export function contractsFromDeployment(d: sdk.Deployment): Contracts {
-  const roles = new Map<string, { role: Role; stack: string | null; kind: sdk.StackKind | null }>([[d.core.toLowerCase(), { role: 'core', stack: null, kind: null }]])
+  const roles = new Map<string, { role: Role; stack: string | null; kind: sdk.StackKind | null }>([
+    [d.core.toLowerCase(), { role: 'core', stack: null, kind: null }],
+  ])
   for (const [name, s] of sdk.allStacks(d)) {
     roles.set(s.holding.toLowerCase(), { role: 'holding', stack: name, kind: s.kind })
     roles.set(s.evaluator.toLowerCase(), { role: 'evaluator', stack: name, kind: s.kind })
