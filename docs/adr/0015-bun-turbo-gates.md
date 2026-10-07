@@ -11,9 +11,9 @@ Foundry contracts. Effect is pinned to 4.0.1 and Alchemy to 2.0.0-beta.81. A sin
 
 Bun 1.4.2 and Node 22 are the supported runtimes. Turbo 2.11.7 runs workspace scripts and uses explicit source inputs.
 `bun run check:files <paths...>` is the scoped format, lint, typecheck, graph and agent gate; `bun run check` is the full
-release gate. `agents:check` is part of the root check. Expensive commands run through `heavy`; exit 75 means contention
-and is retried. Oxlint runs type-aware correctness, anti-slop and size rules against a ratchet; Oxfmt is configured, and a repository-wide
-reformat is still pending. Knip, jscpd, `tools/graph.ts` and the migration lock are repository gates. The lint baseline is
+release gate. `format:check` and `agents:check` are part of the root check. Expensive commands run through `heavy`; exit 75 means contention
+and is retried. Oxlint runs type-aware correctness, anti-slop and size rules against a ratchet; Oxfmt formats every workspace except
+`contracts/`, `docs/`, `skill/` and generated files; the one repository-wide reformat is listed in `.git-blame-ignore-revs`. Knip, jscpd, `tools/graph.ts` and the migration lock are repository gates. The lint baseline is
 ratcheted downward or held, never weakened. Deployments, migrations and transactions
 run deliberately and are never accepted from a cached task result.
 
