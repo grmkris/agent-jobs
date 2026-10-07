@@ -11,7 +11,8 @@ A row moves up only with a dated command or test and a redacted result. No secre
 `bun scripts/reality-check.ts` prints the credential and operation tiers read-only; end-to-end stays evidenced below.
 
 Machine: `netcup`, `~/code/agent-jobs`, `.env.local` (mode 600). Toolchain there: Foundry 1.8.3,
-pnpm 10.13.1 (`~/.local/bin`), Bun 1.4.2, Node 22, Docker, `gh`, `mm` 7.0.0.
+pnpm 10.13.1 (`~/.local/bin`), Bun 1.4.2, Node 22, Docker, `gh`, `cre` 1.35.0, `mm` 7.0.0.
+
 | Dependency | Tier | Evidence (26 Sep 2026; rows updated 3 Oct) | Next tier needs |
 | :--- | :--- | :--- | :--- |
 | Monad testnet RPC | end-to-end | `cast chain-id` = 10143; balance and `cast code` reads. 27 Sep on: the B1 deploy and every CP1–CP4 flow below sent through it | — |
@@ -23,8 +24,10 @@ pnpm 10.13.1 (`~/.local/bin`), Bun 1.4.2, Node 22, Docker, `gh`, `mm` 7.0.0.
 | Etherscan v2 (Monadscan) | end-to-end | balance query with `chainid=10143`. 27 Sep: all 9 B1 contracts verified on Monadscan through etherscan v2 (B1 below) | — |
 | Cloudflare | end-to-end (staging, local state) | 27 Sep: `alchemy deploy --stage staging` created the Worker, Durable Object, D1 and R2 and enabled workers.dev (`agentjobs-api-staging-…workers.dev`). **The token lacks Secrets Store permission**, which alchemy's *remote* state store needs (`secrets_store/stores` → Authentication error), so staging uses local state in `.alchemy/` on netcup | add Secrets Store: Edit to the token, then switch staging to remote state |
 | Envio HyperSync | end-to-end | `GET /height` on `monad-testnet.hypersync.xyz`. 27 Sep: the staging indexer Worker (`apps/indexer`, cron every minute) indexed the deployment from its deploy block: 192 job events of 14 jobs decoded and folded into D1 in one page, finalized blocks only (Monad answers the `finalized` tag, ~2 blocks behind `latest`) | — |
-| GitHub App `agent-jobs-attester` | end-to-end | JWT → installation 165115204 token → check-runs of `runner-spike-fixture@f75c817` (0 runs: no CI yet). 27 Sep: the board's attester (Worker, RS256 JWT via WebCrypto) read the `test` run on `c850f7a` and attached signed evidence on-chain (CP3 below) | the hosted attester path remains separate from this readback |
+| GitHub App `agent-jobs-attester` | end-to-end | JWT → installation 165115204 token → check-runs of `runner-spike-fixture@f75c817` (0 runs: no CI yet). 27 Sep: the board's attester (Worker, RS256 JWT via WebCrypto) read the `test` run on `c850f7a` and attached signed evidence on-chain (CP3 below) | CRE workflow reads the same runs (S5, blocked on deploy access) |
 | Vercel AI Gateway | end-to-end | `meta/muse-spark-1.3` completion; the model always reasons first (~300 reasoning tokens for "ok"), so callers allow ≥ 512 output tokens. 27 Sep: Jev screening runs in the staging board; at 2048 tokens the model sometimes spent all of them reasoning (`finish_reason: length`, empty answer), so screening allows 8192 (3/3 answered). The arbiter's proposal runs on the same model (CP3 dispute below) | — |
+| Chainlink CRE | credential; deploy **blocked** | `cre whoami` on netcup and Mac (org `org_ceIauRUNKGj5Jaft`); deploy access "Not enabled", request pending | deploy access, then S5 live proof after B1 |
+| Chainlink CRE simulator (29 Sep) | **end-to-end through local simulation; hosted deployment not done** | `pnpm cre:simulate` and `pnpm cre:simulate --broadcast`, CLI 1.35.0 / SDK 1.22.0; anonymous public GitHub checks for job 8; transaction [`0x0d61561c…db7f5`](https://testnet.monadscan.com/tx/0x0d61561cf31339e4ffaa6691171feb87adad211c64fca63c7324d5e3473db7f5), receiver + evaluator events, `cast` reads exact board digest; receiver registration revoked. Archived runbook and evidence: git tag `legacy-final`. This is Kris's intended hackathon path; no paid CRE access needed | A hosted oracle-network deployment is separate and requires paid access plus a new production receiver configuration |
 | `pnpm check` | operation | green on netcup (63 contract tests, lint, types) | stays green per commit |
 
 End-to-end: the protocol flows below (contracts + SDK, no board service yet).
