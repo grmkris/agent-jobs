@@ -5,6 +5,7 @@
  */
 import { BoardError, errorDiagnostics } from '@sidequest/board'
 import { type AsyncSql, type Statement, stmt } from './store.ts'
+import { foreignOffersForJobs, type ForeignOffer } from './foreign-offers.ts'
 import type { JobRow } from './read.ts'
 import type { Network } from '@sidequest/sdk'
 import { telegramChainId, publicOrigin } from './telegram.ts'
@@ -91,6 +92,7 @@ export async function writeFeed(sql: AsyncSql, network: Network, events: readonl
 }
 
 export interface InboxEvent {
+  readonly foreignOffer?: ForeignOffer | undefined
   readonly id: string
   readonly kind: string
   readonly cursor: string
@@ -142,8 +144,10 @@ export async function readInbox(sql: AsyncSql, input: { network: Network; addres
     ) WHERE ${where.join(' AND ')} ORDER BY seq LIMIT ?`, ...params, limit + 1)
   const page = rows.slice(0, limit)
   const [oldest] = after === undefined ? [undefined] : await sql.all<{ seq: number }>('SELECT min(seq) AS seq FROM feed_events WHERE chain_id = ?', chainId)
+  const offers = await foreignOffersForJobs(sql, chainId, page.map((row) => row.job_id))
   const events: InboxEvent[] = page.map(row => ({
     id: row.id, kind: row.kind, cursor: cursorOf(row.seq), occurredAt: row.occurred_at, chainId, boardId: row.board_id, taskId: row.task_id, jobId: row.job_id,
+    foreignOffer: offers.get(row.job_id),
     public: row.address === PUBLIC_ADDRESS, ...(JSON.parse(row.data_json) as Pick<InboxEvent, 'requestId' | 'role' | 'summary' | 'url' | 'next'>),
   }))
   const last = page.at(-1)

@@ -11,7 +11,7 @@ import { Database } from '@sidequest/indexer/database'
 import { rpcUrlForNetwork } from '@sidequest/indexer/network'
 import { runtimeSecret } from '@sidequest/board/runtime'
 import { queueTelegramNotifications } from '@sidequest/indexer/telegram-notifications'
-import { configurePublicSite, drainTelegramOutbox, migrateTelegram, telegramTransport } from '@sidequest/indexer/telegram'
+import { configurePublicSite, publicOrigin, drainTelegramOutbox, migrateTelegram, telegramTransport } from '@sidequest/indexer/telegram'
 import { reportRelayWatchFailure, watchRelay } from '@sidequest/indexer/relay-watch'
 import { feedFromChain, pruneFeed, reportFeedFailure } from '@sidequest/indexer/feed'
 import { deliverWebhooks, reportWebhookFailure } from '@sidequest/indexer/webhooks'
@@ -78,7 +78,7 @@ export default class Indexer extends Cloudflare.Worker<Indexer>()(
           source: hyperSync(hyper, token),
           head: rpcHead(rpcUrl),
           runner: `cron:${crypto.randomUUID()}`,
-          maxPages: 5,
+          maxPages: 5, offers: { boards: sdk.deployment(network).boards ?? [], origin: publicOrigin() },
         }
         try {
           const result = await runOnce(sql, indexer)

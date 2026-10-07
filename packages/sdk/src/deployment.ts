@@ -112,8 +112,8 @@ export interface DelegationDeployment {
 export interface Deployment {
   readonly network: Network
   readonly chainId: number
-  /** Origins serving content-addressed frozen offers, in discovery order. */
-  readonly boards: readonly string[]
+  /** Origins serving content-addressed frozen offers, in discovery order; empty when absent. */
+  readonly boards?: readonly string[]
   readonly core: Address
   readonly factory: Address
   /** The v1 protocol contracts, or null before the v1 recipe has deployed. */

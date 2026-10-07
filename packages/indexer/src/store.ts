@@ -26,7 +26,13 @@ export function fromD1(db: {
   batch(statements: unknown[]): Promise<unknown>
 }): AsyncSql {
   return {
-    all: async <T>(query: string, ...params: SqlValue[]) => (await db.prepare(query).bind(...params).all<T>()).results,
+    all: async <T>(query: string, ...params: SqlValue[]) =>
+      (
+        await db
+          .prepare(query)
+          .bind(...params)
+          .all<T>()
+      ).results,
     batch: async (statements) => {
       if (statements.length === 0) return
       await db.batch(statements.map((s) => db.prepare(s.query).bind(...s.params)))
@@ -102,6 +108,7 @@ export const SCHEMA: readonly string[] = [
     creator_bond TEXT,
     worker_bond TEXT,
     policy_hash TEXT,
+    manifest_hash TEXT,
     delivery_deadline INTEGER,
     selection_deadline INTEGER,
     worker TEXT,
@@ -236,6 +243,23 @@ export const SCHEMA: readonly string[] = [
     tx_hash TEXT NOT NULL,
     PRIMARY KEY (chain_id, job_id, block, log_index)
   )`,
+  `CREATE TABLE IF NOT EXISTS foreign_offers (
+    terms_hash TEXT PRIMARY KEY,
+    origin TEXT NOT NULL,
+    body TEXT NOT NULL,
+    fetched_at INTEGER NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS foreign_offer_misses (
+    terms_hash TEXT NOT NULL,
+    origin TEXT NOT NULL,
+    retry_after INTEGER NOT NULL,
+    PRIMARY KEY (terms_hash, origin)
+  )`,
+  `CREATE TABLE IF NOT EXISTS foreign_offer_budget (
+    chain_id INTEGER PRIMARY KEY,
+    window_start INTEGER NOT NULL,
+    attempts INTEGER NOT NULL
+  )`,
   // Agent pages look jobs up by agent and by worker wallet (viem checksums addresses; lookups compare lowercased).
   'CREATE INDEX IF NOT EXISTS jobs_agent ON jobs (chain_id, agent_id)',
   'CREATE INDEX IF NOT EXISTS jobs_worker ON jobs (chain_id, lower(worker))',
@@ -252,17 +276,42 @@ export const SCHEMA: readonly string[] = [
 ]
 
 /** Tables folded from events: a job's rows here are always replaced together from its events. */
-export const DERIVED_TABLES = ['jobs', 'submissions', 'evidence', 'rulings', 'reward_outcomes', 'bond_outcomes', 'feedback', 'top_ups', 'fee_charges', 'payout_owed'] as const
+export const DERIVED_TABLES = [
+  'jobs',
+  'submissions',
+  'evidence',
+  'rulings',
+  'reward_outcomes',
+  'bond_outcomes',
+  'feedback',
+  'top_ups',
+  'fee_charges',
+  'payout_owed',
+] as const
 
 export async function migrate(sql: AsyncSql): Promise<void> {
   await sql.batch(SCHEMA.map((q) => stmt(q)))
   // D1 has no migration runner in v1. Existing installations receive only additive columns at runtime;
   // no data is rewritten and no destructive migration is possible through this path.
   const columns: readonly [string, string][] = [
-    ['arbitrator', 'TEXT'], ['expired_at', 'INTEGER'], ['review_window', 'INTEGER'], ['dispute_window', 'INTEGER'],
-    ['arbitration_window', 'INTEGER'], ['kind', 'TEXT'], ['fee_bps', 'INTEGER'], ['fee', 'TEXT'], ['net', 'TEXT'],
-    ['bonus', 'TEXT'], ['outcome', 'TEXT'], ['settlement_outcome', 'TEXT'], ['charged_fee', 'TEXT'], ['bonus_fee', 'TEXT'],
-    ['payout_deferred', 'INTEGER'], ['refund_deferred', 'INTEGER'], ['refunded_to_holding', 'INTEGER'],
+    ['manifest_hash', 'TEXT'],
+    ['arbitrator', 'TEXT'],
+    ['expired_at', 'INTEGER'],
+    ['review_window', 'INTEGER'],
+    ['dispute_window', 'INTEGER'],
+    ['arbitration_window', 'INTEGER'],
+    ['kind', 'TEXT'],
+    ['fee_bps', 'INTEGER'],
+    ['fee', 'TEXT'],
+    ['net', 'TEXT'],
+    ['bonus', 'TEXT'],
+    ['outcome', 'TEXT'],
+    ['settlement_outcome', 'TEXT'],
+    ['charged_fee', 'TEXT'],
+    ['bonus_fee', 'TEXT'],
+    ['payout_deferred', 'INTEGER'],
+    ['refund_deferred', 'INTEGER'],
+    ['refunded_to_holding', 'INTEGER'],
   ]
   const present = new Set((await sql.all<{ name: string }>('PRAGMA table_info(jobs)')).map((c) => c.name))
   const missing = columns.filter(([name]) => !present.has(name))

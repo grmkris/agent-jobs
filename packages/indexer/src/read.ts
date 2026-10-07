@@ -40,6 +40,7 @@ export interface JobRow {
   creator_bond: string | null
   worker_bond: string | null
   policy_hash: string | null
+  manifest_hash: string | null
   delivery_deadline: number | null
   selection_deadline: number | null
   worker: string | null

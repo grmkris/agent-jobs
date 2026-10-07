@@ -25,7 +25,7 @@ export function foldJob(contracts: Contracts, chainId: number, jobId: string, ev
   if (ordered.length === 0) return out
   const job: Record<string, string | number | null> = {
     stack: null, mode: null, creator: null, approver: null, token: null, reward: null, creator_bond: null, worker_bond: null,
-    policy_hash: null, delivery_deadline: null, selection_deadline: null, worker: null, agent_id: null, status: 'unknown',
+    policy_hash: null, manifest_hash: null, delivery_deadline: null, selection_deadline: null, worker: null, agent_id: null, status: 'unknown',
     deliverable: null, violation: null, rejection_reason_hash: null, published_block: null, published_tx: null,
     kind: null, arbitrator: null, expired_at: null, review_window: null, dispute_window: null, arbitration_window: null,
     fee_bps: null, fee: null, net: null, bonus: null, outcome: null, settlement_outcome: null,
@@ -45,7 +45,7 @@ export function foldJob(contracts: Contracts, chainId: number, jobId: string, ev
           kind: 'sidequest-v1',
           mode: 'hire',
           creator: a.creator, approver: a.approver, token: a.token, reward: a.reward,
-          creator_bond: a.creatorBond, worker_bond: a.workerBond, policy_hash: a.policyHash,
+          creator_bond: a.creatorBond, worker_bond: a.workerBond, policy_hash: a.policyHash, manifest_hash: a.manifestHash,
           delivery_deadline: Number(a.deliveryDeadline), selection_deadline: null,
           expired_at: Number(a.expiredAt),
           status: 'open', published_block: e.block, published_tx: e.txHash,
@@ -163,7 +163,7 @@ export function foldJob(contracts: Contracts, chainId: number, jobId: string, ev
   }
   const last = ordered[ordered.length - 1] as IndexedEvent
   const columns = [
-    'stack', 'mode', 'creator', 'approver', 'token', 'reward', 'creator_bond', 'worker_bond', 'policy_hash', 'delivery_deadline',
+    'stack', 'mode', 'creator', 'approver', 'token', 'reward', 'creator_bond', 'worker_bond', 'policy_hash', 'manifest_hash', 'delivery_deadline',
     'selection_deadline', 'worker', 'agent_id', 'status', 'deliverable', 'violation', 'rejection_reason_hash', 'published_block', 'published_tx',
     'kind', 'arbitrator', 'expired_at', 'review_window', 'dispute_window', 'arbitration_window', 'fee_bps', 'fee', 'net', 'bonus',
     'outcome', 'settlement_outcome', 'charged_fee', 'bonus_fee', 'payout_deferred', 'refund_deferred', 'refunded_to_holding',

@@ -96,6 +96,7 @@ describe('Sidequest event indexing', () => {
     const detail = await jobDetail(sql, contracts.chainId, '1000', 0)
     expect(detail?.job).toMatchObject({
       kind: 'sidequest-v1', mode: 'hire', selection_deadline: null, arbitrator, review_window: 3600,
+      manifest_hash: hash(1), policy_hash: hash(2),
       dispute_window: 7200, arbitration_window: 43_200, expired_at: 60_000,
       fee_bps: 1000, fee: '100', net: '900', bonus: '100', charged_fee: '110', bonus_fee: '10',
       outcome: 'RuledForWorker', settlement_outcome: 'Paid', payout_deferred: 1, refunded_to_holding: 1,

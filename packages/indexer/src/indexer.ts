@@ -8,6 +8,7 @@
  * guard still compares the hash of the last indexed block with the chain and rewinds if they differ.
  */
 import { type Contracts, type IndexedEvent, decode } from './events.ts'
+import { hydrateForeignOffers, type OfferHydrationConfig } from './foreign-offers.ts'
 import { byChainOrder, foldJob } from './fold.ts'
 import type { ChainHead, LogSource } from './source.ts'
 import { type AsyncSql, type Statement, DERIVED_TABLES, stmt } from './store.ts'
@@ -26,6 +27,8 @@ export interface IndexerConfig {
   readonly rewindBlocks?: number
   /** Event blocks without a stored time to look up per run (newest first), through `head.blockTimestamp`. */
   readonly backfillBlocks?: number
+  /** Optional host discovery, run under this chain lease after folding finalized jobs. */
+  readonly offers?: OfferHydrationConfig
 }
 
 export interface RunResult {
@@ -163,6 +166,7 @@ export async function runOnce(sql: AsyncSql, cfg: IndexerConfig): Promise<RunRes
     if (upTo === next) break // no progress possible now
     next = upTo
   }
+  if (cfg.offers !== undefined) await hydrateForeignOffers(sql, chainId, cfg.offers, now)
   const backfilled = await backfillBlockTimes(sql, cfg)
   return { lease: true, pages, events, protocolEvents, jobs: jobs.size, nextBlock: next, caughtUp: next > finalized, rewound, backfilled }
 }
