@@ -1,1 +1,1 @@
-export { MAINNET_LIVE } from '@sidequest/sdk'
+export { MAINNET_LIVE } from '@sidequest/sdk/release'
