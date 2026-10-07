@@ -36,6 +36,8 @@ const chain: CheckDeps['chain'] = (id) =>
       }
     : undefined
 
+const artifact = (url: string) => ({ kind: 'artifact', url, sha256: 'a'.repeat(64), mediaType: 'text/plain', name: 'a.txt' })
+
 describe('descriptors', () => {
   it('hashes a git deliverable exactly like the legacy {repo, branch, sha} triple', () => {
     const legacy = keccak256(stringToHex(canonicalJson({ repo: 'https://github.com/o/r', branch: 'main', sha: SHA })))
@@ -58,7 +60,6 @@ describe('descriptors', () => {
   })
 
   it('accepts only public https and ipfs:// URLs, since the board fetches them at submit', () => {
-    const artifact = (url: string) => ({ kind: 'artifact', url, sha256: 'a'.repeat(64), mediaType: 'text/plain', name: 'a.txt' })
     for (const url of [
       'http://site.example/', 'https://localhost/', 'https://api.localhost/', 'https://127.0.0.1/', 'https://10.0.0.5/a',
       'https://169.254.169.254/latest', 'https://[::1]/', 'https://0x7f000001/', 'https://intranet/', 'https://nas.local/f',
