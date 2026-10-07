@@ -104,7 +104,6 @@
     "anti-slop(no-runtime-typeof)": 4,
     "complexity(complexity)": 3,
     "eslint(max-depth)": 1,
-    "knip(files)": 1,
     "typescript(no-floating-promises)": 1,
     "typescript(no-misused-promises)": 4
   },
@@ -331,7 +330,6 @@
   "apps/api/test/release-pin.test.ts": {
     "anti-slop(no-chained-type-assertions)": 1,
     "anti-slop(require-safety-comment-for-type-assertion)": 8,
-    "knip(unresolved)": 1,
     "typescript(no-base-to-string)": 1
   },
   "apps/api/test/stack.test.ts": {
@@ -399,14 +397,8 @@
   "apps/arbiter/src/runtime.ts": {
     "anti-slop(require-safety-comment-for-type-assertion)": 1
   },
-  "apps/docs/package.json": {
-    "knip(devDependencies)": 1
-  },
   "apps/docs/scripts/verify-output.mjs": {
     "complexity(complexity)": 1
-  },
-  "apps/docs/site-output.d.mts": {
-    "knip(files)": 1
   },
   "apps/docs/src/components/mdx.tsx": {
     "knip(duplicates)": 1
@@ -420,7 +412,6 @@
   },
   "apps/docs/src/lib/export.ts": {
     "anti-slop(no-runtime-typeof)": 1,
-    "knip(files)": 1,
     "typescript(no-unnecessary-boolean-literal-compare)": 1
   },
   "apps/docs/src/lib/remark-addresses.ts": {
@@ -464,24 +455,13 @@
   "apps/explore/docs-site-plugin.ts": {
     "complexity(complexity)": 1
   },
-  "apps/explore/package.json": {
-    "knip(devDependencies)": 4
-  },
-  "apps/explore/public/embed.js": {
-    "knip(files)": 1
-  },
   "apps/explore/scripts/docs-smoke.mjs": {
     "complexity(complexity)": 1,
-    "knip(files)": 1,
     "typescript(no-misused-promises)": 1
-  },
-  "apps/explore/scripts/icons.ts": {
-    "knip(files)": 1
   },
   "apps/explore/scripts/tokens.ts": {
     "anti-slop(no-runtime-typeof)": 1,
-    "anti-slop(require-safety-comment-for-type-assertion)": 4,
-    "knip(files)": 1
+    "anti-slop(require-safety-comment-for-type-assertion)": 4
   },
   "apps/explore/src/admin.test.ts": {
     "anti-slop(no-chained-type-assertions)": 3,
@@ -1093,12 +1073,8 @@
     "anti-slop(require-safety-comment-for-type-assertion)": 6,
     "typescript(no-unnecessary-type-assertion)": 3
   },
-  "contracts/package.json": {
-    "knip(binaries)": 1
-  },
   "contracts/script/check-keystore-testnet.ts": {
-    "anti-slop(require-safety-comment-for-type-assertion)": 3,
-    "knip(binaries)": 1
+    "anti-slop(require-safety-comment-for-type-assertion)": 3
   },
   "contracts/script/check-launch-testnet.ts": {
     "anti-slop(no-runtime-typeof)": 1,
@@ -1611,8 +1587,7 @@
   },
   "packages/sdk/scripts/live/authority.fork.test.ts": {
     "anti-slop(no-chained-type-assertions)": 1,
-    "anti-slop(require-safety-comment-for-type-assertion)": 4,
-    "knip(binaries)": 1
+    "anti-slop(require-safety-comment-for-type-assertion)": 4
   },
   "packages/sdk/scripts/live/deployed/acceptance.ts": {
     "anti-slop(no-runtime-typeof)": 1,
@@ -1646,14 +1621,12 @@
     "anti-slop(no-runtime-typeof)": 3,
     "anti-slop(require-safety-comment-for-type-assertion)": 2,
     "complexity(complexity)": 1,
-    "knip(binaries)": 1,
     "typescript(only-throw-error)": 1
   },
   "packages/sdk/scripts/live/deployed/fork.ts": {
     "anti-slop(require-safety-comment-for-type-assertion)": 1,
     "complexity(complexity)": 1,
-    "eslint(max-lines-per-function)": 1,
-    "knip(binaries)": 1
+    "eslint(max-lines-per-function)": 1
   },
   "packages/sdk/scripts/live/deployed/guards.ts": {
     "anti-slop(require-safety-comment-for-type-assertion)": 2
@@ -1694,11 +1667,6 @@
   "packages/sdk/scripts/live/deployed/worker.ts": {
     "anti-slop(no-runtime-typeof)": 1,
     "anti-slop(require-safety-comment-for-type-assertion)": 1,
-    "complexity(complexity)": 1,
-    "eslint(max-lines-per-function)": 1
-  },
-  "packages/sdk/scripts/live/prove-agent-executor.ts": {
-    "anti-slop(require-safety-comment-for-type-assertion)": 3,
     "complexity(complexity)": 1,
     "eslint(max-lines-per-function)": 1
   },
@@ -1999,7 +1967,6 @@
   "packages/sdk/test/sidequest-fixture.ts": {
     "anti-slop(require-safety-comment-for-type-assertion)": 7,
     "complexity(complexity)": 1,
-    "knip(binaries)": 1,
     "knip(exports)": 1
   },
   "scripts/check-files.ts": {
@@ -2105,11 +2072,10 @@
     "anti-slop(require-safety-comment-for-type-assertion)": 1
   },
   "scripts/mining/sign-prices.ts": {
-    "anti-slop(require-safety-comment-for-type-assertion)": 4,
-    "knip(binaries)": 1
+    "anti-slop(require-safety-comment-for-type-assertion)": 4
   },
   "scripts/p0-drills.ts": {
-    "anti-slop(require-safety-comment-for-type-assertion)": 5
+    "anti-slop(require-safety-comment-for-type-assertion)": 4
   },
   "scripts/preflight-prod.ts": {
     "anti-slop(require-safety-comment-for-type-assertion)": 2
@@ -2120,9 +2086,6 @@
     "complexity(complexity)": 1,
     "typescript(no-explicit-any)": 2,
     "typescript(no-unnecessary-type-assertion)": 20
-  },
-  "scripts/sidequest/contracts.mjs": {
-    "knip(binaries)": 1
   },
   "scripts/sidequest/transaction.mjs": {
     "anti-slop(no-runtime-typeof)": 1,

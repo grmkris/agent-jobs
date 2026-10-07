@@ -123,7 +123,6 @@
       "zod": "4.6.5",
       "@types/mdast": "4.0.4",
       "@types/mdx": "2.0.14",
-      "@types/unist": "3.0.3",
       "mdast-util-mdx": "3.0.0",
       "remark-frontmatter": "5.0.0",
       "remark-gfm": "4.0.1",

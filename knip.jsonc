@@ -22,6 +22,8 @@
     "unresolved": "error",
   },
   "treatConfigHintsAsErrors": true,
+  // Foundry supplies forge/cast/anvil; the acceptance harness invokes the installed Codex CLI.
+  "ignoreBinaries": ["forge", "cast", "anvil", "codex"],
   // Vendored upstream code is maintained as one unit, not pruned by repository gates.
   "ignore": [
     // Foundry dependencies and generated outputs are not Sidequest TypeScript sources.
@@ -29,10 +31,12 @@
   ],
   "workspaces": {
     ".": {
-      // Operator CLIs, generators, deployment stack and crew CLI run directly rather than through imports.
+      // Operator CLIs, generators and the deployment stack run directly rather than through imports.
       "entry": [
         "alchemy.run.ts!", "scripts/preflight-prod.ts!", "scripts/ci/*.ts!", "scripts/mining/*.ts!",
-        "scripts/gen-*.mjs!", "scripts/*.mjs!", "scripts/*.ts!", "scripts/sidequest/*.mjs!", "crew/bin/*.ts!"
+        "scripts/gen-*.mjs!", "scripts/*.mjs!", "scripts/*.ts!",
+        // G1d seeds v1 testnet infrastructure; its transaction journal helper is imported normally.
+        "scripts/sidequest/testnet-setup.mjs!", "crew/bin/*.ts!"
       ]
     },
     "tools": {
@@ -44,7 +48,29 @@
       "entry": ["scripts/**/*.ts!"]
     },
     // The globs include main.tsx/main.ts, also discovered by Vite and script plugins; avoid redundant literal entries.
-    "apps/explore": { "entry": ["worker.ts!", "src/{main,index}.tsx!"] },
+    "apps/explore": {
+      "entry": [
+        "worker.ts!", "src/{main,index}.tsx!",
+        // Vite serves this widget as /embed.js; Boards emits its script URL.
+        "public/embed.js!",
+        // Manual generators own the committed brand icons and token logos.
+        "scripts/icons.ts!", "scripts/tokens.ts!",
+        // Browserless docs/Worker smoke tool, invoked directly by the docs operator.
+        "scripts/docs-smoke.mjs!"
+      ]
+    },
+    "apps/api": {
+      // gen-hiring.mjs reads this as text and embeds it in the MCP App HTML.
+      "entry": ["src/hiring/panel.js!"]
+    },
+    "apps/docs": {
+      "entry": [
+        // gen-docs.mjs loads exportDocs through Vite's ssrLoadModule.
+        "src/lib/export.ts!"
+      ],
+      // Type declarations for site-output.mjs, consumed by the docs output verifier.
+      "ignore": ["site-output.d.mts"]
+    },
     "apps/arbiter": { "entry": ["src/{main,index}.ts!"] },
     "contracts": {
       // Foundry operator scripts live alongside Solidity; Bun invokes these TypeScript files directly.

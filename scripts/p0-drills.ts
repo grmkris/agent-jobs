@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { DatabaseSync } from 'node:sqlite'
 import * as sdk from '../packages/sdk/src/index.ts'
 import { contractsOf, DERIVED_TABLES, fromNodeSqlite, migrate, resetIndex, rpcHead, runOnce, type IndexerConfig, type LogSource, type RawLog } from '../packages/indexer/src/index.ts'
-import fixture from '../packages/indexer/test/fixtures/testnet-logs.json' with { type: 'json' }
+import fixture from '../packages/indexer/test/fixtures/v1-logs.ts'
 import { migrateRegistry } from '../apps/api/src/registry.ts'
 import { SessionDesk } from '../packages/board/src/index.ts'
 
@@ -46,7 +46,7 @@ try {
   } : {
     async logs(query) {
       const nextBlock = Math.min(query.toBlock, cutoff)
-      return { nextBlock, logs: (fixture.logs as RawLog[]).filter(log => log.block_number >= query.fromBlock && log.block_number < nextBlock) }
+      return { nextBlock, logs: fixture.logs.filter(log => log.block_number >= query.fromBlock && log.block_number < nextBlock) }
     },
   }
   const config: IndexerConfig = {
@@ -74,7 +74,7 @@ try {
   if (JSON.stringify(after) !== JSON.stringify(before)) throw new Error('chain-derived rows differ after rebuild')
   const hosted = restoredDb.prepare('SELECT body FROM e38_hosted_fixture WHERE id = ?').get('retain') as { body: string }
   if (hosted.body !== 'hosted-only') throw new Error('rebuild lost hosted state')
-  console.log(JSON.stringify({ ok: true, storage: 'disposable SQLite using real D1 schema/adapters', source: live ? 'read-only Monad testnet RPC' : 'recorded testnet logs', chainId: 10143, fromBlock: deployBlock, nextBlock: cutoff, events: indexed.events, jobs: indexed.jobs, restored: true, rebuilt: true, hostedRowsRetained: true, elapsedMs: Date.now() - started }))
+  console.log(JSON.stringify({ ok: true, storage: 'disposable SQLite using real D1 schema/adapters', source: live ? 'read-only Monad testnet RPC' : 'synthetic v1 logs', chainId: 10143, fromBlock: deployBlock, nextBlock: cutoff, events: indexed.events, jobs: indexed.jobs, restored: true, rebuilt: true, hostedRowsRetained: true, elapsedMs: Date.now() - started }))
 } finally {
   restoredDb?.close()
   sourceDb?.close()

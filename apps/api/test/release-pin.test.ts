@@ -82,7 +82,7 @@ const hasBun = spawnSync('bun', ['--version']).status === 0
 test.skipIf(!hasBun)('the runbook command starts and judges the artifact (its imports resolve from scripts/)', () => {
   // The check runner sets FORCE_COLOR; without this, Bun colours stderr and the anchored match below misses.
   const { FORCE_COLOR: _, ...env } = process.env
-  const run = spawnSync('bun', ['scripts/preflight-prod.ts', 'docs/p0-prod-artifact.json'], { cwd: repo, encoding: 'utf8', timeout: 60_000, env: { ...env, NO_COLOR: '1' } })
+  const run = spawnSync('bun', [fileURLToPath(new URL('../../../scripts/preflight-prod.ts', import.meta.url)), fileURLToPath(new URL('../../../docs/p0-prod-artifact.json', import.meta.url))], { cwd: repo, encoding: 'utf8', timeout: 60_000, env: { ...env, NO_COLOR: '1' } })
   expect(run.stderr).not.toContain('Cannot find module')
   // LAUNCH-AUDIT-FIX-003: once launch has filled the checked-in artifact in, it passes; until then it is rejected only for
   // what launch still fills in (./pre-launch.ts), never for its Explore pin or a structural label.
