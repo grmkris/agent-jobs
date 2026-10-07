@@ -12,7 +12,17 @@ serif headlines the landing page, while the application keeps readable, compact
 type. Status colours keep their established meanings. App icons and favicon are
 generated from the same SVG. Contrast, focus and reduced-motion gates still apply.
 
-The latest guarded dev application release is `fb3e981`, deployed on 7 October 2026
+The latest guarded dev application release is `d40d4f0`, deployed on 7 October 2026
+at 13:13:46 UTC. It ships the public docs at `/docs`: 20 prerendered pages served by
+Explore, Markdown for the same URL on `Accept: text/markdown`, `/llms.txt`,
+`/llms-full.txt` and search, plus MCP docs resources and `search_docs`. It also ships
+cleanup wave 1 (legacy deletion). Two earlier attempts on `e1e173a` and `37baad6` are
+recorded in the receipt: the first updated Api and Indexer before Explore's build failed;
+the second was refused by the guard until it learned to resume Alchemy's interrupted update.
+The [dated live receipt](evidence/sidequest-dev/2026-10-07-d40d4f0-live.json) records the
+gates, the guarded update, the anonymous readback, 23 docs checks and a browser check.
+
+The previous guarded dev application release was `fb3e981`, deployed on 7 October 2026
 at 08:44:22 UTC at Kris's request. It fixes two things the `3cebe7d` readback found: a
 request under a minute old reads "Posted just now" (not "Posted in 31 s"), and the row's
 "Up to" carries a real space. The

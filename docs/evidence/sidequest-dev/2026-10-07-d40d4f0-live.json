@@ -1,0 +1,70 @@
+{
+  "origin": "https://dev.sidequest.exchange",
+  "chainId": 10143,
+  "sourceCommit": "d40d4f09e81189d9d4d441d4574f481d98a9223e",
+  "sourceTree": "70b9ecae3fddef2d9f394f240b527516374151d8",
+  "deployedAt": "2026-10-07T13:13:46.824Z",
+  "finishedAt": "2026-10-07T13:13:46.824Z",
+  "observedAt": "2026-10-07T13:20:00Z",
+  "evidenceTier": "live-dev-guarded-runner-anonymous-readback-and-browser-check",
+  "releasedBy": "Claude session add-public-docs-site (docs track), at Kris's request for docs released to dev; cleanup coordinator handed over the main checkout",
+  "contents": "Public docs at /docs (apps/docs, Fumadocs on TanStack Start, prerendered and shipped inside Explore; 20 pages), Markdown on Accept: text/markdown and /docs/<slug>.md, /llms.txt (llmstxt.org index) and /llms-full.txt, /docs/search.json; MCP sidequest://docs/<slug> resources and a read-only search_docs tool. Also cleanup wave 1 (legacy deletion, 74f2401) and its release-guard fixes (1f02e1a reuseCore guards, d40d4f0 resume of an interrupted Alchemy update).",
+  "attempts": [
+    { "commit": "e1e173a", "result": "partial: Api and Indexer updated; Explore build failed on the docs asset check (server and client CSS diverged in the no-.git release export; fixed in 37baad6). The old Explore kept serving." },
+    { "commit": "37baad6", "result": "refused before provider calls: dev-state-ownership-mismatch (Explore state 'updating' from attempt 1; guard taught to resume it in d40d4f0)" },
+    { "commit": "d40d4f0", "result": "deployed" }
+  ],
+  "runner": {
+    "command": "SIDEQUEST_DEV_RELEASE=1 heavy pnpm dlx node@24 scripts/sidequest/dev-release.mjs",
+    "planPassed": true,
+    "exitCode": 0,
+    "operation": "update",
+    "status": "deployed"
+  },
+  "gates": {
+    "heavy pnpm check": "passed on docs/integration 1f02e1a (all JS packages, forge 339 pass / 25 skip, mining 49 pass, lint); later commits ran their targeted tests: docs 52, api docs+skills 38, dev-release 9",
+    "docs smoke (apps/explore/scripts/docs-smoke.mjs)": "passed on docs/integration: 133 HTTP checks against the real worker.ts, 24 parsed HTML responses",
+    "fact-check review": "D-REVIEW on f80c473: 2 High (testnet clocks unlabelled), both fixed in b75b842",
+    "push": "origin/dev 74f2401..d40d4f0, fast-forward"
+  },
+  "newMigration": false,
+  "migrationSha256": "07c590d6b740f4e5a4d1099cc991b4d44bf9ac6a5ba5226ba60d18d4ee59160f",
+  "publicReadback": {
+    "health": 200,
+    "release.json": { "network": "monad-testnet", "mainnetLive": false, "writesOpen": true },
+    "oauthMetadata": { "/.well-known/oauth-authorization-server": 200, "/.well-known/oauth-protected-resource/mcp": 200 },
+    "anonymousMcp": { "initialize": 401, "tools/list": 401, "resources/list": 401 }
+  },
+  "docsLiveChecks": {
+    "passed": 23,
+    "failed": 0,
+    "checks": [
+      "/docs: text/html, Vary: Accept, Link rel=alternate type=text/markdown, CSP script-src 'self' 'nonce-…' without unsafe-inline",
+      "/docs/quickstart: page text present without JavaScript; every <script> carries the response nonce",
+      "Accept: text/markdown on /docs/quickstart is byte-identical to /docs/quickstart.md, text/markdown",
+      "/llms.txt starts '# Sidequest' and links /start.md first; /llms-full.txt 200",
+      "/docs/search.json parses",
+      "/docs/nope and /docs/nope.md 404; HEAD /docs 200",
+      "/start.md and /skills/{connector,worker,publisher,arbitrator}/SKILL.md byte-identical to the repo",
+      "/ and /jobs keep the app CSP and X-Frame-Options: DENY; POST /mcp 401",
+      "the linked stylesheet /docs/_assets/app-CUb3lS5Y.css returns 200"
+    ],
+    "firstRunNote": "the first run, seconds after deploy, saw the previous Explore on 7 checks (propagation); the re-run passed all 23"
+  },
+  "browserCheck": {
+    "tool": "one-off headless Chromium (playwright-core), not committed",
+    "light": { "background": "oklch(0.985 0.002 90)", "cspViolations": 0, "consoleErrorsOrWarnings": 0, "clientNavigation": "/docs/quickstart -> /docs/app without reload" },
+    "dark": { "background": "oklch(0.2 0.006 255)", "cspViolations": 0, "consoleErrorsOrWarnings": 0, "clientNavigation": "/docs/quickstart -> /docs/app without reload" },
+    "search": "'dispute' returned MCP server, Glossary and Hires results from /docs/search.json"
+  },
+  "knownIssues": [
+    "TanStack Router serialises match ids with raw NUL separators inside an inline hydration script (upstream); hydration and client navigation verified working",
+    "quickstart says 'the origin token below is replaced when this page builds' (authoring language); follow-up content fix"
+  ],
+  "notVerifiedLive": [
+    "MCP docs resources and search_docs over an authenticated grant (unit-tested only: test/docs.test.ts)"
+  ],
+  "noAuthentication": true,
+  "noHostConnection": true,
+  "noTransactions": true
+}
