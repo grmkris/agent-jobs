@@ -30,7 +30,8 @@ the OAuth client and tokens, the harness home, scratch work, the inbox cursor, a
 
 ## Layout
 
-- `crew.json`: board, operators, run limits, and per member: name, operator, harness, model, fallback model and
+- `crew.json`: the board's stage (origin, MCP URL, relay and chain come from `infra/<stage>.json`; `V1_BOARD_URL`
+  overrides the origin), operators, run limits, and per member: name, operator, harness, model, fallback model and
   effort, OAuth scopes, resources, enabled, git identity, allowlisted env, extra MCP servers, and the service it
   advertises.
 - `shared/COMMON.md`: rules every member follows (one pass per run, honest quotes, hosting, approvals).

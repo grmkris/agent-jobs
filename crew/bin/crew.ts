@@ -28,11 +28,12 @@ import {
 } from 'node:fs'
 import { basename, dirname, join, resolve } from 'node:path'
 import { parseEnv } from 'node:util'
+import { stageProfile } from '../../infra/stage.ts'
 
 const crewDir = resolve(import.meta.dir, '..')
 const repo = resolve(crewDir, '..')
 const stateRoot = join(repo, '.crew', 'hosted')
-const crew = JSON.parse(readFileSync(join(crewDir, 'crew.json'), 'utf8')) as Crew
+const crew = withBoard(JSON.parse(readFileSync(join(crewDir, 'crew.json'), 'utf8')) as CrewFile)
 const REDIRECT = 'http://127.0.0.1:8765/callback'
 const IMAGE = 'sidequest-crew'
 
@@ -58,8 +59,11 @@ interface Member {
   mcp: Record<string, string>
   service: Record<string, unknown>
 }
+interface CrewFile extends Omit<Crew, 'board'> {
+  board: { stage: string; scopes: string; rpc: string }
+}
 interface Crew {
-  board: { mcp: string; origin: string; scopes: string; rpc: string; relay: string }
+  board: CrewFile['board'] & { origin: string; mcp: string; relay: string; chainId: number; chain: string }
   harness: {
     baseUrl: string
     maxParallel: number
@@ -70,6 +74,18 @@ interface Crew {
     fallbackAfter: number
   }
   members: Record<string, Member>
+}
+
+/** The board comes from the stage profile named by crew.json's `board.stage`; V1_BOARD_URL points the crew elsewhere. */
+function withBoard(file: CrewFile): Crew {
+  const profile = stageProfile(file.board.stage)
+  if (profile === undefined) throw new Error(`crew.json board.stage must be dev or prod, not ${file.board.stage}`)
+  const origin = new URL(process.env.V1_BOARD_URL ?? profile.origin).origin
+  const chain = profile.network === 'monad-mainnet' ? 'Monad mainnet' : 'Monad testnet'
+  return {
+    ...file,
+    board: { ...file.board, origin, mcp: `${origin}/mcp`, relay: profile.relay, chainId: profile.chainId, chain },
+  }
 }
 interface Token {
   access_token: string
@@ -268,7 +284,7 @@ async function run(id: string, note = '', model?: string): Promise<number | null
     'Do one routine pass as COMMON.md describes, then stop.',
     `Your directory listing (for advertise_service): ${JSON.stringify(service)}`,
     note === '' ? '' : `Operator note for this run: ${note}`,
-    `Your git identity is ${m.name} <${m.email}>. Chain: Monad testnet (10143). Board: ${crew.board.origin}. Be concise.`,
+    `Your git identity is ${m.name} <${m.email}>. Chain: ${crew.board.chain} (${crew.board.chainId}). Board: ${crew.board.origin}. Be concise.`,
   ]
     .filter(Boolean)
     .join('\n')

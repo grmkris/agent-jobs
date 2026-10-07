@@ -1,11 +1,8 @@
 {
   "board": {
     "stage": "dev",
-    "mcp": "https://dev.sidequest.exchange/mcp",
-    "origin": "https://dev.sidequest.exchange",
     "scopes": "sidequest:read sidequest:hire sidequest:work",
-    "rpc": "https://testnet-rpc.monad.xyz",
-    "relay": "0xC4173dBC98ffd6F5785E8Fba85E9e5bd8b3F5058"
+    "rpc": "https://testnet-rpc.monad.xyz"
   },
   "harness": {
     "note": "Members run Codex CLI (or Grok CLI with harness: grok) against cliproxy; the model decides who pays. Only gpt-* uses the Codex subscription.",
