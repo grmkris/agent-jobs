@@ -16,6 +16,7 @@ export const SCRIPTS = {
   verify: 'SafeAccept.s.sol',
 }
 export const ACTIONS = new Set([...Object.keys(SCRIPTS), 'archive'])
+export const LOCKED_OPERATIONS = new Set(['archive', 'deploy', 'promote', 'accept'])
 
 /** `<action> --generation <label>`; the label names the broadcast root, the logs and the config archive. */
 export function parseArgs(argv) {
@@ -31,6 +32,7 @@ export const broadcastRoot = (generation) => `broadcast/sidequest-${generation}`
 export const candidatePath = (generation) =>
   `contracts/${broadcastRoot(generation)}/sidequest/monad-testnet.candidate.json`
 export const archivePath = (generation) => `contracts/config/archive/pre-${generation}-monad-testnet.json`
+export const operationLockPath = (generation) => `.sidequest/contracts-${generation}.lock`
 
 /** The signing role per action: the Safe owner accepts, the configured admin deploys. Promote and verify send nothing. */
 export const roleFor = (action) => (action.startsWith('accept') ? 'SAFE_OWNER' : 'DEPLOYER')

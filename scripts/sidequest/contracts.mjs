@@ -15,13 +15,23 @@
  * to the terminal. A partial broadcast must be finished with forge's `--resume`, never started again.
  */
 import { randomBytes, randomUUID, createCipheriv, scryptSync } from 'node:crypto'
-import { closeSync, copyFileSync, existsSync, mkdirSync, openSync, readFileSync, writeFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
+import { basename, resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { keccak256, concatHex, toHex } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { loadEnv } from './transaction.mjs'
-import { archivePath, candidatePath, parseArgs, planAction, resetConfig, roleFor } from './contracts-model.mjs'
+import {
+  archivePath,
+  candidatePath,
+  LOCKED_OPERATIONS,
+  operationLockPath,
+  parseArgs,
+  planAction,
+  resetConfig,
+  roleFor,
+} from './contracts-model.mjs'
 
 const CONFIG = 'contracts/config/monad-testnet.json'
 
@@ -66,13 +76,17 @@ function keystore(env, root, role) {
   return { path, passwordPath, address: account.address }
 }
 
-function archive(generation) {
-  const target = resolve(archivePath(generation))
-  if (existsSync(target)) throw new Error('archive-exists-reconcile-before-resume')
-  const config = JSON.parse(readFileSync(CONFIG, 'utf8'))
+export function archive(generation, configPath = CONFIG, target = resolve(archivePath(generation))) {
+  const bytes = readFileSync(configPath)
+  const config = JSON.parse(bytes.toString('utf8'))
   const reset = resetConfig(config)
-  copyFileSync(CONFIG, target)
-  writeFileSync(CONFIG, JSON.stringify(reset, null, 2) + '\n')
+  try {
+    writeFileSync(target, bytes, { flag: 'wx' })
+  } catch (error) {
+    if (error.code === 'EEXIST') throw new Error('archive-exists-reconcile-before-resume', { cause: error })
+    throw error
+  }
+  writeFileSync(configPath, JSON.stringify(reset, null, 2) + '\n')
   console.log(
     JSON.stringify({
       action: 'archive',
@@ -81,6 +95,45 @@ function archive(generation) {
       deploymentKeys: Object.keys(reset.deployment),
     }),
   )
+}
+
+const interrupted = () => process.exit(130)
+const terminated = () => process.exit(143)
+
+/** The lock is deliberately never stolen: an operator removes a stale lock by hand after reconciliation. */
+export function withOperationLock(generation, operation, root = resolve('.sidequest')) {
+  mkdirSync(root, { recursive: true, mode: 0o700 })
+  const lockPath = resolve(root, basename(operationLockPath(generation)))
+  let fd
+  try {
+    fd = openSync(lockPath, 'wx', 0o600)
+  } catch (error) {
+    if (error.code === 'EEXIST') throw new Error(`operation-in-progress ${lockPath}`, { cause: error })
+    throw error
+  }
+  let released = false
+  const release = () => {
+    if (released) return
+    released = true
+    closeSync(fd)
+    try {
+      unlinkSync(lockPath)
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error
+    }
+  }
+  process.once('exit', release)
+  process.once('SIGINT', interrupted)
+  process.once('SIGTERM', terminated)
+  try {
+    writeFileSync(fd, String(process.pid) + '\n')
+    return operation()
+  } finally {
+    process.removeListener('exit', release)
+    process.removeListener('SIGINT', interrupted)
+    process.removeListener('SIGTERM', terminated)
+    release()
+  }
 }
 
 function run(action, generation) {
@@ -116,15 +169,22 @@ function run(action, generation) {
   if (result.status !== 0) process.exitCode = 1
 }
 
-try {
+function main() {
   const { action, generation } = parseArgs(process.argv.slice(2))
-  if (action === 'archive') archive(generation)
-  else run(action, generation)
-} catch (error) {
-  console.error(
-    error instanceof Error && /^[a-z0-9-]+$/.test(error.message)
-      ? error.message
-      : 'contract-operation-failed-inspect-private-log',
-  )
-  process.exitCode = 1
+  const operation = () => (action === 'archive' ? archive(generation) : run(action, generation))
+  if (LOCKED_OPERATIONS.has(action)) withOperationLock(generation, operation)
+  else operation()
 }
+
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href)
+  try {
+    main()
+  } catch (error) {
+    console.error(
+      error instanceof Error &&
+        (/^[a-z0-9-]+$/.test(error.message) || error.message.startsWith('operation-in-progress '))
+        ? error.message
+        : 'contract-operation-failed-inspect-private-log',
+    )
+    process.exitCode = 1
+  }
