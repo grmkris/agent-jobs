@@ -44,7 +44,7 @@ async function main() {
   const d = deploymentFromConfig(network, config)
   if (d.sidequest === null) throw new Error(`${configPath} records no v1 deployment`)
   const h = d.sidequest
-  const holdings = [...Object.values(d.stacks), ...Object.values(d.legacyStacks)]
+  const holdings = Object.values(d.stacks)
     .filter(st => st?.kind === 'sidequest-v1').map(st => lower(st!.holding))
   const uniqueHoldings = [...new Set(holdings)].toSorted()
   const c = client(rpc!)
