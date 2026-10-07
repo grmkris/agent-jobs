@@ -112,6 +112,18 @@ export class GrantStore {
     return grant
   }
 
+  /** Whether a stored grant was built against this deployment's pinned targets. */
+  matchesDeployment(hash: Hex): boolean {
+    const row = this.get(hash)
+    if (row === undefined) return false
+    try {
+      sdk.assertGrant(this.context, this.spec(hash), sdk.parseDelegation(row.delegation_json))
+      return true
+    } catch {
+      return false
+    }
+  }
+
   /** Unknown-token approval authority exists only after the operator's exact allowance has been verified. */
   approvedHire(owner: Address, spec: Extract<sdk.GrantSpec, { kind: 'agent-approve-once' }>, publishData?: Hex): Hex {
     const approval = this.sql.all<{

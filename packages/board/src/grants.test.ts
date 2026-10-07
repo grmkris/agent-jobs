@@ -143,4 +143,22 @@ describe('agent grant store', () => {
     expect(() => store.signed(prepared.hash)).toThrow('not live')
     db.close()
   })
+
+  it('recognizes live gas grants pinned to a previous deployment as stale', async () => {
+    const db = new DatabaseSync(':memory:')
+    const account = (await import('viem/accounts')).privateKeyToAccount(`0x${'11'.repeat(32)}`)
+    const oldStore = new GrantStore(fromNodeSqlite(db), ctx)
+    const prepared = oldStore.prepare(account.address, {
+      kind: 'agent-work',
+      delegator: account.address,
+      salt: 20n,
+      start: 1_800_000_000,
+    })
+    await oldStore.confirm(prepared.hash, await account.signTypedData(JSON.parse(prepared.typedData)))
+    expect(oldStore.matchesDeployment(prepared.hash)).toBe(true)
+    const changed = { ...d, core: `0x${'44'.repeat(20)}` as const }
+    const changedCtx = { deployment: changed, stack: sdk.stack(changed, 'main') }
+    expect(new GrantStore(fromNodeSqlite(db), changedCtx).matchesDeployment(prepared.hash)).toBe(false)
+    db.close()
+  })
 })

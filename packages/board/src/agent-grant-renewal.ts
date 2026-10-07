@@ -23,25 +23,18 @@ export async function ensureAgentGrants(
     throw new Error('Reconcile the original send before renewing its gas grants')
   for (const kind of kinds) {
     const prefix = `renew:${kind}:`
-    const prior = agents.sql
-      .all<{ name: string; value_json: string }>(
-        'SELECT name,value_json FROM agent_operation_steps WHERE operation_id=? AND substr(name,1,?)=?',
-        operationId,
-        prefix.length,
-        prefix,
-      )
-      .filter((step) => /^renew:.+:[1-9][0-9]*$/.test(step.name))
-      .toSorted((a, b) => Number(b.name.slice(prefix.length)) - Number(a.name.slice(prefix.length)))[0]
-    const saved =
-      prior === undefined ? undefined : (JSON.parse(prior.value_json) as { hash: Hex; replaces: Hex | null })
-    const savedRow = saved === undefined ? undefined : grants.get(saved.hash)
-    const current = grants
-      .list(agent.address)
-      .find(
-        (row) => row.kind === kind && row.status === 'live' && row.owner.toLowerCase() === agent.operator.toLowerCase(),
-      )
+    const { prior, saved, savedRow, current } = renewalState({
+      agents,
+      grants,
+      operationId,
+      prefix,
+      agent: { address: agent.address, operator: agent.operator },
+      kind,
+    })
+    const currentTargetsMatch = current === undefined || grants.matchesDeployment(current.delegation_hash)
     if (
       current !== undefined &&
+      currentTargetsMatch &&
       current.expires_at > now + 3600 &&
       !(await sdk.isDisabled(ctx, current.delegation_hash)) &&
       (await sdk.callsMade(ctx, current.delegation_hash)) < BigInt(sdk.GRANT_CALLS - 8)
@@ -54,6 +47,7 @@ export async function ensureAgentGrants(
       saved !== undefined &&
       savedRow !== undefined &&
       savedRow.status === 'prepared' &&
+      grants.matchesDeployment(saved.hash) &&
       savedRow.expires_at > now &&
       !(await sdk.isDisabled(ctx, saved.hash))
     ) {
@@ -64,6 +58,7 @@ export async function ensureAgentGrants(
     if (
       saved !== undefined &&
       savedRow?.status === 'live' &&
+      grants.matchesDeployment(saved.hash) &&
       savedRow.expires_at > now &&
       !(await sdk.isDisabled(ctx, saved.hash)) &&
       (await sdk.callsMade(ctx, saved.hash)) < BigInt(sdk.GRANT_CALLS - 8)
@@ -86,4 +81,38 @@ export async function ensureAgentGrants(
     await grants.confirm(prepared.hash, await signing.signGrant(agentId, prepared.hash))
     if (current !== undefined && current.delegation_hash !== prepared.hash) grants.stop(current.delegation_hash)
   }
+}
+
+function renewalState({
+  agents,
+  grants,
+  operationId,
+  prefix,
+  agent,
+  kind,
+}: {
+  agents: AgentStore
+  grants: GrantStore
+  operationId: Hex
+  prefix: string
+  agent: { address: `0x${string}`; operator: `0x${string}` }
+  kind: (typeof kinds)[number]
+}) {
+  const prior = agents.sql
+    .all<{ name: string; value_json: string }>(
+      'SELECT name,value_json FROM agent_operation_steps WHERE operation_id=? AND substr(name,1,?)=?',
+      operationId,
+      prefix.length,
+      prefix,
+    )
+    .filter((step) => /^renew:.+:[1-9][0-9]*$/.test(step.name))
+    .toSorted((a, b) => Number(b.name.slice(prefix.length)) - Number(a.name.slice(prefix.length)))[0]
+  const saved = prior === undefined ? undefined : (JSON.parse(prior.value_json) as { hash: Hex; replaces: Hex | null })
+  const savedRow = saved === undefined ? undefined : grants.get(saved.hash)
+  const current = grants
+    .list(agent.address)
+    .find(
+      (row) => row.kind === kind && row.status === 'live' && row.owner.toLowerCase() === agent.operator.toLowerCase(),
+    )
+  return { prior, saved, savedRow, current }
 }
