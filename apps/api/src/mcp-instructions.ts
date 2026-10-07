@@ -8,3 +8,5 @@ import { CONNECTOR_INSTRUCTIONS, SKILLS } from './generated/skills.ts'
 export const ROLE_GUIDES = SKILLS
 
 export const connectorInstructions = (origin: string): string => CONNECTOR_INSTRUCTIONS.replaceAll('{{SIDEQUEST_ORIGIN}}', new URL(origin).origin)
+
+export const renderSkill = (raw: string, origin: string): string => raw.replaceAll('{{SIDEQUEST_ORIGIN}}', new URL(origin).origin)

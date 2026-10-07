@@ -39,6 +39,16 @@ export function render(read = path => readFileSync(`${root}${path}`, 'utf8')) {
     `export const CONNECTOR_INSTRUCTIONS = ${JSON.stringify(read('skill/connector/INSTRUCTIONS.md').trimEnd())}`,
     `export const SKILLS = ${JSON.stringify(skills, null, 2)} as const`,
     `export const SKILL_MANIFESTS = ${JSON.stringify(manifests, null, 2)} as const`,
+    `export async function renderedSkillManifests(origin: string) {
+  const site = new URL(origin).origin
+  return Promise.all(SKILL_MANIFESTS.map(async skill => {
+    const raw = skill.raw.replaceAll('{{SIDEQUEST_ORIGIN}}', site)
+    const bytes = new TextEncoder().encode(raw)
+    const hash = await crypto.subtle.digest('SHA-256', bytes)
+    const digest = 'sha256:' + Array.from(new Uint8Array(hash), byte => byte.toString(16).padStart(2, '0')).join('')
+    return { ...skill, raw, resources: skill.resources.map(resource => ({ ...resource, digest, size: bytes.byteLength })) }
+  }))
+}`,
     '',
   ].join('\n')
 }

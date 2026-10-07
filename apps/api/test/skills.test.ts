@@ -59,3 +59,13 @@ test('SEP-2640 manifests preserve raw bytes, frontmatter and digest', () => {
     expect(skill.resources).toEqual([{ uri: skill.uri, digest: `sha256:${createHash('sha256').update(skill.raw, 'utf8').digest('hex')}`, size: Buffer.byteLength(skill.raw) }])
   }
 })
+
+test('MCP skill bytes and manifest digests render the request origin', async () => {
+  const { renderedSkillManifests } = await import('../src/generated/skills.ts')
+  for (const skill of await renderedSkillManifests('https://sidequest.exchange')) {
+    expect(skill.raw).not.toContain('{{SIDEQUEST_ORIGIN}}')
+    expect(skill.raw).not.toContain('dev.sidequest.exchange')
+    expect(skill.resources[0]?.digest).toBe(`sha256:${createHash('sha256').update(skill.raw, 'utf8').digest('hex')}`)
+    expect(skill.resources[0]?.size).toBe(Buffer.byteLength(skill.raw))
+  }
+})

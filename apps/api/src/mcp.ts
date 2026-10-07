@@ -2,10 +2,10 @@ import { agentFailureReply } from '@sidequest/board'
 import type { OAuthGrant } from './oauth.ts'
 import { OAUTH_SCOPES } from './oauth-validation.ts'
 import { permittedTool, requiredToolScope, toolAnnotations } from './mcp-policy.ts'
-import { ROLE_GUIDES, connectorInstructions } from './mcp-instructions.ts'
+import { ROLE_GUIDES, connectorInstructions, renderSkill } from './mcp-instructions.ts'
 import type { McpEvents } from './mcp-events.ts'
 import { EventRpcError } from './webhooks.ts'
-import { SKILL_MANIFESTS } from './generated/skills.ts'
+import { renderedSkillManifests } from './generated/skills.ts'
 import { hiringTools, hiringResource, renderHiring } from './mcp-hiring.ts'
 import { docsResources, readDoc, searchDocs } from './mcp-docs.ts'
 
@@ -82,6 +82,7 @@ export async function mcpRoute(input: {
 }): Promise<McpReply> {
   const { method, pathname, body, grant, call, origin } = input
   const tools = { ...input.tools, ...hiringTools }
+  const skillManifests = await renderedSkillManifests(origin)
   if (grant === undefined) return json({ ok: false, code: 'unauthenticated', message: 'A resource-scoped OAuth bearer token is required' }, 401, { 'www-authenticate': `Bearer resource_metadata="${origin}/.well-known/oauth-protected-resource${pathname}"` })
   if (method === 'GET') return json({ ok: false, code: 'method-not-allowed', message: 'SSE is not offered' }, 405)
   if (method === 'DELETE') return { status: 204, headers: { 'cache-control': 'no-store' } }
@@ -118,15 +119,15 @@ export async function mcpRoute(input: {
       }) })
   }
   if (methodName === 'prompts/list') return respond({ prompts: [{ name: 'find_work', description: 'Find available work' }, { name: 'hire', description: 'Hire a worker' }, { name: 'check_status', description: 'Check a job status' }] })
-  if (methodName === 'resources/list') return respond({ resources: [...Object.keys(ROLE_GUIDES).map(role => ({ uri: `sidequest://skills/${role}`, name: role, mimeType: 'text/markdown' })), ...SKILL_MANIFESTS.map(skill => ({ uri: skill.uri, name: skill.frontmatter.name, mimeType: 'text/markdown' })), { uri: hiringResource.uri, name: 'Hiring desk', mimeType: hiringResource.mimeType }, ...docsResources()] })
+  if (methodName === 'resources/list') return respond({ resources: [...Object.keys(ROLE_GUIDES).map(role => ({ uri: `sidequest://skills/${role}`, name: role, mimeType: 'text/markdown' })), ...skillManifests.map(skill => ({ uri: skill.uri, name: skill.frontmatter.name, mimeType: 'text/markdown' })), { uri: hiringResource.uri, name: 'Hiring desk', mimeType: hiringResource.mimeType }, ...docsResources()] })
   if (methodName === 'skills/list') {
     const after = params.cursor === undefined ? 0 : typeof params.cursor === 'string' && /^skills:[0-9]+$/.test(params.cursor) ? Number(params.cursor.slice(7)) : -1
-    if (!Number.isSafeInteger(after) || after < 0 || after > SKILL_MANIFESTS.length) return rpcError(-32602, 'Invalid skills cursor')
-    const page = SKILL_MANIFESTS.slice(after, after + 2).map(({ raw: _raw, ...entry }) => entry)
-    return respond({ skills: page, ...(after + page.length < SKILL_MANIFESTS.length ? { nextCursor: `skills:${after + page.length}` } : {}) })
+    if (!Number.isSafeInteger(after) || after < 0 || after > skillManifests.length) return rpcError(-32602, 'Invalid skills cursor')
+    const page = skillManifests.slice(after, after + 2).map(({ raw: _raw, ...entry }) => entry)
+    return respond({ skills: page, ...(after + page.length < skillManifests.length ? { nextCursor: `skills:${after + page.length}` } : {}) })
   }
   if (methodName === 'skills/get') {
-    const skill = SKILL_MANIFESTS.find(entry => entry.uri === params.uri)
+    const skill = skillManifests.find(entry => entry.uri === params.uri)
     if (skill === undefined) return rpcError(-32602, 'Unknown skill URI')
     const { raw: _raw, ...entry } = skill
     return respond({ skill: entry })
@@ -150,10 +151,10 @@ export async function mcpRoute(input: {
       return respond({ contents: [{ uri: params.uri, mimeType: 'text/markdown', text }] })
     }
     if (params.uri === hiringResource.uri) return respond({ contents: [hiringResource] })
-    const skill = SKILL_MANIFESTS.find(entry => entry.uri === params.uri)
+    const skill = skillManifests.find(entry => entry.uri === params.uri)
     if (skill !== undefined) return respond({ contents: [{ uri: skill.uri, mimeType: 'text/markdown', text: skill.raw }] })
     const role = String(params.uri).replace(/^sidequest:\/\/skills\//, '') as keyof typeof ROLE_GUIDES
-    if (Object.hasOwn(ROLE_GUIDES, role)) return respond({ contents: [{ uri: params.uri, mimeType: 'text/markdown', text: ROLE_GUIDES[role] }] })
+    if (Object.hasOwn(ROLE_GUIDES, role)) return respond({ contents: [{ uri: params.uri, mimeType: 'text/markdown', text: renderSkill(ROLE_GUIDES[role], origin) }] })
   }
   if (methodName === 'tools/call') {
     const name = typeof params.name === 'string' ? params.name : ''
@@ -162,7 +163,7 @@ export async function mcpRoute(input: {
     if (!permittedTool(grant, name)) return respond({ content: [{ type: 'text', text: 'forbidden: this connection does not grant this tool' }], isError: true, _meta: { 'mcp/www_authenticate': { error: 'insufficient_scope', error_description: 'This connection does not grant the requested tool' } } })
     if (name === 'get_instructions') {
       const role = typeof args.role === 'string' ? args.role : 'connector'
-      return respond(Object.hasOwn(ROLE_GUIDES, role) ? { content: [{ type: 'text', text: ROLE_GUIDES[role as keyof typeof ROLE_GUIDES] }], structuredContent: { instructions: ROLE_GUIDES[role as keyof typeof ROLE_GUIDES] } } : { content: [{ type: 'text', text: 'invalid role' }], isError: true })
+      return respond(Object.hasOwn(ROLE_GUIDES, role) ? { content: [{ type: 'text', text: renderSkill(ROLE_GUIDES[role as keyof typeof ROLE_GUIDES], origin) }], structuredContent: { instructions: renderSkill(ROLE_GUIDES[role as keyof typeof ROLE_GUIDES], origin) } } : { content: [{ type: 'text', text: 'invalid role' }], isError: true })
     }
     if (name === 'search_docs') {
       const query = typeof args.query === 'string' ? args.query : ''
