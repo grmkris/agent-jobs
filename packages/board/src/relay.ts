@@ -1,6 +1,7 @@
 import * as sdk from '@sidequest/sdk'
 import { type Address, type Hex, type LocalAccount, type SignedAuthorization, type TransactionReceipt, TransactionReceiptNotFoundError, keccak256 } from 'viem'
 import type { Sql } from './store.ts'
+import { SPONSOR_LIMITS } from './sponsor-policy.ts'
 import { SponsorRecovery } from './sponsor-recovery.ts'
 
 export interface RelayRequest { key: string; to: Address; data: Hex; gas?: string; authorizationList?: SignedAuthorization<number>[] }
@@ -38,7 +39,7 @@ export class RelaySender {
         await this.checkPendingLocked()
         const nonce = await this.ctx.publicClient.getTransactionCount({ address: this.account.address, blockTag: 'pending' })
         const explicitGas = request.gas === undefined ? 100_000n : BigInt(request.gas)
-        const sizing = sdk.stackGasSizing(this.ctx, request.to, explicitGas)
+        const sizing = { ...sdk.stackGasSizing(this.ctx, request.to, explicitGas), margin: SPONSOR_LIMITS.gasMargin }
         const gas = await sdk.transactionGas(this.ctx.publicClient, { account: this.account, to: request.to, data: request.data, value: 0n,
           ...(request.authorizationList === undefined ? {} : { authorizationList: request.authorizationList }) }, sizing)
         const { maxFeePerGas, maxPriorityFeePerGas } = await sdk.transactionFees(this.ctx.publicClient)

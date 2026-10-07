@@ -238,7 +238,7 @@ export class SponsorDesk {
       const data = redeemGrantBatch(parsed.map(item => ({ grant: item.grant, execution: item.checked.execution })))
       // ADR-0011 inner limits plus manager overhead are used only if estimation is unreliable.
       const floor = parsed.reduce((sum, c) => sum + c.checked.floor, 100_000n)
-      const gas = await sdk.transactionGas(ctx.publicClient, { account: relay.account, to: ctx.deployment.delegation.manager, data }, floor)
+      const gas = await sdk.transactionGas(ctx.publicClient, { account: relay.account, to: ctx.deployment.delegation.manager, data }, { fallback: floor, margin: SPONSOR_LIMITS.gasMargin })
         .catch((cause) => { throw Object.assign(this.#refuse('simulation', 'the sponsored calls did not simulate successfully'), { cause }) })
       if (gas > SPONSOR_LIMITS.gas) throw this.#refuse('cap', 'the sponsored transaction exceeds the gas cap')
       const { maxFeePerGas, maxPriorityFeePerGas } = await sdk.transactionFees(ctx.publicClient)

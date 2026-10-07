@@ -26,6 +26,11 @@ export interface GasSizing {
   fallback?: bigint
   /** A payout floor: successful estimates are raised to this limit before simulation. */
   floor?: bigint
+  /**
+   * The limit as a percentage of the estimate (plus 10k), 125 when absent. Monad bills the whole limit, so the relay
+   * sends tighter; a limit too tight to run fails the exact-limit simulation below and the fallback is used instead.
+   */
+  margin?: number
 }
 /** A shared journal/relay can call archived legacy pairs from its current v1 context. */
 export function stackGasSizing(ctx: Ctx, target: Address, fallback?: bigint): GasSizing {
@@ -41,12 +46,14 @@ export async function transactionGas(client: Pick<PublicClient, 'estimateGas' | 
   const options: GasSizing = typeof sizing === 'bigint' ? { fallback: sizing } : (sizing ?? {})
   const floor = options.floor
   if (floor !== undefined && floor <= 0n) throw new Error('Gas floor is invalid')
+  const margin = options.margin ?? 125
+  if (!Number.isInteger(margin) || margin < 100 || margin > 200) throw new Error('Gas margin is invalid')
   const fallback = floor === undefined ? options.fallback : max(floor, options.fallback ?? 0n)
   let gas: bigint
   try {
     const estimated = await client.estimateGas(request)
     if (estimated <= 0n) throw new Error('Gas estimate is invalid')
-    gas = (estimated * 125n + 99n) / 100n + 10_000n
+    gas = (estimated * BigInt(margin) + 99n) / 100n + 10_000n
     if (floor !== undefined && gas < floor) gas = floor
   } catch (error) {
     if (fallback === undefined || fallback <= 0n) throw error

@@ -181,7 +181,7 @@ describe('ERC-7710 sponsorship boundaries and recovery', () => {
     const op = await f.desk.submit(f.owner.address, f.entries(calls, f.owner.address), 'deferred')
     const raw = f.sql.all<{ raw_tx: Hex; cost: string; reserved_cost: string }>('SELECT * FROM sponsor_operations WHERE id=?', op.operationId)[0]!
     const tx = parseTransaction(raw.raw_tx)
-    expect(tx.gas).toBe(135_000n)
+    expect(tx.gas).toBe(120_000n)
     expect(tx.maxPriorityFeePerGas).toBeLessThan(await f.client.getGasPrice())
     expect(tx.maxFeePerGas).toBe(2_000_000_000n)
     expect(BigInt(raw.reserved_cost)).toBe(tx.gas! * tx.maxFeePerGas!)
@@ -205,7 +205,7 @@ describe('ERC-7710 sponsorship boundaries and recovery', () => {
     await f.relaySender().submit({ key: 'evidence-fees', to: f.ctx.stack.evaluator, data: '0x12345678', gas: '1200000' })
     const raw = f.sql.all<{ raw_tx: Hex }>('SELECT raw_tx FROM relay_operations WHERE id=?', 'evidence-fees')[0]!
     const tx = parseTransaction(raw.raw_tx)
-    expect(tx.gas).toBe(135_000n)
+    expect(tx.gas).toBe(120_000n)
     expect(tx.maxPriorityFeePerGas).toBeLessThan(await f.client.getGasPrice())
     expect(tx.maxFeePerGas).toBe(2n * (await f.client.getBlock()).baseFeePerGas)
   })
