@@ -138,7 +138,8 @@ async function loadOffer(host: string, hash: string, cfg: OfferHydrationConfig):
   try {
     const response = await (cfg.fetch ?? fetch)(`${host}/offers/${hash}.json`, {
       signal: AbortSignal.timeout(cfg.timeoutMs ?? 2500),
-      redirect: 'error',
+      // Workers reject redirect: 'error'. A redirect comes back as a 3xx, which is not ok, so it is never followed.
+      redirect: 'manual',
       headers: { accept: 'application/json' },
     })
     if (!response.ok) {

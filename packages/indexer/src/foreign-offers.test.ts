@@ -84,7 +84,7 @@ describe('foreign offer discovery', () => {
     const request = vi.fn<typeof fetch>(async () => new Response(canonicalJson(terms)))
     expect(await hydrateForeignOffers(f.sql, chainId, cfg(request), 1000)).toEqual({ attempts: 1, stored: 1 })
     expect(request.mock.calls[0]?.[0]).toBe(`${host}/offers/${hash}.json`)
-    expect(request.mock.calls[0]?.[1]).toMatchObject({ redirect: 'error', signal: expect.any(AbortSignal) })
+    expect(request.mock.calls[0]?.[1]).toMatchObject({ redirect: 'manual', signal: expect.any(AbortSignal) })
     expect(await foreignOffer(f.sql, hash)).toMatchObject({
       origin: host,
       terms: { title: terms.title, reward: '100' },
