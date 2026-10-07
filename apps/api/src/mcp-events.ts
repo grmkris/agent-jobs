@@ -20,6 +20,7 @@ const descriptors = [
 ].map(event => ({ ...event, payloadSchema, delivery: ['poll', 'webhook'] }))
 
 export function eventArguments(name: unknown, value: unknown): { name: string; args: Record<string, unknown> } {
+  if (name === undefined) throw new EventRpcError(-32602, 'name is required: one of the events events/list returns')
   if (typeof name !== 'string' || !descriptors.some(event => event.name === name)) throw new EventRpcError(-32602, 'Unknown event name')
   const args = value === undefined ? {} : value
   if (typeof args !== 'object' || args === null || Array.isArray(args)) throw new EventRpcError(-32602, 'Event arguments must be an object')

@@ -97,6 +97,10 @@ describe('MCP feed streams', () => {
     const { events } = await setup()
     await expect(events.handle('events/poll', params, grant)).rejects.toMatchObject({ code: -32602 })
   })
+  it('names the missing event name rather than calling it unknown', async () => {
+    const { events } = await setup()
+    await expect(events.handle('events/poll', {}, grant)).rejects.toMatchObject({ code: -32602, message: expect.stringMatching(/^name is required/) })
+  })
   it.each(['events/list', 'events/poll', 'events/subscribe', 'events/unsubscribe'])('requires read scope and the grant chain for %s', async method => {
     const { events } = await setup()
     await expect(events.handle(method, {}, { ...grant, scopes: ['sidequest:work'] })).rejects.toMatchObject({ code: -32003 })
