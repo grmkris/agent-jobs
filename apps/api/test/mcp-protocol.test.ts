@@ -77,6 +77,7 @@ describe('legacy wire snapshots and rollback', () => {
     expect(JSON.stringify({ jsonrpc: '2.0', id: 1, result: { tools: (result(await route('tools/list', {}, { modernLane })).tools as Record<string, unknown>[]).filter(tool => !['show_hiring_dashboard', 'show_task'].includes(String(tool.name))).map(({ title: _title, annotations: _annotations, outputSchema: _outputSchema, securitySchemes: _securitySchemes, ...tool }) => tool) } })).toBe(JSON.stringify({ jsonrpc: '2.0', id: 1, result: { tools: [
       { name: 'get_task', description: 'Read task', inputSchema: { type: 'object', properties: { taskId: { type: 'string' } }, required: ['taskId'] } },
       { name: 'get_instructions', description: 'Read the full connector, worker or publisher role instructions.', inputSchema: { type: 'object', properties: { role: { type: 'string', enum: ['connector', 'worker', 'publisher'] } } } },
+      { name: 'search_docs', description: 'Searches the Sidequest docs and returns pages to read with resources/read.', inputSchema: { type: 'object', properties: { query: { type: 'string' }, limit: { type: 'integer', minimum: 1, maximum: 10 } }, required: ['query'] } },
     ] } }))
     expect(JSON.stringify({ jsonrpc: '2.0', id: 1, result: { content: result(await route('tools/call', { name: 'get_task', arguments: { taskId: 't1' } }, { modernLane })).content } })).toBe('{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"{\\"ok\\":true,\\"result\\":{\\"taskId\\":\\"t1\\"}}"}]}}')
   })

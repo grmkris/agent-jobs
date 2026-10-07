@@ -7,6 +7,7 @@ import type { McpEvents } from './mcp-events.ts'
 import { EventRpcError } from './webhooks.ts'
 import { SKILL_MANIFESTS } from './generated/skills.ts'
 import { hiringTools, hiringResource, renderHiring } from './mcp-hiring.ts'
+import { docsResources, readDoc, searchDocs } from './mcp-docs.ts'
 
 const PROTOCOLS = ['2025-06-18', '2025-03-26', '2024-11-05'] as const
 export const MODERN_LANE = true
@@ -107,7 +108,7 @@ export async function mcpRoute(input: {
   }
   if (methodName === 'ping') return respond({})
   if (methodName === 'tools/list') {
-    return respond({ tools: Object.entries({ ...tools, get_instructions: { description: 'Read the full connector, worker or publisher role instructions.', inputSchema: { type: 'object', properties: { role: { type: 'string', enum: ['connector', 'worker', 'publisher'] } } } } })
+    return respond({ tools: Object.entries({ ...tools, get_instructions: { description: 'Read the full connector, worker or publisher role instructions.', inputSchema: { type: 'object', properties: { role: { type: 'string', enum: ['connector', 'worker', 'publisher'] } } } }, search_docs: { description: 'Searches the Sidequest docs and returns pages to read with resources/read.', inputSchema: { type: 'object', properties: { query: { type: 'string' }, limit: { type: 'integer', minimum: 1, maximum: 10 } }, required: ['query'] }, outputSchema: { type: 'object', additionalProperties: true } } })
       .filter(([name]) => permittedTool(grant, name)).map(([name, tool]) => {
         const schema = tool.inputSchema ?? { type: 'object', properties: {} }
         const write = requiredToolScope(name) !== 'sidequest:read'
@@ -117,7 +118,7 @@ export async function mcpRoute(input: {
       }) })
   }
   if (methodName === 'prompts/list') return respond({ prompts: [{ name: 'find_work', description: 'Find available work' }, { name: 'hire', description: 'Hire a worker' }, { name: 'check_status', description: 'Check a job status' }] })
-  if (methodName === 'resources/list') return respond({ resources: [...Object.keys(ROLE_GUIDES).map(role => ({ uri: `sidequest://skills/${role}`, name: role, mimeType: 'text/markdown' })), ...SKILL_MANIFESTS.map(skill => ({ uri: skill.uri, name: skill.frontmatter.name, mimeType: 'text/markdown' })), { uri: hiringResource.uri, name: 'Hiring desk', mimeType: hiringResource.mimeType }] })
+  if (methodName === 'resources/list') return respond({ resources: [...Object.keys(ROLE_GUIDES).map(role => ({ uri: `sidequest://skills/${role}`, name: role, mimeType: 'text/markdown' })), ...SKILL_MANIFESTS.map(skill => ({ uri: skill.uri, name: skill.frontmatter.name, mimeType: 'text/markdown' })), { uri: hiringResource.uri, name: 'Hiring desk', mimeType: hiringResource.mimeType }, ...docsResources()] })
   if (methodName === 'skills/list') {
     const after = params.cursor === undefined ? 0 : typeof params.cursor === 'string' && /^skills:[0-9]+$/.test(params.cursor) ? Number(params.cursor.slice(7)) : -1
     if (!Number.isSafeInteger(after) || after < 0 || after > SKILL_MANIFESTS.length) return rpcError(-32602, 'Invalid skills cursor')
@@ -143,6 +144,11 @@ export async function mcpRoute(input: {
     if (text !== undefined) return respond({ messages: [{ role: 'user', content: { type: 'text', text } }] })
   }
   if (methodName === 'resources/read') {
+    if (typeof params.uri === 'string' && params.uri.startsWith('sidequest://docs/')) {
+      const text = readDoc(params.uri, origin)
+      if (text === undefined) return rpcError(-32002, `Unknown docs resource: ${params.uri}`)
+      return respond({ contents: [{ uri: params.uri, mimeType: 'text/markdown', text }] })
+    }
     if (params.uri === hiringResource.uri) return respond({ contents: [hiringResource] })
     const skill = SKILL_MANIFESTS.find(entry => entry.uri === params.uri)
     if (skill !== undefined) return respond({ contents: [{ uri: skill.uri, mimeType: 'text/markdown', text: skill.raw }] })
@@ -157,6 +163,14 @@ export async function mcpRoute(input: {
     if (name === 'get_instructions') {
       const role = typeof args.role === 'string' ? args.role : 'connector'
       return respond(Object.hasOwn(ROLE_GUIDES, role) ? { content: [{ type: 'text', text: ROLE_GUIDES[role as keyof typeof ROLE_GUIDES] }], structuredContent: { instructions: ROLE_GUIDES[role as keyof typeof ROLE_GUIDES] } } : { content: [{ type: 'text', text: 'invalid role' }], isError: true })
+    }
+    if (name === 'search_docs') {
+      const query = typeof args.query === 'string' ? args.query : ''
+      if (query.trim() === '') return respond({ content: [{ type: 'text', text: 'query must not be empty' }], isError: true })
+      const searchInput: { query: string; limit?: number } = { query }
+      if (typeof args.limit === 'number') searchInput.limit = args.limit
+      const result = searchDocs(searchInput, origin)
+      return respond({ content: [{ type: 'text', text: JSON.stringify(result) }], structuredContent: result })
     }
     if (tool === undefined) return respond({ content: [{ type: 'text', text: `not-found: no tool ${name}` }], isError: true })
     const agentId = typeof args.managedAgentId === 'string' ? args.managedAgentId : grant.agentIds.length === 1 ? grant.agentIds[0]! : ''

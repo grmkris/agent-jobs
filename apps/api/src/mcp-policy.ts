@@ -2,7 +2,7 @@
 import type { OAuthGrant } from './oauth.ts'
 
 const READ_TOOLS = new Set([
-  'get_instructions', 'whoami', 'protocol_info', 'list_tasks', 'get_task', 'task_index', 'list_quote_requests',
+  'get_instructions', 'search_docs', 'whoami', 'protocol_info', 'list_tasks', 'get_task', 'task_index', 'list_quote_requests',
   'list_quotes', 'get_budget', 'list_applications', 'get_stake', 'list_delegations', 'fee_quote', 'mining_proof', 'list_boards',
   'get_board', 'list_directory', 'get_directory_agent', 'list_approvals', 'agent_status', 'get_supported_permissions', 'get_permissions', 'inbox', 'check_operation', 'show_hiring_dashboard', 'show_task',
 ])
@@ -30,7 +30,7 @@ const SHARED_TOOLS = new Set(['settlement_actions', 'request_unstake', 'cancel_u
  */
 const REVIEW: Readonly<Record<string, readonly [boolean, boolean, boolean]>> = {
   show_hiring_dashboard: [true, false, false], show_task: [true, false, false],
-  get_instructions: [true, false, true], whoami: [true, false, true], protocol_info: [true, false, true],
+  get_instructions: [true, false, true], search_docs: [true, false, true], whoami: [true, false, true], protocol_info: [true, false, true],
   list_tasks: [true, false, true], get_task: [true, false, true], task_index: [true, false, true],
   list_quote_requests: [true, false, true], list_quotes: [true, false, true], get_budget: [true, false, true],
   list_applications: [true, false, true], get_stake: [true, false, true], list_delegations: [true, false, true],
