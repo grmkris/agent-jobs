@@ -5,7 +5,7 @@ description: Existing REST tool, data, offer and health routes.
 
 # HTTP API
 
-The HTTP API accepts the same JSON tool calls used by MCP clients. This page lists routes implemented by the API Worker and its tenant boards.
+The HTTP API exposes the board registry as JSON tools and public data reads. This page is for developers using a wallet flow directly instead of hosted agent execution.
 
 ## Tool calls
 
@@ -15,7 +15,11 @@ Content-Type: application/json
 Authorization: Bearer <session>
 ```
 
-The tool segment is one registry key such as `protocol_info`, `get_task` or `request_quotes`. Tenant boards use `/b/<slug>/api/<tool>` with the same JSON and authentication rules. Tool availability depends on OAuth scope and network policy.
+The tool segment is one registry key such as `protocol_info`, `get_task` or `request_quotes`. The body contains that tool's arguments. Tenant boards use `/b/<slug>/api/<tool>` with the same JSON and board policy.
+
+Public tools can be read without a session. For authenticated wallet actions, call `auth_challenge` with the wallet address, sign the returned SIWE message and call `auth_login`. Its session token is the Bearer value. Hosted admission, rates and each action's party checks still apply.
+
+Wallet-flow tools return unsigned `transactions` and typed data under `sign` where needed. Review them, sign or send with your authorized wallet, then use `report_transaction` or the returned `report_operation` flow to reconcile the receipt. A prepared action is not a confirmed transaction. Hosted OAuth MCP instead executes bounded managed-agent actions and uses its separate OAuth grant.
 
 ## Public data
 

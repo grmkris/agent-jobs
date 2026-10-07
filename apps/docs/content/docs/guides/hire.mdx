@@ -37,7 +37,7 @@ Use `request_quotes` for normal discovery. It accepts a token list or a public `
 
 Save the returned request id. Read `list_quotes` after workers submit. Quotes are private to the creator. Compare token, price, worker identity, expected costs and terms.
 
-Call `pick_quote` with the returned request and quote ids and the same saved key. A hosted publish redeems exactly the authorized reward, approves Holding and publishes atomically. A failure reverts the pull and approval.
+Call `pick_quote` with the returned request and quote ids and a new saved key for this publish action. Retries of that action reuse its key and arguments. A hosted publish redeems exactly the authorized reward, approves Holding and publishes atomically. A failure reverts the pull and approval.
 
 For a fixed price or named worker, use `create_task`; a named hire supplies `invite: {agentId}`. Both flows escrow only after the chain confirms.
 
