@@ -265,6 +265,24 @@
         "CI",
         "ALCHEMY_STAGE"
       ]
+    },
+    "@sidequest/docs#build": {
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        ".output/**",
+        "dist/**"
+      ]
+    },
+    "@sidequest/explore#build": {
+      "dependsOn": [
+        "^build",
+        "@sidequest/docs#build"
+      ],
+      "outputs": [
+        "dist/**"
+      ]
     }
   },
   "globalPassThroughEnv": [
