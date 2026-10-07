@@ -1,6 +1,7 @@
 import { decodeFunctionResult, encodeFunctionData, parseAbi, parseEther } from 'viem'
 
 import { prodSecretSources } from '@sidequest/board/runtime'
+import { PRODUCTION_CLOCKS } from '@sidequest/sdk'
 export { prodSecretSources, runtimeSecret } from '@sidequest/board/runtime'
 
 interface ProdStack {
@@ -63,17 +64,8 @@ export interface LaunchClocks {
   epochZeroDuration: number
   epochDuration: number
 }
-export const productionLaunchClocks: LaunchClocks = {
-  minReviewWindow: 3600,
-  minDisputeWindow: 3600,
-  minArbitrationWindow: 43200,
-  unstakeDelay: 604800,
-  holdingDelay: 691200,
-  feeDelay: 259200,
-  proposalGrace: 604800,
-  epochZeroDuration: 259200,
-  epochDuration: 604800,
-}
+/** The compiled production clocks (SidequestConstants), from the one SDK copy so the launch gate cannot drift. */
+export const productionLaunchClocks: LaunchClocks = { ...PRODUCTION_CLOCKS }
 
 export interface ChainConfig {
   network: string
