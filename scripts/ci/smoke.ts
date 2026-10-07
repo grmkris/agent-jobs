@@ -31,7 +31,14 @@ const body = async (response: Response): Promise<Record<string, unknown>> => {
     throw new Error(`invalid JSON response (HTTP ${response.status})`)
   }
 }
-export const smoke = async (stage: Stage, fetcher: typeof fetch = fetch): Promise<void> => {
+/** The indexer's cron runs every minute; a checkpoint older than this means it has stopped. */
+const INDEX_MAX_AGE_SECONDS = 600
+
+export const smoke = async (
+  stage: Stage,
+  fetcher: typeof fetch = fetch,
+  now: () => number = Date.now,
+): Promise<void> => {
   const infra = readStage(stage)
   const get = (path: string) =>
     fetcher(new URL(path, infra.origin), { redirect: 'error', signal: AbortSignal.timeout(20_000) })
@@ -81,7 +88,14 @@ export const smoke = async (stage: Stage, fetcher: typeof fetch = fetch): Promis
       throw new Error(`anonymous ${method} challenge mismatch`)
     await response.body?.cancel()
   }
-  console.log(`note ${stage}: indexer checkpoint is not exposed by a public origin endpoint; skipped`)
+  const jobs = await get('/data/jobs')
+  const jobsBody = await body(jobs)
+  const index: unknown = jobsBody.index
+  const updatedAt = index instanceof Object && 'updated_at' in index ? Number(index.updated_at) : Number.NaN
+  if (jobs.status !== 200 || jobsBody.ok !== true || !Number.isSafeInteger(updatedAt))
+    throw new Error('indexer checkpoint missing')
+  const age = Math.floor(now() / 1000) - updatedAt
+  if (age > INDEX_MAX_AGE_SECONDS) throw new Error(`indexer checkpoint is ${age} s old`)
   console.log(`ok ${stage} ${infra.origin}`)
 }
 
