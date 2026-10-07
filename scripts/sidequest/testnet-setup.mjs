@@ -13,11 +13,17 @@ import {
   zeroAddress,
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
-import { existingSafe, parseSetupArgs, safeNonce, setupOperationId } from './testnet-setup-model.mjs'
+import { existingSafe, faucetPlan, parseSetupArgs, safeNonce, setupOperationId } from './testnet-setup-model.mjs'
 import { stageProfile } from '../../infra/stage.ts'
 import { loadEnv, testnetOperation } from './transaction.mjs'
 
 const { command, generation } = parseSetupArgs(process.argv.slice(2))
+if (command === 'faucet' && process.env.SIDEQUEST_TESTNET_SEND !== '1') {
+  console.log(
+    JSON.stringify(faucetPlan(JSON.parse(readFileSync('contracts/config/monad-testnet.json', 'utf8')), generation)),
+  )
+  process.exit(0)
+}
 const env = loadEnv()
 const op = (name) => setupOperationId(name, generation)
 const infra = stageProfile(env.SIDEQUEST_STAGE ?? 'dev') ?? stageProfile('dev')
