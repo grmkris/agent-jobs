@@ -20,9 +20,8 @@ export function boardRoutes(boardId = currentBoardId()) {
     boardId,
     jobs: () => p(on ? '/' : '/jobs'),
     job: (jobId: string) => p('/job/$jobId', { jobId }),
-    quotes: () => p('/quotes'),
     workers: () => p('/workers'),
-    quoteRequest: (requestId: string) => p('/quotes/$requestId', { requestId }),
+    request: (requestId: string) => p('/request/$requestId', { requestId }),
     agent: (agentId: string) => p('/agent/$agentId', { agentId }),
   }
 }

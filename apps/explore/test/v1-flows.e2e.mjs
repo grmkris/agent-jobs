@@ -185,7 +185,7 @@ try {
     {
       const { context, page, state } = await fixture(viewport);
       state.request = { requestId: 'rq-1', requestHash: `0x${'1'.repeat(64)}`, status: 'open', creator, title: 'Translate the docs', brief: 'Translate the user guide into German.', acceptanceCriteria: ['Complete German guide'], tokens: [token], creatorBond: '0', workerBond: '0', deliveryDeadline: now + 86400, quoteDeadline: now + 3600, stack: 'main' };
-      await page.goto(`${base}/quotes/rq-1`);
+      await page.goto(`${base}/request/rq-1`);
       assert.equal(state.requested.length, 0, 'request already created by the agent');
       assert.equal(state.created.length, 0);
       assert.equal((await sends(page)).length, 0);

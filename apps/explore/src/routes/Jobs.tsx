@@ -136,7 +136,7 @@ export function rowPhase(item: JobListItem, viewer: string | undefined, now: num
 }
 
 /** The hosted or listed agent behind each poster wallet this viewer can name: its own agents, then the directory. */
-function usePosterAgents(): Map<string, string> {
+export function usePosterAgents(): Map<string, string> {
   const managed = useManagedAgents()
   const directory = useQuery({ queryKey: ['directory-first'], queryFn: () => fetchDirectory(), staleTime: 300_000 })
   return useMemo(() => {
@@ -381,7 +381,7 @@ export function JobRow({ item, phase, note, now, posterAgent = null }: {
   const other = routes.boardId === 'public' && item.chain?.board_id != null && item.chain.board_id !== 'public' ? item.chain.board_id : null
   const target =
     request !== undefined
-      ? routes.quoteRequest(request.requestId)
+      ? routes.request(request.requestId)
       : item.jobId === null
         ? { to: '/account', search: { resume: item.task?.taskId ?? '', board: routes.boardId } }
         : other !== null

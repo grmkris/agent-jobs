@@ -91,7 +91,9 @@ try {
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     await page.screenshot({ path: `${output}/${device}-jobs.png`, fullPage: true });
     state.creator = agentWallet;
+    // Old request links (inbox, Telegram) redirect to the request's page.
     await page.goto(`${base}/quotes/req`);
+    await page.waitForURL('**/request/req');
     await page.getByRole('button', { name: 'Choose with your agent', exact: true }).waitFor();
     assert.equal(await page.getByRole('button', { name: 'Pick', exact: true }).count(), 0);
     await page.getByRole('button', { name: 'Choose with your agent', exact: true }).click();
@@ -117,9 +119,16 @@ try {
     assert.equal(await page.getByRole('textbox', { name: 'Agent instruction' }).count(), 0);
     state.delay = 0; state.agents = publishers;
     state.creator = owner;
-    await page.goto(`${base}/quotes/req?fresh=1`);
+    await page.goto(`${base}/request/req?fresh=1`);
+    // The requester's page: the budget, the bidder count and a large countdown before the quotes themselves.
+    const quoting = page.getByRole('region', { name: 'Quoting' });
+    await quoting.getByText('Quotes close in', { exact: true }).waitFor();
+    assert.match(await quoting.innerText(), /Up to\s*25 mUSD/);
+    assert.match(await quoting.innerText(), /Covered/);
     await page.getByRole('button', { name: viewport.width === 390 ? 'Pick' : 'Pick this quote', exact: true }).first().waitFor();
     assert.deepEqual(state.writes, []);
+    await page.goto(`${base}/quotes`);
+    await page.waitForURL((url) => url.pathname === '/jobs' && url.searchParams.get('view') === 'open');
     await page.goto(`${base}/b/client-board`);
     await page.getByText(`${base.replace(/^https?:\/\//, '')}/b/client-board/mcp and ask for quotes on …`, { exact: false }).waitFor();
     results.push({ device, passed: true, checks: ['tag OR with search/phase AND', 'URL reload', 'untagged visible without tags', 'quote request row: phase, budget, count, covered, countdown', 'request under Open', 'post hint, no create button', 'hint clipboard failure', 'hosted requester exact publisher', 'pick clipboard failure', 'revoked publisher: no cached instruction, handoff withdrawn', 'exact browser requester keeps picker', 'tenant MCP context', 'no sends'] });

@@ -4,25 +4,27 @@ import { Input } from '../components/ui/input.tsx'
 import { cn } from '../lib/cn.ts'
 import { Alert, AlertDescription } from '../components/ui/alert.tsx'
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '../components/ui/empty.tsx'
-import { Item, ItemGroup, ItemTitle, ItemDescription, ItemContent, ItemActions, ItemMedia } from '../components/ui/item.tsx'
+import { Item, ItemGroup, ItemDescription, ItemContent, ItemMedia } from '../components/ui/item.tsx'
 import { Address, LoadingRows, PageTitle, Section, shortAddress, textLinkClass } from '../components/kit.tsx'
 import { useQuery } from '@tanstack/react-query'
 import { useParams } from '@tanstack/react-router'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { useState } from 'react'
+import { Check, ChevronLeft, TriangleAlert } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { parseUnits } from 'viem'
 import { type DeliverableKind, type DeliverableSpec, type Quote, type QuoteRequest, type TxRequest, currentBoardId, tool } from '../api.ts'
 import { BoardLink, boardRoutes, useBoardNavigate } from '../components/BoardLink.tsx'
-import { humanAmount } from '../format.ts'
+import { humanAmount, relative } from '../format.ts'
 import { KV, Mark, Switch } from '../components/controls.tsx'
 import { verdictText } from '../screening.ts'
 import { SignIn } from '../components/SignIn.tsx'
 import { ConfirmSheet, useToast } from '../components/Sheet.tsx'
 import { When, useNow } from '../components/Time.tsx'
 import { TxSteps } from '../components/TxSteps.tsx'
-import { JobsHeader } from '../components/JobsHeader.tsx'
+import { RollingCountdown } from '../components/RollingCountdown.tsx'
+import { useQuoteRequests } from '../quote-requests.ts'
+import { usePosterAgents } from './Jobs.tsx'
 
-import { useAuth, type useSignedIn } from '../components/Wallet.tsx'
+import type { useSignedIn } from '../components/Wallet.tsx'
 import { AgentOrb } from '../components/agent/AgentOrb.tsx'
 import { AgentLabel } from '../components/agent/AgentChip.tsx'
 import { TokenAmount } from '../components/token/TokenAmount.tsx'
@@ -43,71 +45,6 @@ const KIND_LABEL: Record<DeliverableKind, string> = {
   artifact: 'File',
   url: 'Live URL',
   onchain: 'On-chain',
-}
-
-const useRequests = () => {
-  const boardId = currentBoardId()
-  return useQuery({
-    queryKey: ['list_quote_requests', boardId],
-    queryFn: () => tool<Request[]>('list_quote_requests'),
-    refetchInterval: 20_000,
-  })
-}
-
-/** Open quote requests: jobs whose price agents bid over the board's MCP server; nothing is escrowed until one is picked. */
-export function QuotesPage() {
-  const auth = useAuth()
-  const requests = useRequests()
-  const list = requests.data ?? []
-  return (
-    <>
-      <JobsHeader />
-
-      <p className="-mt-2 text-muted-foreground">Jobs where agents bid a price. Nothing is locked until the requester picks a quote.</p>
-
-      <Section
-        title="Taking quotes"
-        note="Agents quote over the board's MCP server (submit_quote). Quotes are private: only the requester sees them."
-      >
-        {requests.isLoading ? (
-          <LoadingRows rows={3} />
-        ) : requests.error !== null ? (
-          <Alert variant="destructive">
-            <AlertDescription>Quote requests are unavailable right now.</AlertDescription>
-          </Alert>
-        ) : list.length === 0 ? (
-          <Empty>
-            <EmptyHeader>
-              <EmptyTitle>No open quote requests</EmptyTitle>
-              <EmptyDescription>
-                Ask your publisher to describe the work and request prices.
-                <CreateWithAgent context="quotes" variant="outline">Ask for quotes</CreateWithAgent>
-              </EmptyDescription>
-            </EmptyHeader>
-          </Empty>
-        ) : (
-          <ItemGroup>
-            {list.map((r) => (
-              <Item key={r.requestId} render={<BoardLink target={boardRoutes().quoteRequest(r.requestId)} />}>
-                <ItemContent className="min-w-0 flex-1">
-                  <ItemTitle className="block truncate font-medium">{r.title}</ItemTitle>
-                  <ItemDescription className="block text-ui text-muted-foreground">
-                    {r.tokens.map(symbolOf).join(' or ')} · quotes close <When at={r.quoteDeadline} show="relative" />
-                  </ItemDescription>
-                </ItemContent>
-                {auth.address !== undefined && r.creator.toLowerCase() === auth.address.toLowerCase() && (
-                  <Badge variant="info">Yours</Badge>
-                )}
-                <ItemActions>
-                  <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground" />
-                </ItemActions>
-              </Item>
-            ))}
-          </ItemGroup>
-        )}
-      </Section>
-    </>
-  )
 }
 
 interface Picked {
@@ -152,8 +89,9 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
   const toast = useToast()
   const now = useNow()
   const boardId = currentBoardId()
-  const requests = useRequests()
-  const r = requests.data?.find((x) => x.requestId === requestId)
+  const requests = useQuoteRequests()
+  const r = requests.data?.find((x) => x.requestId === requestId) as Request | undefined
+  const posters = usePosterAgents()
   const quotes = useQuery({
     queryKey: ['list_quotes', boardId, requestId, auth.signedIn],
     queryFn: () => tool<{ creator: string; picked: string | null; quotes: Quote[] }>('list_quotes', { requestId }),
@@ -183,7 +121,7 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
   // instruction; unmounting it on every fetch would make its own useManagedAgents subscription refetch in a loop.
   const ownedPublisher = managed.isSuccess && !managed.isError ? managed.data?.agents.find(agent =>
     agent.state === 'active' && agent.agent_id !== null && agent.address !== null && creator !== undefined && agent.address.toLowerCase() === creator.toLowerCase()) : undefined
-  const pendingTask = picked?.taskId ?? quotes.data?.picked ?? null
+  const pendingTask = picked?.taskId ?? quotes.data?.picked ?? r?.taskId ?? null
   const pickedTask = useQuery({
     queryKey: ['quote-picked-task', boardId, pendingTask],
     queryFn: () => tool<{ jobId: string | null }>('get_task', { taskId: pendingTask }),
@@ -191,6 +129,11 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
     refetchInterval: 15_000,
   })
   const jobId = pickedTask.data?.jobId ?? null
+  // A request someone picked and published is its job now; an old link (inbox, Telegram) lands on that job. The
+  // requester mid-publish stays here: their own flow navigates when the publish confirms.
+  useEffect(() => {
+    if (jobId !== null && picked === null && publish === null) void navigate(boardRoutes().job(jobId))
+  }, [jobId, picked, publish])
   const price = picked === null ? null : humanAmount(picked.quote.amount, picked.quote.symbol)
 
   const record = (agentId: string) => {
@@ -255,42 +198,62 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
     await navigate(id !== null ? boardRoutes().job(id) : boardRoutes().jobs())
   }
 
+  const open = r !== undefined && pendingTask === null && r.quoteDeadline > now
   const status =
     pendingTask !== null ? (
       <Badge variant="success">Quote picked</Badge>
     ) : r === undefined ? (
       <Badge variant="neutral">Closed</Badge>
-    ) : r.quoteDeadline > now ? (
+    ) : open ? (
       <Badge variant="info">Taking quotes</Badge>
     ) : (
       <Badge variant="neutral">Quotes closed</Badge>
     )
+  const posterAgent = r === undefined ? null : r.creatorAgentId ?? posters.get(r.creator.toLowerCase()) ?? null
+  const quotesCount = r?.quotesCount ?? 0
 
   return (
     <>
       <BoardLink
-        target={boardRoutes().quotes()}
+        target={boardRoutes().jobs()}
         className={cn(textLinkClass, '-mt-3 -mb-6 inline-flex items-center gap-0.5 justify-self-start py-3 text-sm')}
       >
         <ChevronLeft aria-hidden className="size-4" />
-        Quote requests
+        Jobs
       </BoardLink>
 
-      <PageTitle
-        sub={
-          <>
-            {status}
+      <PageTitle sub={status}>{r?.title ?? 'Quote request'}</PageTitle>
 
-            {r !== undefined && pendingTask === null && (
-              <span>
-                Quotes close <When at={r.quoteDeadline} />
-              </span>
-            )}
-          </>
-        }
-      >
-        {r?.title ?? 'Quote request'}
-      </PageTitle>
+      {r !== undefined && pendingTask === null && (
+        <section aria-label="Quoting" className="grid gap-5 rounded-2xl bg-card p-5 ring-1 ring-foreground/10 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center sm:gap-10">
+          <div className="grid gap-1">
+            <span className="text-ui text-muted-foreground">{open ? 'Quotes close in' : 'Quotes closed'}</span>
+            {open ? <RollingCountdown to={r.quoteDeadline} size="display" passed="closed" /> : <span className="text-lg font-medium"><When at={r.quoteDeadline} show="time" /></span>}
+          </div>
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-3">
+            <div className="grid gap-0.5">
+              <dt className="text-ui text-muted-foreground">Budget</dt>
+              <dd className="font-medium tabular-nums">
+                {r.budget === undefined ? 'Open to quotes' : <>Up to <TokenAmount value={r.budget.max} token={r.budget.token} /></>}
+              </dd>
+              {r.budgetCovered === true && <dd className="inline-flex items-center gap-1 text-ui text-success-text"><Check aria-hidden className="size-3.5" />Covered</dd>}
+              {r.budgetCovered === false && <dd className="inline-flex items-center gap-1 text-ui text-warning-text"><TriangleAlert aria-hidden className="size-3.5" />Not covered</dd>}
+            </div>
+            <div className="grid gap-0.5">
+              <dt className="text-ui text-muted-foreground">Quotes</dt>
+              <dd className="font-medium tabular-nums">{quotesCount === 0 ? 'None yet' : quotesCount}</dd>
+              <dd className="text-ui text-muted-foreground">Amounts stay private</dd>
+            </div>
+            <div className="col-span-2 grid gap-0.5 sm:col-span-1">
+              <dt className="text-ui text-muted-foreground">Posted</dt>
+              <dd className="font-medium">{r.createdAt === undefined ? '—' : relative(r.createdAt, now)}</dd>
+              <dd className="text-ui text-muted-foreground">
+                by {posterAgent !== null ? <AgentLabel id={posterAgent} /> : <span className="font-mono text-xs">{shortAddress(r.creator)}</span>}
+              </dd>
+            </div>
+          </dl>
+        </section>
+      )}
 
       {requests.isLoading ? (
         <LoadingRows rows={3} />
@@ -299,7 +262,7 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
           <Empty>
             <EmptyHeader>
               <EmptyTitle>This request is closed</EmptyTitle>
-              <EmptyDescription>Only open requests are listed: quoting has closed, or the requester picked a quote.</EmptyDescription>
+              <EmptyDescription>Requests stay listed for a week after quoting closes or a quote is picked.</EmptyDescription>
             </EmptyHeader>
           </Empty>
         )
@@ -327,7 +290,12 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
 
           <Section title="Terms">
             <ItemGroup>
-              <KV label="Accepted tokens">{r.tokens.map(symbolOf).join(', ')}</KV>
+              <KV label={r.budget === undefined ? 'Accepted tokens' : 'Paid in'}>{r.tokens.map(symbolOf).join(', ')}</KV>
+              {r.budget !== undefined && (
+                <KV label="Budget">
+                  <span className="inline-flex items-center gap-1 whitespace-nowrap">Up to <TokenAmount value={r.budget.max} token={r.budget.token} /></span>
+                </KV>
+              )}
               <KV label="Quotes close">
                 <When at={r.quoteDeadline} />
               </KV>

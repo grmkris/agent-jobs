@@ -49,7 +49,7 @@ export function boardFeedEvents(board: Sql, input: BoardToolEvent): FeedEvent[] 
     if (requestId === undefined || request === undefined || quoteHash === undefined) return []
     // Keyed by the quote's hash: a bidder replacing its quote (same quote id) is news, a retry is not.
     return [{ id: `board:${boardId}:quote:${quoteHash}`, address: request.creator, kind: 'quote.received', boardId, requestId, taskId: request.task_id, role: 'creator',
-      summary: `A new quote arrived on your request ${requestId}.`, url: `${base}/quotes/${encodeURIComponent(requestId)}`,
+      summary: `A new quote arrived on your request ${requestId}.`, url: `${base}/request/${encodeURIComponent(requestId)}`,
       next: { tool: 'list_quotes', args: { requestId } }, occurredAt: now }]
   }
   if (tool === 'apply') {
@@ -71,7 +71,7 @@ export function boardFeedEvents(board: Sql, input: BoardToolEvent): FeedEvent[] 
     if (requestId === undefined) return []
     const creator = board.all<{ creator: string }>('SELECT creator FROM quote_requests WHERE id = ?', requestId)[0]?.creator
     return [PUBLIC_ADDRESS, ...(creator === undefined ? [] : [creator])].map(address => ({ id: `board:${boardId}:request:${requestId}${address === PUBLIC_ADDRESS ? '' : ':creator'}`, address, kind: 'request.opened', boardId, requestId, role: address === PUBLIC_ADDRESS ? 'public' : 'creator',
-      summary: `A new quote request ${requestId} is open.`, url: `${base}/quotes/${encodeURIComponent(requestId)}`,
+      summary: `A new quote request ${requestId} is open.`, url: `${base}/request/${encodeURIComponent(requestId)}`,
       next: { tool: address === PUBLIC_ADDRESS ? 'submit_quote' : 'list_quotes', args: { requestId } }, occurredAt: now }))
   }
   if (tool === 'report_transaction') {

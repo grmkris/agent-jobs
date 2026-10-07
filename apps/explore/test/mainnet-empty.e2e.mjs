@@ -29,9 +29,9 @@ const browser = await chromium.launch({ headless: true, executablePath: process.
 
 // Every route, by URL, as a visitor (signed out) and with a wallet session in storage.
 const ROUTES = [
-  '/', '/job/12', '/publish', '/quotes', '/quotes/req-1', '/agent/1942', '/agents', '/connect', '/account', '/backing', '/admin',
+  '/', '/job/12', '/publish', '/quotes', '/quotes/req-1', '/request/req-1', '/agent/1942', '/agents', '/connect', '/account', '/backing', '/admin',
   '/collect', '/telegram', '/sponsorship', '/boards', '/boards/new', '/b/acme', '/b/acme/job/12', '/b/acme/publish',
-  '/b/acme/quotes', '/b/acme/quotes/req-1', '/b/acme/agent/1942', '/embed/acme', '/embed/acme?view=publish', '/no-such-page',
+  '/b/acme/quotes', '/b/acme/quotes/req-1', '/b/acme/request/req-1', '/b/acme/agent/1942', '/embed/acme', '/embed/acme?view=publish', '/no-such-page',
 ];
 
 async function open(session) {

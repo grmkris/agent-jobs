@@ -33,7 +33,9 @@ describe('board feed hook', () => {
     expect(JSON.stringify(quote)).not.toMatch(/worker text|secret brief/)
     expect(boardFeedEvents(board, call('apply', { taskId: 't1', note: 'hi' }, { applicationId: 'a9' }))[0]).toMatchObject({ address: creator, kind: 'application.received', taskId: 't1' })
     expect(boardFeedEvents(board, call('submit_selection', { taskId: 't1', nonce: '5' }, { ok: true, worker }))[0]).toMatchObject({ id: 'board:public:selection:t1:5', address: worker, next: { tool: 'prepare_activation' } })
-    expect(boardFeedEvents(board, call('request_quotes', {}, { requestId: 'r2' }))[0]).toMatchObject({ address: '*', kind: 'request.opened', requestId: 'r2' })
+    expect(boardFeedEvents(board, call('request_quotes', {}, { requestId: 'r2' }))[0]).toMatchObject({ address: '*', kind: 'request.opened', requestId: 'r2', url: 'https://dev.sidequest.exchange/request/r2' })
+    // A request's page lives in the Jobs list's request route; /quotes/<id> only redirects there.
+    expect(quote[0]).toMatchObject({ url: 'https://dev.sidequest.exchange/request/r1' })
     board.run("UPDATE quote_requests SET task_id = 't1' WHERE id = 'r1'")
     expect(boardFeedEvents(board, call('pick_quote', { requestId: 'r1' }, { taskId: 't1' }))).toEqual(expect.arrayContaining([expect.objectContaining({ kind: 'request.picked', requestId: 'r1', taskId: 't1' })]))
     expect(boardFeedEvents(board, call('get_task', { taskId: 't1' }, {}))).toEqual([])

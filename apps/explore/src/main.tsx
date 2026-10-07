@@ -21,7 +21,7 @@ import './styles.css'
 import { wagmiConfig } from './wallet.ts'
 import { AgentPage } from './routes/Agent.tsx'
 import { ConnectPage } from './routes/Connect.tsx'
-import { QuoteRequestPage, QuotesPage } from './routes/Quotes.tsx'
+import { QuoteRequestPage } from './routes/Request.tsx'
 import { BoardsPage } from './routes/Boards.tsx'
 import { BoardNewPage } from './routes/BoardNew.tsx'
 import { EmbedPage } from './routes/Embed.tsx'
@@ -98,12 +98,26 @@ const job = createRoute({
     return <JobPage auth={useAuth()} />
   },
 })
-const quotes = createRoute({ getParentRoute: () => root, path: '/quotes', component: QuotesPage })
+const request = createRoute({
+  getParentRoute: () => root,
+  path: '/request/$requestId',
+  component: function QuoteRequestRoute() {
+    return <QuoteRequestPage auth={useAuth()} />
+  },
+})
+// Quote requests are rows of the Jobs list now; their old links (feed, Telegram, bookmarks) still land.
+const quotes = createRoute({
+  getParentRoute: () => root,
+  path: '/quotes',
+  beforeLoad: () => {
+    throw redirect({ to: '/jobs', search: { view: 'open' } as never, replace: true })
+  },
+})
 const quoteRequest = createRoute({
   getParentRoute: () => root,
   path: '/quotes/$requestId',
-  component: function QuoteRequestRoute() {
-    return <QuoteRequestPage auth={useAuth()} />
+  beforeLoad: ({ params }) => {
+    throw redirect({ to: '/request/$requestId', params: { requestId: params.requestId }, replace: true })
   },
 })
 const agent = createRoute({
@@ -187,16 +201,25 @@ const boardJob = createRoute({
     return <JobPage auth={useAuth()} />
   },
 })
+const boardRequest = createRoute({
+  getParentRoute: () => board,
+  path: '/request/$requestId',
+  component: function BoardQuoteRequestRoute() {
+    return <QuoteRequestPage auth={useAuth()} />
+  },
+})
 const boardQuotes = createRoute({
   getParentRoute: () => board,
   path: '/quotes',
-  component: QuotesPage,
+  beforeLoad: ({ params }) => {
+    throw redirect({ to: '/b/$boardId', params: { boardId: params.boardId }, search: { view: 'open' } as never, replace: true })
+  },
 })
 const boardQuoteRequest = createRoute({
   getParentRoute: () => board,
   path: '/quotes/$requestId',
-  component: function BoardQuoteRequestRoute() {
-    return <QuoteRequestPage auth={useAuth()} />
+  beforeLoad: ({ params }) => {
+    throw redirect({ to: '/b/$boardId/request/$requestId', params: { boardId: params.boardId, requestId: params.requestId }, replace: true })
   },
 })
 const boardWorkers = createRoute({ getParentRoute: () => board, path: '/workers', component: AgentsPage })
@@ -215,6 +238,7 @@ const router = createRouter({
     jobs,
     listings,
     job,
+    request,
     quotes,
     quoteRequest,
     agent,
@@ -229,7 +253,7 @@ const router = createRouter({
     boards,
     boardNew,
     embed,
-    board.addChildren([boardJobs, boardJob, boardQuotes, boardQuoteRequest, boardWorkers, boardAgent]),
+    board.addChildren([boardJobs, boardJob, boardRequest, boardQuotes, boardQuoteRequest, boardWorkers, boardAgent]),
   ]),
 })
 

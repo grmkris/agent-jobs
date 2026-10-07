@@ -21,7 +21,7 @@ export function NeedsYou({ rows }: { rows: ReadonlyArray<{ item: JobListItem; ph
     <Section title={`Needs you · ${waiting.length}`} note="From chain facts; a job's page shows exact review and dispute deadlines.">
       <ItemGroup>
         {waiting.map(({ item, phase }) => {
-          const target = item.request !== undefined ? routes.quoteRequest(item.request.requestId) : routes.job(item.jobId!)
+          const target = item.request !== undefined ? routes.request(item.request.requestId) : routes.job(item.jobId!)
           return (
             <Item key={item.request?.requestId ?? item.jobId ?? item.task?.taskId} render={<BoardLink target={target} />}>
               <ItemMedia>
