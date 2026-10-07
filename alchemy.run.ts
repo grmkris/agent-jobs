@@ -9,8 +9,8 @@ import { Manifests } from './apps/api/src/manifests.ts'
 import Api from './apps/api/src/worker.ts'
 import Indexer from './apps/indexer/src/worker.ts'
 import { assertDeployConfig } from './apps/api/src/deploy-preflight.ts'
-import { stateMode } from './scripts/sidequest/state.ts'
-import devInfrastructure from './infra/dev.json' with { type: 'json' }
+import { assertLiveRelease, stateMode } from './scripts/sidequest/state.ts'
+import { stageProfile } from './infra/stage.ts'
 
 const selectedState = stateMode(process.env)
 
@@ -31,8 +31,8 @@ export default Alchemy.Stack(
   Effect.gen(function* () {
     const stage = yield* Stage
     const mode = yield* defaultProviderMode
-    if (stage === 'staging') throw new Error('The previous staging stack is held for retirement; use deploy:dev')
-    if (mode === 'live' && stage !== 'prod' && (stage !== 'dev' || process.env.SIDEQUEST_DEV_RELEASE !== '1' || process.env.SIDEQUEST_STAGE !== 'dev' || process.env.SIDEQUEST_NETWORK !== 'monad-testnet' || selectedState !== 'local' || process.env.SIDEQUEST_WITHOUT_EXPLORE === '1')) throw new Error('Use the guarded Sidequest development release with the complete stack')
+    const profile = stageProfile(stage)
+    if (mode === 'live') assertLiveRelease(stage, selectedState, process.env)
     yield* Effect.promise(() => assertDeployConfig(stage))
     const database = yield* Database
     const manifests = yield* Manifests
@@ -44,13 +44,12 @@ export default Alchemy.Stack(
       return { apiUrl: api.url, indexerUrl: indexer.url, databaseName: database.databaseName, manifestsBucket: manifests.bucketName }
     }
     // Each stage owns only its canonical hostname. The development stack never claims the apex.
-    const mainnet = process.env.SIDEQUEST_NETWORK === 'monad-mainnet'
     const explore = yield* Cloudflare.Website.Vite('Explore', {
-      ...(stage === 'dev' ? { name: devInfrastructure.resources.Explore } : {}),
+      ...(profile ? { name: profile.resources.Explore } : {}),
       rootDir: fileURLToPath(new URL('./apps/explore/', import.meta.url)),
       main: 'worker.ts',
       memo: { workspaces: [{ cwd: '../docs' }, { cwd: '../../skill' }, { cwd: '../../packages/sdk' }, { cwd: '../../packages/react' }, { cwd: '../../contracts/config' }, { cwd: '../../infra' }] },
-      domain: { name: mainnet ? 'sidequest.exchange' : 'dev.sidequest.exchange' },
+      ...(profile ? { domain: { name: new URL(profile.origin).hostname } } : {}),
       env: { API: api },
       assets: {
         notFoundHandling: 'single-page-application',

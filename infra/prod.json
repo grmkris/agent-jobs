@@ -1,12 +1,12 @@
 {
   "product": "Sidequest",
-  "stage": "dev",
+  "stage": "prod",
   "network": "monad-testnet",
   "chainId": 10143,
-  "origin": "https://dev.sidequest.exchange",
-  "relay": "0xC4173dBC98ffd6F5785E8Fba85E9e5bd8b3F5058",
+  "origin": "https://sidequest.exchange",
+  "relay": "0xa6D3eC73053152221af873789aEd179E506b1F0E",
   "telegram": {
-    "botUsername": "sidequest_excange_dev_bot"
+    "botUsername": "sidequest_exchange_bot"
   },
   "cloudflare": {
     "accountId": "bceaeae4788dce3493514fde194b4a7e",
@@ -14,11 +14,11 @@
     "zoneName": "sidequest.exchange"
   },
   "resources": {
-    "Api": "sidequest-api-dev",
-    "Indexer": "sidequest-indexer-dev",
-    "Explore": "sidequest-explore-dev",
-    "Database": "sidequest-dev-db",
-    "Manifests": "sidequest-dev-manifests"
+    "Api": "sidequest-api-prod",
+    "Indexer": "sidequest-indexer-prod",
+    "Explore": "sidequest-explore-prod",
+    "Database": "sidequest-prod-db",
+    "Manifests": "sidequest-prod-manifests"
   },
   "safeInfrastructure": {
     "factory": "0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67",

@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { readFileSync } from 'node:fs'
+import { validateStageProfile, stageProfile } from '../../infra/stage.ts'
 import { deploymentFromConfig, type DeploymentConfig, type Network } from '../../packages/sdk/src/deployment.ts'
 import { dataHashOf } from './compute.ts'
 import { buildTree, leafHash, verifyProof, type LeafValue } from './tree.ts'
@@ -20,19 +20,13 @@ export class MiningPublishError extends Error {
   constructor(readonly code: Refusal) { super(code) }
 }
 const refuse = (code: Refusal): never => { throw new MiningPublishError(code) }
-export const stageOf = (stage: string, read = (path: URL) => readFileSync(path, 'utf8')): PublishTarget => {
+export const stageOf = (stage: string, read?: (path: URL) => string): PublishTarget => {
   if (stage !== 'dev' && stage !== 'prod') return refuse('usage')
   try {
-    const selected = JSON.parse(read(new URL(`../../infra/${stage}.json`, import.meta.url))) as PublishTarget
-    if (selected.stage !== stage || !['monad-testnet', 'monad-mainnet'].includes(selected.network)
-      || !Number.isSafeInteger(selected.chainId) || selected.chainId <= 0
-      || new URL(selected.origin).origin !== selected.origin) return refuse('config-unavailable')
-    for (const resource of ['Api', 'Indexer', 'Explore', 'Database', 'Manifests'] as const) {
-      if (typeof selected.resources?.[resource] !== 'string' || !/^[a-z0-9][a-z0-9-]*$/.test(selected.resources[resource])) return refuse('config-unavailable')
-    }
-    return selected
+    return read ? validateStageProfile(JSON.parse(read(new URL(`../../infra/${stage}.json`, import.meta.url))), stage) : stageProfile(stage)!
   } catch { return refuse('config-unavailable') }
 }
+
 const record = (value: unknown): Record<string, unknown> => {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return refuse('artifact-invalid')
   return value as Record<string, unknown>

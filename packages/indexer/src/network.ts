@@ -1,8 +1,7 @@
-/**
- * Deploy-time choice of network for every Worker in the stack: `SIDEQUEST_NETWORK` (default `monad-testnet`) picks
- * the committed contracts config, and the RPC URL comes from the matching `.env.local` variable, so a `prod` deploy
- * can never talk to testnet by accident.
- */
-export function rpcUrlForNetwork(): string | undefined {
-  return process.env.SIDEQUEST_NETWORK === 'monad-mainnet' ? process.env.SIDEQUEST_PROD_MONAD_RPC_URL : process.env.MONAD_TESTNET_RPC_URL
+import { stageProfile } from '../../../infra/stage.ts'
+
+/** Live stages use the same plain RPC name on every network. Legacy testnet RPC is local/test-only. */
+export function rpcUrlForNetwork(env: NodeJS.ProcessEnv = process.env): string | undefined {
+  stageProfile(env.SIDEQUEST_STAGE)
+  return env.MONAD_RPC_URL || ((env.SIDEQUEST_STAGE === undefined || env.SIDEQUEST_STAGE === 'local' || env.NODE_ENV === 'test') ? env.MONAD_TESTNET_RPC_URL : undefined)
 }

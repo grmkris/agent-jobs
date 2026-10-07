@@ -2,6 +2,8 @@ import { readFileSync } from 'node:fs'
 import { RELAY_FLOOR_MAINNET } from '@sidequest/sdk'
 import { privateKeyToAccount } from 'viem/accounts'
 import mainnet from '../../../contracts/config/monad-mainnet.json' with { type: 'json' }
+import testnet from '../../../contracts/config/monad-testnet.json' with { type: 'json' }
+import { stageProfile } from '../../../infra/stage.ts'
 import { MAINNET_LIVE } from '@sidequest/sdk'
 import { liveLaunchGate, opensAdmission, prodSecretSources, relayFloorWei, safePolicy, validateAdmissionMode, validateExploreRelease, validateProdConfig, validateReleaseProbe, type ChainConfig, type LaunchReader, type ProdArtifact, type SafePolicy } from './prod-config.ts'
 
@@ -33,10 +35,14 @@ export async function assertLaunchGate(
   if (failures.length > 0) throw new Error(`production launch gate refused: ${failures.join(', ')}`)
 }
 
-export async function assertDeployConfig(stage: string): Promise<void> {
-  const network = process.env.SIDEQUEST_NETWORK ?? 'monad-testnet'
+export async function assertDeployConfig(stage: string, profile = stageProfile(stage)): Promise<void> {
+  const network = profile?.network ?? process.env.SIDEQUEST_NETWORK ?? 'monad-testnet'
   if (stage !== 'prod' && network !== 'monad-mainnet') return
-  if (stage !== 'prod' || network !== 'monad-mainnet' || process.env.SIDEQUEST_STAGE !== stage) throw new Error('production stage/network mismatch')
+  if (stage !== 'prod' || process.env.SIDEQUEST_STAGE !== stage) throw new Error('production stage/network mismatch')
+  if (network === 'monad-testnet') {
+    await assertTestnetProdConfig(profile!, testnet)
+    return
+  }
   const path = process.env.SIDEQUEST_PROD_ARTIFACT
   if (path === undefined || !path.endsWith('.json')) throw new Error('production needs an explicit reviewed JSON artifact')
   let artifact: ProdArtifact
@@ -53,12 +59,12 @@ export async function assertDeployConfig(stage: string): Promise<void> {
   }
   if (failures.length > 0) throw new Error(`production preflight rejected: ${failures.join(', ')}`)
   if (process.env.ALCHEMY_REMOTE_STATE !== '1') throw new Error('production requires remote state')
-  if (process.env.SIDEQUEST_PROD_PRIVY_APP_ID !== artifact.privy.appId || process.env.HYPERSYNC_URL !== artifact.hyperSync.url) throw new Error('production provider/Privy runtime mapping mismatch')
+  if (process.env.PRIVY_APP_ID !== artifact.privy.appId || process.env.HYPERSYNC_URL !== artifact.hyperSync.url) throw new Error('production provider/Privy runtime mapping mismatch')
   for (const [binding, source] of Object.entries(prodSecretSources)) {
     const value = process.env[source]
     if (value === undefined || value === '' || value === 'unset') throw new Error(`production secret source missing: ${binding}`)
   }
-  for (const [source, role] of [['SIDEQUEST_PROD_RELAY_PRIVATE_KEY', 'relay'], ['SIDEQUEST_PROD_ATTESTER_PRIVATE_KEY', 'attester']] as const) {
+  for (const [source, role] of [['RELAY_PRIVATE_KEY', 'relay'], ['ATTESTER_PRIVATE_KEY', 'attester']] as const) {
     let matches = false
     try {
       matches = privateKeyToAccount(process.env[source] as `0x${string}`).address.toLowerCase() === mainnet.roles[role].toLowerCase()
@@ -67,7 +73,7 @@ export async function assertDeployConfig(stage: string): Promise<void> {
     }
     if (!matches) throw new Error(`production signing address mismatch: ${role}`)
   }
-  const rpc = process.env.SIDEQUEST_PROD_MONAD_RPC_URL
+  const rpc = process.env.MONAD_RPC_URL
   if (rpc !== artifact.rpc.url) throw new Error('production RPC runtime mapping mismatch')
   try {
     const response = await fetch(rpc, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_chainId', params: [] }), signal: AbortSignal.timeout(15_000) })
@@ -77,6 +83,44 @@ export async function assertDeployConfig(stage: string): Promise<void> {
     throw new Error('production read-only RPC chain proof failed')
   }
   await assertLaunchGate(mainnet, process.env.PROD_ADMISSION_DRAIN, rpcReader(rpc), relayFloorWei(RELAY_FLOOR_MAINNET), safePolicy(artifact))
+}
+
+/** Testnet prod deliberately keeps writes open, but proves its stage relay and the v1 ownership boundary. */
+export async function assertTestnetProdConfig(profile: NonNullable<ReturnType<typeof stageProfile>>, config: typeof testnet, env: NodeJS.ProcessEnv = process.env, fetcher: typeof fetch = fetch, readerFactory = rpcReader): Promise<void> {
+  if (profile.network !== 'monad-testnet' || profile.chainId !== 10143) throw new Error('production stage/network mismatch')
+  const rpc = env.MONAD_RPC_URL
+  if (rpc === undefined || rpc === '') throw new Error('testnet production needs MONAD_RPC_URL')
+  let chainId: number
+  try {
+    const response = await fetcher(rpc, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_chainId', params: [] }), signal: AbortSignal.timeout(15_000) })
+    const body = await response.json() as { result?: string }
+    if (!response.ok) throw new Error('RPC failed')
+    chainId = Number(body.result)
+  } catch { throw new Error('testnet production RPC chain proof failed') }
+  if (chainId !== 10143) throw new Error('testnet production RPC chain mismatch')
+  for (const [source, expected, label] of [
+    ['RELAY_PRIVATE_KEY', profile.relay, 'relay'],
+    ['ATTESTER_PRIVATE_KEY', config.roles.attester, 'attester'],
+  ] as const) {
+    try {
+      if (privateKeyToAccount(env[source] as `0x${string}`).address.toLowerCase() !== expected.toLowerCase()) throw new Error('mismatch')
+    } catch { throw new Error(`testnet production signing address mismatch: ${label}`) }
+  }
+  const safe = config.deployment.sidequest?.safe
+  const addresses = config.deployment.sidequest
+  if (safe === undefined || addresses === undefined) throw new Error('testnet production deployment is missing Sidequest v1')
+  const reader = readerFactory(rpc)
+  const ownerAbi = '0x8da5cb5b' as `0x${string}`
+  for (const [label, address] of [
+    ['vault', addresses.vault], ['feeSchedule', addresses.feeSchedule], ['holding', config.deployment.main.holding],
+    ['evaluator', config.deployment.main.evaluator], ['distributor', addresses.distributor], ['miningReserve', addresses.miningReserve],
+  ] as const) {
+    try {
+      const raw = await reader.call(address, ownerAbi)
+      const owner = `0x${raw.slice(-40)}`
+      if (owner.toLowerCase() !== safe.toLowerCase()) throw new Error('owner mismatch')
+    } catch { throw new Error(`testnet production Safe ownership check failed: ${label}`) }
+  }
 }
 
 /** Post-deploy (PROD-GATE-006): GET `<origin>/release.json` and compare it to the artifact. A failed fetch or a body that

@@ -1,5 +1,5 @@
 import * as Cloudflare from 'alchemy/Cloudflare'
-import devInfrastructure from '../../../infra/dev.json' with { type: 'json' }
+import { stageProfile } from '../../../infra/stage.ts'
 
 /**
  * Job manifests and artifacts, content-addressed by keccak256 of their canonical JSON. Public
@@ -7,6 +7,6 @@ import devInfrastructure from '../../../infra/dev.json' with { type: 'json' }
  * disposable until mainnet.
  */
 export const Manifests = Cloudflare.R2.Bucket('Manifests', {
-  ...(process.env.SIDEQUEST_STAGE === 'dev' ? { name: devInfrastructure.resources.Manifests } : {}),
+  ...(stageProfile() ? { name: stageProfile()!.resources.Manifests } : {}),
   forceDestroy: false,
 })

@@ -1,0 +1,40 @@
+import dev from './dev.json' with { type: 'json' }
+import prod from './prod.json' with { type: 'json' }
+
+export type DeployStage = 'local' | 'dev' | 'prod'
+export interface StageProfile {
+  product: string
+  stage: 'dev' | 'prod'
+  network: 'monad-testnet' | 'monad-mainnet'
+  chainId: number
+  origin: string
+  relay: `0x${string}`
+  telegram: { botUsername: string }
+  cloudflare: { accountId?: string; zoneId: string; zoneName: string }
+  resources: Record<'Api' | 'Indexer' | 'Explore' | 'Database' | 'Manifests', string>
+  safeInfrastructure: { factory: `0x${string}`; singleton: `0x${string}`; fallbackHandler: `0x${string}` }
+}
+
+const profiles = { dev, prod }
+
+export function validateStageProfile(profile: unknown, stage: 'dev' | 'prod'): StageProfile {
+  const value = profile as StageProfile
+  if (value?.stage !== stage || !['monad-testnet', 'monad-mainnet'].includes(value.network)
+    || value.chainId !== (value.network === 'monad-mainnet' ? 143 : 10143)) throw new Error('Stage network/chain mismatch')
+  if (new URL(value.origin).origin !== value.origin || !/^0x[0-9a-fA-F]{40}$/.test(value.relay)) throw new Error('Invalid stage origin/relay')
+  for (const name of ['Api', 'Indexer', 'Explore', 'Database', 'Manifests'] as const) {
+    if (!/^[a-z0-9][a-z0-9-]*$/.test(value.resources?.[name] ?? '')) throw new Error('Invalid stage resource')
+  }
+  return value
+}
+
+/** Resolve the committed stage contract. Local development keeps its caller-selected network and resources. */
+export function stageProfile(stage: string | undefined = process.env.SIDEQUEST_STAGE): StageProfile | undefined {
+  if (stage === 'dev' || stage === 'prod') return validateStageProfile(profiles[stage], stage)
+  if (stage === undefined || stage === 'local') return undefined
+  throw new Error(`Unknown Sidequest stage: ${stage}`)
+}
+
+export function selectedNetwork(stage: string | undefined = process.env.SIDEQUEST_STAGE): StageProfile['network'] | undefined {
+  return stageProfile(stage)?.network
+}

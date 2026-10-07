@@ -1,6 +1,6 @@
 import { contractsOf, fromD1, hyperSync, migrate, releaseLease, rpcHead, runOnce } from '@sidequest/indexer'
 import * as sdk from '@sidequest/sdk'
-import devInfrastructure from '../../../infra/dev.json' with { type: 'json' }
+import { stageProfile } from '../../../infra/stage.ts'
 import * as Cloudflare from 'alchemy/Cloudflare'
 import * as Config from 'effect/Config'
 import * as Effect from 'effect/Effect'
@@ -29,12 +29,15 @@ export default class Indexer extends Cloudflare.Worker<Indexer>()(
   'Indexer',
   {
     main: import.meta.url,
-    ...(process.env.SIDEQUEST_STAGE === 'dev' ? { name: devInfrastructure.resources.Indexer } : {}),
+    ...(stageProfile() ? { name: stageProfile()!.resources.Indexer } : {}),
     compatibility: { date: '2026-09-01', flags: ['nodejs_compat'] },
     dev: { port: 8789 },
     env: {
-      NETWORK: process.env.SIDEQUEST_NETWORK ?? 'monad-testnet',
-      HYPERSYNC_URL: process.env.HYPERSYNC_URL ?? (process.env.SIDEQUEST_NETWORK === 'monad-mainnet' ? 'https://monad.hypersync.xyz' : 'https://monad-testnet.hypersync.xyz'),
+      NETWORK: stageProfile()?.network ?? process.env.SIDEQUEST_NETWORK ?? 'monad-testnet',
+      PUBLIC_ORIGIN: stageProfile()?.origin ?? 'http://localhost:5173',
+      RELAY_ADDRESS: stageProfile()?.relay ?? sdk.deployment((process.env.SIDEQUEST_NETWORK ?? 'monad-testnet') as sdk.Network).relay,
+      TELEGRAM_BOT_USERNAME: stageProfile()?.telegram.botUsername ?? '',
+      HYPERSYNC_URL: process.env.HYPERSYNC_URL ?? ((stageProfile()?.network ?? process.env.SIDEQUEST_NETWORK) === 'monad-mainnet' ? 'https://monad.hypersync.xyz' : 'https://monad-testnet.hypersync.xyz'),
       MONAD_RPC_URL: Redacted.make(rpcUrlForNetwork() || 'unset'),
       HYPERSYNC_API_TOKEN: Redacted.make(runtimeSecret('HYPERSYNC_API_TOKEN') || 'unset'),
       TELEGRAM_BOT_TOKEN: Redacted.make(runtimeSecret('TELEGRAM_BOT_TOKEN') || 'unset'),
@@ -42,6 +45,7 @@ export default class Indexer extends Cloudflare.Worker<Indexer>()(
   },
   Effect.gen(function* () {
     const db = yield* Cloudflare.D1.QueryDatabase(Database)
+    sdk.setRelayOverride((yield* Config.String('RELAY_ADDRESS')) as `0x${string}`)
 
     /** The last cron outcome, kept in D1 for `GET /` (Workers logs need a permission the deploy token lacks). */
     const record = (outcome: IndexerRunOutcome) =>

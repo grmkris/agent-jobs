@@ -11,7 +11,7 @@ import { BoardError, parseHostedAdmission, PUBLIC_BOARD_ID, SPONSOR_OBJECT_NAME,
 import { admissionDrainBinding, runtimeSecret } from './prod-config.ts'
 import { type AsyncSql, agentsOfWallet, fromD1, indexStatus, listAgents, networkStats } from '@sidequest/indexer'
 import * as sdk from '@sidequest/sdk'
-import devInfrastructure from '../../../infra/dev.json' with { type: 'json' }
+import { stageProfile } from '../../../infra/stage.ts'
 import type { Address } from 'viem'
 import Board, { type BoardCall, type BoardReply } from './board.ts'
 import { corsHeaders } from './cors.ts'
@@ -79,13 +79,16 @@ export default class Api extends Cloudflare.Worker<Api>()(
   'Api',
   {
     main: import.meta.url,
-    ...(process.env.SIDEQUEST_STAGE === 'dev' ? { name: devInfrastructure.resources.Api } : {}),
+    ...(stageProfile() ? { name: stageProfile()!.resources.Api } : {}),
     compatibility: { date: '2026-09-01', flags: ['nodejs_compat'] },
     dev: { port: 8788 },
     // Values come from the deploying shell (.env.local); secrets are bound as secret_text, never plain text.
     env: {
       DIRECTORY_DATABASE: Database,
-      NETWORK: process.env.SIDEQUEST_NETWORK ?? 'monad-testnet',
+      NETWORK: stageProfile()?.network ?? process.env.SIDEQUEST_NETWORK ?? 'monad-testnet',
+      PUBLIC_ORIGIN: stageProfile()?.origin ?? 'http://localhost:5173',
+      RELAY_ADDRESS: stageProfile()?.relay ?? sdk.deployment((process.env.SIDEQUEST_NETWORK ?? 'monad-testnet') as sdk.Network).relay,
+      TELEGRAM_BOT_USERNAME: stageProfile()?.telegram.botUsername ?? '',
       DEPLOY_STAGE: process.env.SIDEQUEST_STAGE ?? 'local',
       MONAD_RPC_URL: Redacted.make(rpcUrlForNetwork() || 'unset'),
       SCREENING_BASE_URL: process.env.ARBITER_MODEL_BASE_URL || 'https://ai-gateway.vercel.sh/v1',
@@ -113,6 +116,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
   Effect.gen(function* () {
     const boards = yield* Board
     const runtimeEnv = yield* Cloudflare.WorkerEnvironment
+    sdk.setRelayOverride((yield* Config.String('RELAY_ADDRESS')) as Address)
     const directory = yield* DirectoryObject
     const manifests = yield* Cloudflare.R2.ReadWriteBucket(Manifests)
     // Explore's chain facts (read-only here; the indexer is the only writer of its tables) and the board registry.

@@ -2,7 +2,7 @@
  * Addresses come from `contracts/config/<network>.json`, the file the deployment recipe writes; never from code
  * (AGENTS.md). One network, one core and the current Sidequest v1 pair.
  */
-import { type Address, type Hex, encodeAbiParameters, keccak256, parseAbiParameters, zeroAddress } from 'viem'
+import { type Address, type Hex, encodeAbiParameters, isAddress, keccak256, parseAbiParameters, zeroAddress } from 'viem'
 import testnet from '../../../contracts/config/monad-testnet.json' with { type: 'json' }
 import mainnet from '../../../contracts/config/monad-mainnet.json' with { type: 'json' }
 
@@ -233,12 +233,21 @@ export class NotDeployedError extends Error {
   }
 }
 
+let relayOverride: Address | undefined
+
+/** Set once by a hosted Worker so stage-specific relay policy reaches every SDK consumer. */
+export function setRelayOverride(relay: Address | undefined): void {
+  if (relay !== undefined && !isAddress(relay)) throw new Error('Invalid relay override')
+  relayOverride = relay?.toLowerCase() as Address | undefined
+}
+
 /**
  * @param network Which network's recorded deployment to read.
  * @throws NotDeployedError when the recipe has not been run there.
  */
 export function deployment(network: Network): Deployment {
-  return deploymentFromConfig(network, files[network])
+  const result = deploymentFromConfig(network, files[network])
+  return relayOverride === undefined ? result : { ...result, relay: relayOverride }
 }
 
 /**

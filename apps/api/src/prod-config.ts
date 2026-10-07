@@ -331,7 +331,7 @@ export function validateReleaseProbe(artifact: Pick<ProdArtifact, 'network' | 'e
   const failures: string[] = []
   if (body.network !== artifact.network) failures.push('release.json network')
   if (body.mainnetLive !== pinned) failures.push('release.json mainnetLive')
-  if (body.writesOpen !== pinned) failures.push('release.json writesOpen')
+  if (body.writesOpen !== (artifact.network === 'monad-testnet' || pinned)) failures.push('release.json writesOpen')
   return failures
 }
 
