@@ -1,7 +1,7 @@
 import { quoteRequestPhase, type Phase } from '@sidequest/react'
 import { describe, expect, it } from 'vitest'
 import type { QuoteRequest } from './api.ts'
-import { type JobListItem, listPhase, postedAt, rowCountdown, sortRows, viewOf } from './job-list.ts'
+import { type JobListItem, listPhase, postedAt, postedJustNow, rowCountdown, sortRows, viewOf } from './job-list.ts'
 
 const creator = '0x1111111111111111111111111111111111111111'
 const viewer = '0x2222222222222222222222222222222222222222'
@@ -42,5 +42,11 @@ describe('the single Jobs list', () => {
     ]
     expect(sortRows(rows).map(r => r.item.request?.requestId ?? r.item.jobId)).toEqual(['soon', '6', 'late', '7', '5'])
     expect(postedAt(rows[1]!.item)).toBe(700)
+  })
+
+  it('a row posted after the minute-floored clock reads "just now", not a time in the future', () => {
+    expect(postedJustNow(1031, 1000)).toBe(true)
+    expect(postedJustNow(1000, 1059)).toBe(true)
+    expect(postedJustNow(1000, 1060)).toBe(false)
   })
 })

@@ -23,7 +23,7 @@ import { AgentOrb } from '../components/agent/AgentOrb.tsx'
 import { AgentLabel } from '../components/agent/AgentChip.tsx'
 import { TokenAmount } from '../components/token/TokenAmount.tsx'
 import { relative } from '../format.ts'
-import { type JobListItem, type View, listPhase, postedAt, posterOf, rowCountdown, rowKey, sortRows, tagsOf, titleOf, viewOf } from '../job-list.ts'
+import { type JobListItem, type View, listPhase, postedAt, postedJustNow, posterOf, rowCountdown, rowKey, sortRows, tagsOf, titleOf, viewOf } from '../job-list.ts'
 import { useManagedAgents } from '../managed.ts'
 import { useQuoteRequests } from '../quote-requests.ts'
 import { useToken } from '../useTokens.ts'
@@ -374,7 +374,7 @@ export function JobRow({ item, phase, note, now, posterAgent = null }: {
     'Token unavailable'
   ) : (
     <>
-      {request !== undefined && <span className="mr-1 text-ui font-normal text-muted-foreground">Up to</span>}
+      {request !== undefined && <span className="text-ui font-normal text-muted-foreground">Up to </span>}
       <TokenAmount value={reward} token={token} static className="whitespace-normal" />
     </>
   )
@@ -441,7 +441,7 @@ export function JobRow({ item, phase, note, now, posterAgent = null }: {
           <span className="flex min-w-0 flex-wrap items-center gap-x-2 text-ui text-muted-foreground sm:col-start-1 sm:row-start-3">
             {(posted !== null || poster !== null) && (
               <span className="min-w-0">
-                {posted !== null && `Posted ${relative(posted, now ?? Math.floor(Date.now() / 1000))}`}
+                {posted !== null && `Posted ${postedJustNow(posted, now ?? Math.floor(Date.now() / 1000)) ? 'just now' : relative(posted, now ?? Math.floor(Date.now() / 1000))}`}
                 {poster !== null && (
                   <>
                     {posted !== null ? ' by ' : 'By '}

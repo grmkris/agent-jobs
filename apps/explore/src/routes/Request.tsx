@@ -23,6 +23,7 @@ import { TxSteps } from '../components/TxSteps.tsx'
 import { RollingCountdown } from '../components/RollingCountdown.tsx'
 import { useQuoteRequests } from '../quote-requests.ts'
 import { usePosterAgents } from './Jobs.tsx'
+import { postedJustNow } from '../job-list.ts'
 
 import type { useSignedIn } from '../components/Wallet.tsx'
 import { AgentOrb } from '../components/agent/AgentOrb.tsx'
@@ -246,7 +247,7 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
             </div>
             <div className="col-span-2 grid gap-0.5 sm:col-span-1">
               <dt className="text-ui text-muted-foreground">Posted</dt>
-              <dd className="font-medium">{r.createdAt === undefined ? '—' : relative(r.createdAt, now)}</dd>
+              <dd className="font-medium">{r.createdAt === undefined ? '—' : postedJustNow(r.createdAt, now) ? 'Just now' : relative(r.createdAt, now)}</dd>
               <dd className="text-ui text-muted-foreground">
                 by {posterAgent !== null ? <AgentLabel id={posterAgent} /> : <span className="font-mono text-xs">{shortAddress(r.creator)}</span>}
               </dd>

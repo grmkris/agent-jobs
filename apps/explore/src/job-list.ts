@@ -57,6 +57,12 @@ export function rowCountdown(phase: Phase | null): RowCountdown | null {
 /** When the row's work was posted: the request's or the offer's board record, unix seconds. */
 export const postedAt = (item: JobListItem): number | null => item.request?.createdAt ?? item.task?.createdAt ?? null
 
+/**
+ * Posted within the last minute, by a clock that may be floored to the minute (or a little behind the board's): reads
+ * "just now", never "in 31 s".
+ */
+export const postedJustNow = (posted: number, now: number): boolean => now - posted < 60
+
 /** Who posted it: the request's or the offer's creator wallet, else the chain listing's. */
 export const posterOf = (item: JobListItem): string | null => item.request?.creator ?? item.task?.creator ?? item.chain?.creator ?? null
 
