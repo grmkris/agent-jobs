@@ -107,6 +107,7 @@ describe('public indexer run records', () => {
       caughtUp: true,
       rewound: false,
       backfilled: 8,
+      cutover: false,
     }
     const results = [
       summary,

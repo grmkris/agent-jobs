@@ -153,7 +153,9 @@ export default class Indexer extends Cloudflare.Worker<Indexer>()(
           const sql = fromD1(raw as never)
           await migrate(sql)
           return {
-            checkpoint: await sql.all('SELECT chain_id, next_block, updated_at FROM checkpoint'),
+            checkpoint: await sql.all(
+              'SELECT chain_id, next_block, core_address, deployment_block, updated_at FROM checkpoint',
+            ),
             jobs: await sql.all<{ n: number }>('SELECT count(*) AS n FROM jobs'),
             lastRun: await sql.all('SELECT at, ok, detail FROM indexer_runs').catch(() => []),
           }

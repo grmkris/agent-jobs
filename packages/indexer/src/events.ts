@@ -36,6 +36,7 @@ export type Role = 'core' | 'holding' | 'evaluator' | 'vault' | 'feeSchedule' | 
 /** Which ABI decodes which address, and which stack a Holding or evaluator belongs to. */
 export interface Contracts {
   readonly chainId: number
+  readonly core: string
   readonly roles: ReadonlyMap<string, { role: Role; stack: string | null; kind: sdk.StackKind | null }>
 }
 
@@ -58,7 +59,7 @@ export function contractsFromDeployment(d: sdk.Deployment): Contracts {
     roles.set(d.sidequest.miningReserve.toLowerCase(), { role: 'miningReserve', stack: null, kind: 'sidequest-v1' })
     roles.set(d.sidequest.distributor.toLowerCase(), { role: 'distributor', stack: null, kind: 'sidequest-v1' })
   }
-  return { chainId: d.chainId, roles }
+  return { chainId: d.chainId, core: d.core.toLowerCase(), roles }
 }
 
 const v1Abis: Partial<Record<Role, Abi>> = {

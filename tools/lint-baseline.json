@@ -1424,8 +1424,7 @@
   },
   "packages/indexer/src/indexer.ts": {
     "anti-slop(require-safety-comment-for-type-assertion)": 1,
-    "complexity(complexity)": 1,
-    "eslint(max-lines-per-function)": 1
+    "complexity(complexity)": 1
   },
   "packages/indexer/src/mcp-events.ts": {
     "anti-slop(no-runtime-typeof)": 9,

@@ -43,6 +43,7 @@ export interface RunResult {
   readonly rewound: boolean
   /** Block times looked up for events indexed before block times were stored. */
   readonly backfilled: number
+  readonly cutover: boolean
 }
 
 interface EventRow {
@@ -87,6 +88,20 @@ export async function releaseLease(sql: AsyncSql, cfg: IndexerConfig): Promise<v
   await sql.batch([
     stmt('DELETE FROM lease WHERE id = ? AND holder = ?', `indexer:${cfg.contracts.chainId}`, cfg.runner),
   ])
+}
+
+/** Abort the whole atomic batch if a slow RPC outlived this runner's lease. */
+function leaseGuard(cfg: IndexerConfig): Statement {
+  const now = (cfg.now ?? (() => Math.floor(Date.now() / 1000)))()
+  // NULL violates lease.holder's NOT NULL constraint only when ownership has been lost.
+  return stmt(
+    `INSERT INTO lease (id, holder, expires_at) SELECT ?, NULL, 0
+    WHERE NOT EXISTS (SELECT 1 FROM lease WHERE id = ? AND holder = ? AND expires_at > ?)`,
+    `indexer:${cfg.contracts.chainId}`,
+    `indexer:${cfg.contracts.chainId}`,
+    cfg.runner,
+    now,
+  )
 }
 
 const eventKey = (e: IndexedEvent) => `${e.contract}:${e.block}:${e.logIndex}`
@@ -134,16 +149,24 @@ async function rewindTo(sql: AsyncSql, cfg: IndexerConfig, block: number, now: n
     statements.push(...foldJob(cfg.contracts, chainId, job_id, kept))
   }
   await sql.batch([
+    leaseGuard(cfg),
     deleteLater,
     stmt('DELETE FROM protocol_events WHERE chain_id = ? AND block >= ?', chainId, block),
     ...statements,
     stmt(
-      'INSERT OR REPLACE INTO checkpoint (chain_id, next_block, block_hash, updated_at) VALUES (?, ?, NULL, ?)',
+      'INSERT OR REPLACE INTO checkpoint (chain_id, next_block, block_hash, core_address, deployment_block, updated_at) VALUES (?, ?, NULL, ?, ?, ?)',
       chainId,
       block,
+      cfg.contracts.core,
+      cfg.deployBlock,
       now,
     ),
   ])
+}
+
+/** Replaces one chain generation atomically. The checkpoint is written in the same batch as the wipe. */
+async function cutover(sql: AsyncSql, cfg: IndexerConfig, now: number): Promise<void> {
+  await resetIndex(sql, cfg, { coreAddress: cfg.contracts.core, deploymentBlock: cfg.deployBlock, now })
 }
 
 export async function runOnce(sql: AsyncSql, cfg: IndexerConfig): Promise<RunResult> {
@@ -160,24 +183,10 @@ export async function runOnce(sql: AsyncSql, cfg: IndexerConfig): Promise<RunRes
       caughtUp: false,
       rewound: false,
       backfilled: 0,
+      cutover: false,
     }
   const addresses = [...cfg.contracts.roles.keys()]
-  let [cp] = await sql.all<{ next_block: number; block_hash: string | null }>(
-    'SELECT next_block, block_hash FROM checkpoint WHERE chain_id = ?',
-    chainId,
-  )
-  let rewound = false
-  if (cp !== undefined && cp.block_hash !== null && cp.next_block > cfg.deployBlock) {
-    const onChain = await cfg.head.blockHash(cp.next_block - 1)
-    if (onChain !== null && onChain.toLowerCase() !== cp.block_hash.toLowerCase()) {
-      await rewindTo(sql, cfg, Math.max(cfg.deployBlock, cp.next_block - (cfg.rewindBlocks ?? 100)), now)
-      rewound = true
-      ;[cp] = await sql.all<{ next_block: number; block_hash: string | null }>(
-        'SELECT next_block, block_hash FROM checkpoint WHERE chain_id = ?',
-        chainId,
-      )
-    }
-  }
+  const { cp, didCutover, rewound } = await deploymentCheckpoint(sql, cfg, now)
   let next = cp?.next_block ?? cfg.deployBlock
   const finalized = await cfg.head.finalizedBlock()
   let pages = 0
@@ -192,30 +201,8 @@ export async function runOnce(sql: AsyncSql, cfg: IndexerConfig): Promise<RunRes
     const hash = await cfg.head.blockHash(upTo - 1)
     const eventBlocks = new Set(fresh.map((e) => e.block))
     await sql.batch([
-      ...fresh.map((e) =>
-        e.jobId === null
-          ? stmt(
-              'INSERT OR IGNORE INTO protocol_events (chain_id, contract, block, log_index, tx_hash, name, args_json) VALUES (?, ?, ?, ?, ?, ?, ?)',
-              chainId,
-              e.contract,
-              e.block,
-              e.logIndex,
-              e.txHash,
-              e.name,
-              JSON.stringify(e.args),
-            )
-          : stmt(
-              'INSERT OR IGNORE INTO events (chain_id, contract, block, log_index, tx_hash, job_id, name, args_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-              chainId,
-              e.contract,
-              e.block,
-              e.logIndex,
-              e.txHash,
-              e.jobId,
-              e.name,
-              JSON.stringify(e.args),
-            ),
-      ),
+      leaseGuard(cfg),
+      ...fresh.map(eventStatement),
       ...(page.blockTimes ?? [])
         .filter((b) => eventBlocks.has(b.block))
         .map((b) =>
@@ -228,10 +215,12 @@ export async function runOnce(sql: AsyncSql, cfg: IndexerConfig): Promise<RunRes
         ),
       ...(await refold(sql, cfg, pageJobs, fresh)),
       stmt(
-        'INSERT OR REPLACE INTO checkpoint (chain_id, next_block, block_hash, updated_at) VALUES (?, ?, ?, ?)',
+        'INSERT OR REPLACE INTO checkpoint (chain_id, next_block, block_hash, core_address, deployment_block, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
         chainId,
         upTo,
         hash,
+        cfg.contracts.core,
+        cfg.deployBlock,
         now,
       ),
     ])
@@ -255,6 +244,7 @@ export async function runOnce(sql: AsyncSql, cfg: IndexerConfig): Promise<RunRes
     caughtUp: next > finalized,
     rewound,
     backfilled,
+    cutover: didCutover,
   }
 }
 
@@ -288,11 +278,89 @@ async function backfillBlockTimes(sql: AsyncSql, cfg: IndexerConfig): Promise<nu
 }
 
 /** Full rebuild: chain facts only, from the deploy block (board records are not the indexer's). */
-export async function resetIndex(sql: AsyncSql, cfg: IndexerConfig): Promise<void> {
+export async function resetIndex(
+  sql: AsyncSql,
+  cfg: IndexerConfig,
+  generation?: { readonly coreAddress: string; readonly deploymentBlock: number; readonly now: number },
+): Promise<void> {
+  const chainId = cfg.contracts.chainId
   await sql.batch([
+    ...(generation === undefined ? [] : [leaseGuard(cfg)]),
     ...DERIVED_TABLES.map((t) => stmt(`DELETE FROM ${t} WHERE chain_id = ?`, cfg.contracts.chainId)),
     stmt('DELETE FROM events WHERE chain_id = ?', cfg.contracts.chainId),
     stmt('DELETE FROM protocol_events WHERE chain_id = ?', cfg.contracts.chainId),
-    stmt('DELETE FROM checkpoint WHERE chain_id = ?', cfg.contracts.chainId),
+    stmt('DELETE FROM checkpoint WHERE chain_id = ?', chainId),
+    ...(generation === undefined
+      ? []
+      : [
+          stmt(
+            'INSERT INTO checkpoint (chain_id, next_block, block_hash, core_address, deployment_block, updated_at) VALUES (?, ?, NULL, ?, ?, ?)',
+            chainId,
+            generation.deploymentBlock,
+            generation.coreAddress,
+            generation.deploymentBlock,
+            generation.now,
+          ),
+        ]),
   ])
+}
+
+async function deploymentCheckpoint(sql: AsyncSql, cfg: IndexerConfig, now: number) {
+  const chainId = cfg.contracts.chainId
+  let [cp] = await sql.all<{
+    next_block: number
+    block_hash: string | null
+    core_address: string | null
+    deployment_block: number | null
+  }>('SELECT next_block, block_hash, core_address, deployment_block FROM checkpoint WHERE chain_id = ?', chainId)
+  let didCutover = false
+  if (
+    cp !== undefined &&
+    (cp.core_address === null ||
+      cp.deployment_block === null ||
+      cp.core_address.toLowerCase() !== cfg.contracts.core.toLowerCase() ||
+      cp.deployment_block !== cfg.deployBlock)
+  ) {
+    await cutover(sql, cfg, now)
+    didCutover = true
+    ;[cp] = await sql.all<{
+      next_block: number
+      block_hash: string | null
+      core_address: string | null
+      deployment_block: number | null
+    }>('SELECT next_block, block_hash, core_address, deployment_block FROM checkpoint WHERE chain_id = ?', chainId)
+  }
+  let rewound = false
+  if (cp !== undefined && cp.block_hash !== null && cp.next_block > cfg.deployBlock) {
+    const onChain = await cfg.head.blockHash(cp.next_block - 1)
+    if (onChain !== null && onChain.toLowerCase() !== cp.block_hash.toLowerCase()) {
+      await rewindTo(sql, cfg, Math.max(cfg.deployBlock, cp.next_block - (cfg.rewindBlocks ?? 100)), now)
+      rewound = true
+      ;[cp] = await sql.all<{
+        next_block: number
+        block_hash: string | null
+        core_address: string | null
+        deployment_block: number | null
+      }>('SELECT next_block, block_hash, core_address, deployment_block FROM checkpoint WHERE chain_id = ?', chainId)
+    }
+  }
+  return { cp, didCutover, rewound }
+}
+
+function eventStatement(e: IndexedEvent): Statement {
+  const common = [e.chainId, e.contract, e.block, e.logIndex, e.txHash]
+  return e.jobId === null
+    ? stmt(
+        'INSERT OR IGNORE INTO protocol_events (chain_id, contract, block, log_index, tx_hash, name, args_json) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        ...common,
+        e.name,
+        JSON.stringify(e.args),
+      )
+    : stmt(
+        'INSERT OR IGNORE INTO events (chain_id, contract, block, log_index, tx_hash, job_id, name, args_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        ...common,
+        e.jobId,
+        e.name,
+        JSON.stringify(e.args),
+      )
 }

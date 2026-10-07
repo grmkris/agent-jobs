@@ -66,6 +66,8 @@ export const SCHEMA: readonly string[] = [
     chain_id INTEGER PRIMARY KEY,
     next_block INTEGER NOT NULL,
     block_hash TEXT,
+    core_address TEXT,
+    deployment_block INTEGER,
     updated_at INTEGER NOT NULL
   )`,
   `CREATE TABLE IF NOT EXISTS lease (
@@ -291,6 +293,7 @@ export const DERIVED_TABLES = [
 
 export async function migrate(sql: AsyncSql): Promise<void> {
   await sql.batch(SCHEMA.map((q) => stmt(q)))
+  await migrateCheckpoint(sql)
   // D1 has no migration runner in v1. Existing installations receive only additive columns at runtime;
   // no data is rewritten and no destructive migration is possible through this path.
   const columns: readonly [string, string][] = [
@@ -322,6 +325,28 @@ export async function migrate(sql: AsyncSql): Promise<void> {
       // API and cron can initialize together. A competing successful initializer is the only ignored failure.
       const after = new Set((await sql.all<{ name: string }>('PRAGMA table_info(jobs)')).map((c) => c.name))
       if (missing.some(([name]) => !after.has(name))) throw error
+    }
+  }
+}
+
+async function migrateCheckpoint(sql: AsyncSql): Promise<void> {
+  const checkpointColumns = new Set(
+    (await sql.all<{ name: string }>('PRAGMA table_info(checkpoint)')).map((c) => c.name),
+  )
+  const missingCheckpoint = (
+    [
+      ['core_address', 'TEXT'],
+      ['deployment_block', 'INTEGER'],
+    ] as const
+  ).filter(([name]) => !checkpointColumns.has(name))
+  if (missingCheckpoint.length > 0) {
+    try {
+      await sql.batch(
+        missingCheckpoint.map(([name, type]) => stmt(`ALTER TABLE checkpoint ADD COLUMN ${name} ${type}`)),
+      )
+    } catch (error) {
+      const after = new Set((await sql.all<{ name: string }>('PRAGMA table_info(checkpoint)')).map((c) => c.name))
+      if (missingCheckpoint.some(([name]) => !after.has(name))) throw error
     }
   }
 }
