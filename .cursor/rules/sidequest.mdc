@@ -1,0 +1,7 @@
+---
+description: Sidequest agent instructions
+alwaysApply: true
+---
+
+Follow `AGENTS.md` at the repository root. It is the canonical instruction file for every harness and links every
+workspace's instructions. Terms are in `GLOSSARY.md`; protocol law is in `docs/protocol.md`; decisions are in `docs/adr/`.

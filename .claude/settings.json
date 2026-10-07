@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "ask": [
+      "Bash(bun run deploy:prod*)",
+      "Bash(*release.ts deploy prod*)",
+      "Bash(*--stage prod*)",
+      "Bash(*--stage=prod*)",
+      "Bash(*alchemy destroy*)",
+      "Bash(git push*)"
+    ],
+    "deny": [
+      "Read(~/.config/secrets.env)",
+      "Read(~/.config/sidequest/*.env)",
+      "Read(.env.local)",
+      "Read(**/.env.local)",
+      "Bash(*secrets.env*)",
+      "Bash(*sidequest/*.env*)",
+      "Bash(git stash*)",
+      "Bash(git reset --hard*)",
+      "Bash(git add -A*)",
+      "Bash(git add --all*)",
+      "Bash(git add .)",
+      "Bash(git add . *)",
+      "Bash(git checkout --*)",
+      "Bash(git checkout * --*)",
+      "Bash(git restore*)",
+      "Bash(git clean*)",
+      "Bash(git commit -a*)",
+      "Bash(git commit --all*)"
+    ]
+  }
+}

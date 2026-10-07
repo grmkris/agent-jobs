@@ -1,0 +1,9 @@
+# tools: repository quality gates
+
+`tools` owns repository quality gates and runs as the `tooling` runtime class declared in [tools/graph.ts](../tools/graph.ts).
+
+- **Check**: `bun run check:files tools`; `bun run --cwd tools typecheck`; `bun run --cwd tools test`; `bun run agents:check`.
+- **Test floor**: 5 files / 53 passed — recorded from `bunx turbo run test --filter tools`. Do not set an RPC variable for this unit suite.
+- **Contract**: Graph, lint baseline, migration lock, agent checks and reporting.
+- **Landmines**: Keep checks explicit and shared-checkout safe; do not weaken a rule or sweep another agent’s files into a command.
+- **Read**: [AGENTS](../AGENTS.md), [deploy](../docs/deploy.md).

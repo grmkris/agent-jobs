@@ -1,24 +1,25 @@
-# Docs app
+# apps/docs: documentation site
 
-`@sidequest/docs` is the Fumadocs/TanStack Start documentation site. From the repo root:
+`@sidequest/docs` owns documentation site and runs as the `browser` runtime class declared in [tools/graph.ts](../../tools/graph.ts).
 
-- `bun run --cwd apps/docs dev`: author pages with the docs dev server.
-- `heavy bun run --cwd apps/docs build`: prerender and verify static output.
-- `bun run --cwd apps/docs typecheck`: typecheck.
-- `bun run --cwd apps/docs test`: component, content, origin, address, theme, and LLM tests.
+- **Check**: `bun run check:files apps/docs`; `bun run --cwd apps/docs typecheck`; `bun run --cwd apps/docs test`; `bun run --cwd apps/docs build`.
+- **Test floor**: 7 files / 52 passed — recorded from `bunx turbo run test --filter @sidequest/docs`. Do not set an RPC variable for this unit suite.
+- **Contract**: Fumadocs/TanStack content, Markdown export, search and `/docs` assets consumed by Explore.
+- **Landmines**: Keep content data-only and links valid; no legacy pages; build once before Explore to avoid the parallel race fixed in `ae7a19f`.
+- **Read**: [docs/stages](../../docs/stages.md), `apps/docs/content/docs`.
 
 ## Content contract
 
 Pages live under `content/docs`. Frontmatter `title` and `description` are required; `mcp` defaults to `true`, and `mcp: false` hides a page from MCP. List every page explicitly in a `meta.json` (a folder may list its own pages). Use ordinary GFM tables, lists and links, fenced code with optional `title="…"`, and images under `content/docs/images/`.
 
-| Component | Markdown form |
-| --- | --- |
-| `<Callout type="info\|warn\|error\|success" title?>` | `> **Title:** body` |
-| `<Cards>` / `<Card title href description?>` | `- [title](absolute .md URL): description` |
-| `<Steps>` / `<Step title>` | numbered bold title, then indented body |
-| `<Tabs>` / `<Tab title>` | bold title and body for every tab |
-| `<Origin path="/mcp" link? />` | absolute URL (compile time) |
-| `<ContractAddresses />` | current deployment table (compile time) |
+| Component                                            | Markdown form                              |
+| ---------------------------------------------------- | ------------------------------------------ |
+| `<Callout type="info\|warn\|error\|success" title?>` | `> **Title:** body`                        |
+| `<Cards>` / `<Card title href description?>`         | `- [title](absolute .md URL): description` |
+| `<Steps>` / `<Step title>`                           | numbered bold title, then indented body    |
+| `<Tabs>` / `<Tab title>`                             | bold title and body for every tab          |
+| `<Origin path="/mcp" link? />`                       | absolute URL (compile time)                |
+| `<ContractAddresses />`                              | current deployment table (compile time)    |
 
 Components use static string attributes and direct children. Raw `a`, `img`, `table`, `pre` elements are allowed within the tested attribute contract. Keep prose data-only: no imports/exports, JSX expressions, braces, arbitrary components, inline handlers, unsafe URLs, raw contract addresses, hand-typed Sidequest origins, code-fence `tab=` or `npm` language, `(group)` folders, or frontmatter `slug`. `{{SIDEQUEST_ORIGIN}}` is allowed only inside code. Sidequest packages are private; do not document package-manager installation commands for them. This docs track allows no `legacy: true` pages. `test/content.test.ts` enforces the contract on every page.
 
