@@ -45,8 +45,6 @@ export default class Indexer extends Cloudflare.Worker<Indexer>()(
   },
   Effect.gen(function* () {
     const db = yield* Cloudflare.D1.QueryDatabase(Database)
-    sdk.setRelayOverride((yield* Config.String('RELAY_ADDRESS')) as `0x${string}`)
-    configurePublicSite(yield* Config.String('PUBLIC_ORIGIN'), yield* Config.String('TELEGRAM_BOT_USERNAME'))
 
     /** The last cron outcome, kept in D1 for `GET /` (Workers logs need a permission the deploy token lacks). */
     const record = (outcome: IndexerRunOutcome) =>
@@ -58,6 +56,8 @@ export default class Indexer extends Cloudflare.Worker<Indexer>()(
 
     const run = Effect.gen(function* () {
       const network = (yield* Config.String('NETWORK')) as sdk.Network
+      sdk.setRelayOverride((yield* Config.String('RELAY_ADDRESS')) as `0x${string}`)
+      configurePublicSite(yield* Config.String('PUBLIC_ORIGIN'), yield* Config.String('TELEGRAM_BOT_USERNAME'))
       const token = yield* secret('HYPERSYNC_API_TOKEN')
       const rpcUrl = yield* secret('MONAD_RPC_URL')
       const telegramToken = yield* secret('TELEGRAM_BOT_TOKEN')

@@ -1,8 +1,9 @@
-/** Each live stage has independent remote state; local work and tests never select it implicitly. */
+/** Each live stage has independent remote state; local work and tests keep local state. */
 export function stateMode(env: NodeJS.ProcessEnv): 'local' | 'remote' {
   if (env.ALCHEMY_STATE_MODE && !['local', 'remote'].includes(env.ALCHEMY_STATE_MODE)) throw new Error('Unknown state mode')
-  const remote = env.ALCHEMY_REMOTE_STATE === '1' || env.ALCHEMY_STATE_MODE === 'remote'
-  if (env.ALCHEMY_STATE_MODE === 'local' && remote) throw new Error('Conflicting state configuration')
+  const explicitRemote = env.ALCHEMY_REMOTE_STATE === '1' || env.ALCHEMY_STATE_MODE === 'remote'
+  if (env.ALCHEMY_STATE_MODE === 'local' && explicitRemote) throw new Error('Conflicting state configuration')
+  const remote = explicitRemote || (env.ALCHEMY_STATE_MODE !== 'local' && env.NODE_ENV !== 'test' && ['dev', 'prod'].includes(env.SIDEQUEST_STAGE ?? 'local'))
   if (remote && !['dev', 'prod'].includes(env.SIDEQUEST_STAGE ?? 'local')) throw new Error('Remote state requires dev or prod stage')
   return remote ? 'remote' : 'local'
 }

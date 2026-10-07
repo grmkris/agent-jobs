@@ -116,8 +116,6 @@ export default class Api extends Cloudflare.Worker<Api>()(
   Effect.gen(function* () {
     const boards = yield* Board
     const runtimeEnv = yield* Cloudflare.WorkerEnvironment
-    sdk.setRelayOverride((yield* Config.String('RELAY_ADDRESS')) as Address)
-    configurePublicSite(yield* Config.String('PUBLIC_ORIGIN'), yield* Config.String('TELEGRAM_BOT_USERNAME'))
     const directory = yield* DirectoryObject
     const manifests = yield* Cloudflare.R2.ReadWriteBucket(Manifests)
     // Explore's chain facts (read-only here; the indexer is the only writer of its tables) and the board registry.
@@ -128,6 +126,8 @@ export default class Api extends Cloudflare.Worker<Api>()(
         const request = yield* HttpServerRequest.HttpServerRequest
         const url = new URL(request.originalUrl)
         const network = (yield* Config.String('NETWORK')) as sdk.Network
+        sdk.setRelayOverride((yield* Config.String('RELAY_ADDRESS')) as Address)
+        configurePublicSite(yield* Config.String('PUBLIC_ORIGIN'), yield* Config.String('TELEGRAM_BOT_USERNAME'))
         const stage = yield* Config.String('DEPLOY_STAGE')
         const telegramSecret = yield* secret('TELEGRAM_WEBHOOK_SECRET')
         const telegramToken = yield* secret('TELEGRAM_BOT_TOKEN')

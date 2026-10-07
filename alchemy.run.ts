@@ -31,9 +31,12 @@ export default Alchemy.Stack(
   Effect.gen(function* () {
     const stage = yield* Stage
     const mode = yield* defaultProviderMode
-    const profile = stageProfile(stage)
+    // Alchemy gives local test stacks a generated stage name (for example
+    // `test_kristjan`). Treat those as local; live mode still rejects every
+    // stage except the explicitly configured dev/prod profiles.
+    const profile = stage === 'dev' || stage === 'prod' ? stageProfile(stage) : undefined
     if (mode === 'live') assertLiveRelease(stage, selectedState, process.env)
-    yield* Effect.promise(() => assertDeployConfig(stage))
+    yield* Effect.promise(() => assertDeployConfig(profile?.stage ?? 'local', profile))
     const database = yield* Database
     const manifests = yield* Manifests
     const api = yield* Api

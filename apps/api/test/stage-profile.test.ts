@@ -39,6 +39,10 @@ test('live gate requires the matching stage, remote state, migrations, and compl
   const env = { SIDEQUEST_RELEASE: '1', SIDEQUEST_STAGE: 'prod', SIDEQUEST_APPLY_MIGRATIONS: '1', ALCHEMY_REMOTE_STATE: '1' }
   expect(stateMode(env)).toBe('remote')
   expect(stateMode({ ...env, SIDEQUEST_STAGE: 'dev' })).toBe('remote')
+  expect(stateMode({ SIDEQUEST_STAGE: 'dev' })).toBe('remote')
+  expect(stateMode({ SIDEQUEST_STAGE: 'prod', SIDEQUEST_NETWORK: 'monad-mainnet' })).toBe('remote')
+  expect(stateMode({ SIDEQUEST_STAGE: 'local' })).toBe('local')
+  expect(stateMode({ SIDEQUEST_STAGE: 'prod', NODE_ENV: 'test' })).toBe('local')
   expect(() => assertLiveRelease('prod', 'remote', env)).not.toThrow()
   for (const patch of [{ SIDEQUEST_RELEASE: '0' }, { SIDEQUEST_STAGE: 'dev' }, { SIDEQUEST_APPLY_MIGRATIONS: '0' }, { SIDEQUEST_WITHOUT_EXPLORE: '0' }]) {
     expect(() => assertLiveRelease('prod', 'remote', { ...env, ...patch })).toThrow()

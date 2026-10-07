@@ -1,15 +1,20 @@
 import { DatabaseSync } from 'node:sqlite'
 import { verifyMessage } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
+import { stageProfile } from '../../../infra/stage.ts'
 import { type AsyncSql, fromNodeSqlite, stmt } from '@sidequest/indexer'
 import {
   drainTelegramOutbox, handleTelegramWebhook, migrateTelegram, telegramLinkConfirm, telegramLinkPrepare,
-  telegramPublicChannel, telegramStatus,
+  configurePublicSite, publicOrigin, telegramPublicChannel, telegramStatus,
 } from '../src/telegram.ts'
 
 const account = privateKeyToAccount('0x0123456789012345678901234567890123456789012345678901234567890123')
 const chat = 987654321
+afterEach(() => {
+  const dev = stageProfile('dev')!
+  configurePublicSite(dev.origin, dev.telegram.botUsername)
+})
 
 async function db(): Promise<AsyncSql> {
   const sql = fromNodeSqlite(new DatabaseSync(':memory:'))
@@ -18,6 +23,18 @@ async function db(): Promise<AsyncSql> {
 }
 
 describe('Telegram wallet links and outbox', () => {
+  it('uses the prod origin and bot for signed links while still on testnet', async () => {
+    const prod = stageProfile('prod')!
+    configurePublicSite(prod.origin, prod.telegram.botUsername)
+    const sql = await db()
+    const prepared = await telegramLinkPrepare(sql, 'monad-testnet', account.address, 100)
+    expect(publicOrigin()).toBe('https://sidequest.exchange')
+    expect(prepared.message).toContain('Site: https://sidequest.exchange')
+    expect(prepared.message).toContain('10143')
+    const signature = await account.signMessage({ message: prepared.message })
+    const confirmed = await telegramLinkConfirm(sql, 'monad-testnet', account.address, prepared.nonce, signature, 101, verifyMessage)
+    expect(confirmed.botUrl).toBe(`https://t.me/sidequest_exchange_bot?start=${prepared.nonce}`)
+  })
   it('keeps public channels in code config and empty placeholders skip posts', () => {
     expect(telegramPublicChannel('monad-testnet')).toBe('')
     expect(telegramPublicChannel('monad-mainnet')).toBe('')
@@ -30,7 +47,7 @@ describe('Telegram wallet links and outbox', () => {
     expect(prepared.message).toContain(account.address)
     const signature = await account.signMessage({ message: prepared.message })
     const confirmed = await telegramLinkConfirm(sql, 'monad-testnet', account.address, prepared.nonce, signature, 101, verifyMessage)
-    expect(confirmed.botUrl).toBe(`https://t.me/sidequest_xyz_bot?start=${prepared.nonce}`)
+    expect(confirmed.botUrl).toBe(`https://t.me/sidequest_excange_dev_bot?start=${prepared.nonce}`)
     expect((await telegramStatus(sql, 'monad-testnet', account.address))).toMatchObject({ linked: false, username: null, linkedAt: null })
     const update = { update_id: 1, message: { chat: { id: chat, type: 'private' }, from: { id: chat, username: 'kris' }, text: `/start ${prepared.nonce}` } }
     expect(await handleTelegramWebhook(sql, 'monad-testnet', update, 'secret', 'secret', 102)).toEqual({ ok: true, queued: true })
