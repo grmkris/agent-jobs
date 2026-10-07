@@ -70,7 +70,7 @@ export function formatNumber(value: bigint, decimals: number): string {
   return f === '' ? grouped : `${grouped}.${f}`
 }
 
-/** "7 mUSD". Testnet's "test tokens, no real value" is said once, on the network pill, not after every amount. */
+/** "7 mUSD". That testnet tokens have no value is said by the TESTNET tag and the wallet, not after every amount. */
 export function amount(value: string | null | undefined, token: string | null | undefined): string {
   if (value === null || value === undefined) return '—'
   const t = tokenMeta((token ?? '').toLowerCase())

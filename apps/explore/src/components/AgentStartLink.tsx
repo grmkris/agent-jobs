@@ -1,11 +1,11 @@
 import { cn } from '../lib/cn.ts'
 import { Check, Copy } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
-import { NETWORK_ORIGINS, writesOpen } from '../wallet.ts'
+import { testnetLink, writesOpen } from '../wallet.ts'
 import { buttonVariants } from './ui/button.tsx'
 
 /** Where the agent start guide lives: this site, or testnet while this network's writes are not open yet. */
-export const startOrigin = () => (writesOpen ? window.location.origin : NETWORK_ORIGINS['monad-testnet'])
+export const startOrigin = () => (writesOpen || testnetLink === null ? window.location.origin : testnetLink)
 
 /**
  * The one sentence a person pastes into a coding agent. start.md asks the human once whether to work, hire or both,

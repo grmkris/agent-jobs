@@ -92,7 +92,9 @@ try {
 
   await page.goto(base);
   await page.getByRole('note').filter({ hasText: 'Launching soon.' }).waitFor();
-  await page.getByRole('group', { name: 'Network' }).first().locator('[aria-current="true"]', { hasText: 'Mainnet' }).waitFor();
+  // Mainnet carries no network marker; its only link to testnet is the config's, in the launch banner.
+  assert.equal(await page.getByText('Testnet', { exact: true }).count(), 0, 'mainnet shows the testnet tag');
+  assert.equal(await page.getByRole('note').getByRole('link', { name: 'Try it on testnet' }).getAttribute('href'), 'https://dev.sidequest.exchange/');
   await capture(page, 'mainnet-home-drained');
 
   for (const [path, title] of WRITE_ROUTES) {
@@ -123,7 +125,7 @@ try {
   assert.deepEqual(errors, []);
   const writes = tools.filter((t) => !READ_TOOLS.has(t));
   assert.deepEqual(writes, [], `write tools reached the board: ${writes.join(', ')}`);
-  results.push({ build: 'mainnet, MAINNET_LIVE false', checks: ['release.json pins false', 'banner on every page', 'Mainnet shown as the current network', ...WRITE_ROUTES.map(([p]) => `${p} by URL: launching soon, no form or write button`), 'only read tools reached the board'], passed: true });
+  results.push({ build: 'mainnet, MAINNET_LIVE false', checks: ['release.json pins false', 'banner on every page', 'no testnet tag; the banner links to the configured testnet origin', ...WRITE_ROUTES.map(([p]) => `${p} by URL: launching soon, no form or write button`), 'only read tools reached the board'], passed: true });
   await context.close();
 } finally {
   await drained.close();
@@ -151,10 +153,13 @@ const testnet = await serve(5206, 'monad-testnet', true);
 try {
   const base = 'http://127.0.0.1:5206';
   const { context, page } = await open(base, 10143);
-  await page.goto(base);
-  const mainnet = page.getByRole('group', { name: 'Network' }).first().getByRole('link', { name: 'Mainnet' });
-  assert.equal(await mainnet.getAttribute('href'), 'https://sidequest.exchange/');
-  results.push({ build: 'testnet, MAINNET_LIVE true', checks: ['Mainnet is a live link to https://sidequest.exchange/'], passed: true });
+  // Testnet marks itself (tag beside the brand) and never links to mainnet, on the landing or in the app.
+  for (const path of ['/', '/jobs']) {
+    await page.goto(`${base}${path}`);
+    await page.getByText('Testnet', { exact: true }).locator('visible=true').first().waitFor();
+    assert.equal(await page.locator('a[href^="https://sidequest.exchange"]').count(), 0, `${path}: a link to mainnet`);
+  }
+  results.push({ build: 'testnet, MAINNET_LIVE true', checks: ['TESTNET tag on the landing and in the app', 'no link to mainnet'], passed: true });
   await context.close();
 } finally {
   await testnet.close();

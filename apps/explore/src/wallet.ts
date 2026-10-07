@@ -15,8 +15,11 @@ export const privyAppId: string = typeof __PRIVY_APP_ID__ === 'string' ? __PRIVY
 export const network: sdk.Network = typeof __SIDEQUEST_NETWORK__ === 'string' ? __SIDEQUEST_NETWORK__ : 'monad-testnet'
 export const isMainnet = network === 'monad-mainnet'
 
-/** Canonical origin of each network's Explore (the header's network switch links to the other one's root). */
-export const NETWORK_ORIGINS = { 'monad-mainnet': 'https://sidequest.exchange', 'monad-testnet': 'https://dev.sidequest.exchange' } as const
+/**
+ * The testnet Explore's origin, from the network config (`links.testnet`): set only on mainnet before launch, where the
+ * "launching soon" notices send people to try it. Null everywhere else: the networks never link to each other.
+ */
+export const testnetLink: string | null = sdk.networkMeta(network).links.testnet ?? null
 export { MAINNET_LIVE }
 
 /** The deploy's chain; testnet with the explorer overridden (the chain's default testnet explorer entry is stale). */

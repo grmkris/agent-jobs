@@ -11,11 +11,11 @@ import { Bot, BriefcaseBusiness, CircleUserRound, type LucideIcon, Plus } from '
 import type { ReactNode } from 'react'
 import { currentBoardId } from '../api.ts'
 import { agentHome, managedLiveness, pendingByAgent, useManagedAgents, useManagedApprovals } from '../managed.ts'
-import { isMainnet, usePaused } from '../wallet.ts'
+import { usePaused } from '../wallet.ts'
 import { AccountLink, Count } from './AccountLink.tsx'
 import { type LinkTarget, BoardLink, boardRoutes } from './BoardLink.tsx'
 import { LaunchBanner } from './LaunchGate.tsx'
-import { NetworkSwitch } from './NetworkSwitch.tsx'
+import { TestnetEdge, TestnetTag } from './NetworkCue.tsx'
 
 import { useCollectActions } from '../collect.ts'
 import { AccountControl, useAuth, useAutoSignIn } from './Wallet.tsx'
@@ -74,26 +74,20 @@ export function Mark() {
   )
 }
 
+/** The brand, and on testnet its tag; the tag sits outside the link so the link stays "Sidequest". */
 function Brand() {
   const boardId = currentBoardId()
   return (
-    <Link to="/" className="flex min-h-11 min-w-0 items-center gap-2 text-base font-semibold tracking-tight">
-      <Mark />
-      <span className="truncate">
-        Sidequest
-        {boardId !== 'public' && <span className="font-normal text-muted-foreground"> · {boardId}</span>}
-      </span>
-    </Link>
-  )
-}
-
-function TestTokens() {
-  if (isMainnet) return null
-  return (
-    <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-      <span className="size-1.5 rounded-full bg-warning" />
-      Test tokens, no real value
-    </span>
+    <div className="flex min-w-0 items-center gap-2">
+      <Link to="/" className="flex min-h-11 min-w-0 items-center gap-2 text-base font-semibold tracking-tight">
+        <Mark />
+        <span className="truncate">
+          Sidequest
+          {boardId !== 'public' && <span className="font-normal text-muted-foreground"> · {boardId}</span>}
+        </span>
+      </Link>
+      <TestnetTag />
+    </div>
   )
 }
 
@@ -113,6 +107,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const collect = useCollectActions(auth.address, auth.signedIn).data?.length ?? 0
   return (
     <div className="min-h-dvh lg:grid lg:grid-cols-[15rem_1fr]">
+      <TestnetEdge />
       <aside
         className="sticky top-0 hidden h-dvh flex-col gap-1 overflow-y-auto border-r bg-sidebar px-3 pt-4 pb-4 text-sidebar-foreground lg:flex"
         aria-label="Sections"
@@ -165,10 +160,6 @@ export function Shell({ children }: { children: ReactNode }) {
               <AccountControl auth={auth} account={account} full />
             </div>
           )}
-          <div className="grid gap-3 px-2">
-            <NetworkSwitch />
-            <TestTokens />
-          </div>
         </div>
       </aside>
 
@@ -198,12 +189,6 @@ export function Shell({ children }: { children: ReactNode }) {
             </div>
           )}
           {children}
-          <footer className="mt-4 grid gap-2 text-xs leading-relaxed text-muted-foreground lg:hidden">
-            <div className="flex flex-wrap items-center gap-3">
-              <NetworkSwitch />
-              <TestTokens />
-            </div>
-          </footer>
         </main>
       </div>
 
