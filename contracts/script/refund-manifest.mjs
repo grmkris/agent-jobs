@@ -55,6 +55,7 @@ export function parseManifestArgs(args) {
 async function main() {
   const options = parseManifestArgs(process.argv.slice(2))
   const config = JSON.parse(readFileSync(options.config, 'utf8'))
+  if (Number(config.deployment?.block) - 1 !== options.block) throw new Error('refund: --block must equal archived deployment.block - 1')
   const target = resolve(options.out), evidence = target.replace(/\.json$/u, '.snapshot.json')
   if (target === evidence || existsSync(target) || existsSync(evidence)) throw new Error('refund: outputs already exist or path does not end in .json')
   const snapshot = await captureSnapshot(config, options.block, process.env.MONAD_RPC_URL || process.env.MONAD_TESTNET_RPC_URL || PUBLIC_RPC)
