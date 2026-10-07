@@ -101,14 +101,14 @@ function readState() {
 async function main() {
   const action = process.argv[2] ?? 'deploy'
   if (!['plan', 'deploy'].includes(action)) throw new Error('use-plan-or-deploy')
-  if (Number(process.versions.node.split('.')[0]) < 24) throw new Error('node-24-required')
+  if (Number(process.versions.node.split('.')[0]) < 22) throw new Error('node-22-required')
   if (action === 'deploy' && process.env.SIDEQUEST_DEV_RELEASE !== '1') throw new Error('explicit-dev-release-required')
   const lines = args => git(...args).split('\n').filter(Boolean)
   assertCheckout({ branch: git('branch', '--show-current'), staged: lines(['diff', '--cached', '--name-only']), dirty: lines(['diff', '--name-only']), unknown: lines(['ls-files', '--others', '--exclude-standard']) })
   const localEnv = parseEnv(readFileSync(resolve(repo, '.env.local'), 'utf8'))
   const devAuthority = loadDevAuthority(repo, localEnv)
   // Separate provider GET verification from cached build tasks and keep all output private.
-  const verify = spawnSync('pnpm', ['exec', 'bun', 'packages/sdk/scripts/privy/sidequest-cutover.ts', 'verify'], { cwd: repo, env: { ...process.env, ...localEnv }, stdio: 'pipe' })
+  const verify = spawnSync('bun', ['packages/sdk/scripts/privy/sidequest-cutover.ts', 'verify'], { cwd: repo, env: { ...process.env, ...localEnv }, stdio: 'pipe' })
   if (verify.status !== 0) throw new Error('sidequest-dev-authority-provider-readback-failed')
   const verifiedLocalEnv = parseEnv(readFileSync(resolve(repo, '.env.local'), 'utf8'))
   const verifiedAuthority = loadDevAuthority(repo, verifiedLocalEnv)
@@ -153,10 +153,10 @@ async function main() {
       if (result.status !== 0) throw new Error('dev-release-command-failed-inspect-private-log')
     }
     try {
-      run('pnpm', ['install', '--offline', '--frozen-lockfile'])
+      run('bun', ['install', '--offline', '--frozen-lockfile'])
       if (git('rev-parse', 'HEAD') !== packet.commit) throw new Error('release-source-changed')
       writeFileSync(resolve(privateRoot, 'dev-release.json'), JSON.stringify({ ...packet, status: 'applying' }, null, 2) + '\n', { mode: 0o600 })
-      run('pnpm', ['exec', 'alchemy', 'deploy', '--stage', 'dev', '--yes'])
+      run('bunx', ['alchemy', 'deploy', '--stage', 'dev', '--yes'])
       writeFileSync(resolve(privateRoot, 'dev-release.json'), JSON.stringify({ ...packet, status: 'deployed', finishedAt: new Date().toISOString() }, null, 2) + '\n', { mode: 0o600 })
     } finally { closeSync(log) }
     console.log(`Sidequest dev deployed: ${infra.origin}`)

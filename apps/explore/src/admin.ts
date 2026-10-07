@@ -48,7 +48,7 @@ export function scheduleProposal(d: ScheduleDraft, maxBps: number): { thresholds
 
 const BYTES32 = /^0x[0-9a-fA-F]{64}$/
 
-/** What the admin page takes from `pnpm mining:epoch`'s `epoch-<n>.json` (B8, scripts/mining/README.md). */
+/** What the admin page takes from `bun run mining:epoch`'s `epoch-<n>.json` (B8, scripts/mining/README.md). */
 export interface EpochFile {
   epoch: bigint
   root: Hex
@@ -303,7 +303,7 @@ export interface FundGuard {
  * or when its signature does not recover to this owner at the current nonce. `signer` is that recovery.
  */
 export function fundProblem(guard: FundGuard | undefined, live: { nonce: bigint; totalFunded: bigint }, signer: string, owner: string, epoch: string): string | null {
-  const rerun = `Run pnpm mining:epoch ${epoch} again, load the new file and review the funding again.`
+  const rerun = `Run bun run mining:epoch ${epoch} again, load the new file and review the funding again.`
   if (guard === undefined || !/^\d+$/.test(guard.nonce) || !/^\d+$/.test(guard.totalFunded)) return `It was saved without the Safe nonce and funding it was signed against. ${rerun}`
   if (BigInt(guard.nonce) !== live.nonce) return `A Safe transaction has gone through since this funding was signed (Safe nonce ${guard.nonce}, now ${live.nonce}), so the Safe would refuse it. ${rerun}`
   if (BigInt(guard.totalFunded) !== live.totalFunded) return `The reserve has funded ${formatNumber(live.totalFunded, 18)} SIDE in all; this funding was signed when it had funded ${formatNumber(BigInt(guard.totalFunded), 18)}. ${rerun}`

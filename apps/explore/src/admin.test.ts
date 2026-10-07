@@ -179,7 +179,7 @@ describe('a funding signed for one Safe nonce', () => {
   const live = { nonce: 7n, totalFunded: 2000n * W }
   it('stands only while the nonce, the reserve total and the signer are what it was signed against', () => {
     expect(fundProblem(guard, live, me, me, '1')).toBeNull()
-    expect(fundProblem(guard, { ...live, nonce: 8n }, me, me, '1')).toMatch(/Safe nonce 7, now 8\), so the Safe would refuse it\. Run pnpm mining:epoch 1 again/)
+    expect(fundProblem(guard, { ...live, nonce: 8n }, me, me, '1')).toMatch(/Safe nonce 7, now 8\), so the Safe would refuse it\. Run bun run mining:epoch 1 again/)
     expect(fundProblem(guard, { ...live, totalFunded: 2500n * W }, me, me, '1')).toMatch(/funded 2,500 SIDE in all; this funding was signed when it had funded 2,000/)
     expect(fundProblem(guard, live, '0x2222222222222222222222222222222222222222', me, '1')).toMatch(/not signed as you for the Safe’s nonce 7/)
     expect(fundProblem(undefined, live, me, me, '1')).toMatch(/saved without the Safe nonce/)

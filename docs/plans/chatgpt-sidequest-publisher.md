@@ -278,7 +278,7 @@ Keep live job content in MCP responses. [Packaged/imported skills](https://devel
 - Submit only the tool surface that passes OpenAI policy and review.
 - Economic actions stay custom-connection-only; P6 is out of scope for this track.
 
-Each implementation phase needs a separate coherent commit on main after its relevant checks. Use pnpm; expensive checks go through `heavy`. Run `pnpm check` before a future push and follow the release runbook for an authorized deployment. Migration generation is deliberate and migrations are not automatically applied. This document does not start any phase or authorize sends/deployments.
+Each implementation phase needs a separate coherent commit on main after its relevant checks. Use Bun; expensive checks go through `heavy`. Run `bun run check` before a future push and follow the release runbook for an authorized deployment. Migration generation is deliberate and migrations are not automatically applied. This document does not start any phase or authorize sends/deployments.
 
 ## Acceptance criteria
 

@@ -16,4 +16,3 @@ export function runtimeSecret(name: keyof typeof prodSecretSources): string | un
   if (process.env.SIDEQUEST_STAGE === 'dev' && (name === 'TELEGRAM_BOT_TOKEN' || name === 'TELEGRAM_WEBHOOK_SECRET')) return undefined
   return process.env[process.env.SIDEQUEST_NETWORK === 'monad-mainnet' ? prodSecretSources[name] : name]
 }
-

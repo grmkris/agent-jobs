@@ -35,7 +35,7 @@ the old `/quotes` links redirecting and `/workers` gone. A pick was not exercise
 The previous guarded dev application release was `3cebe7d`, deployed on 7 October 2026
 at 08:34:25 UTC at Kris's request. The
 [dated live receipt](evidence/sidequest-dev/2026-10-07-3cebe7d-live.json) records the
-source/tree, the green `heavy pnpm check`, the runner tests, the migration drift check (no new
+source/tree, the green `heavy bun run check`, the runner tests, the migration drift check (no new
 migration), a redacted secret scan of the pushed range, the guarded update, the anonymous
 readback (health, release and OAuth metadata 200; every anonymous MCP method 401) and an
 anonymous browser smoke (light/dark, 1440/390, no page or console errors). It carries
@@ -49,7 +49,7 @@ pool). Host acceptance and authenticated MCP calls remain unverified.
 An earlier guarded dev application release was `c7da8ba`, deployed on 6 October 2026
 at 20:12:35 UTC at V11's READY-FOR-DEV-CUT request. The
 [dated live receipt](evidence/sidequest-dev/2026-10-06-c7da8ba-live.json) records the
-source/tree, V11's green `heavy pnpm check`, the runner tests and migration drift check,
+source/tree, V11's green `heavy bun run check`, the runner tests and migration drift check,
 the successful guarded update and the anonymous readback (health, release and OAuth
 metadata 200; every anonymous MCP method 401). It fixes the root cause of the
 approved-hire retry failure: Cloudflare's SQLite refuses `LIKE` patterns over 50 bytes,
@@ -60,7 +60,7 @@ remain unverified.
 An earlier guarded dev application release was `d167a0d`, deployed on 6 October 2026
 at 20:01:33 UTC at V11's READY-FOR-DEV-CUT request. The
 [dated live receipt](evidence/sidequest-dev/2026-10-06-d167a0d-live.json) records the
-source/tree, V11's green `heavy pnpm check`, the runner tests and migration drift check,
+source/tree, V11's green `heavy bun run check`, the runner tests and migration drift check,
 the successful guarded update and the anonymous readback (health, release and OAuth
 metadata 200; every anonymous MCP method 401). It adds function-name-only stack frames
 to the agent-failure log so a masked internal failure names where it was thrown, and
@@ -71,7 +71,7 @@ The previous guarded dev application release was `760b0a7`, deployed on 6 Octobe
 at 19:38:24 UTC at V11's READY-FOR-DEV-CUT request for `3109c14` (`760b0a7` adds only a
 crew scenario document, so the deployed application source is `3109c14`). The
 [dated live receipt](evidence/sidequest-dev/2026-10-06-760b0a7-live.json) records the
-source/tree, V11's green `heavy pnpm check` on `3109c14`, the runner tests and migration
+source/tree, V11's green `heavy bun run check` on `3109c14`, the runner tests and migration
 drift check, the successful guarded update and the anonymous readback: health, release and
 OAuth metadata 200; every anonymous MCP method 401. It carries the V11 Explore fixes
 (first-login signature, error pages, `/agents/<id>` redirect, role-scoped consent, budget
@@ -108,14 +108,14 @@ does not establish acceptance of the hosted managed signer.
 
 ## Release
 
-Use Node 24 through the installed pnpm runner:
+Use Node 22 or newer and Bun 1.4.2:
 
 ```sh
-heavy pnpm check
-pnpm sidequest:test
-pnpm db:generate --check
-heavy pnpm dlx node@24 scripts/sidequest/dev-release.mjs plan
-SIDEQUEST_DEV_RELEASE=1 heavy pnpm dlx node@24 scripts/sidequest/dev-release.mjs
+heavy bun run check
+bun run sidequest:test
+bun run db:generate --check
+heavy node scripts/sidequest/dev-release.mjs plan
+SIDEQUEST_DEV_RELEASE=1 heavy node scripts/sidequest/dev-release.mjs
 ```
 
 The runner checks `main`, committed release source, Cloudflare account/zone
@@ -173,7 +173,7 @@ authenticated MCP, inbox, webhook and managed-signing proofs remain V11's lane.
 Physical checkout/worktree/tmux paths stay stable while their owners integrate.
 
 The read-only policy planner is
-`pnpm exec bun packages/sdk/scripts/privy/sidequest-policy-plan.ts`. It verifies
+`bun packages/sdk/scripts/privy/sidequest-policy-plan.ts`. It verifies
 the archived policy differs only in the reviewed name/four pins and produces a
 separate-policy payload; it never updates legacy recovery authority. App and
 routine-signer credentials exposed during a search are treated as compromised.

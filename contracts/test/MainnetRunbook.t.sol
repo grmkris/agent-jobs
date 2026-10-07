@@ -50,11 +50,11 @@ contract MainnetRunbookTest is Test {
         s[10] = "the reviewed Safe: storage slot 0 is the canonical SafeL2 singleton";
         s[11] = "MAINNET_GO=yes forge script script/SeedPool.s.sol";
         s[12] = "forge script script/SeedPool.s.sol --sig \"verify()\"";
-        s[13] = "PROD_ADMISSION_DRAIN=1 pnpm deploy:prod";
+        s[13] = "PROD_ADMISSION_DRAIN=1 bun run deploy:prod";
         s[14] = "Post-deploy probes";
         s[15] = "bun scripts/preflight-prod.ts docs/p0-prod-artifact.json --probe https://sidequest.exchange";
         s[16] = live;
-        s[17] = "PROD_ADMISSION_DRAIN=0 pnpm deploy:prod";
+        s[17] = "PROD_ADMISSION_DRAIN=0 bun run deploy:prod";
         _inOrder(doc, s, "runbook");
     }
 
@@ -276,10 +276,10 @@ contract MainnetRunbookTest is Test {
         _inOrder(mine, mining, "RehearseMining");
 
         string[] memory epoch = new string[](5);
-        epoch[0] = "pnpm mining:epoch <n> --network monad-mainnet";
+        epoch[0] = "bun run mining:epoch <n> --network monad-mainnet";
         epoch[1] = "**`calls.fund`**";
         epoch[2] = "**`calls.setRoot`**";
-        epoch[3] = "pnpm mining:publish <dir>/epoch-<n>.json --stage prod";
+        epoch[3] = "bun run mining:publish <dir>/epoch-<n>.json --stage prod";
         epoch[4] = "Each claim stakes the reward";
         _inOrder(doc, epoch, "runbook section 4");
         assertTrue(vm.contains(doc, "After `setRoot` and before any claim, publish"), "runbook: publish not placed");
@@ -300,7 +300,7 @@ contract MainnetRunbookTest is Test {
         assertTrue(
             vm.contains(
                 vm.readFile(string.concat(root, "/../scripts/mining/README.md")),
-                "pnpm mining:publish <epoch-n.json> --stage dev|prod"
+                "bun run mining:publish <epoch-n.json> --stage dev|prod"
             ),
             "scripts/mining/README.md documents another mining:publish usage"
         );

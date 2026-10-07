@@ -4,7 +4,7 @@ This harness drives the real testnet website in Chromium and uses a real isolate
 Codex as its hosted MCP client. Every result is **fixture**. It does not establish
 genuine-user consent, wallet rotation or mainnet readiness.
 
-Setup is the harness brief's frozen pnpm install, submodule initialization and
+Setup is the harness brief's frozen bun install, submodule initialization and
 `heavy forge build` in `contracts`. Chromium must already be installed; set
 `PLAYWRIGHT_CHROMIUM_PATH` if the box's default executable differs.
 
@@ -27,10 +27,10 @@ export P8_RELEASE_STATUS_FILE=/home/kristjan/code/sidequest.wt/status/triage.md
 export P8_HARNESS_STATUS_FILE=/home/kristjan/code/sidequest.wt/status/harness.md
 export P8_RUN_ID=p8-fixture-20261005
 export P8_GROK_AGENT_ID=<reviewed registered Grok demo worker ID>
-pnpm live:deployed
+bun run live:deployed
 ```
 
-Select individual cases with `pnpm live:deployed A01f`. Cases depend on the same
+Select individual cases with `bun run live:deployed A01f`. Cases depend on the same
 run's A01 agent, A02 job/earnings and A03 signed allowance calldata. Default order
 is A01f, A02f, A03f, A04f, A05f, A07f, A08f, then A06f: revocation ends the client
 connection. A03 proves the named-worker atomic publish; it does not wait for the
@@ -87,7 +87,7 @@ Sanitized results are written to `docs/evidence/agent-first-v2/p8-A01f.json` thr
 hashes, gas and cumulative spend. The console reports cumulative MON and pending
 reservations. No deployment or mainnet operation exists in the harness.
 
-Run `heavy pnpm check` and the SDK/board fork suites with the sourced testnet RPC
+Run `heavy bun run check` and the SDK/board fork suites with the sourced testnet RPC
 before committing. Do not wrap the full live suite in `heavy`: its A08 mining gate
 uses `heavy` internally. Run one acceptance runner at a time and keep Chromium,
 Codex and Anvil cleanup enabled.

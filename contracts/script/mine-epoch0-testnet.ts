@@ -65,7 +65,7 @@ async function main() {
   writeFileSync(signedPath, signed, { mode: 0o600 })
   const epochBytes = await j.once(artifactKey, async () => {
     // RPC comes from its named exported variable, never the command line.
-    console.log(run('pnpm', ['mining:epoch', epoch.toString(), '--network', 'monad-testnet', '--prices', signedPath, '--out', out]))
+    console.log(run('bun', ['run', 'mining:epoch', epoch.toString(), '--network', 'monad-testnet', '--prices', signedPath, '--out', out]))
     return readFileSync(epochPath, 'utf8')
   })
   if (JSON.parse(epochBytes).root === null) throw new Error('epoch has no earned fees; select an ended epoch with counted paid fees and a new directory')
@@ -76,7 +76,7 @@ async function main() {
   writeFileSync(epochPath, epochBytes, { mode: 0o600 })
   await runEpoch(ctx, j, owner, hash => owner.account.sign!({ hash }), file, async () => {
     // Explicit staging route; successful command includes same-byte R2 readback.
-    console.log(run('pnpm', ['mining:publish', epochPath, '--stage', 'staging']))
+    console.log(run('bun', ['run', 'mining:publish', epochPath, '--stage', 'staging']))
     console.log(`PUBLISHED mining/epoch-${epoch}.json sha256 ${sha(epochBytes)}`)
   }, claimant, epoch)
 }

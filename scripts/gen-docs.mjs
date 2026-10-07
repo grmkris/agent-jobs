@@ -12,7 +12,7 @@ const root = fileURLToPath(new URL('..', import.meta.url))
 const docsRoot = resolve(root, 'apps/docs')
 const output = join(root, 'apps/api/src/generated/docs.ts')
 const placeholder = 'https://sidequest.origin.invalid'
-// Resolve the content pipeline's dependencies from its owning pnpm workspace.
+// Resolve the content pipeline's dependencies from its owning Bun workspace.
 const requireDocs = createRequire(join(docsRoot, 'package.json'))
 const { default: react } = await import(pathToFileURL(requireDocs.resolve('@vitejs/plugin-react')).href)
 const { createServer } = await import(pathToFileURL(requireDocs.resolve('vite')).href)

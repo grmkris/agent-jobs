@@ -67,4 +67,4 @@ checks. The object also verifies its canonical chain/registry/origin/agent name 
 
 Local workerd tests exercise mainnet admission refusals and shared rate counters; a local Monad testnet fork verifies the real ERC-8004 wallet, enrollment signatures, replay and opt-out. This is implementation evidence, not live mainnet enrollment.
 
-Tests: `heavy pnpm check`; browser fixture: `cd apps/explore && heavy node test/directory.e2e.mjs <evidence-dir>`. The fixture blocks external traffic and uses mocked wallets and API responses. Those screenshots do not establish live enrollment, real signing, ERC-1271 RPC integration, Safari/iPhone or installed-PWA behavior.
+Tests: `heavy bun run check`; browser fixture: `cd apps/explore && heavy node test/directory.e2e.mjs <evidence-dir>`. The fixture blocks external traffic and uses mocked wallets and API responses. Those screenshots do not establish live enrollment, real signing, ERC-1271 RPC integration, Safari/iPhone or installed-PWA behavior.

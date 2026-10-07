@@ -315,7 +315,7 @@ function Admin({ c, safe, me }: { c: SidequestContracts; safe: Address; me: Addr
       allowFailure: false,
     })
     if (totalFunded !== expectTotalFunded)
-      return `The reserve has funded ${fmt(totalFunded)} in all; the file expected ${fmt(expectTotalFunded)}. Run pnpm mining:epoch ${epoch} again and load the new file.`
+      return `The reserve has funded ${fmt(totalFunded)} in all; the file expected ${fmt(expectTotalFunded)}. Run bun run mining:epoch ${epoch} again and load the new file.`
     const typed = safeTxTypedData(chain.id, safe, call, nonce)
     let signature: Hex | null
     try {
@@ -1091,7 +1091,7 @@ type EpochRoot = { root: Hex; total: bigint; claimed: bigint; dataHash: Hex }
 
 /**
  * The epoch's price list (B8, U5-PRICES). A Safe owner signs, with their own wallet, exactly the typed data
- * `pnpm mining:epoch --prices` verifies, and downloads the file it reads. Decimals are read from each token on chain,
+ * `bun run mining:epoch --prices` verifies, and downloads the file it reads. Decimals are read from each token on chain,
  * as the tool checks them; a signature is offered only once it recovers to this owner, since the tool takes only an
  * EOA signature from a Safe owner.
  */
@@ -1172,7 +1172,7 @@ function Prices({ c, me }: { c: SidequestContracts; me: Address }) {
   return (
     <Section
       title="Mining prices"
-      note="Each epoch’s fees are valued in USD from a price list a Safe owner signs. pnpm mining:epoch --prices takes the file signed here; fees in a token with no price do not count."
+      note="Each epoch’s fees are valued in USD from a price list a Safe owner signs. bun run mining:epoch --prices takes the file signed here; fees in a token with no price do not count."
     >
       {reserve.isError || decimals.isError ? (
         <Unavailable retry={() => void Promise.all([reserve.refetch(), decimals.refetch()])} />
@@ -1273,7 +1273,7 @@ function Prices({ c, me }: { c: SidequestContracts; me: Address }) {
               <p className="text-ui text-muted-foreground">
                 Signed by you for epoch {epochText.trim()} on {chain.name}. Pass it to{' '}
                 <code className="font-mono">
-                  pnpm mining:epoch {epochText.trim()} --prices {shown.name}
+                  bun run mining:epoch {epochText.trim()} --prices {shown.name}
                 </code>
                 .
               </p>
@@ -1444,7 +1444,7 @@ function Mining({ c, act, fund, busy }: { c: SidequestContracts; act: Act; fund:
             <div className="grid gap-2 rounded-lg bg-muted px-3 py-2.5">
               <p className="text-ui font-semibold">Epoch file</p>
               <p className="text-ui text-muted-foreground">
-                The root, total and data hash come from <code className="font-mono">pnpm mining:epoch</code>: choose the{' '}
+                The root, total and data hash come from <code className="font-mono">bun run mining:epoch</code>: choose the{' '}
                 <code className="font-mono">epoch-&lt;n&gt;.json</code> it wrote. Nothing is typed by hand.
               </p>
               <label className="flex min-h-11 cursor-pointer items-center justify-center rounded-xl bg-primary/14 px-4 text-sm font-semibold text-primary focus-within:ring-2 focus-within:ring-primary/40">
@@ -1514,7 +1514,7 @@ function Mining({ c, act, fund, busy }: { c: SidequestContracts; act: Act; fund:
                   <p role="alert" className="rounded-lg bg-destructive/12 px-3 py-2 text-ui text-destructive-text">
                     The reserve has funded {fmt(totalFunded ?? 0n)} in all; the file expected {fmt(loaded.fund.expectTotalFunded)}.
                     Something was funded since it was made, so its amount may be wrong. Run{' '}
-                    <code className="font-mono">pnpm mining:epoch {String(loaded.epoch)}</code> again and load the new file. Nothing is
+                    <code className="font-mono">bun run mining:epoch {String(loaded.epoch)}</code> again and load the new file. Nothing is
                     offered from this one.
                   </p>
                 ) : funding === 'done' ? (

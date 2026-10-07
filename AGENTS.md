@@ -70,11 +70,11 @@ Source, unit tests and local Monad fork rehearsals establish implemented behavio
 
 ## Working here
 
-- pnpm only. `pnpm check` before pushing. Tasks are Vite+ tasks in each package's `vite.config.ts`.
+- Bun 1.4.2 only. `bun run check` before pushing. Workspace scripts run through Turbo; Vite bundles Explore and the docs app.
 - Contracts: read <https://ethskills.com/SKILL.md> and follow it before writing Solidity or
   shipping anything on-chain. Monad docs: <https://docs.monad.xyz/llms.txt>.
 - Deployments, migrations and transactions run deliberately, never as cached task results.
-- Database migrations only through `pnpm db:generate`; never auto-applied.
+- Database migrations only through `bun run db:generate`; never auto-applied.
 - **No mocks in the product:** no stub code paths, no placeholder contracts in any deployment, no
   simulation presented as an integration; an unreachable service shows as unavailable. Test doubles are
   fine in unit tests, but every integration also gets a real test. Addresses and chains come from
@@ -86,3 +86,14 @@ Source, unit tests and local Monad fork rehearsals establish implemented behavio
 - Status words mean different things: planned, implemented and tested, live-verified. Never report one
   as another; record evidence tiers in `docs/reality-check.md`.
 - Current v1 execution order: the assigned track brief and coordinator decisions.
+
+<!-- BEGIN:turborepo-agent-rules -->
+
+# This is NOT the Turborepo you know
+
+Turborepo configuration, task behavior, and CLI commands can vary between installed versions and may differ from your training data. Resolve the `turbo` package from this file's directory or relevant workspace; in monorepos, it may not be visible from the repository root. For example, run `node -p "require.resolve('turbo/package.json')"` from a workspace that depends on `turbo`.
+
+Read `docs/README.md` inside that installed package first, then read the relevant pages from its `docs/` directory before changing Turborepo configuration or commands. Heed deprecation notices. These bundled docs match the installed package version and are available without network access.
+
+This block is written and re-added by `turbo` before repository-scoped commands when an AI agent is detected. In the Turborepo source repository, its template is defined in `crates/turborepo-cli/src/cli/agent_guidance.rs`. Removing the managed block while updates are enabled means a later qualifying invocation will add it again. Set `"agentGuidance": false` in the root `turbo.json` or `turbo.jsonc` to opt out; this does not remove an existing block. Keep the block committed with your work to avoid an uncommitted change on the next agent invocation.
+<!-- END:turborepo-agent-rules -->

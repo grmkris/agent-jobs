@@ -49,7 +49,7 @@ export function docsDev(): Plugin {
         if (!route) return next()
         try {
           const root = siteDir()
-          if (!existsSync(join(root, 'docs.html'))) { res.statusCode = 404; res.setHeader('Content-Type', 'text/plain; charset=utf-8'); res.end('Docs output is missing. Run pnpm --filter @sidequest/docs build, or use the docs dev server.'); return }
+          if (!existsSync(join(root, 'docs.html'))) { res.statusCode = 404; res.setHeader('Content-Type', 'text/plain; charset=utf-8'); res.end('Docs output is missing. Run bun run --cwd apps/docs build, or use the docs dev server.'); return }
           const headers = new Headers()
           for (const [name, value] of Object.entries(req.headers)) if (value !== undefined) headers.set(name, Array.isArray(value) ? value.join(',') : value)
           const result = await serveDocs(new Request(new URL(req.url ?? '/', origin), { method: req.method ?? 'GET', headers }), { ASSETS: localAssets(root) }, route)

@@ -4,7 +4,7 @@ After the Safe has funded and published the epoch root, the coordinator publishe
 the computed file for Collect:
 
 ```
-pnpm mining:publish <epoch-n.json> --stage dev|prod
+bun run mining:publish <epoch-n.json> --stage dev|prod
 ```
 
 This checks the selected network config, RPC chain id, every claim/proof, the
@@ -27,11 +27,11 @@ stage/network bindings, and the exact Manifests bucket binding and bucket readba
 Unit tests use fake R2 only; the
 coordinator runs live publication.
 
-`pnpm mining:epoch <n>` computes epoch `n`'s rewards from chain data alone, then writes the Merkle tree the
+`bun run mining:epoch <n>` computes epoch `n`'s rewards from chain data alone, then writes the Merkle tree the
 `EpochDistributor` pays from, plus the Safe's two calls. It never reads the indexer or D1. Rules: ADR-0011, D12 #2, D17.
 
 ```
-pnpm mining:epoch <n> [--network monad-testnet|monad-mainnet] --prices <signed price list JSON> --out <dir>
+bun run mining:epoch <n> [--network monad-testnet|monad-mainnet] --prices <signed price list JSON> --out <dir>
                       [--rpc <url>] [--config <config JSON>] [--page <blocks>] [--previous-prices <signed JSON>]
 ```
 

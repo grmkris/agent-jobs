@@ -64,7 +64,7 @@ The builder ran `alchemy dev --stage local` without Explore, with placeholder Cl
 signing keys, and probed `http://localhost:8788/mcp` using:
 
 ```sh
-heavy pnpm dlx @modelcontextprotocol/inspector --cli --server-url http://localhost:8788/mcp --method tools/list --format json --stored-auth-only
+heavy bunx @modelcontextprotocol/inspector --cli --server-url http://localhost:8788/mcp --method tools/list --format json --stored-auth-only
 ```
 
 The Inspector returned `auth_required`; direct anonymous discovery returned HTTP 401 with the protected-resource

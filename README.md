@@ -125,9 +125,9 @@ skill/             worker, publisher and arbitrator instructions
 docs/              ADRs, evidence and release/runbook documentation
 ```
 
-pnpm workspaces, Vite+, TypeScript, Effect, alchemy.run and Foundry. `heavy pnpm check` runs package checks, Forge,
+Bun workspaces, Turbo and Oxlint, TypeScript, Effect, alchemy.run and Foundry. `heavy bun run check` runs package checks, Forge,
 mining tests and lint. Fork suites require their RPC variables; skipped tests are not live proof. Use Node 24+.
-`pnpm dev` runs local workerd. Dev updates use the [Sidequest dev runbook](docs/sidequest-dev.md).
+`bun run dev` runs local workerd. Dev updates use the [Sidequest dev runbook](docs/sidequest-dev.md).
 Only the coordinator deploys; any mainnet transaction requires Kris's explicit go.
 
 Code is written with AI coding tools under human review.

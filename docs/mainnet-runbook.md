@@ -202,7 +202,7 @@ pwcheck ~/.config/sidequest/deployer.password && \
 
 It verifies the candidate against forge's receipts and live state, then writes the deployment record (with the Safe
 and the receipt blocks) into `config/monad-mainnet.json`. It refuses an incomplete or failed broadcast. Running it
-again changes nothing. Commit the config, fill the artifact (§1.3), and run `heavy pnpm check`.
+again changes nothing. Commit the config, fill the artifact (§1.3), and run `heavy bun run check`.
 
 ### 3.4 The launch gate must refuse
 
@@ -292,7 +292,7 @@ keystore, [tx]), and re-run both commands. A second run of a pool that was alrea
 ### 3.8 A drained production deploy (no chain transaction)
 
 ```
-SIDEQUEST_PROD_ARTIFACT=docs/p0-prod-artifact.json PROD_ADMISSION_DRAIN=1 pnpm deploy:prod   # repo root, deploy env
+SIDEQUEST_PROD_ARTIFACT=docs/p0-prod-artifact.json PROD_ADMISSION_DRAIN=1 bun run deploy:prod   # repo root, deploy env
 ```
 
 - With `admission.drain: true` in the artifact, the deploy is drained: reads and authenticated recovery work, and new
@@ -324,7 +324,7 @@ SIDEQUEST_PROD_ARTIFACT=docs/p0-prod-artifact.json PROD_ADMISSION_DRAIN=1 pnpm d
    by any URL (PROD-GATE-006). Every write page shows "Launching soon", and only read tools reach the board. The build
    writes the value to `/release.json` as `{network, mainnetLive, writesOpen}`.
 2. Run `bun scripts/preflight-prod.ts docs/p0-prod-artifact.json --live` again; it must pass.
-3. Deploy with `SIDEQUEST_PROD_ARTIFACT=docs/p0-prod-artifact.json PROD_ADMISSION_DRAIN=0 pnpm deploy:prod`. An
+3. Deploy with `SIDEQUEST_PROD_ARTIFACT=docs/p0-prod-artifact.json PROD_ADMISSION_DRAIN=0 bun run deploy:prod`. An
    opening deploy runs the D16 gate inside `assertDeployConfig` before any resource, and refuses on any failure.
 4. Repeat §3.9; write paths are now live. The `--probe` check now expects `"mainnetLive": true, "writesOpen": true`.
 
@@ -342,14 +342,14 @@ Epoch 0 runs 72 h from genesis; each later epoch runs 7 days. After an epoch end
    `pwcheck ~/.config/sidequest/safe-owner.password && bun scripts/mining/sign-prices.ts <list> --network monad-mainnet
    --out <signed> --account sidequest-safe-owner --password-file ~/.config/sidequest/safe-owner.password`. The helper
    checks the password file the same way before it signs. Then, from the repo root, run
-   `(set -a && . ./.env.local && set +a && pnpm mining:epoch <n> --network monad-mainnet --rpc "$MONAD_MAINNET_RPC_URL"
+   `(set -a && . ./.env.local && set +a && bun run mining:epoch <n> --network monad-mainnet --rpc "$MONAD_MAINNET_RPC_URL"
    --prices <signed> --out <dir>)`. It writes `epoch-<n>.json` (root, total, dataHash, tree, proofs) and prints the
    Safe's two calls.
 2. The Safe sends the file's calls. `/admin`'s mining panel is the route to use: it builds both and checks them.
    - **`calls.fund`**, when present: `MiningReserve.fund(n, amount)` for the remainder the epoch still needs, not the
      file's `total`. `fund` adds to what is already there, so the Safe nonce guards it (D18):
      - Read `Safe.nonce()` and `MiningReserve.totalFunded()` at one block.
-     - `totalFunded` must still equal `calls.fund.expect.totalFunded`; if it doesn't, run `pnpm mining:epoch` again.
+     - `totalFunded` must still equal `calls.fund.expect.totalFunded`; if it doesn't, run `bun run mining:epoch` again.
      - An owner signs the SafeTx at exactly that nonce, with ECDSA. Never use a pre-validated (v = 1) signature: it
        binds no nonce. Never re-sign a retry at a later nonce: recompute it.
 
@@ -381,7 +381,7 @@ Epoch 0 runs 72 h from genesis; each later epoch runs 7 days. After an epoch end
 3. After `setRoot` and before any claim, publish the epoch file for hosted claims, at the repo root. The command reads
    `.env.local` itself (`CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`, `MONAD_MAINNET_RPC_URL`):
    ```
-   pnpm mining:publish <dir>/epoch-<n>.json --stage prod
+   bun run mining:publish <dir>/epoch-<n>.json --stage prod
    sha256sum <dir>/epoch-<n>.json
    ```
    It checks every proof and the total, and requires the file's root, total and `dataHash` to equal
@@ -426,7 +426,7 @@ The CRE receiver waits for Chainlink CRE deploy access; the board's attester cov
 
 ## 7. P0 no-mutation drills and owner alerts
 
-Run `pnpm p0:drills` locally before treating fresh production state as recoverable. The drill:
+Run `bun run p0:drills` locally before treating fresh production state as recoverable. The drill:
 - creates disposable SQLite files under `/tmp`;
 - installs the real D1, indexer, registry and session schemas, and preserves hosted rows;
 - backs up and restores the database;

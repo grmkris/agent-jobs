@@ -1,7 +1,7 @@
 # Sidequest v1 live matrix
 
-`pnpm testnet:v1:flows --list` lists the implemented cases without keys or RPC calls.
-`pnpm testnet:v1:flows hire,cancel,topup-paid` runs the short money paths. Pass a comma-separated list;
+`bun run testnet:v1:flows --list` lists the implemented cases without keys or RPC calls.
+`bun run testnet:v1:flows hire,cancel,topup-paid` runs the short money paths. Pass a comma-separated list;
 `all` includes long waits and integration prerequisites. Only chain 10143 is accepted, and the SDK must load
 a promoted v1 `main` pair. The runner never deploys or edits the deployment config.
 
@@ -57,7 +57,7 @@ journal keeps its original terms and signed bytes through a code update; a redep
 | Execution budget with worker bond | `budget-advance`, `budget-call` |
 | Sponsorship rate/call cap refuses | `sponsor-caps` (at most 20 harmless calls before the hourly rate refuses) |
 | Canonical cross-board Collect | `collect` (requires a real pending claim/settlement, refuses an empty result) |
-| Epoch compute/root/fund/claim/stake | Contracts' `pnpm mining:epoch`, Safe root/fund, then `mining` |
+| Epoch compute/root/fund/claim/stake | Contracts' `bun run mining:epoch`, Safe root/fund, then `mining` |
 | Telegram notifications | `telegram` (linked creator/worker; produces a real hire; human DM/channel receipt is recorded separately) |
 | Safe ownership, fee delay, vault delay, pause | `admin-ownership`, `admin-fees`, `admin-vault-refusal`, `admin-pause` |
 

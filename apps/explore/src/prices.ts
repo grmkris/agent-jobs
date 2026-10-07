@@ -1,6 +1,6 @@
 /**
  * The epoch price list a Safe owner signs (U5, B8): the EIP-712 typed data pinned in `scripts/mining/README.md` and
- * built by `scripts/mining/prices.ts`, the file `pnpm mining:epoch --prices` reads, and the checks on the admin form.
+ * built by `scripts/mining/prices.ts`, the file `bun run mining:epoch --prices` reads, and the checks on the admin form.
  * Pure, so prices.test.ts checks it against the mining tool's own `typedMessage` and signer recovery.
  */
 import { type Address, type Hex, getAddress, isAddress, parseUnits } from 'viem'
