@@ -1,7 +1,9 @@
-@import 'tailwindcss';
+/* Explicit sources: automatic detection follows .gitignore only inside a git checkout (apps/docs does the same). */
+@import 'tailwindcss' source(none);
 @import 'tw-animate-css';
 @import './shadcn.css';
 @import '@fontsource-variable/geist';
+@source '.';
 
 /*
  * Sidequest's design tokens: shadcn's base-nova vocabulary (background, card, primary, muted, border, ring…) in oklch,
