@@ -1,0 +1,132 @@
+{
+  "observedAt": "2026-10-07T08:36:00Z",
+  "sourceCommit": "3cebe7dbc7f005a62873c82b0f31daa2e5fc94f2",
+  "sourceTree": "a196f861e9d2f86b3bd97f1166a187c82a509082",
+  "deployedAt": "2026-10-07T08:34:25.307Z",
+  "finishedAt": "2026-10-07T08:38:00Z",
+  "origin": "https://dev.sidequest.exchange",
+  "chainId": 10143,
+  "evidenceTier": "live-dev-guarded-runner-and-anonymous-readback",
+  "runner": {
+    "command": "SIDEQUEST_DEV_RELEASE=1 heavy pnpm dlx node@24 scripts/sidequest/dev-release.mjs",
+    "planPassed": true,
+    "exitCode": 0,
+    "operation": "update",
+    "status": "deployed"
+  },
+  "migrationSha256": "07c590d6b740f4e5a4d1099cc991b4d44bf9ac6a5ba5226ba60d18d4ee59160f",
+  "newMigration": false,
+  "gates": {
+    "heavy pnpm check": "passed on 3cebe7d (/tmp/devcut-check.log: api 430/16, board 390/71, explore 219, sdk, mining; exit 0)",
+    "heavy pnpm sidequest:test": "9 passed",
+    "pnpm db:generate --check": "passed",
+    "gitleaks (docker, redacted) origin/main..3cebe7d": "10 commits scanned, no leaks found",
+    "push": "origin/main 1147ffa..3cebe7d, fast-forward"
+  },
+  "contents": "QUOTES-FIRST 6453046..3cebe7d (public budget max on quote requests, one Jobs list with quote requests, rolling countdowns, budget covered, /request/$id, Workers page deleted, quotes-first skill text) and SIDEBAR-FOOT 08ec38a..9b609da (network config links.testnet/usdPegged with sdk.networkMeta; TESTNET tag and 2px amber edge instead of the network switch; shared wallet balances with staked SIDE and dollar estimates; sidebar wallet card), on top of V11's 1147ffa",
+  "publicReadback": {
+    "observedAt": "2026-10-07T08:36:00Z",
+    "origin": "https://dev.sidequest.exchange",
+    "evidenceTier": "live-dev-anonymous-readback",
+    "publicChecks": [
+      {
+        "path": "/health",
+        "method": "GET",
+        "status": 200,
+        "anonymous": true
+      },
+      {
+        "path": "/release.json",
+        "method": "GET",
+        "status": 200,
+        "anonymous": true
+      },
+      {
+        "path": "/.well-known/oauth-protected-resource",
+        "method": "GET",
+        "status": 200,
+        "anonymous": true
+      },
+      {
+        "path": "/.well-known/oauth-authorization-server",
+        "method": "GET",
+        "status": 200,
+        "anonymous": true
+      },
+      {
+        "path": "/mcp",
+        "method": "POST",
+        "status": 401,
+        "anonymous": true,
+        "rpcMethod": "initialize"
+      },
+      {
+        "path": "/mcp",
+        "method": "POST",
+        "status": 401,
+        "anonymous": true,
+        "rpcMethod": "server/discover"
+      },
+      {
+        "path": "/mcp",
+        "method": "POST",
+        "status": 401,
+        "anonymous": true,
+        "rpcMethod": "resources/read"
+      },
+      {
+        "path": "/mcp",
+        "method": "POST",
+        "status": 401,
+        "anonymous": true,
+        "rpcMethod": "skills/list"
+      },
+      {
+        "path": "/mcp",
+        "method": "POST",
+        "status": 401,
+        "anonymous": true,
+        "rpcMethod": "tools/list"
+      }
+    ],
+    "health": {
+      "ok": true,
+      "runtime": "Cloudflare-Workers",
+      "network": "monad-testnet",
+      "board": "public"
+    },
+    "release": {
+      "network": "monad-testnet",
+      "mainnetLive": false,
+      "writesOpen": true
+    },
+    "oauth": {
+      "issuer": "https://dev.sidequest.exchange",
+      "resource": "https://dev.sidequest.exchange/mcp",
+      "scopes": [
+        "sidequest:read",
+        "sidequest:hire",
+        "sidequest:work"
+      ]
+    },
+    "authenticatedCapabilities": "not-verified; discovery requires OAuth",
+    "hostAcceptance": "not-verified",
+    "browserSmoke": {
+      "observedAt": "2026-10-07T08:37:00Z",
+      "anonymous": true,
+      "variants": "light/dark × 1440/390 × / and /jobs (8 page loads)",
+      "pageErrors": 0,
+      "consoleErrors": 0,
+      "horizontalOverflow": 0,
+      "checks": [
+        "TESTNET tag visible",
+        "no Network switch group",
+        "no link to https://sidequest.exchange"
+      ]
+    }
+  },
+  "noAuthentication": true,
+  "noHostConnection": true,
+  "noTransactions": true,
+  "releasedBy": "Claude session SIDEBAR-FOOT at Kris's request ('get all to dev'), after QUOTES-FIRST and SIDEBAR-FOOT reported DONE"
+}

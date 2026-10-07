@@ -12,7 +12,21 @@ serif headlines the landing page, while the application keeps readable, compact
 type. Status colours keep their established meanings. App icons and favicon are
 generated from the same SVG. Contrast, focus and reduced-motion gates still apply.
 
-The latest guarded dev application release is `c7da8ba`, deployed on 6 October 2026
+The latest guarded dev application release is `3cebe7d`, deployed on 7 October 2026
+at 08:34:25 UTC at Kris's request. The
+[dated live receipt](evidence/sidequest-dev/2026-10-07-3cebe7d-live.json) records the
+source/tree, the green `heavy pnpm check`, the runner tests, the migration drift check (no new
+migration), a redacted secret scan of the pushed range, the guarded update, the anonymous
+readback (health, release and OAuth metadata 200; every anonymous MCP method 401) and an
+anonymous browser smoke (light/dark, 1440/390, no page or console errors). It carries
+quotes-first (one Jobs list with quote requests, a public budget maximum, rolling
+countdowns, the request page at `/request/$id`, the Workers page removed) and the testnet
+marker (a TESTNET tag and amber top edge instead of the network switch; mainnet's
+pre-launch testnet link now comes from `links.testnet` in the network config) with the
+sidebar wallet card (balances, staked SIDE, dollar estimates from `usdPegged` and the SIDE
+pool). Host acceptance and authenticated MCP calls remain unverified.
+
+The previous guarded dev application release was `c7da8ba`, deployed on 6 October 2026
 at 20:12:35 UTC at V11's READY-FOR-DEV-CUT request. The
 [dated live receipt](evidence/sidequest-dev/2026-10-06-c7da8ba-live.json) records the
 source/tree, V11's green `heavy pnpm check`, the runner tests and migration drift check,
@@ -23,7 +37,7 @@ which the step-prefix lookups hit once an allowance hash was in the prefix; they
 match by `substr`, with a regression test. Host acceptance and authenticated MCP calls
 remain unverified.
 
-The previous guarded dev application release was `d167a0d`, deployed on 6 October 2026
+An earlier guarded dev application release was `d167a0d`, deployed on 6 October 2026
 at 20:01:33 UTC at V11's READY-FOR-DEV-CUT request. The
 [dated live receipt](evidence/sidequest-dev/2026-10-06-d167a0d-live.json) records the
 source/tree, V11's green `heavy pnpm check`, the runner tests and migration drift check,
