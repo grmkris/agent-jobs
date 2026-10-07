@@ -1,9 +1,9 @@
 import { existsSync, readFileSync, lstatSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { createPublicClient, http, erc20Abi, TransactionReceiptNotFoundError } from 'viem'
-import { address, canonical, makeManifest, checksum } from './refund-model.mjs'
-import { PUBLIC_RPC, readLogs } from './refund-manifest.mjs'
+import { createPublicClient, decodeEventLog, http, erc20Abi, TransactionReceiptNotFoundError } from 'viem'
+import { KRIS, address, canonical, makeManifest, checksum } from './refund-model.mjs'
+import { PUBLIC_RPC, paced, readLogs } from './refund-manifest.mjs'
 import { refundPlan, bindRefundJournal, validateSavedRefunds, resumeDecision, refundVaultAbi, refundSendMode } from './refund-batch-model.mjs'
 
 async function main() {
@@ -19,7 +19,7 @@ async function main() {
   if (checksum(snapshot) !== manifest.snapshot.checksum || canonical(makeManifest(snapshot)) !== canonical(manifest)) throw new Error('refund: manifest does not match the replayed snapshot')
   const plan = refundPlan(manifest, config)
   const rpc = process.env.MONAD_RPC_URL || process.env.MONAD_TESTNET_RPC_URL || PUBLIC_RPC
-  const client = createPublicClient({ transport: http(rpc, { timeout: 20_000, retryCount: 2 }) })
+  const client = paced(createPublicClient({ transport: http(rpc, { timeout: 20_000, retryCount: 2 }) }))
   if (await client.getChainId() !== 10143) throw new Error('refund: RPC must be Monad testnet (10143)')
   const directory = pathToFileURL(resolve('.g1d-refunds') + '/')
   const journalPath = new URL('journal.json', directory)
@@ -31,10 +31,10 @@ async function main() {
   await validateSavedRefunds(state, plan)
   const { decisions, remaining, remainingPositions } = await reconcileBatch(client, state, plan)
   await verifyNewVault(client, plan, remaining)
+  const postCutoff = await verifySnapshotFresh(client, snapshot, manifest)
   console.log(JSON.stringify({ mode: send ? 'send' : 'dry-run', manifest: manifest.checksum, funding: plan.funding,
-    factory: plan.factory, vault: plan.vault, remaining: remaining.toString(), decisions }))
+    factory: plan.factory, vault: plan.vault, remaining: remaining.toString(), decisions, postCutoff }))
   if (!send) return
-  await verifySnapshotFresh(client, snapshot, manifest)
   const { privateKeyToAccount } = await import('viem/accounts')
   const { context, wallet } = await import('../../packages/sdk/src/client.ts')
   const key = process.env[options.keyEnv]
@@ -97,14 +97,23 @@ async function reconcileBatch(client, state, plan) {
   return { decisions, remaining, remainingPositions }
 }
 
-async function verifySnapshotFresh(client, snapshot, manifest) {
+export async function verifySnapshotFresh(client, snapshot, manifest) {
   const cutoff = await client.getBlock({ blockTag: 'finalized' })
   if ((await client.getBlock({ blockNumber: BigInt(snapshot.block) })).hash !== snapshot.blockHash) throw new Error('refund: old snapshot block hash changed')
-  // Wind-down may change G1d balances. Never pay a stale manifest after a deposit, burn, withdrawal or transfer.
+  // Refunds are owed at the fixed cutover, so later old-generation activity is reported without changing entitlement.
   const later = await readLogs(snapshot.block + 1, Number(cutoff.number), [manifest.old.vault, manifest.old.factory], client)
-  if (later.some(log => address(log.address) === address(manifest.old.factory))) throw new Error('refund: G1d token activity after snapshot; create and review a fresh manifest')
-  const { decodeVaultLogs } = await import('./refund-model.mjs')
-  if (decodeVaultLogs(later.filter(log => address(log.address) === address(manifest.old.vault))).length) throw new Error('refund: G1d stake activity after snapshot; create and review a fresh manifest')
+  const accounts = new Set([KRIS, ...manifest.positions.flatMap(row => [address(row.account), address(row.delegator)])])
+  let oldSideTransfers = 0
+  for (const log of later.filter(row => address(row.address) === address(manifest.old.factory))) {
+    try {
+      const event = decodeEventLog({ abi: erc20Abi, data: log.data,
+        topics: [log.topic0, log.topic1, log.topic2, log.topic3].filter(Boolean) })
+      if (event.eventName === 'Transfer' && (accounts.has(address(event.args.from)) || accounts.has(address(event.args.to)))) oldSideTransfers++
+    } catch {
+      // A non-transfer token event cannot change a manifest balance.
+    }
+  }
+  return { throughBlock: Number(cutoff.number), oldVaultEvents: later.filter(log => address(log.address) === address(manifest.old.vault)).length, oldSideTransfers }
 }
 
 async function sendBatch({ plan, journal, signer, ctx, configPath, configBytes, options, manifestBytes }) {
