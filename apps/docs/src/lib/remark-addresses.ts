@@ -21,7 +21,11 @@ export function remarkAddresses() {
     const network = process.env.SIDEQUEST_NETWORK ?? 'monad-testnet'
     if (network !== 'monad-testnet' && network !== 'monad-mainnet') throw new Error(`Unsupported docs network: ${network}`)
     visit(tree, 'mdxJsxFlowElement', (node: MdxJsxFlowElement, index, parent) => {
-      if (node.name === 'ContractAddresses' && parent && index !== undefined) parent.children[index] = addressNode(network)
+      if (node.name !== 'ContractAddresses' || !parent || index === undefined) return
+      // `network` picks one network's table, so a page can show testnet and mainnet together; default: the build's.
+      const named = node.attributes.find((attribute) => attribute.type === 'mdxJsxAttribute' && attribute.name === 'network')?.value ?? network
+      if (named !== 'monad-testnet' && named !== 'monad-mainnet') throw new Error(`Unsupported ContractAddresses network: ${String(named)}`)
+      parent.children[index] = addressNode(named)
     })
   }
 }

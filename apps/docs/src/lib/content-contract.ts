@@ -8,7 +8,7 @@ import { visit } from 'unist-util-visit'
 import type { MdxJsxFlowElement, MdxJsxTextElement } from 'mdast-util-mdx'
 
 const attrs: Record<string, readonly string[]> = {
-  Callout: ['type', 'title'], Cards: [], Card: ['title', 'href', 'description'], Steps: [], Step: ['title'], Tabs: [], Tab: ['title'], Origin: ['path', 'link'], ContractAddresses: [],
+  Callout: ['type', 'title'], Cards: [], Card: ['title', 'href', 'description'], Steps: [], Step: ['title'], Tabs: [], Tab: ['title'], Origin: ['path', 'link'], ContractAddresses: ['network'],
   a: ['href', 'title'], img: ['src', 'alt', 'title'], table: [], pre: [],
 }
 const required: Record<string, readonly string[]> = { Card: ['title', 'href'], Step: ['title'], Tab: ['title'], Origin: ['path'], img: ['src', 'alt'], a: ['href'] }
