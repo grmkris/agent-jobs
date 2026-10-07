@@ -7,7 +7,7 @@
     "relay": "0xC4173dBC98ffd6F5785E8Fba85E9e5bd8b3F5058"
   },
   "harness": {
-    "note": "Every member runs Codex CLI against cliproxy (OpenAI Responses API); the model decides who pays. Only gpt-* uses the Codex subscription.",
+    "note": "Members run Codex CLI (or Grok CLI with harness: grok) against cliproxy; the model decides who pays. Only gpt-* uses the Codex subscription.",
     "baseUrl": "http://127.0.0.1:8317/v1",
     "maxParallel": 4,
     "runTimeoutMinutes": 45,
