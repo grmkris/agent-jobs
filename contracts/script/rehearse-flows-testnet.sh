@@ -8,10 +8,11 @@
 #   2. the wallets get MON, SIDE and the reward token (mUSD) on the fork, and deployment.oddTokens is
 #      recorded;
 #   3. the runner, which reads the SDK's bundled monad-testnet config, runs from a private mirror: byte-identical copies
-#      of packages/sdk/src and scripts (without any journal), the real node_modules, and the scratch config as its
-#      contracts/config/monad-testnet.json. Each case is its own `bun --no-env-file v1-flows.ts <case>` process, under
-#      `env -i` with only fresh keys and the loopback RPC, so neither .env.local nor any real key or RPC can reach it.
-#      Its journal stays in the mirror. The runner's chain-time waits are warped on the fork;
+#      of packages/sdk/src and scripts (without any journal), the real node_modules, the scratch config as its
+#      contracts/config/monad-testnet.json, and infra/ with the fork's relay in the dev profile. Each case is its own
+#      `bun --no-env-file v1-flows.ts <case>` process, under `env -i` with only fresh keys and the loopback RPC, so
+#      neither .env.local nor any real key or RPC can reach it. Its journal stays in the mirror. The runner's
+#      chain-time waits are warped on the fork;
 #   4. a pass/fail table per case and the gas limits (which Monad charges) per wallet, from the hashes the runner prints.
 # Sends nothing to a real chain. Holds the launch lock (script/launch-lock.sh), so it refuses while another launch or
 # rehearsal runs in this checkout. Forge writes under broadcast/ and cache/rehearsal-<pid>-<random> only, never a real
@@ -148,6 +149,10 @@ cp "$REPO/packages/sdk/package.json" "$MIRROR/packages/sdk/"
 ln -s "$REPO/packages/sdk/node_modules" "$MIRROR/packages/sdk/node_modules"
 cp "$REPO/contracts/config/monad-mainnet.json" "$MIRROR/contracts/config/"
 cp "$CONFIG" "$MIRROR/contracts/config/monad-testnet.json"
+# The runner takes its relay from the dev stage profile (infra/), so the mirror's profile names the fork's relay.
+mkdir -p "$MIRROR/infra"
+cp "$REPO/infra/stage.ts" "$REPO/infra/prod.json" "$MIRROR/infra/"
+jq --arg relay "$RELAY" '.relay = $relay' "$REPO/infra/dev.json" >"$MIRROR/infra/dev.json"
 diff -r "$REPO/packages/sdk/src" "$MIRROR/packages/sdk/src" >/dev/null && diff -r -x .v1-flows "$REPO/packages/sdk/scripts" \
   "$MIRROR/packages/sdk/scripts" >/dev/null || fail "the SDK mirror differs from packages/sdk"
 [[ "$LOCAL" == http://127.0.0.1:* ]] || fail "the runner RPC must be the loopback fork"
