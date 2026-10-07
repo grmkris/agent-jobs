@@ -21,7 +21,7 @@ export default defineConfig({
   }), react()],
   resolve: { tsconfigPaths: true },
   define: { __DOCS_ORIGIN__: JSON.stringify(docsOrigin()) },
-  environments: { client: { build: { assetsDir: 'docs/_assets' } } },
+  build: { assetsDir: 'docs/_assets' },
   run: { tasks: {
     typecheck: { command: 'tsc -p tsconfig.json', input: [{ pattern: 'src/**', base: 'package' }, { pattern: 'test/**', base: 'package' }, { pattern: 'vite.config.ts', base: 'package' }, { pattern: 'tsconfig.json', base: 'package' }, { pattern: 'content/**', base: 'package' }, { pattern: 'contracts/config/**', base: 'workspace' }, { pattern: 'packages/sdk/src/deployment.ts', base: 'workspace' }, { pattern: 'infra/**', base: 'workspace' }, { pattern: 'pnpm-lock.yaml', base: 'workspace' }], output: [] },
     test: { command: 'vitest run', input: [{ pattern: 'test/**', base: 'package' }, { pattern: 'src/**', base: 'package' }, { pattern: 'content/**', base: 'package' }, { pattern: 'contracts/config/**', base: 'workspace' }, { pattern: 'apps/explore/src/styles.css', base: 'workspace' }, { pattern: 'infra/**', base: 'workspace' }, { pattern: 'pnpm-lock.yaml', base: 'workspace' }], output: [] },

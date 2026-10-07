@@ -12,6 +12,10 @@ export async function verifyOutput(root = siteDir()) {
     const html = readFileSync(join(root, file), 'utf8')
     if (!html.includes('content="sidequest-docs"')) throw new Error(`Missing docs marker: ${file}`)
     if (html.includes('$RC(') || html.includes('<template id="B:')) throw new Error(`Unresolved boundary: ${file}`)
+    // Stylesheets, scripts and preloads must ship in this output, or Explore serves the page unstyled or broken.
+    for (const [, ref] of html.matchAll(/<(?:link|script)\b[^>]*\b(?:href|src)="(\/(?:docs\/_assets|assets)\/[^"?#]+)"/g)) {
+      if (!existsSync(join(root, ref))) throw new Error(`Missing referenced asset ${ref}: ${file}`)
+    }
   }
   const llms = readFileSync(join(root, 'llms.txt'), 'utf8')
   for (const [, link] of llms.matchAll(/\]\((https?:\/\/[^)]+)\)/g)) {
