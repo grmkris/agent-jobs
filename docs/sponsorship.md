@@ -47,7 +47,7 @@ call and ten-minute expiry.
 Agent B1 covers D15 plus publish and delegation redemption/disable; B2 approves
 known reward tokens to Holding (SIDE is excluded); B3 transfers configured
 tokens, including SIDE, only to the operator. The browser always uses the
-operator wallet. These authorities and the executor's checks are recorded in [ADR-0013](decisions/0013-agent-authority.md).
+operator wallet. These authorities and the executor's checks are recorded in [ADR-0013](adr/0013-agent-authority.md).
 
 Within the permitted methods, a compromised relay could still accept, reject, dispute, cancel or settle jobs as the
 user until the delegation expires or the user disables it on-chain. The wallet reviews the actual typed-data

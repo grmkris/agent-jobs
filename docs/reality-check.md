@@ -41,7 +41,7 @@ prior receipts above establish their original deployments only. There are no
 old-domain redirects or signing/session compatibility aliases. Rename notices
 were attempted before overlapping edits. Stored mytmux delivery remains unknown
 for the coordinators, and the FINALIZE-UI send was not dispatched; the verified
-local [dev runbook](sidequest-dev.md) records these limits.
+local [dev runbook](stages.md) records these limits.
 
 `scripts/sidequest/dev-release.mjs` deployed committed source
 `e6aeb3b95f80f65fc781b54809aa757c6ad06995`, tree
@@ -78,7 +78,7 @@ settings snapshots failed, and the app endpoint refuses PATCH with 405; no
 provider setting was changed by these attempts.
 
 [Sanitized live evidence](evidence/sidequest-dev/2026-10-06-live.json) and
-[the dev runbook](sidequest-dev.md) capture these boundaries. No browser wallet
+[the dev runbook](stages.md) capture these boundaries. No browser wallet
 transaction, paid-work acceptance or mainnet operation is claimed.
 
 **04:35 UTC continuation:** canonical public health, release, jobs, directory,

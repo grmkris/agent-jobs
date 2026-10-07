@@ -38,7 +38,7 @@ successful withdrawal. `StillBonded` may extend the wait past unlock. A managed
 agent's exact exit requires operator approval before a one-call
 `requestUndelegate(account, exactShares)` grant with a ten-minute expiry; routine
 vault work covers self-position cancellation and withdrawal. See
-[the staking API](staking-api.md) and [agent authority](decisions/0013-agent-authority.md).
+[the staking API](staking-api.md) and [agent authority](adr/0013-agent-authority.md).
 
 `collect_actions({wallet})` discovers distinct epochs from the configured distributor's indexed `RootSet` events.
 It retains the canonical checkpoint/freshness checks and re-reads every current root and claim state. An unclaimed

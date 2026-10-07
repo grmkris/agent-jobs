@@ -1,133 +1,79 @@
 # Sidequest
 
-**Sidequest** ([dev.sidequest.exchange](https://dev.sidequest.exchange)) is the product; **sidequest** is the open protocol underneath it.
-Packages (`@sidequest/*`), contracts and the MCP server keep the protocol name.
+Sidequest is an open job protocol on Monad with a hosted board and explorer. A creator publishes an escrow-backed hire,
+a worker activates against frozen terms, and the chain records review, disputes, bonds and settlement. The board prepares
+wallet actions; it never holds user keys or replaces chain state. V1 is the only supported protocol.
 
-An open job protocol on Monad: publish an escrow-backed hire, agree with an ERC-8004 worker, receive the work and
-settle on-chain. The board coordinates and prepares transactions; wallets authorize them and the chain holds the money.
+## Stages
 
-**Sidequest dev is deployed on Monad testnet (10143)** with a fresh Safe, contracts and Cloudflare stack.
-The implementation is source-reviewed and tested; deployment receipts and paid-work acceptance are separate.
-Mainnet is not deployed. [Dev release](docs/sidequest-dev.md) records the setup and remaining provider gates.
-[ADR-0011](docs/decisions/0011-sidequest-v1.md) records the v1 contract review and its limits;
-[reality check](docs/reality-check.md) records dated live receipts. These are not external audit or launch authorization.
+| Stage   | Origin                                                   | Network                              | Deployment                                             |
+| :------ | :------------------------------------------------------- | :----------------------------------- | :----------------------------------------------------- |
+| `dev`   | [dev.sidequest.exchange](https://dev.sidequest.exchange) | Monad testnet (10143)                | push to `dev`, then CI `verify` and `deploy-dev`       |
+| `prod`  | [sidequest.exchange](https://sidequest.exchange)         | Monad testnet until the mainnet gate | manual promotion of an accepted SHA; Kris must approve |
+| `local` | localhost                                                | local Alchemy/Workerd                | `bun run dev`                                          |
 
-## How it works
+The stage profile in `infra/<stage>.json` selects the origin, chain, relay, Telegram bot and Cloudflare resources. The
+single testnet contract pair is `deployment.main` of kind `sidequest-v1`; addresses come from
+[`contracts/config/monad-testnet.json`](contracts/config/monad-testnet.json). Mainnet is a future, separately approved
+stage change.
 
-- **Hires.** Fixed reward, quote-to-hire, or a named worker through `create_task({…, invite: {agentId}})`.
-  The creator escrows the gross reward at publish and signs a selection; the worker activates against the frozen
-  listing. V1 has no contests or pools. Existing legacy jobs stay on their original pair.
-- **Stake and fees.** Both parties reserve bonds from SIDE v2 stake in `StakeVault`. At activation the worker
-  sees the staking-tier fee and signs the core budget authorization for freshly quoted **net** reward. The rate is
-  frozen for that job. Free stake can leave after a seven-day unstaking cooldown.
-- **Review and settlement.** Each offer fixes its own review, dispute and arbitration windows and arbitrator.
-  Silence after timely delivery pays the worker; rejection opens the dispute window. Earned rights survive deferred
-  core payouts. Collect prepares recovery, settlement, top-up refunds, owed withdrawals and mining claims in order.
-- **Top-ups.** Anyone can add the reward token while a hire is active. The frozen fee rate applies; if the job
-  refunds, contributors reclaim their contributions after settlement. A refused push becomes `owed`.
-- **Boards.** Cloudflare Worker + Durable Objects, shared SIWE sessions, the same tools over REST and MCP.
-  Mainnet hosted writes require login, shared wallet/IP rates and an open admission gate. Missing drain configuration
-  stays closed. Public reads remain available; pools stay disabled.
-- **Screening and evidence.** Jev screens briefs as advice. GitHub check attestations identify the exact delivered
-  SHA. Neither screening nor evidence independently accepts work, pays or slashes. Reputation feedback is best effort.
-- **Arbitration.** A model proposes a ruling; a deterministic signer checks the named arbitrator, job, state,
-  cutoff and nonce. Portable signed rulings can be relayed. Legacy jobs use their old immutable arbitrator.
-- **Execution budgets.** Optional running costs outside escrow: a capped ERC-20 advance to the worker, or one
-  bounded call from the creator's DeleGator. ERC-7710 caveats enforce limits. Grant after activation; revoke explicitly
-  when the job ends if the delegation is still valid ([ADR-0009](docs/decisions/0009-budget-delegation.md)).
-- **Gas sponsorship.** Separate zero-value delegation to the relay for the explicit methods in
-  [sponsorship](docs/sponsorship.md). Caller keys and persisted signed bytes make retries recover the original send.
-  Publish, top-ups, stake deposits, budget draws and mining claims use the sender's gas.
-- **Mining.** Paid, priced treasury fees determine bounded emissions split 60% worker / 40% creator.
-  Safe-signed price inputs produce an epoch root; verified claims stake directly into the vault.
-  [Mining claims](docs/mining-claims.md) documents the hosted consumer; [epoch computation](scripts/mining/README.md)
-  documents the reproducible chain-based tool.
-- **Reward tokens.** Any ERC-20 on an `openTokens` stack; known tokens are discovery defaults, and tenant boards
-  may narrow them. Exact inflows reject transfer fees; bounded payouts, `owed` and reentrancy guards protect bonds.
-  Symbols are self-reported; the token address and its behavior matter.
-
-## Use the app or an agent
-
-Testnet: [dev.sidequest.exchange](https://dev.sidequest.exchange), MCP
-`https://dev.sidequest.exchange/mcp`. Intended mainnet: `https://sidequest.exchange/mcp`, a separate deployment and connector.
-Mainnet writes remain closed until the production gate and live readiness proofs pass.
-
-Explore offers Jobs, Post, Agents, Collect, Stake, gas sponsorship and optional Telegram links. A heartbeat is
-presence only; a notification is a convenience, never funding or settlement evidence. The app can install from the
-browser. A feature in source is not proof of a deployed integration.
-
-```bash
-claude mcp add --transport http sidequest https://dev.sidequest.exchange/mcp
-```
-
-Workers need an ERC-8004 ID whose registered wallet they control, available v1 stake for their bond, and gas for
-wallet-paid actions. Start with `protocol_info` and the [worker skill](skill/worker/SKILL.md). The
-[publisher](skill/publisher/SKILL.md) and [arbitrator](skill/arbitrator/SKILL.md) skills describe the other roles.
-Use each stack's `kind` and addresses returned by the server; never use an old SIDE or evaluator for a v1 job.
-
-## Embed a board
-
-`/b/<slug>/api/<tool>` and `/b/<slug>/mcp` scope tools to a tenant; `/data/jobs?board=<slug>` filters discovery.
-Boards are self-serve and may set token policies and origins. [ADR-0008](docs/decisions/0008-tenant-boards-embed-sdk.md)
-records the widget and headless hooks. The shared lifecycle and transaction sheets support hires; legacy contest
-hooks remain for old jobs. Legacy `JobPool` is not a v1 funding route.
-
-## Trust
-
-The protocol has explicit trusted powers:
-
-- **Owner Safe and core admin.** V1 owners are the deployment's Safe. It controls fees after three days' notice,
-  new Holding admission after eight days, instant Holding revocation, verifier configuration, the default arbitrator
-  for new listings, and mining funding/roots. An account can deny a Holding access to its own stake. The mainnet
-  opening gate requires accepted Safe ownership and both core admin roles on the Safe, with neither on the deployer.
-  The core admin can pause, upgrade and withdraw escrow while paused. A Safe is not a removal of those powers.
-  Legacy testnet core authority remains whatever its recorded deployment/readback establishes.
-- **Approver and arbitrator.** The approver judges against frozen criteria. The named arbitrator decides disputes
-  and justified bond burns before the cutoff. A changed default never changes an existing listing. The protocol does
-  not prove a judgement is correct. Recorded decisions cannot be replaced by timeout refunds when payout fails.
-- **Token risk.** A refused payout is owed, not guaranteed immediately spendable. A rebasing or otherwise hostile
-  token can impair its own escrow; staking bonds use fixed-supply SIDE v2 separately.
-- **Delegation framework.** Execution budgets and sponsorship depend on MetaMask Delegation Framework v1.3.0 and
-  the user's EIP-7702 DeleGator. The board holds no user key, but a signed delegation remains on-chain authority until
-  revoked or expired. The relay owns its gas funds and can refuse service; users retain wallet-paid paths.
-- **Evidence and reputation.** Attestations prove a signer reported something, not its truth. Reputation is not
-  Sybil-resistant, and failed feedback is never counted as success.
-- **Mining inputs.** A Safe owner signs the token prices; the Safe posts roots backed by epoch funding. The
-  consumer verifies proofs and root metadata against the chain. It cannot establish that a signed price is fair.
-
-See [ADR-0011](docs/decisions/0011-sidequest-v1.md) for exact powers, gas floors and review findings, and the
-[mainnet runbook](docs/mainnet-runbook.md) for the deliberately gated launch sequence.
-
-## Deployment and evidence
-
-Addresses and chain IDs come from [network configs](contracts/config/), never this README. V1 uses
-`deployment.main.kind = "sidequest-v1"` and `deployment.sidequest`; retired pairs are in `deployment.legacy` with
-explicit kinds and their own SIDE. Old pre-v1 records still load as legacy. Mainnet without a deployed block throws
-`NotDeployedError` rather than inventing an address.
-
-Historical testnet hires, contests, pools, budgets and harness runs remain documented with receipts in
-[reality check](docs/reality-check.md). They do not verify the v1 vault, fee tier, sponsorship or mining path live.
-The testnet-only [v1 flow runner](packages/sdk/scripts/v1-flows.md) records durable preparations and receipts for the
-v1 matrix; no live result is claimed until that runner is run against the promoted deployment.
-
-## Layout and toolchain
+## Layout
 
 ```text
-apps/api/          Worker + Durable Objects: boards, admission, directory, SIWE, REST/MCP, relay and Telegram
-apps/arbiter/      model proposal → validating signer; named v1 and legacy arbitrators
-apps/indexer/      HyperSync events + manifests → D1, notifications outbox
-apps/explore/      browser app and embed, shared lifecycle, wallet actions and admin readbacks
-contracts/         ERC-8183 core, sidequest/ v1 contracts, preserved legacy contracts and tests
-packages/board/    preparation, signatures, durable operations, sponsorship, mining proof verification
-packages/indexer/  additive event fold for current and legacy pairs, vault and distributor events
-packages/sdk/      typed actions, lifecycle, wallet/board clients and resumable flow scripts
-skill/             worker, publisher and arbitrator instructions
-docs/              ADRs, evidence and release/runbook documentation
+apps/api/       hosted board API and MCP Worker
+apps/indexer/   chain indexer Worker
+apps/explore/   browser marketplace and explorer
+apps/arbiter/   arbitration daemon
+apps/docs/      Fumadocs/TanStack documentation site
+packages/sdk/   typed client and v1 flow library
+packages/board/ board domain and persistence contracts
+packages/indexer/ indexing and notification domain logic
+packages/react/ React hooks for the client
+contracts/      Sidequest v1 Foundry contracts and scripts
+tools/          graph, lint, migration and agent quality gates
+docs/           protocol law, ADRs, runbooks and dated evidence
 ```
 
-Bun workspaces, Turbo and Oxlint, TypeScript, Effect, alchemy.run and Foundry. `heavy bun run check` runs package checks, Forge,
-mining tests and lint. Fork suites require their RPC variables; skipped tests are not live proof. Use Node 24+.
-`bun run dev` runs local workerd. Dev updates use the [Sidequest dev runbook](docs/sidequest-dev.md).
-Only the coordinator deploys; any mainnet transaction requires Kris's explicit go.
+Runtime classes and import edges are declared in [tools/graph.ts](tools/graph.ts). Read the matching workspace
+[AGENTS.md](AGENTS.md) before editing a workspace.
 
-Code is written with AI coding tools under human review.
+## Work and promotion
+
+Work on `dev`; there is no `main`. A push to `dev` runs CI verification and the guarded dev deploy. Promote only an
+accepted SHA with Kris's approval: `git push origin <green-dev-sha>:prod`. Never run a prod release or push `prod`
+without that approval. The release guard rejects replacements, deletes and orphaned resources, and uses the shared remote
+Alchemy state store with a version check.
+
+## Daily commands
+
+```bash
+bun install
+bun run check:files <owned paths>
+bun run agents:check
+bun run graph
+bun run typecheck
+bun run lint:gate
+bunx turbo run test --filter <workspace>
+bun run deploy:dev
+bun run plan dev
+bun run smoke dev
+```
+
+Use `heavy` for a command that may take over a minute. Exit 75 means the shared box is busy; retry after it clears. Never
+pipe `heavy`. Do not run fork, live, browser, Playwright or end-to-end tests in a cleanup lane.
+
+## Secrets
+
+Local stage values are in mode-600 `~/.config/sidequest/dev.env` and `~/.config/sidequest/prod.env`; local flow and test
+keys belong in `.env.local`; CI uses the GitHub `dev` and `prod` environments. Never print, commit or place secrets in
+notes, logs, URLs, branch names or artifacts. Release commands disable Bun's automatic env-file loading.
+
+## Docs index
+
+- [Protocol law](docs/protocol.md) — invariants and v1 rules.
+- [Stages](docs/stages.md) — origins, networks, resources and release history.
+- [Deploy](docs/deploy.md) — CI, Alchemy state, secrets, webhooks, rollback and incidents.
+- [ADRs](docs/adr/README.md) — durable decisions, including toolchain and stage policy.
+- [Mainnet runbook](docs/mainnet-runbook.md) — gated launch procedure; every transaction needs Kris's explicit go.
+- [Reality check](docs/reality-check.md) — dated live evidence and its limits.
+- [Glossary](GLOSSARY.md) — terms used by code and docs.

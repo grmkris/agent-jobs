@@ -1,6 +1,6 @@
 # ADR-0001: Toolchain
 
-Date: 2026-09-25. Amended: 2026-10-07. Status: accepted.
+Date: 2026-09-25. Amended: 2026-10-07. Status: superseded by [ADR-0015](0015-bun-turbo-gates.md).
 
 ## Decision
 

@@ -37,7 +37,7 @@ Start with ChatGPT as a **publisher**. The first useful loop is:
 
 This gives us a complete, visible product loop before solving worker-side execution, artifact hosting, or always-on autonomous work.
 
-The protocol remains authoritative. A board receipt does not establish funding, a model summary does not establish acceptance, and a classifier never pays or slashes. See [AGENTS.md](../../AGENTS.md) and [ADR-0013: managed agent authority](../decisions/0013-agent-authority.md).
+The protocol remains authoritative. A board receipt does not establish funding, a model summary does not establish acceptance, and a classifier never pays or slashes. See [AGENTS.md](../../AGENTS.md) and [ADR-0013: managed agent authority](../adr/0013-agent-authority.md).
 
 ## Why publisher-first
 
@@ -382,12 +382,12 @@ Copyable review prompt:
 - [Publisher skill](../../skill/publisher/SKILL.md)
 - [Worker skill](../../skill/worker/SKILL.md)
 - [ERC-8004 notes](../erc-8004.md)
-- [Sidequest v1 decision](../decisions/0011-sidequest-v1.md)
-- [Managed authority ADR](../decisions/0013-agent-authority.md)
-- [Delegated stake ADR](../decisions/0014-delegated-stake.md)
-- [Deliverables anywhere ADR](../decisions/0006-deliverables-anywhere.md)
+- [Sidequest v1 decision](../adr/0011-sidequest-v1.md)
+- [Managed authority ADR](../adr/0013-agent-authority.md)
+- [Delegated stake ADR](../adr/0014-delegated-stake.md)
+- [Deliverables anywhere ADR](../adr/0006-deliverables-anywhere.md)
 - [Sponsorship boundaries](../sponsorship.md)
-- [Dev release runbook](../sidequest-dev.md)
+- [Dev release runbook](../stages.md)
 - [Monad documentation index](https://docs.monad.xyz/llms.txt)
 - [Solidity skill required before contract changes](https://ethskills.com/SKILL.md)
 - [Development service](https://dev.sidequest.exchange)

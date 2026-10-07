@@ -1,16 +1,59 @@
-# Sidequest development release
+# Stages
 
-Sidequest is the product, `sidequest` is the repository/package identity, and the
-development service belongs at **https://dev.sidequest.exchange** on Monad
-testnet (10143). The apex hosts the prod stage, on testnet until the mainnet plan.
-New sessions, OAuth scopes, signing domains, Safe, contracts, D1, R2 and Worker
-names use Sidequest. There are no old-domain redirects or compatibility aliases.
+Stage profiles live in [`infra/dev.json`](../infra/dev.json) and [`infra/prod.json`](../infra/prod.json), loaded by
+[`infra/stage.ts`](../infra/stage.ts). Stage and network are separate: prod is currently on testnet.
 
-The identity uses a two-path mark: work branches out and returns with a result.
-Evergreen (`#124230`) sits on warm paper; dark mode uses pale mint. An editorial
-serif headlines the landing page, while the application keeps readable, compact
-type. Status colours keep their established meanings. App icons and favicon are
-generated from the same SVG. Contrast, focus and reduced-motion gates still apply.
+## Stage reference
+
+| Stage | Origin | Network | State | Trigger |
+| :-- | :-- | :-- | :-- | :-- |
+| `dev` | https://dev.sidequest.exchange | Monad testnet, 10143 | remote | push to `dev`, or approved `bun run deploy:dev` |
+| `prod` | https://sidequest.exchange | Monad testnet, 10143 | remote | accepted dev SHA promoted to `prod`, with Kris's approval |
+| `local` | local Workerd | local development | local | `bun run dev` |
+
+There is no `main` branch. Agents work on `dev`; the cleanup coordinator owns integration and pushing. A push to `dev`
+runs `verify` then `deploy-dev`. Promotion is `git push origin <green dev sha>:prod`; `deploy-prod` additionally requires
+the repository variable `SIDEQUEST_ALLOW_PROD=1`. See [deploy](deploy.md) for command guards and CI.
+
+## Resources and state
+
+| Resource | Dev | Prod |
+| :-- | :-- | :-- |
+| API Worker | `sidequest-api-dev` | `sidequest-api-prod` |
+| Indexer Worker | `sidequest-indexer-dev` | `sidequest-indexer-prod` |
+| Explore Worker | `sidequest-explore-dev` | `sidequest-explore-prod` |
+| D1 | `sidequest-dev-db` | `sidequest-prod-db` |
+| R2 manifests | `sidequest-dev-manifests` | `sidequest-prod-manifests` |
+| Telegram | `@sidequest_excange_dev_bot` | `@sidequest_exchange_bot` |
+
+Dev and prod share the Cloudflare account and `alchemy-state-store` Worker with myapps, but keep distinct stage state,
+Workers, D1, R2 and Durable Objects. The release runner checks the installed Alchemy state-store version before planning.
+Never use `alchemy state read` or `syncState`; use the guarded plan/drift commands.
+The docs site is built by [`apps/docs`](../apps/docs/AGENTS.md) and served by Explore at `/docs`, without a separate Worker.
+
+## Credentials and authority
+
+Each stage has its own relay, declared by `relay` in its profile. The attester and arbitrator are shared while both stages
+use the single testnet pair `main` (`sidequest-v1`) in [`monad-testnet.json`](../contracts/config/monad-testnet.json).
+One Privy app serves both origins. Its routine-signer policy allows both relays;
+[`sidequest-cutover.ts`](../packages/sdk/scripts/privy/sidequest-cutover.ts) `update-policy` is the reviewed update path.
+Provider reads, signing or policy writes require their own authorized task and receipts.
+
+Stage secrets live in mode-600 `~/.config/sidequest/<stage>.env`, mirroring the GitHub `dev`/`prod` environments.
+Plain `GITHUB_*` local names use `SQ_GITHUB_*` in GitHub; the release runner maps them back. `.env.local` is for local and
+test keys only, including flow wallets, deployer and admin. Never print those files or place their contents in evidence.
+
+## Mainnet transition
+
+Prod stays on testnet until [A01–A08](acceptance/a01-a08.md) and the [mainnet launch gate](mainnet-runbook.md) are accepted.
+Kris must explicitly authorize every mainnet transaction. The transition changes `infra/prod.json` plus the promoted
+mainnet contract configuration and redeploys prod. Dev remains on testnet. A public health check or a fork rehearsal is
+not authenticated host acceptance or a live mainnet proof.
+
+## Release history
+
+These dated paragraphs preserve what their receipts established at the time. Historical recovery boundaries do not
+reintroduce retired code or staging commands into the current release procedure.
 
 The latest guarded dev application release is `d40d4f0`, deployed on 7 October 2026
 at 13:13:46 UTC. It ships the public docs at `/docs`: 20 prerendered pages served by
@@ -106,93 +149,3 @@ testnet hire is now indexed. V11 verified chain events entering the feed and a
 paid request to the public `/x402/demo` endpoint. Its local test-wallet signature
 does not establish acceptance of the hosted managed signer.
 
-## Release
-
-Use Node 22 or newer and Bun 1.4.2. Load the chosen stage's plain environment
-names from `~/.config/sidequest/<stage>.env` or its GitHub environment. The stage
-profile in `infra/<stage>.json` selects network, hostname, resources, relay and bot.
-Dev and prod both use testnet today. Mainnet later changes only the prod profile
-and the promoted network contract config before a redeploy.
-
-```sh
-bun run typecheck
-bun run lint
-bun run plan
-bun run deploy:dev
-bun run deploy:prod
-```
-
-The coordinator's release runner owns live updates and migrations. Alchemy
-requires `SIDEQUEST_RELEASE=1`, a matching dev/prod stage, remote state,
-`SIDEQUEST_APPLY_MIGRATIONS=1` and Explore present before any live operation.
-Each stage has its own remote state, D1, R2 and Workers. Prod testnet proves RPC
-chain 10143, relay/attester keys and Safe ownership of the six v1 contracts.
-Mainnet keeps the reviewed artifact, chain 143 and launch checks.
-
-`PUBLIC_ORIGIN`, `RELAY_ADDRESS` and the Telegram bot username come from the
-stage profile. Prod admission defaults to drained; explicitly set
-`PROD_ADMISSION_DRAIN=0` for the open testnet prod release. Secrets use plain names
-on both networks, including `MONAD_RPC_URL`, `RELAY_PRIVATE_KEY` and
-`ATTESTER_PRIVATE_KEY`. Telegram is configured for both stages.
-
-Testnet setup scripts require `SIDEQUEST_TESTNET_SEND=1`. Native gas and Safe
-creation persist signed bytes before sending and reconcile the original hash on
-resumption. Forge deploys use fresh encrypted keystores, a separate broadcast
-directory, fixed gas pricing, and the existing candidate → live verification →
-promotion → Safe acceptance procedure. A partial deployment must be reconciled;
-starting it again is refused. SIDE has one billion fixed initial units and no
-faucet or mint hook. mUSD/mEUR are explicitly labelled testnet faucet assets.
-
-## Acceptance and remaining integration work
-
-Record live receipts in `docs/reality-check.md`: release metadata, health, MCP
-enumeration and anonymous refusal, directory reads, canonical domain/TLS, and
-two indexer cron observations with checkpoint progression. Browser proof covers
-desktop/mobile, light/dark, assets and console/network errors. Real Privy OAuth
-consent is separate from an anonymous page check; its provider allowlist and
-branding must name the new origin before claiming authentication acceptance.
-
-Historical configs and receipts retain their actual names and addresses. Before
-retiring the prior stack, reconcile jobs, pending sends, bond reservations,
-deferred settlement, owed payouts, operator grants and managed-wallet authority.
-Existing testnet keys exposed in an earlier diagnostic are treated as compromised;
-new Sidequest uses fresh keys, and old keys are retained solely for deliberate
-reconciliation until their authorities can be removed safely.
-
-The three old local crew containers were stopped at 04:34 UTC on 6 October,
-with containers and journals retained. V11 subsequently reconciled the eight
-named legacy jobs in 15 successful transactions, including job 131's settlement;
-its original Collect journal remains untouched. The residual 0.9 mUSD and wider
-Board authority inventory still block old-provider retirement.
-[Executed evidence](evidence/sidequest-dev/2026-10-06-legacy-reconciliation-executed.json)
-records that boundary.
-
-Rename notices were attempted before overlapping edits; the stored mytmux
-receipts still have unknown delivery. V1.1 and profile have now explicitly
-acknowledged the rename after resuming. The verified local
-[release evidence](reality-check.md#sidequest-greenfield-dev-release-6-oct-2026) records exact operations,
-track heads, ownership and pending gates. GitHub is `grmkris/sidequest`, companion
-deliveries are `grmkris/sidequest-demo-deliveries`, and the shared origin points to
-the new repository. The reviewed reset, V1.1 fixes, S3–S5/P1b, profile C8–C14, Explore W4, the canonical x402 routing fix
-and the 6 October video-review implementation are published and deployed through `e90b9f5`. Further
-authenticated MCP, inbox, webhook and managed-signing proofs remain V11's lane.
-Physical checkout/worktree/tmux paths stay stable while their owners integrate.
-
-The read-only policy planner is
-`bun packages/sdk/scripts/privy/sidequest-policy-plan.ts`. It verifies
-the archived policy differs only in the reviewed name/four pins and produces a
-separate-policy payload; it never updates legacy recovery authority. App and
-routine-signer credentials exposed during a search are treated as compromised.
-Credential rotation, isolated Sidequest authority and provider readback precede
-managed signing acceptance; the old recovery journals/resources remain retained.
-
-The isolated cutover is `packages/sdk/scripts/privy/sidequest-cutover.ts`:
-`prepare` verifies retained authority and freezes a fresh local routine key;
-after the app secret is replaced, `SIDEQUEST_PRIVY_APPLY=1 ... apply` creates one
-fresh one-key routine quorum and the exact separate 11-rule policy. Creation
-intents are saved before requests; a lost response requires reconciliation and
-never triggers another creation request. `verify` performs provider GETs and
-checks the ignored dev overlay. It preserves the existing policy-admin quorum
-and every legacy signer/policy entry in `.env.local`. The dev runner alone merges
-the verified overlay into the deployment environment; historical staging and
-production remain outside this cutover.

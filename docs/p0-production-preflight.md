@@ -1,6 +1,7 @@
-# Production preflight
+# Mainnet production preflight
 
-The proposed chain-143 recipe correctly refuses deployment today; Kris must complete custody, deployment, provider, Privy, and launch approvals before it can pass.
+Prod currently runs on Monad testnet (10143), as declared in [stages](stages.md). This document covers the future
+chain-143 artifact gate. Kris must complete custody, deployment, provider, Privy and launch approvals before it can pass.
 
 Run `bun scripts/preflight-prod.ts docs/p0-prod-artifact.json` for a no-secret-value structural check. Failure is
 expected while provider chain proofs, Privy approval, and freshly deployed contract addresses are missing.
@@ -26,17 +27,18 @@ A missing or empty `PROD_ADMISSION_DRAIN` means drained, and the artifact's admi
 value. The launch order is in [mainnet-runbook.md](mainnet-runbook.md) §3.8–3.10.
 
 The Alchemy stack calls `assertDeployConfig` before any resources are evaluated whenever either `prod` stage or
-`monad-mainnet` is selected. Both must be selected together, with `SIDEQUEST_STAGE=prod`,
+`monad-mainnet` is selected. Prod on testnet uses `assertTestnetProdConfig`: chain 10143, the stage relay, shared
+attester, and Safe ownership of the six v1 contracts. Mainnet requires both prod and chain 143, with `SIDEQUEST_STAGE=prod`,
 `ALCHEMY_REMOTE_STATE=1`, and an explicit `SIDEQUEST_PROD_ARTIFACT` JSON path. There is no production local-state
 fallback. The artifact checks network/chain 143, provider URL/chain metadata, approved Privy app and origin,
 addresses matching the chain config, no faucet, zero hold gates, USDC, open-token main Holding metadata,
-closed legacy flags, and the exact dedicated `SIDEQUEST_PROD_*` secret source names. Deploy preflight also checks
+the single v1 pair, and the plain stage secret source names in `prodSecretSources`. Deploy preflight also checks
 the actual named sources, runtime Privy/HyperSync/RPC mappings, relay/attester public addresses, and read-only
 RPC `eth_chainId`. No secret values are printed.
 
-Do not copy testnet signing sources into those production names. Mainnet Worker bindings do not fall back to
-generic testnet secrets. The API independently refuses a mainnet/non-prod runtime stage. R2 force-destroy is
-disabled for mainnet. Explore uses the dedicated production Privy mapping.
+Mainnet needs freshly approved role keys in the prod environment; a plain source name is not permission to reuse a
+testnet key. The release runner assembles only the chosen stage environment. The API independently refuses a
+mainnet/non-prod runtime stage. R2 force-destroy is disabled for mainnet, and Explore uses the prod stage mapping.
 
 Still required before launch: independently verify actual HyperSync network, deployed code/bytecode hashes,
 immutable roles, windows, fee settings, provider/domain mappings, D1/DO/R2 policies, and mainnet read-only

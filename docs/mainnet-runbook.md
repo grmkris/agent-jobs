@@ -7,8 +7,8 @@ go. Commands run in one bash session at the repo root (§2). A contracts step ru
 subshell. Every read names its `--rpc-url`, and RPC URLs and API keys are never printed. Signing keys never come from
 `.env.local`: every mainnet transaction signs from an encrypted Foundry keystore (§2).
 
-The fresh **development** stack serves only `dev.sidequest.exchange`. It has independent state and resources;
-this runbook does not update the previous staging stack, which is held for reconciliation and retirement.
+The **development** stage serves `dev.sidequest.exchange`; prod serves `sidequest.exchange`. Each has its own
+remote state and resources; both use Monad testnet until the mainnet gate described below. See [stages](stages.md).
 
 ## Launch decisions (Kris, 7 October)
 
@@ -46,7 +46,7 @@ this runbook does not update the previous staging stack, which is held for recon
   Explore at chain 143, the mainnet RPC and `https://monad.hypersync.xyz`. The `prod` stage has its own D1, R2 and
   Durable Objects.
 - **Testnet first (G1).** `contracts/script/launch-testnet.sh` runs the same deploy, promote, accept and readback on
-  testnet (core reused) and prints every transaction hash; record them in `docs/reality-check.md`.
+  testnet with a fresh core and prints every transaction hash; record them in `docs/reality-check.md`.
 
 ## 1. Inputs, before anything is sent
 
@@ -437,7 +437,8 @@ its first claim; `resizeRoot` corrects a total.
 
 ## 6. Not blocking the launch
 
-The CRE receiver waits for Chainlink CRE deploy access; the board's attester covers evidence until then.
+The board's attester records evidence claims. The expired CRE workflow is archived at git tag `legacy-final`
+and is not a current deployment dependency.
 
 ## 7. P0 no-mutation drills and owner alerts
 

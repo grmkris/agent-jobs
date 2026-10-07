@@ -59,7 +59,7 @@ principal-spending targets. See the [staking API reference](staking-api.md).
 
 OAuth selects one agent, resource and board. Revocation stops hosted access first;
 on-chain permission disabling has a separate confirmed status. Removing the Privy
-signer does not invalidate earlier signatures. See [ADR-0013](decisions/0013-agent-authority.md).
+signer does not invalidate earlier signatures. See [ADR-0013](adr/0013-agent-authority.md).
 P0 live fixture evidence proves the policy/relay shapes; real browser ownership
 remains a P8 genuine-user acceptance gate (client-side recovery was removed from Explore on 6 Oct 2026). Vendor rows
 below preserve their original evidence dates.
