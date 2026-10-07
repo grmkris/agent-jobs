@@ -3,32 +3,33 @@ import { Button } from '../components/ui/button.tsx'
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '../components/ui/empty.tsx'
 import { Alert, AlertDescription } from '../components/ui/alert.tsx'
 import { ItemGroup, Item, ItemTitle, ItemContent, ItemActions } from '../components/ui/item.tsx'
-import { LoadingRows, Segmented } from '../components/kit.tsx'
-import type { Phase } from '@sidequest/react'
+import { LoadingRows, Segmented, shortAddress } from '../components/kit.tsx'
+import { type Phase, quoteRequestPhase } from '@sidequest/react'
 import { JOB_TAG_LABELS, JOB_TAGS, type JobTag } from '@sidequest/sdk'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { BriefcaseBusiness, ChevronRight, Search, Tag as TagIcon } from 'lucide-react'
+import { BriefcaseBusiness, Check, ChevronRight, Search, Tag as TagIcon, TriangleAlert } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { type ChainJob, type TaskIndexEntry, chainJobs, currentBoardId, taskIndex } from '../api.ts'
+import { type QuoteRequest, type TaskIndexEntry, chainJobs, currentBoardId, fetchDirectory, taskIndex } from '../api.ts'
 import { boardRoutes } from '../components/BoardLink.tsx'
 import { PhaseBadge, phaseOf } from '../components/Phase.tsx'
 import { JobsHeader } from '../components/JobsHeader.tsx'
 import { NeedsYou } from '../components/NeedsYou.tsx'
-import { useNow } from '../components/Time.tsx'
+import { useMinute } from '../components/Time.tsx'
+import { RollingCountdown } from '../components/RollingCountdown.tsx'
 
 import { useAuth } from '../components/Wallet.tsx'
 import { AgentOrb } from '../components/agent/AgentOrb.tsx'
+import { AgentLabel } from '../components/agent/AgentChip.tsx'
 import { TokenAmount } from '../components/token/TokenAmount.tsx'
 import { relative } from '../format.ts'
+import { type JobListItem, type View, listPhase, postedAt, posterOf, rowCountdown, rowKey, sortRows, tagsOf, titleOf, viewOf } from '../job-list.ts'
+import { useManagedAgents } from '../managed.ts'
+import { useQuoteRequests } from '../quote-requests.ts'
 import { useToken } from '../useTokens.ts'
 import { cn } from '../lib/cn.ts'
 
-export interface JobListItem {
-  jobId: string | null
-  task: TaskIndexEntry | undefined
-  chain: ChainJob | undefined
-}
+export type { JobListItem } from '../job-list.ts'
 
 /** Stable, so useQueries keeps the combined array until one of the lists changes. */
 const dataOf = (results: { data?: TaskIndexEntry[] | undefined; error: Error | null; refetch: () => Promise<unknown> }[]) =>
@@ -93,31 +94,21 @@ export function useJobs() {
   }
 }
 
-type View = 'all' | 'open' | 'progress' | 'done' | 'mine'
-
-/** Which list a phase belongs in: open to agents, under way, or finished. */
-function viewOf(phase: Phase | null): Exclude<View, 'all' | 'mine'> | null {
-  if (phase === null) return null
-  if (phase.terminal) return 'done'
-  if (['draft', 'draft-stale', 'hire-open'].includes(phase.key)) return 'open'
-  return 'progress'
-}
-
-/** The row's second line: the deadline or the step waiting, in a few words. */
-function rowNote(phase: Phase | null, now: number, agentId: string | null | undefined): string {
+/** The row's second line beside its badge: the step waiting, in a few words. Deadlines are the countdown's. */
+function rowNote(phase: Phase | null, agentId: string | null | undefined): string {
   if (phase === null) return ''
-  const d = phase.deadline
+  const counting = rowCountdown(phase) !== null
   switch (phase.key) {
-    case 'active':
-      return d !== null ? `Due ${relative(d, now)}` : 'Under way'
     case 'hire-open':
-      return d !== null ? `Taking applications · due ${relative(d, now)}` : 'Taking applications'
+      return 'Taking applications'
+    case 'active':
+      return counting ? '' : 'Under way'
     case 'in-review':
-      return d !== null ? `Pays itself ${relative(d, now)} if no answer` : 'Waiting for the approver'
+      return counting ? 'Pays itself if no answer' : 'Waiting for the approver'
     case 'rejected-pending':
-      return d !== null ? `Dispute window closes ${relative(d, now)}` : 'The agent may dispute'
+      return counting ? '' : 'The agent may dispute'
     case 'disputed':
-      return d !== null ? `Ruling due ${relative(d, now)}` : 'With the arbitrator'
+      return counting ? '' : 'With the arbitrator'
     case 'overdue':
     case 'rejection-final':
     case 'arbitration-lapsed':
@@ -135,6 +126,27 @@ function rowNote(phase: Phase | null, now: number, agentId: string | null | unde
   }
 }
 
+/** The phase of a list row: a quote request's from its public facts, a job's from chain and board records. */
+export function rowPhase(item: JobListItem, viewer: string | undefined, now: number): Phase | null {
+  const r = item.request
+  if (r !== undefined) {
+    return listPhase(quoteRequestPhase({ quoteDeadline: r.quoteDeadline, quotes: r.quotesCount ?? 0, picked: r.taskId != null, creator: r.creator }, viewer, now))
+  }
+  return phaseOf(item.chain, item.task, viewer, now)
+}
+
+/** The hosted or listed agent behind each poster wallet this viewer can name: its own agents, then the directory. */
+function usePosterAgents(): Map<string, string> {
+  const managed = useManagedAgents()
+  const directory = useQuery({ queryKey: ['directory-first'], queryFn: () => fetchDirectory(), staleTime: 300_000 })
+  return useMemo(() => {
+    const byWallet = new Map<string, string>()
+    for (const a of directory.data?.agents ?? []) byWallet.set(a.wallet.toLowerCase(), a.agentId)
+    for (const a of managed.data?.agents ?? []) if (a.address !== null && a.agent_id !== null) byWallet.set(a.address.toLowerCase(), a.agent_id)
+    return byWallet
+  }, [managed.data, directory.data])
+}
+
 function readView(): { view: View; q: string; tags: JobTag[] } {
   const p = new URLSearchParams(window.location.search)
   const v = p.get('view')
@@ -143,10 +155,11 @@ function readView(): { view: View; q: string; tags: JobTag[] } {
 }
 
 export function JobsPage() {
-  const { items, index, loading, error, chainError, boardError, chainReady, chainUpdatedAt, chainUnavailable, refetch } = useJobs()
+  const { items: jobItems, index, loading, error, chainError, boardError, chainReady, chainUpdatedAt, chainUnavailable, refetch } = useJobs()
+  const requests = useQuoteRequests()
+  const posters = usePosterAgents()
   const { address } = useAuth()
-  const now = useNow()
-  const minute = Math.floor(now / 60) * 60
+  const minute = useMinute()
   const [{ view, q, tags }, setFilter] = useState(readView)
   // Filters live in the URL, so a link or a reload keeps them.
   useEffect(() => {
@@ -162,17 +175,19 @@ export function JobsPage() {
   }, [view, q, tags])
 
   const me = address?.toLowerCase()
-  const rows = useMemo(
-    () =>
-      items
+  const rows = useMemo(() => {
+    // A picked request is its job now; the job row stands for it.
+    const open: JobListItem[] = (requests.data ?? []).filter((r) => r.taskId == null).map((request) => ({ jobId: null, task: undefined, chain: undefined, request }))
+    return sortRows(
+      [...jobItems, ...open]
         // An offer never published is a draft: nothing is escrowed, so only its creator sees it.
-        .filter((i) => i.jobId !== null || (me !== undefined && i.task?.creator.toLowerCase() === me))
-        .map((i) => ({ item: i, phase: phaseOf(i.chain, i.task, address, minute) })),
-    [items, me, address, minute],
-  )
+        .filter((i) => i.request !== undefined || i.jobId !== null || (me !== undefined && i.task?.creator.toLowerCase() === me))
+        .map((i) => ({ item: i, phase: rowPhase(i, address, minute) })),
+    )
+  }, [jobItems, requests.data, me, address, minute])
   const mine = (i: JobListItem) =>
     me !== undefined &&
-    [i.chain?.creator, i.chain?.approver, i.chain?.worker, i.task?.creator, i.task?.approver].some((a) => a?.toLowerCase() === me)
+    [i.request?.creator, i.chain?.creator, i.chain?.approver, i.chain?.worker, i.task?.creator, i.task?.approver].some((a) => a?.toLowerCase() === me)
   const counts = { all: rows.length, open: 0, progress: 0, done: 0, mine: 0 }
   for (const r of rows) {
     const category = viewOf(r.phase)
@@ -183,8 +198,8 @@ export function JobsPage() {
   const shown = rows.filter(
     (r) =>
       (view === 'all' || (r.phase !== null && (view === 'mine' ? mine(r.item) : viewOf(r.phase) === view))) &&
-      (needle === '' || (r.item.task?.title ?? '').toLowerCase().includes(needle) || r.item.jobId === needle.replace(/^#/, '')) &&
-      (tags.length === 0 || tags.some(tag => r.item.task?.tags?.includes(tag) === true)),
+      (needle === '' || titleOf(r.item).toLowerCase().includes(needle) || r.item.jobId === needle.replace(/^#/, '')) &&
+      (tags.length === 0 || tags.some(tag => tagsOf(r.item).includes(tag))),
   )
   const views: Array<readonly [View, string]> = [
     ['all', 'All'],
@@ -196,7 +211,7 @@ export function JobsPage() {
 
   return (
     <>
-      <JobsHeader current="jobs" />
+      <JobsHeader />
 
       <div className="grid min-w-0 grid-cols-1 gap-2 md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)] md:items-center">
         <label className="flex min-h-8 items-center gap-2 rounded-lg border border-input px-2.5 text-muted-foreground transition-colors duration-(--dur-fast) focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 pointer-coarse:min-h-11">
@@ -217,7 +232,7 @@ export function JobsPage() {
             ([v, l]) =>
               [
                 v,
-                <span key={v}>
+                <span key={v} className="whitespace-nowrap">
                   {l} <span className="tabular-nums text-muted-foreground">{chainReady ? counts[v] : '—'}</span>
                 </span>,
               ] as const,
@@ -270,7 +285,7 @@ export function JobsPage() {
             </EmptyDescription>
           </EmptyHeader>
         </Empty>
-      ) : error !== null && items.length === 0 ? (
+      ) : error !== null && jobItems.length === 0 ? (
         <Empty>
           <EmptyHeader>
             <EmptyTitle>Jobs are unavailable</EmptyTitle>
@@ -289,9 +304,9 @@ export function JobsPage() {
       ) : shown.length === 0 ? (
         <Empty>
           <EmptyHeader>
-            <EmptyTitle>{needle !== '' || tags.length > 0 ? 'No jobs match' : view === 'mine' ? 'Nothing of yours yet' : 'No jobs here yet'}</EmptyTitle>
+            <EmptyTitle>{needle !== '' || tags.length > 0 ? 'No jobs match' : view === 'mine' ? 'Nothing of yours yet' : view === 'open' ? 'Nothing taking quotes right now' : 'No jobs here yet'}</EmptyTitle>
             <EmptyDescription>
-              {needle !== '' || tags.length > 0 ? 'Try fewer tags or a different search.' : 'Create with your agent using the action above.'}
+              {needle !== '' || tags.length > 0 ? 'Try fewer tags or a different search.' : 'Work appears here when an agent asks for quotes. The line above is what to tell yours.'}
             </EmptyDescription>
           </EmptyHeader>
         </Empty>
@@ -302,10 +317,12 @@ export function JobsPage() {
           <ItemGroup>
             {shown.map(({ item, phase }) => (
               <JobRow
-                key={item.jobId ?? item.task?.taskId}
+                key={rowKey(item)}
                 item={item}
                 phase={phase}
-                note={phase === null ? 'Status unavailable · retry chain data' : rowNote(phase, now, item.chain?.agent_id)}
+                now={minute}
+                posterAgent={item.request?.creatorAgentId ?? posters.get(posterOf(item)?.toLowerCase() ?? '') ?? null}
+                note={phase === null ? 'Status unavailable · retry chain data' : rowNote(phase, item.chain?.agent_id)}
               />
             ))}
           </ItemGroup>
@@ -324,25 +341,60 @@ export function JobsPage() {
   )
 }
 
-export function JobRow({ item, phase, note }: { item: JobListItem; phase: Phase | null; note: string }) {
+/** "3 quotes", "No quotes yet": public counts only, never amounts or bidders. */
+const quotesText = (r: QuoteRequest) => {
+  const n = r.quotesCount ?? 0
+  return n === 0 ? (r.status?.startsWith('Accepting') === true ? 'No quotes yet' : 'No quotes') : `${n} quote${n === 1 ? '' : 's'}`
+}
+
+/**
+ * One row of work: what it is and where it stands, its price and live countdown in the right column, and who posted
+ * it when. A quote request shows its public budget and how many agents quoted; a job its escrowed reward.
+ */
+export function JobRow({ item, phase, note, now, posterAgent = null }: {
+  item: JobListItem
+  phase: Phase | null
+  note: string
+  now?: number
+  posterAgent?: string | null
+}) {
   const routes = boardRoutes()
+  const request = item.request
   const agentId = item.chain?.agent_id
-  const reward = item.chain?.reward ?? item.task?.reward
-  const token = item.chain?.token ?? item.task?.token
+  const reward = request?.budget?.max ?? item.chain?.reward ?? item.task?.reward
+  const token = request?.budget?.token ?? item.chain?.token ?? item.task?.token
   const meta = useToken(token)
+  const priced = request === undefined || request.budget !== undefined
   // Inside the row's link the chip is plain (no popover button nested in a link); a long symbol may wrap in the row.
-  const rewardText =
-    meta === 'reading' ? 'Reading token…' : meta === 'none' ? 'Token unavailable' : <TokenAmount value={reward} token={token} static className="whitespace-normal" />
+  const price = !priced ? (
+    <span className="font-normal text-muted-foreground">Open budget</span>
+  ) : meta === 'reading' ? (
+    'Reading token…'
+  ) : meta === 'none' ? (
+    'Token unavailable'
+  ) : (
+    <>
+      {request !== undefined && <span className="mr-1 text-ui font-normal text-muted-foreground">Up to</span>}
+      <TokenAmount value={reward} token={token} static className="whitespace-normal" />
+    </>
+  )
   const other = routes.boardId === 'public' && item.chain?.board_id != null && item.chain.board_id !== 'public' ? item.chain.board_id : null
   const target =
-    item.jobId === null
-      ? { to: '/account', search: { resume: item.task?.taskId ?? '', board: routes.boardId } }
-      : other !== null
-        ? { to: '/b/$boardId/job/$jobId', params: { boardId: other, jobId: item.jobId } }
-        : routes.job(item.jobId)
-  const Icon = item.task?.quoted === true ? TagIcon : BriefcaseBusiness
+    request !== undefined
+      ? routes.quoteRequest(request.requestId)
+      : item.jobId === null
+        ? { to: '/account', search: { resume: item.task?.taskId ?? '', board: routes.boardId } }
+        : other !== null
+          ? { to: '/b/$boardId/job/$jobId', params: { boardId: other, jobId: item.jobId } }
+          : routes.job(item.jobId)
+  const countdown = rowCountdown(phase)
+  const posted = postedAt(item)
+  const poster = posterOf(item)
+  const tags = request?.tags ?? item.task?.tags ?? []
+  const screened = (request === undefined ? item.task?.screening?.verdict : undefined) === 'reject'
   return (
     <Item
+      className="items-start py-3 active:bg-muted sm:items-center"
       render={
         <Link
           to={target.to as '/'}
@@ -351,28 +403,63 @@ export function JobRow({ item, phase, note }: { item: JobListItem; phase: Phase 
         />
       }
     >
-      {agentId != null && agentId !== '0' ? (
+      {request !== undefined ? (
+        // Not hired yet: an open ring, where a job shows its worker's orb.
+        <span className="grid size-10 shrink-0 place-items-center rounded-full border border-dashed border-muted-foreground/45 text-muted-foreground">
+          <TagIcon aria-hidden className="size-4" />
+        </span>
+      ) : agentId != null && agentId !== '0' ? (
         <AgentOrb agentId={agentId} />
       ) : (
-        <span className="grid size-9 shrink-0 place-items-center rounded-full bg-accent text-muted-foreground">
-          <Icon aria-hidden className="size-[1.1rem]" />
+        <span className="grid size-10 shrink-0 place-items-center rounded-full bg-accent text-muted-foreground">
+          {item.task?.quoted === true ? <TagIcon aria-hidden className="size-[1.1rem]" /> : <BriefcaseBusiness aria-hidden className="size-[1.1rem]" />}
         </span>
       )}
-      <ItemContent className="min-w-0 flex-1">
-        <ItemTitle className="block truncate font-medium">{item.task?.title ?? `Job #${item.jobId}`}</ItemTitle>
-        <span className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-ui text-muted-foreground">
+      {/* One grid: on a phone the price and countdown are a line under the badges; wider, they are the right column. */}
+      <ItemContent className="grid min-w-0 flex-1 grid-cols-1 gap-1 sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-x-6">
+        <ItemTitle className="block truncate font-medium sm:col-start-1 sm:row-start-1">{request?.title ?? item.task?.title ?? `Job #${item.jobId}`}</ItemTitle>
+        <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-ui text-muted-foreground sm:col-start-1 sm:row-start-2">
           <PhaseBadge phase={phase} />
-          {(item.task?.tags ?? []).map(tag => <Badge key={tag} variant="neutral">{JOB_TAG_LABELS[tag]}</Badge>)}
+          {tags.map(tag => <Badge key={tag} variant="neutral">{JOB_TAG_LABELS[tag]}</Badge>)}
           {other !== null && <Badge variant="info">{other}</Badge>}
-          {item.task?.screening?.verdict === 'reject' && <Badge variant="warning">Screener flagged</Badge>}
-          <span className="truncate">{note}</span>
+          {screened && <Badge variant="warning">Screener flagged</Badge>}
+          {request !== undefined && <span className="tabular-nums">{quotesText(request)}</span>}
+          {note !== '' && <span className="truncate">{note}</span>}
         </span>
+        <span className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-0.5 sm:col-start-2 sm:row-span-3 sm:row-start-1 sm:flex-col sm:items-end sm:justify-center sm:self-center sm:text-right">
+          <span className="tabular-nums whitespace-normal font-semibold [overflow-wrap:anywhere]">{price}</span>
+          {countdown !== null ? (
+            <span className="flex items-baseline gap-1 text-ui">
+              <span className="text-muted-foreground">{countdown.verb}</span>
+              <RollingCountdown to={countdown.to} passed={countdown.passed} />
+            </span>
+          ) : request === undefined ? (
+            <span className="text-xs text-muted-foreground">{item.jobId !== null ? `#${item.jobId}` : 'Draft'}</span>
+          ) : null}
+        </span>
+        {(posted !== null || poster !== null || request?.budgetCovered != null) && (
+          <span className="flex min-w-0 flex-wrap items-center gap-x-2 text-ui text-muted-foreground sm:col-start-1 sm:row-start-3">
+            {(posted !== null || poster !== null) && (
+              <span className="min-w-0">
+                {posted !== null && `Posted ${relative(posted, now ?? Math.floor(Date.now() / 1000))}`}
+                {poster !== null && (
+                  <>
+                    {posted !== null ? ' by ' : 'By '}
+                    {posterAgent !== null ? <AgentLabel id={posterAgent} /> : <span className="font-mono text-xs">{shortAddress(poster)}</span>}
+                  </>
+                )}
+              </span>
+            )}
+            {request?.budgetCovered === true && (
+              <span className="inline-flex items-center gap-1 text-success-text"><Check aria-hidden className="size-3.5" />Budget covered</span>
+            )}
+            {request?.budgetCovered === false && (
+              <span className="inline-flex items-center gap-1 text-warning-text"><TriangleAlert aria-hidden className="size-3.5" />Budget not covered</span>
+            )}
+          </span>
+        )}
       </ItemContent>
-      <ItemActions className="min-w-0 max-w-[38%] shrink flex-col items-end text-right">
-        <span className="tabular-nums block whitespace-normal font-semibold [overflow-wrap:anywhere]">{rewardText}</span>
-        <span className="block text-xs text-muted-foreground">{item.jobId !== null ? `#${item.jobId}` : 'Draft'}</span>
-      </ItemActions>
-      <ItemActions>
+      <ItemActions className="self-center">
         <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground" />
       </ItemActions>
     </Item>

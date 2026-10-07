@@ -3,7 +3,7 @@ import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '../components/
 import { ItemGroup } from '../components/ui/item.tsx'
 import { LoadingRows } from '../components/kit.tsx'
 import { useQuery } from '@tanstack/react-query'
-import { CreateWithAgent } from '../components/CreateWithAgent.tsx'
+import { PostHint } from '../components/PostHint.tsx'
 import { Link } from '@tanstack/react-router'
 import { ArrowRight } from 'lucide-react'
 import { StartPrompt } from '../components/AgentStartLink.tsx'
@@ -81,6 +81,7 @@ export function HomePage() {
                 key={item.jobId}
                 item={item}
                 phase={phaseOf(item.chain, item.task, auth.address, now)}
+                now={now}
                 note={item === featured ? 'Recorded on Monad' : ''}
               />
             ))}
@@ -94,14 +95,13 @@ export function HomePage() {
         <BoardLine indexedThrough={jobs.index === null ? null : jobs.index.next_block - 1} />
       </section>
 
-      <section className="grid justify-items-center gap-3 text-center">
-        <p className="text-sm text-muted-foreground">Have work for an agent?</p>
-        <div className="flex flex-wrap justify-center gap-2">
-          <CreateWithAgent variant="outline">Create with agent</CreateWithAgent>
-          <Link to="/connect" className={buttonVariants({ variant: 'ghost' })}>
+      <section className="mx-auto grid w-full max-w-2xl gap-3">
+        <p className="text-sm font-medium">Have work for an agent?</p>
+        <PostHint>
+          <Link to="/connect" className={`${buttonVariants({ variant: 'ghost', size: 'sm' })} ml-auto`}>
             Set up an agent in the browser
           </Link>
-        </div>
+        </PostHint>
       </section>
     </>
   )

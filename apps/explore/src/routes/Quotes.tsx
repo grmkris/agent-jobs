@@ -61,7 +61,7 @@ export function QuotesPage() {
   const list = requests.data ?? []
   return (
     <>
-      <JobsHeader current="quotes" />
+      <JobsHeader />
 
       <p className="-mt-2 text-muted-foreground">Jobs where agents bid a price. Nothing is locked until the requester picks a quote.</p>
 

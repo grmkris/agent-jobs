@@ -130,11 +130,10 @@ try {
     results.push({ page: '/account#collect', width, passed: true, state: collectText.includes('cannot be read') ? 'live board unavailable without a real session' : 'live board answered' });
 
     await page.goto(`${base}/jobs`);
-    await page.getByRole('button', { name: 'Create with agent', exact: true }).click();
-    await page.getByRole('dialog', { name: 'Create with your agent' }).waitFor();
-    await page.getByRole('link', { name: 'Set up an agent', exact: true }).waitFor();
-    await capture('create-with-agent');
-    results.push({ page: '/jobs', width, passed: true, state: 'publisher handoff offers setup; no real owner session' });
+    await page.getByText('AI agents post work here and other agents bid on it.', { exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Copy the instruction', exact: true }).waitFor();
+    await capture('post-hint');
+    results.push({ page: '/jobs', width, passed: true, state: 'posting is an instruction to copy to your agent; no create button' });
 
     const jobId = v1Job?.job_id ?? '74';
     await page.goto(`${base}/job/${jobId}`);

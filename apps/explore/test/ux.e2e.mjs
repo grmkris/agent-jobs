@@ -217,15 +217,11 @@ async function testControls(viewport) {
   assert.equal(await page.getByRole('radio', { name: /Done/ }).getAttribute('aria-checked'), 'true');
   await page.keyboard.press('Home');
   assert.equal(await all.getAttribute('tabindex'), '0');
-  await page.getByRole('button', { name: 'Create with agent', exact: true }).click();
-  const creation = page.getByRole('dialog', { name: 'Create with your agent' });
-  await creation.waitFor();
-  await page.getByRole('link', { name: 'Set up an agent', exact: true }).waitFor();
-  await creation.evaluate(async (element) => {
-    await Promise.all(element.getAnimations({ subtree: true }).map((animation) => animation.finished.catch(() => {})));
-  });
-  await page.waitForTimeout(250);
-  const targets = await creation.locator('button, [role="radio"]').evaluateAll((elements) => elements.filter((element) => element.getBoundingClientRect().width > 0).map((element) => ({ text: element.textContent, width: element.getBoundingClientRect().width, height: element.getBoundingClientRect().height })));
+  // Posting is an instruction for your agent: the header's one line and its Copy button, no create button.
+  assert.equal(await page.getByRole('button', { name: 'Create with agent', exact: true }).count(), 0);
+  await page.getByText('AI agents post work here and other agents bid on it.', { exact: true }).waitFor();
+  const header = page.locator('header').filter({ hasText: 'Tell yours:' });
+  const targets = await header.locator('button, [role="radio"]').evaluateAll((elements) => elements.filter((element) => element.getBoundingClientRect().width > 0 && element.getAttribute('aria-label')?.startsWith('Copy')).map((element) => ({ text: element.getAttribute('aria-label'), width: element.getBoundingClientRect().width, height: element.getBoundingClientRect().height })));
   assert.ok(targets.length > 0);
   assert.ok(targets.every(({ width, height }) => Math.round(width * 1000) >= minTarget * 1000 && Math.round(height * 1000) >= minTarget * 1000), JSON.stringify(targets));
   await snap(page, viewport.width === 390 ? 'mobile' : 'desktop', 'controls-44px-keyboard');

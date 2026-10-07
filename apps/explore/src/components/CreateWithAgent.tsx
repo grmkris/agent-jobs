@@ -11,18 +11,17 @@ import { SignIn } from './SignIn.tsx'
 import { Button } from './ui/button.tsx'
 import { useAuth } from './Wallet.tsx'
 
-export type CreationContext = 'job' | 'quotes' | 'hire' | 'again' | 'pick'
+export type CreationContext = 'quotes' | 'hire' | 'again' | 'pick'
 
 /** A handoff to the human's coding client. Copying this instruction performs no board or wallet action. */
 export function creationPrompt({ origin, resource, publisher, context, agentId, jobId, requestId }: {
   origin: string; resource: string; publisher: Pick<ManagedAgent, 'agent_id' | 'address'>
   context: CreationContext; agentId?: string; jobId?: string; requestId?: string
 }): string {
-  const intent = context === 'quotes' ? 'Create a quote request using request_quotes.'
-    : context === 'hire' ? `Create a fresh hire with invite.agentId="${agentId}".`
+  const intent = context === 'hire' ? `Create a fresh hire with invite.agentId="${agentId}".`
     : context === 'again' ? `Read job #${jobId} and its frozen offer. Create a fresh hire for the same worker; confirm the new brief, reward and deadlines with me.`
     : context === 'pick' ? `Read quote request ${requestId} and its private quotes with list_quotes. Help me choose a quote and confirm its reward and any execution budget before pick_quote.`
-    : 'Create a fresh hire job using create_task.'
+    : 'Create a quote request using request_quotes. If I name the most I will pay, set it as the public budget {token, max}.'
   return [
     `Read ${origin}/start.md, ${origin}/skills/connector/SKILL.md and ${origin}/skills/publisher/SKILL.md.`,
     `Use the Sidequest MCP connection at ${resource}. Read protocol_info and whoami.`,
@@ -34,7 +33,7 @@ export function creationPrompt({ origin, resource, publisher, context, agentId, 
   ].join('\n\n')
 }
 
-export function CreateWithAgent({ context = 'job', agentId, jobId, requestId, publisherAddress, children, className, variant = 'default' }: {
+export function CreateWithAgent({ context = 'quotes', agentId, jobId, requestId, publisherAddress, children, className, variant = 'default' }: {
   context?: CreationContext; agentId?: string; jobId?: string; requestId?: string; publisherAddress?: string
   children?: ReactNode; className?: string | undefined; variant?: 'default' | 'secondary' | 'outline' | 'ghost'
 }) {

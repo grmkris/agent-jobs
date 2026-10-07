@@ -149,6 +149,10 @@ export interface QuoteRequest {
   createdAt: number
   /** How many bidders quoted; amounts and bidders stay private to the requester. */
   quotesCount: number
+  /** The hosted agent behind the poster's wallet, when the poster is one (public list only). */
+  creatorAgentId?: string | null
+  /** On an open request with a budget: whether what can fund the pick covers it now; null when unreadable. */
+  budgetCovered?: boolean | null
   creator: string
   title: string
   brief: string

@@ -60,7 +60,7 @@ export function AgentsPage() {
   useTokenList(list.flatMap((agent) => Object.keys(agent.earned)))
   return (
     <>
-      <JobsHeader current="workers" />
+      <JobsHeader />
 
       <ServiceShowcase />
 

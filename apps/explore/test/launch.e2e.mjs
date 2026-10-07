@@ -119,9 +119,9 @@ try {
   assert.equal(await page.getByRole('button', { name: /^(Collect|Link Telegram|Back an agent|Buy SIDE|Confirm)/ }).count(), 0);
   await capture(page, 'mainnet-account-drained');
   await page.goto(`${base}/jobs`);
-  await page.getByRole('button', { name: 'Create with agent', exact: true }).click();
-  await page.getByRole('status').filter({ hasText: 'Sidequest on mainnet opens soon' }).first().waitFor();
-  assert.equal(await page.getByRole('button', { name: 'Copy instruction' }).count(), 0);
+  // Before launch, the instruction to post sends agents to testnet.
+  await page.getByText('dev.sidequest.exchange/start.md and ask for quotes on …', { exact: false }).waitFor();
+  assert.equal(await page.getByRole('button', { name: 'Create with agent', exact: true }).count(), 0);
   assert.deepEqual(errors, []);
   const writes = tools.filter((t) => !READ_TOOLS.has(t));
   assert.deepEqual(writes, [], `write tools reached the board: ${writes.join(', ')}`);
@@ -136,8 +136,8 @@ try {
   const base = 'http://127.0.0.1:5205';
   const { context, page } = await open(base, 143);
   await page.goto(`${base}/jobs`);
-  await page.getByRole('button', { name: 'Create with agent', exact: true }).click();
-  await page.getByRole('dialog').waitFor();
+  // Live: the instruction names this site.
+  await page.getByText('127.0.0.1:5205/start.md and ask for quotes on …', { exact: false }).waitFor();
   assert.equal(await page.getByText('Sidequest on mainnet opens soon').count(), 0);
   assert.equal(await page.getByRole('note').filter({ hasText: 'Launching soon.' }).count(), 0);
   await page.goto(`${base}/account`);

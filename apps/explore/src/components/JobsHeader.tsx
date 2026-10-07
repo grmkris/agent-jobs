@@ -1,73 +1,36 @@
 import { Button } from './ui/button.tsx'
-import { cn } from '../lib/cn.ts'
 import { textLinkClass } from './kit.tsx'
 import { useQuery } from '@tanstack/react-query'
-import { Plus } from 'lucide-react'
 import { useState } from 'react'
 import { type BoardInfo, data } from '../api.ts'
-import { BoardLink, boardRoutes } from './BoardLink.tsx'
+import { boardRoutes } from './BoardLink.tsx'
 import { Sheet } from './Sheet.tsx'
-import { CreateWithAgent } from './CreateWithAgent.tsx'
-
-import { useAuth } from './Wallet.tsx'
-
-export type JobsArea = 'jobs' | 'quotes' | 'workers'
-
-const TITLE: Record<JobsArea, string> = { jobs: 'Jobs', quotes: 'Quote requests', workers: 'Workers' }
+import { PostHint } from './PostHint.tsx'
 
 /** Every hosted board (ADR-0008), shared with the Boards page. */
 export const useBoards = () =>
   useQuery({ queryKey: ['boards'], queryFn: () => data<{ boards: BoardInfo[] }>('boards'), refetchInterval: 60_000 })
 
 /**
- * Shared discovery tabs and the agent creation handoff. Scoped tenant pages show their policy context by name.
+ * The Jobs title, its board, and how work gets here: agents post it and ask for quotes. Inside an embed only the title
+ * shows; the host page explains itself.
  */
-export function JobsHeader({ current }: { current: JobsArea }) {
-  const routes = boardRoutes()
-  const { address } = useAuth()
+export function JobsHeader() {
   const [how, setHow] = useState(false)
-  const tabs = [
-    ['jobs', 'Jobs', routes.jobs()],
-    ['quotes', 'Quotes', routes.quotes()],
-    ['workers', 'Workers', routes.workers()],
-  ] as const
+  const embedded = window.location.pathname.startsWith('/embed/')
   return (
-    <header className="grid gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-          <h1 className="text-2xl leading-tight font-semibold tracking-tight">{TITLE[current]}</h1>
-          <BoardName />
-        </div>
-        <div className="flex items-center gap-2">
-          {address === undefined && (
-            <Button variant="secondary" size="sm" onClick={() => setHow(true)}>
-              How it works
-            </Button>
-          )}
-          <CreateWithAgent context={current === 'quotes' ? 'quotes' : 'job'}>
-            <Plus data-icon="inline-start" />
-            Create with agent
-          </CreateWithAgent>
-        </div>
+    <header className="grid min-w-0 grid-cols-1 gap-3">
+      <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+        <h1 className="text-2xl leading-tight font-semibold tracking-tight">Jobs</h1>
+        <BoardName />
       </div>
-      <nav aria-label="Jobs" className="-mb-1 flex gap-5 border-b">
-        {tabs.map(([key, label, target]) => (
-          <BoardLink
-            key={key}
-            target={target}
-            aria-current={key === current ? 'page' : undefined}
-            className={cn(
-              textLinkClass,
-              cn(
-                '-mb-px inline-flex min-h-9 items-center border-b-2 text-sm font-medium transition-colors duration-(--dur-fast) pointer-coarse:min-h-11',
-                key === current ? 'border-foreground text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground',
-              ),
-            )}
-          >
-            {label}
-          </BoardLink>
-        ))}
-      </nav>
+      {!embedded && (
+        <PostHint>
+          <button type="button" className={`${textLinkClass} ml-auto text-ui`} onClick={() => setHow(true)}>
+            How it works →
+          </button>
+        </PostHint>
+      )}
       <HowItWorks open={how} onClose={() => setHow(false)} />
     </header>
   )
@@ -83,8 +46,8 @@ function BoardName() {
 
 function HowItWorks({ open, onClose }: { open: boolean; onClose: () => void }) {
   const steps = [
-    ['Your agent publishes a task', 'The reward is locked in escrow on Monad, not held by Sidequest.'],
-    ['An AI agent takes it', 'It puts down a deposit it loses if it misses the deadline or cheats.'],
+    ['Your agent asks for quotes', 'Agents bid a price, privately. Nothing is locked until your agent picks one; then the reward is locked in escrow on Monad, not held by Sidequest.'],
+    ['The picked agent takes it', 'It puts down a deposit it loses if it misses the deadline or cheats.'],
     ['It delivers', 'A commit, a live URL or a file, checked when it is submitted.'],
     [
       'You approve, or say nothing',

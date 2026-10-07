@@ -35,7 +35,8 @@ async function setup(viewport, options = {}) {
     return reply(route, state.failAgents ? { ok: false, message: 'Publishers unavailable' } : { ok: true, result: { agents: state.agents } }, state.failAgents ? 503 : 200);
   });
   await f.context.route('**/api/list_quote_requests', route => reply(route, { ok: true, result: [{ requestId: 'req', title: 'Quote this job', brief: 'Brief', creator: state.creator,
-    acceptanceCriteria: ['Works'], tokens: [token], creatorBond: '0', workerBond: '0', deliveryDeadline: now + 86400, quoteDeadline: now + 3600 }] }));
+    acceptanceCriteria: ['Works'], tokens: [token], budget: { token, max: '25000000' }, budgetCovered: true, creatorBond: '0', workerBond: '0', deliveryDeadline: now + 86400, quoteDeadline: now + 7200,
+    status: 'Accepting quotes — reward not escrowed', taskId: null, quotesCount: 1, createdAt: now - 3600, stack: 'main' }] }));
   await f.context.route('**/api/list_quotes', route => reply(route, { ok: true, result: { creator: state.creator, picked: state.picked,
     quotes: state.creator === owner ? [{ quoteId: 'quote', worker: other, agentId: '2001', token, symbol: 'mUSD', amount: '10', note: '', expectedCosts: null }] : [] } }));
   await f.context.route('**/api/pick_quote', route => { state.writes.push(route.request().postDataJSON()); return reply(route, { ok: false, message: 'No sends in this fixture' }, 400); });
@@ -68,32 +69,28 @@ try {
     await page.getByRole('textbox', { name: 'Search jobs' }).fill('');
     await chips.getByRole('button', { name: 'Clear', exact: true }).click();
     await page.getByText('An existing untagged job', { exact: true }).waitFor();
-    await page.getByRole('button', { name: 'Create with agent', exact: true }).first().click();
-    const sheet = page.getByRole('dialog', { name: 'Create with your agent' });
-    await sheet.getByRole('combobox', { name: 'Publisher', exact: true }).waitFor();
-    assert.equal(await sheet.getByRole('textbox', { name: 'Agent instruction' }).count(), 0);
-    await sheet.getByRole('combobox', { name: 'Publisher', exact: true }).selectOption('publisher');
-    const prompt = await sheet.getByRole('textbox', { name: 'Agent instruction' }).inputValue();
-    assert.match(prompt, /publisher must be my agent #1942/);
-    assert.ok(prompt.includes(agentWallet));
-    assert.ok(prompt.includes(`${base}/mcp`));
-    assert.match(prompt, /same operation and chain receipt before retrying/);
+    // A quote request is a row of the same list: taking quotes, its public budget and bidder count, a live countdown.
+    const requestRow = page.locator('[data-slot=item]').filter({ hasText: 'Quote this job' });
+    await requestRow.getByText('Taking quotes', { exact: true }).waitFor();
+    await requestRow.getByText('1 quote', { exact: true }).waitFor();
+    await requestRow.getByText('Budget covered', { exact: true }).waitFor();
+    assert.match(await requestRow.innerText(), /Up to\s*25 mUSD/);
+    assert.match(await requestRow.innerText(), /closes\s*0d 01h \d\dm/);
+    await page.getByRole('radio', { name: /^Open/ }).click();
+    await requestRow.waitFor();
+    assert.equal(await page.getByText('Research design systems', { exact: true }).count(), 0);
+    await page.getByRole('radio', { name: /^All/ }).click();
+    // Posting is an instruction to copy to your agent: no create button, and copying sends nothing.
+    assert.equal(await page.getByRole('button', { name: 'Create with agent', exact: true }).count(), 0);
+    await page.getByText(`${base.replace(/^https?:\/\//, '')}/start.md and ask for quotes on …`, { exact: false }).waitFor();
     await page.evaluate(() => Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async () => { throw new Error('Denied'); } } }));
-    await sheet.getByRole('button', { name: 'Copy instruction', exact: true }).click();
-    await sheet.getByText('Copy failed', { exact: true }).waitFor();
-    assert.equal(await sheet.getByRole('textbox', { name: 'Agent instruction' }).inputValue(), prompt);
+    await page.getByRole('button', { name: 'Copy the instruction', exact: true }).click();
+    await page.getByText('Copy failed', { exact: true }).waitFor();
     assert.deepEqual(state.writes, []);
     assert.equal(await page.evaluate(() => window.__wallet.sends.length), 0);
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
-    await page.screenshot({ path: `${output}/${device}-creation.png`, fullPage: true });
-    await sheet.getByRole('button', { name: 'Close', exact: true }).click();
-    // Opening after a revoked publisher must not expose a cached old instruction while the fresh list is loading.
-    state.agents = [{ ...publishers[0], state: 'revoked' }]; state.delay = 600;
-    await page.getByRole('button', { name: 'Create with agent', exact: true }).first().click();
-    assert.equal(await sheet.getByRole('textbox', { name: 'Agent instruction' }).count(), 0);
-    await sheet.getByText('Set up a publisher or sign in to choose one you already own.', { exact: false }).waitFor();
-    await sheet.getByRole('button', { name: 'Close', exact: true }).click();
-    state.delay = 0; state.agents = publishers; state.creator = agentWallet;
+    await page.screenshot({ path: `${output}/${device}-jobs.png`, fullPage: true });
+    state.creator = agentWallet;
     await page.goto(`${base}/quotes/req`);
     await page.getByRole('button', { name: 'Choose with your agent', exact: true }).waitFor();
     assert.equal(await page.getByRole('button', { name: 'Pick', exact: true }).count(), 0);
@@ -102,38 +99,41 @@ try {
     const pickPrompt = await pickSheet.getByRole('textbox', { name: 'Agent instruction' }).inputValue();
     assert.match(pickPrompt, /quote request req/);
     assert.match(pickPrompt, /publisher must be my agent #1942/);
+    assert.ok(pickPrompt.includes(agentWallet));
+    assert.ok(pickPrompt.includes(`${base}/mcp`));
+    assert.match(pickPrompt, /same operation and chain receipt before retrying/);
     assert.equal(await pickSheet.getByRole('combobox').count(), 0);
+    await page.evaluate(() => Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async () => { throw new Error('Denied'); } } }));
+    await pickSheet.getByRole('button', { name: 'Copy instruction', exact: true }).click();
+    await pickSheet.getByText('Copy failed', { exact: true }).waitFor();
+    assert.equal(await pickSheet.getByRole('textbox', { name: 'Agent instruction' }).inputValue(), pickPrompt);
     await pickSheet.getByRole('button', { name: 'Close', exact: true }).click();
+    // Opening after a revoked publisher must not expose a cached old instruction while the fresh list is loading,
+    // and once the list says revoked the page stops offering the handoff at all.
+    state.agents = [{ ...publishers[0], state: 'revoked' }]; state.delay = 600;
+    await page.getByRole('button', { name: 'Choose with your agent', exact: true }).click();
+    assert.equal(await pickSheet.getByRole('textbox', { name: 'Agent instruction' }).count(), 0);
+    await page.waitForFunction(() => ![...document.querySelectorAll('button')].some((b) => b.textContent === 'Choose with your agent'));
+    assert.equal(await page.getByRole('textbox', { name: 'Agent instruction' }).count(), 0);
+    state.delay = 0; state.agents = publishers;
     state.creator = owner;
     await page.goto(`${base}/quotes/req?fresh=1`);
     await page.getByRole('button', { name: viewport.width === 390 ? 'Pick' : 'Pick this quote', exact: true }).first().waitFor();
     assert.deepEqual(state.writes, []);
     await page.goto(`${base}/b/client-board`);
-    await page.getByRole('button', { name: 'Create with agent', exact: true }).click();
-    await sheet.getByRole('combobox', { name: 'Publisher', exact: true }).selectOption('publisher');
-    await sheet.getByRole('textbox', { name: 'Agent instruction' }).waitFor();
-    assert.ok((await sheet.getByRole('textbox', { name: 'Agent instruction' }).inputValue()).includes(`${base}/b/client-board/mcp`));
-    await sheet.getByRole('button', { name: 'Close', exact: true }).click();
-    results.push({ device, passed: true, checks: ['tag OR with search/phase AND', 'URL reload', 'untagged visible without tags', 'owned publisher choice', 'clipboard failure', 'revoked cached publisher denied', 'hosted requester exact publisher', 'exact browser requester keeps picker', 'tenant MCP context', 'no sends'] });
+    await page.getByText(`${base.replace(/^https?:\/\//, '')}/b/client-board/mcp and ask for quotes on …`, { exact: false }).waitFor();
+    results.push({ device, passed: true, checks: ['tag OR with search/phase AND', 'URL reload', 'untagged visible without tags', 'quote request row: phase, budget, count, covered, countdown', 'request under Open', 'post hint, no create button', 'hint clipboard failure', 'hosted requester exact publisher', 'pick clipboard failure', 'revoked publisher: no cached instruction, handoff withdrawn', 'exact browser requester keeps picker', 'tenant MCP context', 'no sends'] });
     await context.close();
 
-    // Signed-out visitors need setup/sign-in; opening a handoff must never force the disabled private query.
+    // Signed-out visitors read the list and the hint; nothing asks for their private agents.
     const anonymous = await setup(viewport, { connected: false });
     await anonymous.page.goto(`${base}/jobs`);
     await anonymous.page.getByText('Fix coding tests', { exact: true }).waitFor();
-    assert.equal(anonymous.state.agentReads, 0);
-    await anonymous.page.getByRole('button', { name: 'Create with agent', exact: true }).click();
-    const anonymousSheet = anonymous.page.getByRole('dialog', { name: 'Create with your agent' });
-    await anonymousSheet.waitFor();
+    await anonymous.page.getByText('Quote this job', { exact: true }).waitFor();
+    await anonymous.page.getByRole('button', { name: 'Copy the instruction', exact: true }).waitFor();
     await anonymous.page.waitForTimeout(250);
-    assert.equal(anonymous.state.agentReads, 0, 'opening the anonymous sheet makes no private agent request');
-    await anonymousSheet.getByRole('button', { name: 'Sign in to choose a publisher', exact: true }).waitFor();
-    await anonymousSheet.getByRole('link', { name: 'Set up an agent', exact: true }).waitFor();
-    assert.equal(await anonymousSheet.getByRole('textbox', { name: 'Agent instruction' }).count(), 0);
-    assert.equal(await anonymousSheet.getByRole('button', { name: 'Retry publishers', exact: true }).count(), 0);
-    await anonymousSheet.getByRole('button', { name: 'Close', exact: true }).click();
-    assert.equal(anonymous.state.agentReads, 0);
-    results.push({ device, signedIn: false, passed: true, checks: ['no private agents call on open', 'sign-in and setup visible', 'no publisher prompt', 'no retry-only error'] });
+    assert.equal(anonymous.state.agentReads, 0, 'the signed-out list makes no private agent request');
+    results.push({ device, signedIn: false, passed: true, checks: ['no private agents call', 'hint visible'] });
     await anonymous.context.close();
   }
   assert.deepEqual(errors, []);

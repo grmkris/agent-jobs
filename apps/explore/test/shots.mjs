@@ -216,10 +216,9 @@ const PAGES = [
     api: { telegram_status: () => ({ linked: false, username: null, linkedAt: null }) },
   },
   {
-    name: 'create-with-agent', wagmi: 'v1-wagmi.mjs', path: '/jobs', v1: true,
+    name: 'post-hint', wagmi: 'v1-wagmi.mjs', path: '/jobs', v1: true,
     prepare: async (page) => {
-      await page.getByRole('button', { name: 'Create with agent', exact: true }).click();
-      await page.getByRole('dialog', { name: 'Create with your agent' }).waitFor();
+      await page.getByRole('button', { name: 'Copy the instruction', exact: true }).waitFor();
     },
   },
   {
