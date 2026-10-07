@@ -15,15 +15,14 @@ recomputed `dataHash`, then requires the file's root/total/dataHash to equal
 compare sha256. A failed readback exits unsuccessfully; retry the same file.
 It sends no on-chain transaction and never creates or changes Alchemy state.
 
-Credentials come from `.env.local` over the shell environment:
-`CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN` and the stage's
-`MONAD_TESTNET_RPC_URL` or `MONAD_MAINNET_RPC_URL`. Existing stage/network env
+Credentials come from the chosen stage environment:
+`CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN` and `MONAD_RPC_URL`. Existing stage/network env
 settings must agree with `--stage`. Values, bucket names, URLs and provider
 error bodies are never printed. `infra/<stage>.json` supplies the network, chain id,
 origin and exact resource identities. Publication requires exactly one Api Worker
 with the expected ownership tags and the exact name in that file, matching runtime
 stage/network bindings, and the exact Manifests bucket binding and bucket readback.
-`infra/dev.json` exists today; prod refuses until `infra/prod.json` is provisioned.
+`infra/dev.json` and `infra/prod.json` select independent resources on the same testnet deployment.
 Unit tests use fake R2 only; the
 coordinator runs live publication.
 
