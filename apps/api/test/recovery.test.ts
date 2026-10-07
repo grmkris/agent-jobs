@@ -2,7 +2,7 @@ import * as Alchemy from 'alchemy'
 import * as Cloudflare from 'alchemy/Cloudflare'
 import * as Test from 'alchemy/Test/Vitest'
 import * as Effect from 'effect/Effect'
-import * as HttpClient from 'effect/unstable/http/HttpClient'
+import * as HttpClient from 'effect/http/HttpClient'
 import { expect } from 'vitest'
 import RecoveryDrill from './recovery-worker.ts'
 

@@ -21,15 +21,14 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-      - uses: pnpm/action-setup@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
-          cache: pnpm
+          node-version: 22
       - uses: foundry-rs/foundry-toolchain@v1
         with:
           version: stable
-      # scripts/mining's tests (bun test) run inside pnpm check.
-      - uses: oven-sh/setup-bun@v2
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm check
+      - run: bun install --frozen-lockfile
+      - run: bun run check

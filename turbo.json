@@ -1,0 +1,280 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "tasks": {
+    "typecheck": {
+      "dependsOn": [
+        "^typecheck"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/tsconfig.base.json",
+        "$TURBO_ROOT$/bun.lock",
+        "$TURBO_ROOT$/contracts/config/**"
+      ],
+      "outputs": []
+    },
+    "test": {
+      "dependsOn": [
+        "^typecheck"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!.alchemy/**",
+        "$TURBO_ROOT$/bun.lock",
+        "$TURBO_ROOT$/tsconfig.base.json",
+        "$TURBO_ROOT$/contracts/config/**"
+      ],
+      "outputs": [],
+      "env": [
+        "MONAD_TESTNET_RPC_URL",
+        "MONAD_MAINNET_RPC_URL",
+        "MONAD_MAINNET_FORK_BLOCK",
+        "HYPERSYNC_API_TOKEN",
+        "FORK_RPC_TIMEOUT_MS",
+        "FORK_STARTUP_TIMEOUT_MS",
+        "FOUNDRY_PROFILE",
+        "CI",
+        "ALCHEMY_STAGE"
+      ]
+    },
+    "build": {
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        "dist/**"
+      ]
+    },
+    "@sidequest/api#typecheck": {
+      "dependsOn": [
+        "^typecheck"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/tsconfig.base.json",
+        "$TURBO_ROOT$/bun.lock",
+        "$TURBO_ROOT$/contracts/config/**",
+        "$TURBO_ROOT$/alchemy.run.ts",
+        "$TURBO_ROOT$/infra/**",
+        "$TURBO_ROOT$/scripts/sidequest/state.ts",
+        "$TURBO_ROOT$/apps/explore/src/**",
+        "$TURBO_ROOT$/docs/p0-prod-artifact.json",
+        "$TURBO_ROOT$/apps/docs/src/**",
+        "$TURBO_ROOT$/apps/docs/content/**",
+        "$TURBO_ROOT$/scripts/gen-docs.mjs"
+      ],
+      "outputs": []
+    },
+    "@sidequest/indexer-worker#typecheck": {
+      "dependsOn": [
+        "^typecheck"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/tsconfig.base.json",
+        "$TURBO_ROOT$/bun.lock",
+        "$TURBO_ROOT$/contracts/config/**",
+        "$TURBO_ROOT$/apps/api/src/**",
+        "$TURBO_ROOT$/apps/explore/src/**",
+        "$TURBO_ROOT$/infra/**"
+      ],
+      "outputs": []
+    },
+    "@sidequest/explore#typecheck": {
+      "dependsOn": [
+        "^typecheck"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/tsconfig.base.json",
+        "$TURBO_ROOT$/bun.lock",
+        "$TURBO_ROOT$/contracts/config/**",
+        "$TURBO_ROOT$/skill/start.md",
+        "$TURBO_ROOT$/apps/docs/src/**",
+        "$TURBO_ROOT$/apps/docs/content/**",
+        "$TURBO_ROOT$/apps/docs/site-output.*"
+      ],
+      "outputs": []
+    },
+    "@sidequest/sdk#typecheck": {
+      "dependsOn": [
+        "^typecheck"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/tsconfig.base.json",
+        "$TURBO_ROOT$/bun.lock",
+        "$TURBO_ROOT$/contracts/config/**",
+        "$TURBO_ROOT$/packages/board/src/**"
+      ],
+      "outputs": []
+    },
+    "@sidequest/docs#typecheck": {
+      "dependsOn": [
+        "^typecheck"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/tsconfig.base.json",
+        "$TURBO_ROOT$/bun.lock",
+        "$TURBO_ROOT$/contracts/config/**",
+        "$TURBO_ROOT$/infra/**"
+      ],
+      "outputs": []
+    },
+    "@sidequest/api#test": {
+      "dependsOn": [
+        "^typecheck"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!.alchemy/**",
+        "$TURBO_ROOT$/bun.lock",
+        "$TURBO_ROOT$/tsconfig.base.json",
+        "$TURBO_ROOT$/contracts/config/**",
+        "$TURBO_ROOT$/alchemy.run.ts",
+        "$TURBO_ROOT$/infra/**",
+        "$TURBO_ROOT$/skill/**",
+        "$TURBO_ROOT$/docs/p0-prod-artifact.json",
+        "$TURBO_ROOT$/apps/explore/src/**",
+        "$TURBO_ROOT$/apps/docs/src/**",
+        "$TURBO_ROOT$/apps/docs/content/**",
+        "$TURBO_ROOT$/scripts/gen-docs.mjs"
+      ],
+      "outputs": [],
+      "env": [
+        "MONAD_TESTNET_RPC_URL",
+        "MONAD_MAINNET_RPC_URL",
+        "MONAD_MAINNET_FORK_BLOCK",
+        "HYPERSYNC_API_TOKEN",
+        "FORK_RPC_TIMEOUT_MS",
+        "FORK_STARTUP_TIMEOUT_MS",
+        "FOUNDRY_PROFILE",
+        "CI",
+        "ALCHEMY_STAGE"
+      ]
+    },
+    "@sidequest/explore#test": {
+      "dependsOn": [
+        "^typecheck"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!.alchemy/**",
+        "$TURBO_ROOT$/bun.lock",
+        "$TURBO_ROOT$/tsconfig.base.json",
+        "$TURBO_ROOT$/contracts/config/**",
+        "$TURBO_ROOT$/skill/**",
+        "$TURBO_ROOT$/scripts/mining/prices.ts",
+        "$TURBO_ROOT$/packages/board/src/**",
+        "$TURBO_ROOT$/apps/docs/src/**",
+        "$TURBO_ROOT$/apps/docs/content/**",
+        "$TURBO_ROOT$/apps/docs/site-output.*"
+      ],
+      "outputs": [],
+      "env": [
+        "MONAD_TESTNET_RPC_URL",
+        "MONAD_MAINNET_RPC_URL",
+        "MONAD_MAINNET_FORK_BLOCK",
+        "HYPERSYNC_API_TOKEN",
+        "FORK_RPC_TIMEOUT_MS",
+        "FORK_STARTUP_TIMEOUT_MS",
+        "FOUNDRY_PROFILE",
+        "CI",
+        "ALCHEMY_STAGE"
+      ]
+    },
+    "@sidequest/sdk#test": {
+      "dependsOn": [
+        "^typecheck"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!.alchemy/**",
+        "$TURBO_ROOT$/bun.lock",
+        "$TURBO_ROOT$/tsconfig.base.json",
+        "$TURBO_ROOT$/contracts/config/**",
+        "$TURBO_ROOT$/contracts/script/rehearse-flows-testnet.sh",
+        "$TURBO_ROOT$/packages/board/src/**"
+      ],
+      "outputs": [],
+      "env": [
+        "MONAD_TESTNET_RPC_URL",
+        "MONAD_MAINNET_RPC_URL",
+        "MONAD_MAINNET_FORK_BLOCK",
+        "HYPERSYNC_API_TOKEN",
+        "FORK_RPC_TIMEOUT_MS",
+        "FORK_STARTUP_TIMEOUT_MS",
+        "FOUNDRY_PROFILE",
+        "CI",
+        "ALCHEMY_STAGE"
+      ]
+    },
+    "@sidequest/contracts#test": {
+      "dependsOn": [
+        "^typecheck"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!.alchemy/**",
+        "$TURBO_ROOT$/bun.lock",
+        "$TURBO_ROOT$/tsconfig.base.json",
+        "$TURBO_ROOT$/contracts/config/**",
+        "$TURBO_ROOT$/docs/mainnet-runbook.md",
+        "$TURBO_ROOT$/scripts/preflight-prod.ts",
+        "$TURBO_ROOT$/package.json",
+        "$TURBO_ROOT$/scripts/mining/README.md",
+        "$TURBO_ROOT$/apps/api/src/prod-config.ts"
+      ],
+      "outputs": [],
+      "env": [
+        "MONAD_TESTNET_RPC_URL",
+        "MONAD_MAINNET_RPC_URL",
+        "MONAD_MAINNET_FORK_BLOCK",
+        "HYPERSYNC_API_TOKEN",
+        "FORK_RPC_TIMEOUT_MS",
+        "FORK_STARTUP_TIMEOUT_MS",
+        "FOUNDRY_PROFILE",
+        "CI",
+        "ALCHEMY_STAGE"
+      ]
+    },
+    "@sidequest/docs#test": {
+      "dependsOn": [
+        "^typecheck"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!.alchemy/**",
+        "$TURBO_ROOT$/bun.lock",
+        "$TURBO_ROOT$/tsconfig.base.json",
+        "$TURBO_ROOT$/contracts/config/**",
+        "$TURBO_ROOT$/infra/**",
+        "$TURBO_ROOT$/apps/explore/src/styles.css"
+      ],
+      "outputs": [],
+      "env": [
+        "MONAD_TESTNET_RPC_URL",
+        "MONAD_MAINNET_RPC_URL",
+        "MONAD_MAINNET_FORK_BLOCK",
+        "HYPERSYNC_API_TOKEN",
+        "FORK_RPC_TIMEOUT_MS",
+        "FORK_STARTUP_TIMEOUT_MS",
+        "FOUNDRY_PROFILE",
+        "CI",
+        "ALCHEMY_STAGE"
+      ]
+    }
+  },
+  "globalPassThroughEnv": [
+    "HOME",
+    "USER",
+    "LANG",
+    "TZ",
+    "NODE_OPTIONS",
+    "SHELL",
+    "GITHUB_ACTIONS",
+    "RUNNER_TEMP",
+    "PATH"
+  ]
+}

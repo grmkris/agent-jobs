@@ -1,9 +1,25 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ESNext",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "jsx": "react-jsx",
-    "types": ["node", "vite/client"]
+    "types": [
+      "node",
+      "vite/client"
+    ]
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "worker.ts", "worker.test.ts", "routing.ts", "start-guide*.ts", "vite.config.ts", "docs-*.ts", "scripts/local-assets.ts"]
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "worker.ts",
+    "worker.test.ts",
+    "routing.ts",
+    "start-guide*.ts",
+    "docs-*.ts",
+    "scripts/local-assets.ts"
+  ]
 }

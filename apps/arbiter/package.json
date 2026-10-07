@@ -4,17 +4,18 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "bun src/main.ts"
+    "start": "bun src/main.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
   },
   "dependencies": {
     "@sidequest/board": "workspace:*",
     "@sidequest/sdk": "workspace:*",
-    "viem": "2.56.9"
+    "viem": "catalog:"
   },
   "devDependencies": {
-    "@types/node": "^24.3.0",
+    "@types/node": "catalog:",
     "typescript": "catalog:",
-    "vite-plus": "catalog:",
     "vitest": "catalog:"
   }
 }

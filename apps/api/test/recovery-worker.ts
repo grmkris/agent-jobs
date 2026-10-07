@@ -1,7 +1,7 @@
 import * as Cloudflare from 'alchemy/Cloudflare'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
-import * as HttpServerResponse from 'effect/unstable/http/HttpServerResponse'
+import * as HttpServerResponse from 'effect/http/HttpServerResponse'
 import * as sdk from '@sidequest/sdk'
 import { contractsFromDeployment, DERIVED_TABLES, fromD1, migrate, resetIndex, runOnce, stmt, type IndexerConfig, type RawLog } from '@sidequest/indexer'
 import fixture from '../../../packages/indexer/test/fixtures/v1-logs.ts'

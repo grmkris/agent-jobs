@@ -1,6 +1,6 @@
 import * as Cloudflare from 'alchemy/Cloudflare'
 import * as Effect from 'effect/Effect'
-import * as HttpServerResponse from 'effect/unstable/http/HttpServerResponse'
+import * as HttpServerResponse from 'effect/http/HttpServerResponse'
 import * as sdk from '@sidequest/sdk'
 import { decodeX402Header, encodeX402Header, type X402Payload, type X402Required } from '@sidequest/board'
 import { x402Demo } from '../src/x402-demo.ts'

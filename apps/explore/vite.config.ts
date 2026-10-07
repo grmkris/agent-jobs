@@ -3,7 +3,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import { fileURLToPath } from 'node:url'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vite-plus'
+import { defineConfig } from 'vite'
 import { MAINNET_LIVE } from './src/release.ts'
 import { startGuide } from './start-guide-plugin.ts'
 import { docsSite, docsDev } from './docs-site-plugin.ts'
@@ -116,44 +116,4 @@ export default defineConfig({
   // Pre-bundle the shader package. Found mid-run, the dev optimizer reloads, and a stale chunk keeps a second React, so a
   // cold checkout's first page with an agent orb failed ("reading 'useState'" of null).
   optimizeDeps: { include: ['@paper-design/shaders-react'] },
-  run: {
-    tasks: {
-      typecheck: {
-        command: 'tsc -p tsconfig.json',
-        input: [
-          { pattern: 'src/**', base: 'package' },
-          { pattern: 'worker.ts', base: 'package' },
-          { pattern: 'routing.ts', base: 'package' },
-          { pattern: 'start-guide*.ts', base: 'package' },
-          { pattern: 'docs-*.ts', base: 'package' },
-          { pattern: 'scripts/local-assets.ts', base: 'package' },
-          { pattern: 'skill/start.md', base: 'workspace' },
-          { pattern: 'apps/docs/src/**', base: 'workspace' },
-          { pattern: 'apps/docs/content/**', base: 'workspace' },
-          { pattern: 'apps/docs/site-output.*', base: 'workspace' },
-          { pattern: 'contracts/config/**', base: 'workspace' },
-          { pattern: 'tsconfig.json', base: 'package' },
-          { pattern: 'tsconfig.base.json', base: 'workspace' },
-          { pattern: 'pnpm-lock.yaml', base: 'workspace' },
-        ],
-        output: [],
-      },
-      test: {
-        command: 'vitest run',
-        input: [
-          { auto: true },
-          { pattern: 'skill/start.md', base: 'workspace' },
-          { pattern: 'apps/docs/src/**', base: 'workspace' },
-          { pattern: 'apps/docs/content/**', base: 'workspace' },
-          { pattern: 'apps/docs/site-output.*', base: 'workspace' },
-          { pattern: '!**/node_modules/.vite/**', base: 'workspace' },
-          { pattern: '!**/node_modules/.vite-temp/**', base: 'workspace' },
-        ],
-        output: [
-          { pattern: '!**/node_modules/.vite/**', base: 'workspace' },
-          { pattern: '!**/node_modules/.vite-temp/**', base: 'workspace' },
-        ],
-      },
-    },
-  },
 })

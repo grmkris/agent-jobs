@@ -7,15 +7,18 @@
     ".": "./src/index.ts"
   },
   "devDependencies": {
-    "@metamask/delegation-core": "3.0.0",
-    "@metamask/delegation-deployments": "2.1.0",
-    "@types/node": "^24.3.0",
-    "playwright-core": "^1.63.0",
+    "@metamask/delegation-core": "catalog:",
+    "@metamask/delegation-deployments": "catalog:",
+    "@types/node": "catalog:",
+    "playwright-core": "catalog:",
     "typescript": "catalog:",
-    "vite-plus": "catalog:",
     "vitest": "catalog:"
   },
   "dependencies": {
-    "viem": "2.56.9"
+    "viem": "catalog:"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
   }
 }

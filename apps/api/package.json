@@ -9,12 +9,15 @@
     "@sidequest/sdk": "workspace:*",
     "alchemy": "catalog:",
     "effect": "catalog:",
-    "viem": "2.56.9"
+    "viem": "catalog:"
   },
   "devDependencies": {
     "@effect/vitest": "catalog:",
     "typescript": "catalog:",
-    "vite-plus": "catalog:",
     "vitest": "catalog:"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
   }
 }

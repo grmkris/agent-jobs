@@ -4,16 +4,30 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./feed": "./src/feed.ts",
+    "./telegram": "./src/telegram.ts",
+    "./telegram-notifications": "./src/telegram-notifications.ts",
+    "./relay-watch": "./src/relay-watch.ts",
+    "./webhooks": "./src/webhooks.ts",
+    "./mcp-events": "./src/mcp-events.ts",
+    "./database": "./src/database.ts",
+    "./network": "./src/network.ts",
+    "./oauth-types": "./src/oauth-types.ts"
   },
   "dependencies": {
     "@sidequest/sdk": "workspace:*",
-    "viem": "2.56.9"
+    "viem": "catalog:",
+    "@sidequest/board": "workspace:*",
+    "alchemy": "catalog:"
   },
   "devDependencies": {
-    "@types/node": "^24.3.0",
+    "@types/node": "catalog:",
     "typescript": "catalog:",
-    "vite-plus": "catalog:",
     "vitest": "catalog:"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
   }
 }

@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import * as HttpServerResponse from 'effect/unstable/http/HttpServerResponse'
+import * as HttpServerResponse from 'effect/http/HttpServerResponse'
 import { backingOf, positionIn } from '@sidequest/sdk'
 import { jsonResponse } from '../src/json.ts'
 

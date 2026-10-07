@@ -1,5 +1,28 @@
 {
   "extends": "../../tsconfig.base.json",
-  "compilerOptions": { "lib": ["ESNext", "DOM", "DOM.Iterable"], "jsx": "react-jsx", "types": ["node", "vite/client"], "paths": { "@/*": ["./src/*"] }, "exactOptionalPropertyTypes": false },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "scripts/**/*.mjs", "test/**/*.ts", "vite.config.ts", "source.config.ts"]
+  "compilerOptions": {
+    "lib": [
+      "ESNext",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "jsx": "react-jsx",
+    "types": [
+      "node",
+      "vite/client"
+    ],
+    "paths": {
+      "@/*": [
+        "./src/*"
+      ]
+    },
+    "exactOptionalPropertyTypes": false
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "scripts/**/*.mjs",
+    "test/**/*.ts",
+    "source.config.ts"
+  ]
 }

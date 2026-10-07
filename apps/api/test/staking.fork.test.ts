@@ -10,7 +10,7 @@ import { backingCard, stakingSnapshot } from '../src/staking-index.ts'
 import { collectSnapshot } from '../src/collect-index.ts'
 import { tools } from '../src/tools.ts'
 import { permittedTool } from '../src/mcp-policy.ts'
-import * as HttpServerResponse from 'effect/unstable/http/HttpServerResponse'
+import * as HttpServerResponse from 'effect/http/HttpServerResponse'
 import { stakingDataRoute } from '../src/routes/staking.ts'
 
 const fork = forkEnabled ? describe : describe.skip

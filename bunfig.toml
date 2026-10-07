@@ -1,0 +1,4 @@
+logLevel = "warn"
+
+[install]
+exact = true
