@@ -84,7 +84,8 @@
     "apps/arbiter": { "entry": ["src/{main,index}.ts!"] },
     "contracts": {
       // Foundry operator scripts live alongside Solidity; Bun invokes these TypeScript files directly.
-      "entry": ["script/**/*.ts!"],
+      // G1d refund operator scripts (manifest, batch) are run by hand from the G1d runbook.
+      "entry": ["script/**/*.ts!", "script/refund-*.mjs!"],
     },
   },
 }

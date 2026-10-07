@@ -1,4 +1,4 @@
-import { test } from 'node:test'
+import { test } from 'bun:test'
 import assert from 'node:assert/strict'
 import { captureSnapshot, parseManifestArgs, readLogs } from './refund-manifest.mjs'
 import { address, KRIS, makeManifest } from './refund-model.mjs'
