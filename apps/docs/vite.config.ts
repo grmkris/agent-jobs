@@ -13,6 +13,7 @@ const pages = readdirSync(fileURLToPath(new URL('./content/docs', import.meta.ur
 })
 export default defineConfig({
   publicDir: false,
+  preview: { host: '127.0.0.1' },
   plugins: [fumadocsMdx(), tailwindcss(), tanstackStart({
     spa: { enabled: true },
     prerender: { enabled: true, crawlLinks: true, autoSubfolderIndex: false, filter: ({ path }) => path.startsWith('/docs') || path.startsWith('/llms') || path.startsWith('/__tsr/') },

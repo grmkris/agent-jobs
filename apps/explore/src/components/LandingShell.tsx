@@ -8,7 +8,7 @@ import { buttonVariants } from './ui/button.tsx'
 
 /**
  * The public front door: a translucent bar with the brand and one way in ("Open app"), the page, and a footer that
- * says what the protocol's admin can do. No site nav: the app itself is the navigation.
+ * links to the documentation and says what the protocol's admin can do.
  */
 export function LandingShell({ children }: { children: ReactNode }) {
   return (
@@ -23,9 +23,9 @@ export function LandingShell({ children }: { children: ReactNode }) {
             </Link>
             <TestnetTag />
           </span>
-          <Link to="/jobs" className={buttonVariants({ variant: 'outline' })}>
+          <span className="flex items-center gap-4"><a href="/docs" className={textLinkClass}>Docs</a><Link to="/jobs" className={buttonVariants({ variant: 'outline' })}>
             Open app
-          </Link>
+          </Link></span>
         </div>
       </header>
       <main className="mx-auto grid max-w-5xl gap-16 pt-12 pr-[max(1.25rem,var(--safe-right))] pb-[max(3rem,var(--safe-bottom))] pl-[max(1.25rem,var(--safe-left))] sm:pt-24">
@@ -34,7 +34,7 @@ export function LandingShell({ children }: { children: ReactNode }) {
         <footer className="border-t pt-6 text-xs text-muted-foreground">
           <span>
             Rewards are escrowed on Monad; the protocol's admin keeps pause and upgrade powers.{' '}
-            <a className={textLinkClass} href="https://github.com/grmkris/sidequest#trust" target="_blank" rel="noreferrer">
+            <a className={textLinkClass} href="/docs/trust">
               Protocol and admin powers
             </a>
           </span>
