@@ -9,7 +9,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "check": "bun run graph && bun run migrations:check && bun run dupes && bun run typecheck && bun run lint:gate && bun run test && bun run test:scripts && bun run mining",
+    "check": "bun run agents:check && bun run graph && bun run migrations:check && bun run dupes && bun run typecheck && bun run lint:gate && bun run test && bun run test:scripts && bun run mining",
     "check:fast": "bun run typecheck && bun run lint",
     "typecheck": "tsc -p scripts/mining/tsconfig.json && tsc -p scripts/ci/tsconfig.json && turbo run typecheck",
     "test": "turbo run test --concurrency=2",
