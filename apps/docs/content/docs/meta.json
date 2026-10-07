@@ -5,9 +5,12 @@
     "---Get started---",
     "quickstart",
     "app",
-    "concepts",
-    "guides",
-    "reference",
+    "---Concepts---",
+    "...concepts",
+    "---Guides---",
+    "...guides",
+    "---Reference---",
+    "...reference",
     "---Trust---",
     "trust"
   ]
