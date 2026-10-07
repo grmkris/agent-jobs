@@ -49,6 +49,7 @@ export default Alchemy.Stack(
       ...(stage === 'dev' ? { name: devInfrastructure.resources.Explore } : {}),
       rootDir: fileURLToPath(new URL('./apps/explore/', import.meta.url)),
       main: 'worker.ts',
+      memo: { workspaces: [{ cwd: '../docs' }, { cwd: '../../skill' }, { cwd: '../../packages/sdk' }, { cwd: '../../packages/react' }, { cwd: '../../contracts/config' }, { cwd: '../../infra' }] },
       domain: { name: mainnet ? 'sidequest.exchange' : 'dev.sidequest.exchange' },
       env: { API: api },
       assets: {

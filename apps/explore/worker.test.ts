@@ -18,10 +18,11 @@ function env(files: Record<string, string> = {}) {
       // Cloudflare's single-page-application fallback: a known file, else index.html with 200.
       ASSETS: {
         fetch: async (r: Request) => {
-          const path = new URL(r.url).pathname
-          const type = path.endsWith('.png') ? 'image/png' : path.endsWith('.webmanifest') || path.endsWith('.md') ? 'application/octet-stream' : 'text/html'
+          const pathname = new URL(r.url).pathname
+          const path = pathname in files ? pathname : `${pathname}.html` in files ? `${pathname}.html` : pathname
+          const type = path.endsWith('.png') ? 'image/png' : path.endsWith('.webmanifest') ? 'application/manifest+json' : path.endsWith('.md') ? 'text/markdown' : path.endsWith('.json') ? 'application/json' : path.endsWith('.js') ? 'text/javascript' : 'text/html'
           return path in files
-            ? new Response(files[path], { headers: { 'content-type': type } })
+            ? new Response(files[path], { headers: { 'content-type': type, 'content-length': String(files[path]?.length ?? 0), etag: 'fixture' } })
             : new Response(INDEX, { headers: { 'content-type': 'text/html' } })
         },
       },
@@ -107,5 +108,108 @@ describe('explore worker routing', () => {
     expect(await skill.text()).toBe('# worker')
     expect(e.api).toEqual([])
     expect((await get('/skills/nobody/SKILL.md', e)).status).toBe(404)
+  })
+})
+
+
+const DOC_HTML = '<!doctype html><html><head><meta name="generator" content="sidequest-docs"></head><body><h1>Quickstart</h1><script>window.app=1</script><script src="/docs/_assets/app.js"></script></body></html>'
+const DOC_FILES = {
+  '/docs.html': DOC_HTML,
+  '/docs/quickstart.html': DOC_HTML,
+  '/docs/not-found.html': DOC_HTML.replace('Quickstart', 'That page is off the board.'),
+  '/docs/index.md': '# Sidequest\n',
+  '/docs/quickstart.md': '# Quickstart\n\nStart here.',
+  '/docs/search.json': '{"count":1}',
+  '/llms.txt': '# Sidequest\n', '/llms-full.txt': '# Full docs\n',
+  '/docs/_assets/app.js': 'console.log(1)', '/__tsr/staticServerFnCache/one.json': '{}',
+}
+const docsRequest = (path: string, options: RequestInit = {}, e = env(DOC_FILES)) => worker.fetch(new Request(`https://dev.sidequest.exchange${path}`, options), e.env)
+describe('Explore docs worker', () => {
+  it('puts a fresh CSP nonce on every script and advertises Markdown', async () => {
+    const first = await docsRequest('/docs/quickstart')
+    const second = await docsRequest('/docs/quickstart')
+    const policy = first.headers.get('content-security-policy')!
+    const nonce = /'nonce-([^']+)'/.exec(policy)![1]
+    const scriptPolicy = policy.split(';').find(part => part.trim().startsWith('script-src'))!
+    expect(scriptPolicy).not.toContain("'unsafe-inline'")
+    expect(first.headers.get('vary')).toBe('Accept')
+    expect(first.headers.get('link')).toBe('<https://dev.sidequest.exchange/docs/quickstart.md>; rel="alternate"; type="text/markdown"')
+    expect(first.headers.get('content-length')).toBeNull()
+    expect(first.headers.get('etag')).toBeNull()
+    const body = await first.text()
+    const scripts = [...body.matchAll(/<script\b[^>]*>/g)]
+    expect(scripts).toHaveLength(2)
+    for (const [script] of scripts) expect(script).toContain(`nonce="${nonce}"`)
+    expect(second.headers.get('content-security-policy')).not.toBe(policy)
+  })
+  it.each(['*/*', 'text/html, text/markdown;q=0.5'])('serves HTML for Accept %s', async (accept) => {
+    const res = await docsRequest('/docs/quickstart', { headers: { accept } })
+    expect(res.status).toBe(200)
+    expect(res.headers.get('content-type')).toBe('text/html; charset=utf-8')
+    expect(await res.text()).toContain('<h1>Quickstart</h1>')
+  })
+  it('negotiates the same Markdown as the explicit twin', async () => {
+    const preferred = await docsRequest('/docs/quickstart', { headers: { accept: 'text/markdown' } })
+    const twin = await docsRequest('/docs/quickstart.md')
+    expect(preferred.headers.get('content-type')).toBe('text/markdown; charset=utf-8')
+    expect(preferred.headers.get('access-control-allow-origin')).toBe('*')
+    expect(preferred.headers.get('content-security-policy')).toBe("default-src 'none'; frame-ancestors 'none'")
+    expect(await preferred.text()).toBe(await twin.text())
+    expect(await (await docsRequest('/docs.md')).text()).toBe(DOC_FILES['/docs/index.md'])
+  })
+  it('serves the styled missing page with 404 and rejects Markdown/asset fallbacks', async () => {
+    const missing = await docsRequest('/docs/nope')
+    expect(missing.status).toBe(404)
+    expect(await missing.text()).toContain('That page is off the board.')
+    for (const path of ['/docs/nope.md', '/docs/_assets/nope.js', '/__tsr/staticServerFnCache/nope.json']) {
+      const res = await docsRequest(path)
+      expect(res.status).toBe(404)
+      expect(await res.text()).toBe('not found')
+    }
+    const missingMd = await docsRequest('/docs/nope', { headers: { accept: 'text/markdown' } })
+    expect(missingMd.status).toBe(404)
+    expect(missingMd.headers.get('content-type')).toContain('text/plain')
+    expect((await docsRequest('/docs/search.json', {}, env())).status).toBe(404)
+  })
+  it.each(['/docs', '/docs/quickstart.md', '/docs/search.json', '/docs/nope', '/llms.txt', '/docs/_assets/app.js'])('answers HEAD %s with the GET status and no body', async (path) => {
+    const head = await docsRequest(path, { method: 'HEAD' })
+    const getRes = await docsRequest(path)
+    expect(head.status).toBe(getRes.status)
+    expect(head.headers.get('content-type')).toBe(getRes.headers.get('content-type'))
+    expect(await head.text()).toBe('')
+  })
+  it.each(['/docs/', '/docs', '/docs/quickstart.md', '/docs/search.json', '/docs/_assets/app.js', '/llms-full.txt'])('limits %s to GET/HEAD', async (path) => {
+    const res = await docsRequest(path, { method: 'POST' })
+    expect(res.status).toBe(405)
+    expect(res.headers.get('allow')).toBe('GET, HEAD')
+  })
+  it('redirects canonical HTML URLs and the docs root slash', async () => {
+    for (const [path, status, location] of [['/docs/', 308, '/docs'], ['/docs/quickstart.html', 301, '/docs/quickstart'], ['/docs.html', 301, '/docs']] as const) {
+      const res = await docsRequest(path)
+      expect(res.status).toBe(status)
+      expect(res.headers.get('location')).toBe(location)
+    }
+  })
+  it('serves search, LLM text, immutable assets, and the static server-function cache', async () => {
+    const e = env(DOC_FILES)
+    const search = await docsRequest('/docs/search.json', {}, e)
+    expect(search.headers.get('content-type')).toBe('application/json; charset=utf-8')
+    expect(search.headers.get('cache-control')).toBe('public, max-age=300')
+    expect(await search.json()).toEqual({ count: 1 })
+    for (const path of ['/llms.txt', '/llms-full.txt']) expect((await docsRequest(path, {}, e)).headers.get('content-type')).toBe('text/plain; charset=utf-8')
+    expect((await docsRequest('/docs/_assets/app.js', {}, e)).headers.get('cache-control')).toBe('public, max-age=31536000, immutable')
+    expect(await (await docsRequest('/__tsr/staticServerFnCache/one.json', {}, e)).json()).toEqual({})
+    expect(e.api).toEqual([])
+  })
+  it('keeps the existing SPA policy and guide behavior', async () => {
+    for (const path of ['/', '/jobs', '/embed']) {
+      const res = await docsRequest(path)
+      expect(res.status).toBe(200)
+      expect(res.headers.get('content-security-policy')).toContain('https://challenges.cloudflare.com')
+      expect(res.headers.get('content-security-policy')).not.toContain('nonce-')
+      expect(res.headers.get('x-frame-options')).toBe('DENY')
+    }
+    const guide = await docsRequest('/start.md', {}, env({ '/start.md': '# Start\n{{SIDEQUEST_ORIGIN}}/mcp' }))
+    expect(await guide.text()).toBe('# Start\nhttps://dev.sidequest.exchange/mcp')
   })
 })

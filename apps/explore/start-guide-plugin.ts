@@ -4,7 +4,7 @@ import { renderStartGuide, startGuideType } from './start-guide.ts'
 
 const source = () => readFileSync(new URL('../../skill/start.md', import.meta.url), 'utf8')
 
-/** Emit the single repo document under both names; render its URLs at the serving origin. */
+/** Emit the start guide; render its URLs at the serving origin. */
 export function startGuide(): Plugin {
   return {
     name: 'sidequest-start-guide',
@@ -21,7 +21,7 @@ export function startGuide(): Plugin {
     },
     generateBundle() {
       const template = source()
-      for (const fileName of ['start.md', 'llms.txt']) {
+      for (const fileName of ['start.md']) {
         this.emitFile({ type: 'asset', fileName, source: template })
       }
     },

@@ -9,6 +9,7 @@
  */
 import { isApiPath, isFilePath } from './routing.ts'
 import { renderStartGuide, startGuideType } from './start-guide.ts'
+import { docsRoute, serveDocs } from './docs-handler.ts'
 
 interface Env {
   readonly API: { fetch(request: Request): Promise<Response> }
@@ -88,6 +89,8 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const { pathname } = new URL(request.url)
     if (isApiPath(pathname)) return env.API.fetch(request)
+    const docs = docsRoute(pathname)
+    if (docs !== undefined) return serveDocs(request, env, docs)
     const asset = await env.ASSETS.fetch(request)
     // The SPA fallback answers any unknown path with index.html; a missing file must be a 404, or iOS takes the page
     // for an icon or a manifest.
