@@ -271,11 +271,11 @@ export function networkMeta(network: Network): NetworkMeta {
 }
 
 export function networkMetaFromConfig(c: DeploymentConfig): NetworkMeta {
-  const testnet = c.links?.testnet
-  if (testnet !== undefined && !/^https:\/\/[a-z0-9.-]+$/.test(testnet)) throw new Error('Network config links.testnet must be an https origin')
+  const testnetOrigin = c.links?.testnet
+  if (testnetOrigin !== undefined && !/^https:\/\/[a-z0-9.-]+$/.test(testnetOrigin)) throw new Error('Network config links.testnet must be an https origin')
   const usdPegged = c.usdPegged ?? []
   if (!usdPegged.every(validAddress)) throw new Error('Network config usdPegged must list token addresses')
-  return { links: testnet === undefined ? {} : { testnet }, usdPegged }
+  return { links: testnetOrigin === undefined ? {} : { testnet: testnetOrigin }, usdPegged }
 }
 
 /** Parse a recorded network config. This also lets offline readers use an archived config without changing it. */

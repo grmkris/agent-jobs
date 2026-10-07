@@ -133,8 +133,8 @@ describe('network meta', () => {
   it('refuses a link that is not an https origin and a pegged entry that is not an address', () => {
     const config = currentConfig()
     expect(networkMetaFromConfig(config)).toEqual({ links: {}, usdPegged: [] })
-    for (const testnet of ['http://dev.sidequest.exchange', 'https://dev.sidequest.exchange/', 'https://dev.sidequest.exchange/start', 'javascript:alert(1)']) {
-      expect(() => networkMetaFromConfig({ ...config, links: { testnet } })).toThrow('https origin')
+    for (const origin of ['http://dev.sidequest.exchange', 'https://dev.sidequest.exchange/', 'https://dev.sidequest.exchange/start', 'javascript:alert(1)']) {
+      expect(() => networkMetaFromConfig({ ...config, links: { testnet: origin } })).toThrow('https origin')
     }
     expect(() => networkMetaFromConfig({ ...config, usdPegged: ['USDC'] })).toThrow('token addresses')
   })
