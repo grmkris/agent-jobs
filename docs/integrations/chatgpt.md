@@ -4,7 +4,8 @@ ChatGPT connects to Sidequest as a remote MCP server and, through MCP Events, re
 webhooks. This page covers the connector and the event subscription. The protocol details are the same for any
 client on the `2026-07-28` MCP lane.
 
-Needs the guarded Sidequest dev release containing the host-parity commit. No authenticated ChatGPT receipt exists yet.
+Host parity has been live on dev since `4dc03be` (6 October). No authenticated ChatGPT receipt exists yet; Kris's
+ChatGPT plan tier is unconfirmed, so treat ChatGPT as read-only until a write is proven.
 
 ## Connect
 
