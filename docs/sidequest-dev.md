@@ -2,7 +2,7 @@
 
 Sidequest is the product, `sidequest` is the repository/package identity, and the
 development service belongs at **https://dev.sidequest.exchange** on Monad
-testnet (10143). The apex is reserved for a separately authorized mainnet release.
+testnet (10143). The apex hosts the prod stage, on testnet until the mainnet plan.
 New sessions, OAuth scopes, signing domains, Safe, contracts, D1, R2 and Worker
 names use Sidequest. There are no old-domain redirects or compatibility aliases.
 
@@ -108,26 +108,32 @@ does not establish acceptance of the hosted managed signer.
 
 ## Release
 
-Use Node 22 or newer and Bun 1.4.2:
+Use Node 22 or newer and Bun 1.4.2. Load the chosen stage's plain environment
+names from `~/.config/sidequest/<stage>.env` or its GitHub environment. The stage
+profile in `infra/<stage>.json` selects network, hostname, resources, relay and bot.
+Dev and prod both use testnet today. Mainnet later changes only the prod profile
+and the promoted network contract config before a redeploy.
 
 ```sh
-heavy bun run check
-bun run sidequest:test
-bun run db:generate --check
-heavy node scripts/sidequest/dev-release.mjs plan
-SIDEQUEST_DEV_RELEASE=1 heavy node scripts/sidequest/dev-release.mjs
+bun run typecheck
+bun run lint
+bun run plan
+bun run deploy:dev
+bun run deploy:prod
 ```
 
-The runner checks `main`, committed release source, Cloudflare account/zone
-ownership, fresh names (or exact owned state for a later update), RPC chain,
-signer addresses, completed Safe ownership, and fresh Privy authority readback.
-It reads `.sidequest/privy-dev.env` only after validating the frozen authority
-journal and confirming the original credential was replaced. It deploys a committed export;
-four explicitly known neighbour files can remain dirty without entering the
-release. No worktree files are moved. `.alchemy/state/Sidequest/dev` is the sole
-dev backend, independent of the historical staging stack. The generated directory
-migration is deliberately applied to this new D1. Provider output and any
-credential-bearing state remain in ignored private files.
+The coordinator's release runner owns live updates and migrations. Alchemy
+requires `SIDEQUEST_RELEASE=1`, a matching dev/prod stage, remote state,
+`SIDEQUEST_APPLY_MIGRATIONS=1` and Explore present before any live operation.
+Each stage has its own remote state, D1, R2 and Workers. Prod testnet proves RPC
+chain 10143, relay/attester keys and Safe ownership of the six v1 contracts.
+Mainnet keeps the reviewed artifact, chain 143 and launch checks.
+
+`PUBLIC_ORIGIN`, `RELAY_ADDRESS` and the Telegram bot username come from the
+stage profile. Prod admission defaults to drained; explicitly set
+`PROD_ADMISSION_DRAIN=0` for the open testnet prod release. Secrets use plain names
+on both networks, including `MONAD_RPC_URL`, `RELAY_PRIVATE_KEY` and
+`ATTESTER_PRIVATE_KEY`. Telegram is configured for both stages.
 
 Testnet setup scripts require `SIDEQUEST_TESTNET_SEND=1`. Native gas and Safe
 creation persist signed bytes before sending and reconcile the original hash on

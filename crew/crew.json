@@ -1,5 +1,6 @@
 {
   "board": {
+    "stage": "dev",
     "mcp": "https://dev.sidequest.exchange/mcp",
     "origin": "https://dev.sidequest.exchange",
     "scopes": "sidequest:read sidequest:hire sidequest:work",
