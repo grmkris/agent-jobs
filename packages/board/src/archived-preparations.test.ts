@@ -42,15 +42,14 @@ async function fixture(kind: sdk.StackKind) {
   const picked = await original.pickQuote({ address: creator }, { requestId: request.requestId, quoteId: quote.quoteId, idempotencyKey: 'pick' })
   const taskKey = `pick-${sdk.hashText('pick').slice(2)}`
   const quoteBinding = { requestHash: request.requestHash, quoteHash: quote.quoteHash }
-  const newCtx = (keep: boolean): sdk.Ctx => ({ ...base, publicClient: client, deployment: { ...base.deployment,
-    legacyStacks: { ...base.deployment.legacyStacks, ...(keep ? { 'original-pair': oldPair } : {}) } } }) as unknown as sdk.Ctx
+  const newCtx = (): sdk.Ctx => ({ ...base, publicClient: client }) as unknown as sdk.Ctx
   const boot = (keep = false, raceOperation?: string) => {
     let hidden = false
     return new Board({ ...sql, all: <T>(query: string, ...params: SqlValue[]) => {
       // Model a competing request winning between the first lookup and atomic persistence.
       if (!hidden && raceOperation !== undefined && query.includes('FROM hosted_idempotency') && params[1] === raceOperation) { hidden = true; return [] as T[] }
       return sql.all<T>(query, ...params)
-    } }, { ...config, contexts: { main: newCtx(keep) } })
+    } }, { ...config, contexts: { main: newCtx() } })
   }
   const snapshot = () => ['tasks', 'operations', 'hosted_idempotency', 'quote_requests', 'quotes', 'applications'].map(table => db.prepare(`SELECT * FROM ${table} ORDER BY 1`).all())
   const retry = (board: Board, operation: 'create_task' | 'pick_task' | 'pick_quote') => operation === 'pick_quote'
@@ -67,30 +66,6 @@ for (const operation of ['create_task', 'pick_task', 'pick_quote'] as const) {
     expect(f.read).not.toHaveBeenCalled(); expect(f.blockNumber).not.toHaveBeenCalled()
     expect(f.snapshot()).toEqual(before)
   })
-  for (const keep of [false, true]) {
-    it(`${operation} atomic cache ${keep ? 'retains the original configured legacy bytes' : 'refuses a retired Holding without changing evidence'}`, async () => {
-      const f = await fixture(keep ? 'legacy' : 'sidequest-v1')
-      if (operation === 'pick_quote') {
-        // Only the outer cached response appears late. The nested cache belongs to a separate, current draft.
-        f.db.prepare("DELETE FROM hosted_idempotency WHERE operation='pick_task'").run()
-        f.db.prepare('UPDATE quote_requests SET task_id=NULL').run()
-        await f.boot().createTask({ address: creator }, { ...f.input, idempotencyKey: f.taskKey }, f.quoteBinding)
-      }
-      const before = f.snapshot(), board = f.boot(keep, operation)
-      if (keep) expect(await f.retry(board, operation)).toEqual(operation === 'create_task' ? f.direct : operation === 'pick_quote' ? f.picked : JSON.parse(f.db.prepare("SELECT result_json FROM hosted_idempotency WHERE operation='pick_task'").get()!.result_json as string))
-      else await expect(f.retry(board, operation)).rejects.toMatchObject({ code: 'unavailable' })
-      expect(f.snapshot()).toEqual(before)
-    })
-  }
-  it(`${operation} early cache keeps the original configured legacy preparation and addresses`, async () => {
-    const f = await fixture('legacy'), before = f.snapshot()
-    const cached = await f.retry(f.boot(true), operation)
-    const original = operation === 'create_task' ? f.direct : operation === 'pick_quote' ? f.picked : JSON.parse(f.db.prepare("SELECT result_json FROM hosted_idempotency WHERE operation='pick_task'").get()!.result_json as string)
-    expect(cached).toEqual(original)
-    expect(cached.transactions.at(-1)!.to.toLowerCase()).toBe(retired)
-    expect(f.read).not.toHaveBeenCalled(); expect(f.blockNumber).not.toHaveBeenCalled()
-    expect(f.snapshot()).toEqual(before)
-  })
 }
 it('a crash between pick_task and pick_quote refuses a retired nested draft before RPC', async () => {
   const f = await fixture('sidequest-v1')
@@ -100,18 +75,4 @@ it('a crash between pick_task and pick_quote refuses a retired nested draft befo
   await expect(f.retry(f.boot(), 'pick_quote')).rejects.toMatchObject({ code: 'unavailable' })
   expect(f.read).not.toHaveBeenCalled(); expect(f.blockNumber).not.toHaveBeenCalled()
   expect(f.snapshot()).toEqual(before)
-})
-it('a crash between pick_task and pick_quote resumes the original configured legacy draft', async () => {
-  const f = await fixture('legacy')
-  f.db.prepare("DELETE FROM hosted_idempotency WHERE operation='pick_quote'").run()
-  f.db.prepare('UPDATE quote_requests SET task_id=NULL').run()
-  f.db.prepare('DELETE FROM applications WHERE task_id=?').run(f.picked.taskId)
-  const tasks = f.db.prepare('SELECT * FROM tasks ORDER BY 1').all()
-  const nested = f.db.prepare("SELECT * FROM hosted_idempotency WHERE operation='pick_task'").get()
-  const resumed = await f.retry(f.boot(true), 'pick_quote')
-  expect(resumed.taskId).toBe(f.picked.taskId)
-  expect(resumed.transactions).toEqual(f.picked.transactions)
-  expect(resumed.transactions.at(-1)!.to.toLowerCase()).toBe(retired)
-  expect(f.db.prepare('SELECT * FROM tasks ORDER BY 1').all()).toEqual(tasks)
-  expect(f.db.prepare("SELECT * FROM hosted_idempotency WHERE operation='pick_task'").get()).toEqual(nested)
 })

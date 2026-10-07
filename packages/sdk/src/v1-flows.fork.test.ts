@@ -1,10 +1,11 @@
+import { erc20Abi } from 'viem'
 import { parseAbi, parseEther } from 'viem'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { forkEnabled, forkSetupTimeout, startSidequestFork } from '../test/sidequest-fixture.ts'
 import { registerAgent, delegate } from './actions.ts'
 import { FlowJournal, flowJson, parseFlowJson, type FlowState } from './flow-journal.ts'
 import { FlowWaiting, V1_CORE_FLOWS, runV1CoreFlow } from './v1-flows.ts'
-import { coreAbi, factoryTokenAbi, sidequestHoldingAbi } from './abi/index.ts'
+import { sidequestHoldingAbi } from './abi/index.ts'
 import { getBacking, getPosition } from './staking.ts'
 
 const fork = forkEnabled ? describe : describe.skip
@@ -13,12 +14,6 @@ fork('live matrix runner against real v1 bytecode', () => {
   beforeAll(async () => {
     f = await startSidequestFork(); agentId = await registerAgent(f.ctx, f.worker, 'https://sidequest.exchange/live-runner-fork')
     await delegate(f.ctx, f.creator, parseEther('1000')); await delegate(f.ctx, f.worker, parseEther('1000'))
-    const legacyFactory = await f.deploy('Factory', ['Legacy Factory', 'SIDE', [f.admin.account.address], [parseEther('1000000000')]])
-    const legacyHolding = await f.deploy('JobHolding', [f.ctx.deployment.core, legacyFactory, f.ctx.deployment.identity, parseEther('1'), 0n])
-    const legacyEvaluator = await f.deploy('JobsEvaluator', [f.ctx.deployment.core, legacyHolding, f.ctx.deployment.reputation, f.arbitrator.account.address, 120, 120, 300, 120])
-    await f.send(legacyHolding, sidequestHoldingAbi, 'setEvaluator', [legacyEvaluator])
-    await f.send(f.ctx.deployment.core, coreAbi, 'setHookWhitelist', [legacyHolding, true])
-    f.ctx = { ...f.ctx, deployment: { ...f.ctx.deployment, legacyStacks: { 'test-legacy': { kind: 'legacy', factory: legacyFactory, holding: legacyHolding, evaluator: legacyEvaluator, openTokens: true } } } }
   }, forkSetupTimeout())
   afterAll(() => f?.close())
   for (const flow of ['delegate', 'slash-pro-rata', 'undelegate-pending-slash'] as const) {
@@ -90,17 +85,6 @@ fork('live matrix runner against real v1 bytecode', () => {
       } finally { await f.rpc('evm_revert', [snapshot]) }
     }, 120_000)
   }
-  it('refuses an unfunded legacy contest before any send, even when the creator holds v2 SIDE', async () => {
-    const state: FlowState = { binding: 'legacy-prerequisite', values: {}, sends: {} }
-    const journal = new FlowJournal(f.ctx, state, () => undefined, () => undefined)
-    const creatorNonce = await f.ctx.publicClient.getTransactionCount({ address: f.creator.account.address })
-    await expect(runV1CoreFlow({ ...f, relay: f.contributor, journal, agentId, token: f.ctx.stack.factory, reward: 101n, bond: parseEther('10'),
-      waitUntil: async () => undefined, log: () => undefined }, 'legacy-contest')).rejects.toThrow('legacy-contest requires creator to hold at least 1 SIDE v1')
-    expect(state.sends).toEqual({})
-    expect(await f.ctx.publicClient.getTransactionCount({ address: f.creator.account.address })).toBe(creatorNonce)
-    // The later legacy flow exercises the same check and real publish with exactly one old token.
-    await f.send(f.ctx.deployment.legacyStacks['test-legacy']!.factory, factoryTokenAbi, 'transfer', [f.creator.account.address, parseEther('1')])
-  }, 120_000)
   it('starts both clocks in one journal, interleaves payment/slash, and resumes after a terminal receipt crash', async () => {
     const snapshot = await f.rpc('evm_snapshot')
     try {
@@ -138,7 +122,7 @@ fork('live matrix runner against real v1 bytecode', () => {
     it(`runs ${flow} through the same persisted send path used live`, async () => {
       const state: FlowState = { binding: 'fork', values: {}, sends: {} }
       const j = new FlowJournal(f.ctx, state, () => undefined, () => undefined)
-      await runV1CoreFlow({ ...f, relay: f.contributor, journal: j, legacyArbitrator: f.arbitrator, agentId, token: f.ctx.stack.factory, reward: 101n, bond: parseEther('10'),
+      await runV1CoreFlow({ ...f, relay: f.contributor, journal: j, agentId, token: f.ctx.stack.factory, reward: 101n, bond: parseEther('10'),
         waitUntil: async (_label, t) => { if (Number((await f.ctx.publicClient.getBlock()).timestamp) < t) { await f.rpc('evm_setNextBlockTimestamp', [t]); await f.rpc('evm_mine') } }, log: () => undefined }, flow)
       expect(state.values[`${flow}/done`]).toBe(true)
       const nonce = await f.ctx.publicClient.getTransactionCount({ address: f.creator.account.address })
@@ -200,7 +184,7 @@ fork('live matrix runner against real v1 bytecode', () => {
       expect(durable.values[`${scope}/before`]).toEqual(before)
       expect(durable.sends[`${scope}/settle`]!.hash).toBe(settleHash)
       expect((await getBacking(f.ctx, f.worker.account.address)).active).toBe(originalStake - 2n * base.bond)
-      expect(await f.ctx.publicClient.readContract({ address: token, abi: factoryTokenAbi, functionName: 'balanceOf', args: [f.worker.account.address] })).toBe(credit)
+      expect(await f.ctx.publicClient.readContract({ address: token, abi: erc20Abi, functionName: 'balanceOf', args: [f.worker.account.address] })).toBe(credit)
       const nonces = await Promise.all([f.creator, f.worker, f.admin, f.contributor].map(w => f.ctx.publicClient.getTransactionCount({ address: w.account.address })))
       await runV1CoreFlow({ ...odd, journal: boot() }, 'hire', scope)
       expect(await Promise.all([f.creator, f.worker, f.admin, f.contributor].map(w => f.ctx.publicClient.getTransactionCount({ address: w.account.address })))).toEqual(nonces)

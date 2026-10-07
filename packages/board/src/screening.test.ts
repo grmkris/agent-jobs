@@ -5,11 +5,11 @@ import type { OfferTerms } from './terms.ts'
 
 const address = '0x1111111111111111111111111111111111111111'
 const terms: OfferTerms = {
-  v: 2, deployment: { chainId: 10143, core: address, holding: address, evaluator: address, identity: address },
-  taskId: 'screen', projectId: null, policyVersion: null, mode: 'hire', title: 'Add CI',
+  v: 2, mode: 'hire', deployment: { chainId: 10143, core: address, holding: address, evaluator: address, identity: address },
+  taskId: 'screen', projectId: null, policyVersion: null, title: 'Add CI',
   brief: 'Run tests on push', acceptanceCriteria: ['The named check passes'], token: address,
   reward: 1_000_000n, creatorBond: 0n, workerBond: 0n, deliveryDeadline: 1_800_000_600,
-  selectionDeadline: null, creator: address, approver: address,
+  creator: address, approver: address,
   windows: { reviewSeconds: 120, disputeSeconds: 120, arbitrationSeconds: 300 },
   eligibility: null, evidencePolicy: null, quote: null, salt: `0x${'11'.repeat(32)}`,
 }

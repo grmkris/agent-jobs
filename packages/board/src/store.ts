@@ -332,21 +332,6 @@ export interface TaskRow {
   from_block: number
   created_at: number
   screening_json: string | null
-  /** Set when a JobPool is the creator (ADR-0007): the pool row's id; its curator acts where the creator would. */
-  pool_id: string | null
-}
-
-export interface PoolRow {
-  id: string
-  task_id: string
-  factory: string
-  salt: string
-  pool: string
-  curator: string
-  token: string
-  goal: string
-  pledge_deadline: number
-  created_at: number
 }
 
 export interface ApplicationRow {
@@ -366,26 +351,6 @@ export interface SelectionRow {
   agent_id: string
   activate_by: number
   signature: string | null
-  created_at: number
-}
-
-export interface CandidateRow {
-  id: string
-  task_id: string
-  worker: string
-  agent_id: string
-  deliverable_hash: string
-  repo: string
-  branch: string
-  sha: string
-  kind: string | null
-  descriptor_json: string | null
-  check_json: string | null
-  deadline: number
-  budget_nonce: string
-  submit_nonce: string
-  budget_sig: string | null
-  submit_sig: string | null
   created_at: number
 }
 

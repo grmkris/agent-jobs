@@ -37,7 +37,6 @@ const PUBLIC = new Set([
   'GITHUB_APP_CLIENT_ID',
   'GITHUB_APP_INSTALLATION_ID',
   'FIXTURE_REPO',
-  'CRE_WORKFLOW_NAME',
   'SCREENING_MODEL',
   'ARBITER_MODEL',
   'PRIVY_APP_ID',
@@ -350,7 +349,7 @@ async function githubApp(): Promise<Omit<Row, 'name'>> {
   if (repo === undefined) return { tier: 'credential', evidence, next: 'set FIXTURE_REPO to read check runs' }
   const runs = await http(`https://api.github.com/repos/${repo}/commits/HEAD/check-runs?per_page=100`, { headers: { ...headers, authorization: `Bearer ${token}` } })
   if (!runs.ok) return { tier: 'credential', evidence: `${evidence}; check-runs of ${repo}@HEAD: HTTP ${runs.status}`, next: 'read access to FIXTURE_REPO' }
-  return { tier: 'operation', evidence: `${evidence} → check-runs of ${repo}@HEAD (${runs.json?.total_count ?? 0} runs)`, next: 'end-to-end: the attester in the board / CRE (S5)' }
+  return { tier: 'operation', evidence: `${evidence} → check-runs of ${repo}@HEAD (${runs.json?.total_count ?? 0} runs)`, next: 'end-to-end: the attester in the board' }
 }
 
 async function privy(): Promise<Omit<Row, 'name'>> {
@@ -413,17 +412,7 @@ async function arbiterModel(): Promise<Omit<Row, 'name'>> {
   )
 }
 
-async function cre(): Promise<Omit<Row, 'name'>> {
-  const m = missing(['CRE_WORKFLOW_OWNER', 'CRE_WORKFLOW_NAME'])
-  if (m) return m
-  return {
-    tier: 'unproven',
-    evidence: `workflow "${env('CRE_WORKFLOW_NAME')}" owner ${short(env('CRE_WORKFLOW_OWNER')!)}`,
-    next: 'the login lives in the `cre` CLI: `cre whoami`, then deploy access',
-  }
-}
-
-/** B7 preconditions on 143, read-only: role balances, registries, the known reward token (USDC) and the CRE forwarder. */
+/** B7 preconditions on 143, read-only: role balances, registries, the known reward token (USDC). */
 async function mainnetReadiness(): Promise<Omit<Row, 'name'>> {
   const m = missing(['MONAD_MAINNET_RPC_URL'])
   if (m) return m
@@ -438,7 +427,6 @@ async function mainnetReadiness(): Promise<Omit<Row, 'name'>> {
   }
   const code: Array<[string, string | undefined]> = [
     ...Object.entries<string>(mainnet.erc8004 ?? {}),
-    ['CRE forwarder', mainnet.cre?.forwarder],
     ...((mainnet.knownTokens ?? []) as string[]).map((t): [string, string] => [`token ${short(t)}`, t]),
   ]
   for (const [label, address] of code) {
@@ -468,7 +456,6 @@ const probes: Array<[string, Probe]> = [
   ['Deployer EOA', () => eoa('DEPLOYER_PRIVATE_KEY', 'DEPLOYER_ADDRESS', 'admin')],
   ['Relay EOA', () => eoa('RELAY_PRIVATE_KEY', 'RELAY_ADDRESS', 'relay')],
   ['Attester EOA', () => eoa('ATTESTER_PRIVATE_KEY', 'ATTESTER_ADDRESS', 'attester')],
-  ['Arbitrator EOA', () => eoa('ARBITRATOR_PRIVATE_KEY', 'ARBITRATOR_ADDRESS', 'arbitrator')],
   ['Testnet creator EOA', () => eoa('TESTNET_CREATOR_PRIVATE_KEY', 'TESTNET_CREATOR_ADDRESS', undefined)],
   ['Testnet worker EOA', () => eoa('TESTNET_WORKER_PRIVATE_KEY', 'TESTNET_WORKER_ADDRESS', undefined)],
   ['Privy server wallet', privy],
@@ -479,7 +466,6 @@ const probes: Array<[string, Probe]> = [
   ['GitHub App', githubApp],
   ['Vercel AI Gateway', aiGateway],
   ['Arbitrator model endpoint', arbiterModel],
-  ['Chainlink CRE', cre],
 ]
 
 // --- Run ----------------------------------------------------------------------------------------------------------

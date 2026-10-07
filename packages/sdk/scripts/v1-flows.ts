@@ -1,3 +1,4 @@
+import { erc20Abi } from 'viem'
 /**
  * Testnet-only runner for every live row in the Sidequest v1 flow matrix.
  *
@@ -34,7 +35,6 @@ const worker = sdk.wallet(network, privateKeyToAccount(env('TESTNET_WORKER_PRIVA
 const relay = sdk.wallet(network, privateKeyToAccount(env('RELAY_PRIVATE_KEY') as Hex), rpc)
 const arbiters = v1FlowArbitrators(config, process.env)
 const arbitrator = sdk.wallet(network, arbiters.v1, rpc)
-const legacyArbitrator = arbiters.legacy === undefined ? undefined : sdk.wallet(network, arbiters.legacy, rpc)
 const explorer = 'https://testnet.monadscan.com/tx/'
 const yieldBeforeChainTime = process.env.V1_FLOW_YIELD === '1'
 const profile = env('V1_FLOW_PROFILE', true) ?? 'default'
@@ -107,26 +107,24 @@ async function setupAgent(): Promise<bigint> {
 
 async function setupStake() {
   const h = ctx.deployment.sidequest!
-  const decimals = await ctx.publicClient.readContract({ address: h.factory, abi: sdk.factoryTokenAbi, functionName: 'decimals' })
+  const decimals = await ctx.publicClient.readContract({ address: h.factory, abi: erc20Abi, functionName: 'decimals' })
   const target = parseUnits(env('V1_STAKE_TARGET', true) ?? '100', decimals)
   for (const [name, wallet] of [['creator', creator], ['worker', worker] ] as const) {
     const amount = await journal.once(`setup/${name}/stakeAmount`, async () => { const current = await sdk.getBacking(ctx, wallet.account.address); return current.active >= target ? 0n : target - current.active })
     if (amount === 0n) continue
-    const allowance = await ctx.publicClient.readContract({ address: h.factory, abi: sdk.factoryTokenAbi, functionName: 'allowance', args: [wallet.account.address, h.vault] })
-    if (allowance < amount) await journal.contract(`setup/${name}/approve`, wallet, h.factory, sdk.factoryTokenAbi, 'approve', [h.vault, amount])
+    const allowance = await ctx.publicClient.readContract({ address: h.factory, abi: erc20Abi, functionName: 'allowance', args: [wallet.account.address, h.vault] })
+    if (allowance < amount) await journal.contract(`setup/${name}/approve`, wallet, h.factory, erc20Abi, 'approve', [h.vault, amount])
     await journal.contract(`setup/${name}/stake`, wallet, h.vault, sdk.stakeVaultAbi, 'delegate', [wallet.account.address, amount])
   }
 }
 
 const rewardToken = ctx.deployment.rewardTokens[0]
 if (rewardToken === undefined) throw new Error('testnet deployment has no configured reward token')
-const rewardDecimals = await ctx.publicClient.readContract({ address: rewardToken, abi: sdk.factoryTokenAbi, functionName: 'decimals' })
-const factoryDecimals = await ctx.publicClient.readContract({ address: ctx.deployment.sidequest.factory, abi: sdk.factoryTokenAbi, functionName: 'decimals' })
+const rewardDecimals = await ctx.publicClient.readContract({ address: rewardToken, abi: erc20Abi, functionName: 'decimals' })
+const factoryDecimals = await ctx.publicClient.readContract({ address: ctx.deployment.sidequest.factory, abi: erc20Abi, functionName: 'decimals' })
 const reward = parseUnits(env('V1_FLOW_REWARD', true) ?? '1', rewardDecimals)
 const bond = parseUnits(env('V1_FLOW_BOND', true) ?? '10', factoryDecimals)
 if (reward <= 0n || bond <= 0n) throw new Error('live money verification needs positive reward and bond amounts')
-if (requested.includes('legacy-contest') && state.values['legacy-contest/done'] !== true && state.sends['legacy-contest/publish'] === undefined)
-  await sdk.requireLegacyContestFactory(ctx, creator)
 const hosted = requested.some(name => (sdk.V1_HOSTED_FLOWS as readonly string[]).includes(name))
 const boardUrl = hosted ? env('V1_BOARD_URL')! : ''
 const clients = new Map<string, ReturnType<typeof sdk.boardClient>>()
@@ -145,7 +143,7 @@ const agentId = await setupAgent()
 await setupStake()
 const waiting: string[] = []
 for (const name of requested) {
-  const deps = { ctx, journal, creator, worker, relay, arbitrator, ...(legacyArbitrator === undefined ? {} : { legacyArbitrator }), agentId, token: rewardToken,
+  const deps = { ctx, journal, creator, worker, relay, arbitrator, agentId, token: rewardToken,
     reward, bond, waitUntil, log: (text: string) => console.log(`[${name}] ${text}`) }
   try {
     if ((sdk.V1_CORE_FLOWS as readonly string[]).includes(name)) await sdk.runV1CoreFlow(deps, name as sdk.V1CoreFlow)
@@ -159,7 +157,7 @@ for (const name of requested) {
       const token = record.deployment.oddTokens?.[kind]
       if (token === undefined) throw new Error('G1 must promote the real testnet OddTokens addresses')
       const owner = sdk.wallet(network, privateKeyToAccount(env('TESTNET_ODD_OWNER_PRIVATE_KEY') as Hex), rpc)
-      const decimals = await ctx.publicClient.readContract({ address: token, abi: sdk.factoryTokenAbi, functionName: 'decimals' })
+      const decimals = await ctx.publicClient.readContract({ address: token, abi: erc20Abi, functionName: 'decimals' })
       await sdk.runV1CoreFlow({ ...deps, token, reward: parseUnits(env('V1_FLOW_REWARD', true) ?? '1', decimals), refusingToken: { kind, owner } }, 'hire', name)
     } else throw new Error(`unknown v1 flow ${name}`)
   } catch (error) {

@@ -191,7 +191,6 @@ contract RecipeTest is Test {
         assertEq(d.reserve.owner(), safe);
 
         // A fresh core: the Safe holds both roles, the deployer none, fees 0 to the Safe.
-        assertTrue(d.coreDeployed);
         assertTrue(d.core.hasRole(d.core.DEFAULT_ADMIN_ROLE(), safe));
         assertTrue(d.core.hasRole(d.core.ADMIN_ROLE(), safe));
         assertFalse(d.core.hasRole(d.core.DEFAULT_ADMIN_ROLE(), admin));
@@ -315,11 +314,6 @@ contract RecipeTest is Test {
         vm.expectRevert(abi.encodeWithSelector(SidequestRecipe.BadConfig.selector, "zero address"));
         driver.configure(bad);
         bad = c;
-        bad.reuseCore = true;
-        bad.existingCore = stranger;
-        vm.expectRevert(abi.encodeWithSelector(SidequestRecipe.BadConfig.selector, "deployment.core has no code"));
-        driver.configure(bad);
-        bad = c;
         bad.chainId = 1;
         vm.expectRevert(abi.encodeWithSelector(SidequestRecipe.WrongChain.selector, 1, block.chainid));
         driver.configure(bad);
@@ -388,7 +382,7 @@ contract RecipeTest is Test {
         assertEq(mainnet.deployed().holding.defaultArbitrator(), fresh);
     }
 
-    /// @dev Off mainnet the default arbitrator is not tied to roles.arbitrator (testnet keeps its legacy roles).
+    /// @dev Off mainnet the default arbitrator is not tied to roles.arbitrator.
     function test_recipe_testnetDefaultArbitratorIsFree() public {
         SidequestRecipe.Config memory t = c;
         t.arbitrator = makeAddr("some-role");
@@ -431,21 +425,19 @@ contract RecipeTest is Test {
         vm.writeJson("{}", path, ".deployment");
     }
 
-    function test_output_testnetShape_movesMainAndDemoToLegacy() public {
+    function test_output_testnetShape_recordsFreshCoreAndPair() public {
         c.clocks = SidequestClocks.Config(120, 120, 300, 600, 900, 300, 1800, 1800, 3600);
         driver.configure(c);
         SidequestRecipe.Deployed memory d = _runWithThirdPartyBetweenSteps();
-        d.coreDeployed = false;
         string memory shipped = vm.readFile(string.concat(vm.projectRoot(), "/config/monad-testnet.json"));
         string memory path = _temp("testnet", shipped);
         string memory real = UnpromotedTestnet.write(vm, path, shipped);
-        SidequestOutput.write(vm, path, d, safe, 0, 123);
+        SidequestOutput.write(vm, path, d, safe, 122, 123);
         string memory out = vm.readFile(path);
         vm.removeFile(path);
 
-        address oldFactory = vm.parseJsonAddress(real, ".deployment.factory");
-        assertEq(vm.parseJsonAddress(out, ".deployment.core"), vm.parseJsonAddress(real, ".deployment.core"));
-        assertEq(vm.parseJsonUint(out, ".deployment.block"), vm.parseJsonUint(real, ".deployment.block"));
+        assertEq(vm.parseJsonAddress(out, ".deployment.core"), address(d.core));
+        assertEq(vm.parseJsonUint(out, ".deployment.block"), 122);
         assertEq(vm.parseJsonAddress(out, ".deployment.factory"), address(d.factory));
         assertEq(vm.parseJsonAddress(out, ".deployment.sidequest.vault"), address(d.vault));
         assertEq(vm.parseJsonAddress(out, ".deployment.sidequest.miningReserve"), address(d.reserve));
@@ -456,34 +448,11 @@ contract RecipeTest is Test {
         assertEq(vm.parseJsonString(out, ".deployment.main.kind"), "sidequest-v1");
         assertEq(vm.parseJsonAddress(out, ".deployment.main.holding"), address(d.holding));
         assertTrue(vm.parseJsonBool(out, ".deployment.main.openTokens"));
-        assertFalse(vm.keyExistsJson(out, ".deployment.demo"));
+        assertEq(vm.parseJsonKeys(out, ".deployment").length, 7, "only v1 deployment metadata");
         assertEq(
-            vm.parseJsonAddress(out, ".deployment.legacy.main-v3.holding"),
-            vm.parseJsonAddress(real, ".deployment.main.holding")
+            keccak256(abi.encode(vm.parseJsonAddressArray(out, ".deployment.rewardTokens"))),
+            keccak256(abi.encode(vm.parseJsonAddressArray(real, ".deployment.rewardTokens")))
         );
-        assertTrue(vm.parseJsonBool(out, ".deployment.legacy.main-v3.openTokens"));
-        assertEq(
-            vm.parseJsonAddress(out, ".deployment.legacy.demo-v2.evaluator"),
-            vm.parseJsonAddress(real, ".deployment.demo.evaluator")
-        );
-        assertFalse(vm.keyExistsJson(out, ".deployment.legacy.demo-v2.openTokens"));
-        assertEq(vm.parseJsonString(out, ".deployment.legacy.main-v1.kind"), "legacy");
-        assertEq(vm.parseJsonAddress(out, ".deployment.legacy.main-v1.factory"), oldFactory);
-        assertEq(vm.parseJsonAddress(out, ".deployment.legacy.main-v3.factory"), oldFactory);
-        assertEq(
-            vm.parseJsonAddressArray(out, ".deployment.rewardTokens").length,
-            vm.parseJsonAddressArray(real, ".deployment.rewardTokens").length
-        );
-        assertEq(vm.keyExistsJson(out, ".deployment.poolFactory"), vm.keyExistsJson(real, ".deployment.poolFactory"));
-        if (vm.keyExistsJson(real, ".deployment.poolFactory")) {
-            assertEq(
-                vm.parseJsonAddress(out, ".deployment.poolFactory"), vm.parseJsonAddress(real, ".deployment.poolFactory")
-            );
-        }
-        assertEq(vm.keyExistsJson(out, ".deployment.stacksBlock"), vm.keyExistsJson(real, ".deployment.stacksBlock"));
-        if (vm.keyExistsJson(real, ".deployment.stacksBlock")) {
-            assertEq(vm.parseJsonUint(out, ".deployment.stacksBlock"), vm.parseJsonUint(real, ".deployment.stacksBlock"));
-        }
         // Inputs are untouched.
         assertEq(vm.parseJsonAddress(out, ".roles.admin"), vm.parseJsonAddress(real, ".roles.admin"));
 
@@ -505,7 +474,7 @@ contract RecipeTest is Test {
         vm.removeFile(path);
     }
 
-    function test_output_mainnetShape_noLegacy() public {
+    function test_output_mainnetShape() public {
         SidequestRecipe.Deployed memory d = _runWithThirdPartyBetweenSteps();
         string memory real = vm.readFile(string.concat(vm.projectRoot(), "/config/monad-mainnet.json"));
         string memory path = _mainnetTemp("mainnet");
@@ -516,7 +485,7 @@ contract RecipeTest is Test {
         assertEq(vm.parseJsonUint(out, ".deployment.block"), 456);
         assertEq(vm.parseJsonUint(out, ".deployment.sidequest.block"), 457);
         assertEq(vm.parseJsonString(out, ".deployment.main.kind"), "sidequest-v1");
-        assertFalse(vm.keyExistsJson(out, ".deployment.legacy"));
+        assertEq(vm.parseJsonKeys(out, ".deployment").length, 7, "only v1 deployment metadata");
         assertEq(vm.parseJsonString(out, ".deployment.network"), "monad-mainnet");
         _assertOutputClocks(out, SidequestClocks.production());
         // LAUNCH-AUDIT-004: an unpromoted config has knownTokens only; the record carries USDC as its reward token.
@@ -630,20 +599,22 @@ contract RecipeTest is Test {
 
     function test_output_refusesUnknownKeys() public {
         SidequestRecipe.Deployed memory d = _runWithThirdPartyBetweenSteps();
-        string memory path = _temp(
-            "unknown",
-            '{"network":"x","deployment":{"core":"0x0000000000000000000000000000000000000001","block":1,"surprise":1}}'
-        );
-        vm.expectRevert(abi.encodeWithSelector(SidequestOutput.UnknownKey.selector, "deployment", "surprise"));
-        this.writeExternal(path, d);
-        vm.removeFile(path);
+        string[6] memory keys = ["surprise", "legacy", "demo", "fast", "poolFactory", "stacksBlock"];
+        for (uint256 i; i < keys.length; ++i) {
+            string memory json = string.concat('{"network":"x","deployment":{"', keys[i], '":{}}}');
+            string memory path = _temp("unknown", json);
+            vm.expectRevert(abi.encodeWithSelector(SidequestOutput.UnknownKey.selector, "deployment", keys[i]));
+            this.writeExternal(path, d);
+            assertEq(vm.readFile(path), json, "a refused promotion never rewrites input");
+            vm.removeFile(path);
+        }
     }
 
     /// @dev The `sidequest` input block the coordinator writes (schema in SURFACE.md), parsed by `load`.
     function test_load_sidequestInputBlock() public {
         string memory base = vm.readFile(string.concat(vm.projectRoot(), "/config/monad-testnet.json"));
         string memory block_ = string.concat(
-            '{"reuseCore":true,"safe":"0x00000000000000000000000000000000000000a1",',
+            '{"safe":"0x00000000000000000000000000000000000000a1",',
             '"defaultArbitrator":"0x00000000000000000000000000000000000000a2","margin":86400,',
             '"schedule":{"thresholds":[0,10000,100000,1000000],"bps":[3000,1000,300,100],',
             '"treasury":"0x00000000000000000000000000000000000000a1"},',
@@ -663,8 +634,6 @@ contract RecipeTest is Test {
             "absent clocks default to production"
         );
         vm.removeFile(path);
-        assertTrue(l.reuseCore);
-        assertEq(l.existingCore, vm.parseJsonAddress(base, ".deployment.core"));
         assertEq(l.safe, address(0xa1));
         assertEq(l.defaultArbitrator, address(0xa2));
         assertEq(l.margin, 86400);
@@ -742,7 +711,6 @@ contract RecipeTest is Test {
         vm.removeFile(path);
         assertEq(chainId, block.chainid);
         assertEq(s, safe);
-        assertEq(r.coreDeployed, d.coreDeployed);
         assertEq(r.t0, d.t0);
         assertEq(address(r.core), address(d.core));
         assertEq(address(r.vesting), address(d.vesting));

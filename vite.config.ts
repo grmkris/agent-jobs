@@ -11,7 +11,7 @@ export default defineConfig({
         command: 'tsc -p scripts/mining/tsconfig.json',
         input: [
           { pattern: 'scripts/mining/**', base: 'package' },
-          { pattern: 'scripts/staging-release/state.ts', base: 'package' },
+          { pattern: 'infra/*.json', base: 'package' },
           { pattern: 'packages/sdk/src/**', base: 'package' },
           { pattern: 'contracts/config/**', base: 'package' },
           { pattern: 'tsconfig.base.json', base: 'package' },

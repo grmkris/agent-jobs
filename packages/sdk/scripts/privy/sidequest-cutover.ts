@@ -6,8 +6,8 @@ import { generateAuthorizationKey } from '../../src/p256.ts'
 import { PrivyApi } from './client.ts'
 import { adminEnv, localEnv, required } from './env.ts'
 import { authorityPolicy, config } from './policy.ts'
-import { sidequestPolicyPlan } from './sidequest-policy-plan.ts'
-import { canonical, writablePolicy } from './update-holding.ts'
+import { sidequestPolicyPlan } from './cutover-policy.ts'
+import { canonical, writablePolicy } from './policy-document.ts'
 
 type Json = Record<string, unknown>
 type Plan = ReturnType<typeof sidequestPolicyPlan>

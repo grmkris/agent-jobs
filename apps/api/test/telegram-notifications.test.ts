@@ -88,18 +88,7 @@ describe('finalized Telegram notifications', () => {
     expect((await queueTelegramNotifications(sql, 'monad-testnet', now)).stale).toBe(true)
   })
 
-  it('reads legacy windows from the exact legacy pair and suppresses missing windows', async () => {
-    const sql = await setup()
-    await sql.batch([
-      stmt("UPDATE jobs SET kind = 'legacy', review_window = NULL, stack = 'main-v3'"),
-      stmt("INSERT INTO submissions VALUES (?, '1', 'hash', ?, 1, 'submit')", chain, worker),
-      stmt('INSERT INTO block_times VALUES (?, 1, ?)', chain, now - 100000),
-    ])
-    expect((await queueTelegramNotifications(sql, 'monad-testnet', now)).reminders).toBe(0)
-    expect((await queueTelegramNotifications(sql, 'monad-testnet', now, { legacyReviewWindow: async j => {
-      expect(j.stack).toBe('main-v3'); return 172800
-    } })).reminders).toBe(1)
-  })
+
 })
 
 async function neverSend(): Promise<{ messageId: number }> { throw new Error('must not send') }

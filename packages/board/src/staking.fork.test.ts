@@ -25,7 +25,7 @@ fork('vault operation receipts against real delegated vault bytecode', () => {
       reward: 101n, creatorBond: 0n, workerBond: amount, arbitrator: f.arbitrator.account.address,
       reviewWindow: 3600, disputeWindow: 3600, arbitrationWindow: 43200, deliveryDeadline: now + 120 }
     const termsHash = sdk.hashText(`receipt-${seq++}`)
-    const { jobId } = await sdk.publish(f.ctx, f.creator, { ...terms, mode: 'hire', manifestHash: termsHash, termsHash })
+    const { jobId } = await sdk.publish(f.ctx, f.creator, { ...terms, manifestHash: termsHash, termsHash })
     const selection = { jobId, worker: f.worker.account.address, agentId, termsHash, activateBy: now + 100, nonce: BigInt(seq) }
     await sdk.activate(f.ctx, f.worker, selection, await sdk.signSelection(f.ctx, f.creator, selection), terms)
     await f.rpc('evm_setNextBlockTimestamp', [now + 121])

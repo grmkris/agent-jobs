@@ -1,11 +1,18 @@
 import { createHash } from 'node:crypto'
-import { deploymentFromConfig, type DeploymentConfig } from '../../packages/sdk/src/deployment.ts'
-import { targets } from '../staging-release/state.ts'
+import { readFileSync } from 'node:fs'
+import { deploymentFromConfig, type DeploymentConfig, type Network } from '../../packages/sdk/src/deployment.ts'
 import { dataHashOf } from './compute.ts'
 import { buildTree, leafHash, verifyProof, type LeafValue } from './tree.ts'
 import { maxUint256, type Address, type Hex } from './viem.ts'
 
-export type PublishStage = 'staging' | 'prod'
+export type PublishStage = 'dev' | 'prod'
+export interface PublishTarget {
+  stage: PublishStage
+  network: Network
+  chainId: number
+  origin: string
+  resources: Record<'Api' | 'Indexer' | 'Explore' | 'Database' | 'Manifests', string>
+}
 type Refusal = 'usage' | 'stage-chain-mismatch' | 'config-unavailable' | 'artifact-invalid' | 'data-hash-mismatch'
   | 'claims-invalid' | 'chain-unavailable' | 'root-mismatch' | 'credentials-missing' | 'cloudflare-unavailable'
   | 'worker-identity-invalid' | 'bucket-identity-invalid' | 'readback-mismatch'
@@ -13,10 +20,18 @@ export class MiningPublishError extends Error {
   constructor(readonly code: Refusal) { super(code) }
 }
 const refuse = (code: Refusal): never => { throw new MiningPublishError(code) }
-export const stageOf = (stage: string) => {
-  if (stage === 'staging') return { stage, network: 'monad-testnet', chainId: 10143 } as const
-  if (stage === 'prod') return { stage, network: 'monad-mainnet', chainId: 143 } as const
-  return refuse('usage')
+export const stageOf = (stage: string, read = (path: URL) => readFileSync(path, 'utf8')): PublishTarget => {
+  if (stage !== 'dev' && stage !== 'prod') return refuse('usage')
+  try {
+    const selected = JSON.parse(read(new URL(`../../infra/${stage}.json`, import.meta.url))) as PublishTarget
+    if (selected.stage !== stage || !['monad-testnet', 'monad-mainnet'].includes(selected.network)
+      || !Number.isSafeInteger(selected.chainId) || selected.chainId <= 0
+      || new URL(selected.origin).origin !== selected.origin) return refuse('config-unavailable')
+    for (const resource of ['Api', 'Indexer', 'Explore', 'Database', 'Manifests'] as const) {
+      if (typeof selected.resources?.[resource] !== 'string' || !/^[a-z0-9][a-z0-9-]*$/.test(selected.resources[resource])) return refuse('config-unavailable')
+    }
+    return selected
+  } catch { return refuse('config-unavailable') }
 }
 const record = (value: unknown): Record<string, unknown> => {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return refuse('artifact-invalid')
@@ -33,13 +48,13 @@ const hash = (value: unknown): Hex => {
 const sha256 = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex')
 
 /** Validate all claims as well as inputs: dataHash commits to inputs, not to the claims table. */
-export function parseEpoch(bytes: Uint8Array, stage: PublishStage) {
+export function parseEpoch(bytes: Uint8Array, selected: PublishTarget) {
   let parsed: unknown
   try { parsed = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)) }
   catch { return refuse('artifact-invalid') }
-  const file = record(parsed), selected = stageOf(stage)
+  const file = record(parsed)
   const epoch = uint(file.epoch), total = BigInt(uint(file.total)), root = hash(file.root), dataHash = hash(file.dataHash)
-  if (file.chainId !== selected.chainId || (file.stage !== undefined && file.stage !== stage)) return refuse('stage-chain-mismatch')
+  if (file.chainId !== selected.chainId || (file.stage !== undefined && file.stage !== selected.stage)) return refuse('stage-chain-mismatch')
   const inputs = record(file.inputs)
   if (inputs.chainId !== file.chainId || inputs.epoch !== epoch) return refuse('stage-chain-mismatch')
   if (dataHashOf(inputs) !== dataHash) return refuse('data-hash-mismatch')
@@ -87,14 +102,14 @@ export interface EpochReader {
   readRoot(distributor: Address, epoch: bigint): Promise<{ root: Hex; total: bigint; dataHash: Hex }>
 }
 export interface ManifestsStore {
-  bucket(stage: PublishStage): Promise<string>
+  bucket(selected: PublishTarget): Promise<string>
   put(bucket: string, key: string, bytes: Uint8Array): Promise<void>
   get(bucket: string, key: string): Promise<Uint8Array>
 }
 
 /** No chain writes. Upload the captured input bytes only after all stage, contract and artifact checks. */
-export async function publishEpoch(bytes: Uint8Array, stage: PublishStage, config: DeploymentConfig, reader: EpochReader, store: ManifestsStore) {
-  const selected = stageOf(stage), file = parseEpoch(bytes, stage)
+export async function publishEpoch(bytes: Uint8Array, selected: PublishTarget, config: DeploymentConfig, reader: EpochReader, store: ManifestsStore) {
+  const file = parseEpoch(bytes, selected)
   let distributor: Address
   try {
     const d = deploymentFromConfig(selected.network, config)
@@ -108,7 +123,7 @@ export async function publishEpoch(bytes: Uint8Array, stage: PublishStage, confi
   let chainId: number
   try { chainId = await reader.getChainId() } catch { return refuse('chain-unavailable') }
   if (chainId !== selected.chainId) return refuse('stage-chain-mismatch')
-  const bucket = await store.bucket(stage)
+  const bucket = await store.bucket(selected)
   let live: Awaited<ReturnType<EpochReader['readRoot']>>
   try { live = await reader.readRoot(distributor, BigInt(file.epoch)) } catch { return refuse('chain-unavailable') }
   if (live.root.toLowerCase() !== file.root || live.total !== file.total || live.dataHash.toLowerCase() !== file.dataHash) return refuse('root-mismatch')
@@ -141,32 +156,26 @@ export class CloudflareManifests implements ManifestsStore {
       return body
     } catch { return refuse('cloudflare-unavailable') }
   }
-  async bucket(stage: PublishStage) {
-    const selected = stageOf(stage)
+  async bucket(selected: PublishTarget) {
+    const { stage } = selected
     const tags = ['alchemy:stack:Sidequest', `alchemy:stage:${stage}`, 'alchemy:id:Api']
-    let script: string = targets.Api
-    if (stage === 'prod') {
-      // Pinned listScripts is mode=single with a tag filter; verify returned count metadata if supplied.
-      const body = await this.#json(`/workers/scripts?tags=${encodeURIComponent(tags.map(tag => `${tag}:yes`).join(','))}`)
-      const rows = body.result
-      if (!Array.isArray(rows) || rows.length !== 1 || (body.result_info?.total_count !== undefined && body.result_info.total_count !== rows.length)) return refuse('worker-identity-invalid')
-      script = (rows[0] as { id?: string }).id ?? ''
-    }
-    if (!new RegExp(`^agentjobs-api-${stage}-[a-z2-7]{16}$`).test(script)) return refuse('worker-identity-invalid')
+    // Verify the sole tagged Worker against the manifest's exact physical identity.
+    const body = await this.#json(`/workers/scripts?tags=${encodeURIComponent(tags.map(tag => `${tag}:yes`).join(','))}`)
+    const rows = body.result
+    if (!Array.isArray(rows) || rows.length !== 1 || (body.result_info?.total_count !== undefined && body.result_info.total_count !== rows.length)) return refuse('worker-identity-invalid')
+    const script = (rows[0] as { id?: string } | null)?.id
+    if (script !== selected.resources.Api) return refuse('worker-identity-invalid')
     const settings = (await this.#json(`/workers/scripts/${script}/settings`)).result as { tags?: string[]; bindings?: { name: string; type: string; text?: string; bucket_name?: string }[] }
     if (!Array.isArray(settings?.tags) || tags.some(tag => !settings.tags!.includes(tag))) return refuse('worker-identity-invalid')
     const bindings = settings.bindings
     if (!Array.isArray(bindings)) return refuse('worker-identity-invalid')
     const bound = (name: string) => bindings.filter(b => b.name === name)
     for (const [name, text] of [['ALCHEMY_STACK_NAME', 'Sidequest'], ['ALCHEMY_STAGE', stage], ['NETWORK', selected.network]]) {
-      const rows = bound(name!)
-      if (rows.length !== 1 || rows[0]!.type !== 'plain_text' || rows[0]!.text !== text) return refuse('worker-identity-invalid')
+      const matches = bound(name!)
+      if (matches.length !== 1 || matches[0]!.type !== 'plain_text' || matches[0]!.text !== text) return refuse('worker-identity-invalid')
     }
     const manifests = bound('Manifests'), bucket = manifests[0]?.bucket_name ?? ''
-    // Bucket('Manifests') uses createPhysicalName({id:'Manifests',maxLength:63}).toLowerCase():
-    // Sidequest-Manifests-<stage>-<16 base32 instance chars>. The deployed binding supplies that instance suffix.
-    if (manifests.length !== 1 || manifests[0]!.type !== 'r2_bucket' || !new RegExp(`^agentjobs-manifests-${stage}-[a-z2-7]{16}$`).test(bucket)
-      || (stage === 'staging' && bucket !== targets.Manifests)) return refuse('bucket-identity-invalid')
+    if (manifests.length !== 1 || manifests[0]!.type !== 'r2_bucket' || bucket !== selected.resources.Manifests) return refuse('bucket-identity-invalid')
     const bucketInfo = (await this.#json(`/r2/buckets/${bucket}`)).result as { name?: string }
     if (bucketInfo?.name !== bucket) return refuse('bucket-identity-invalid')
     return bucket

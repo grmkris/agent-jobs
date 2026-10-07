@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # The G1 rehearsal: script/launch-testnet.sh, unchanged, against a throwaway anvil fork of Monad testnet (chain 10143,
 # Monad gas pricing), signing from throwaway encrypted keystores of anvil's public dev keys (as mainnet signs), with a
-# fresh 1-of-2 Safe in a scratch config; dev0 stands in for roles.admin as the reused core's admin, so the launch's
-# pauser step grants the Safe ADMIN_ROLE. Then, on the fork:
+# fresh core and a fresh 1-of-2 Safe in a scratch config; the deployer grants both core admin roles to the Safe and
+# renounces them during deployment. Then, on the fork:
 #   - no signer, or a password file others can read, refuses; a chain-143 RPC refuses before anything is sent (with
 #     the --private-keys fallback); a launch started from outside while this rehearsal runs refuses (the launch lock);
 #     a second launch refuses;
-#   - --from pauser --to sdk re-reads cleanly (the Safe already holds ADMIN_ROLE: nothing sent);
+#   - --from readback --to sdk re-reads cleanly (the Safe holds both core admin roles: nothing sent);
 #   - a Safe with a module, or with a guard, refuses (the mining fund's nonce guard, D18, needs neither);
 #   - at their immutable ETAs anyone executes the fee schedule and accepts the probed Holding.
 # Prints the gas limits each sender is charged. Holds the launch lock (script/launch-lock.sh), so it refuses while
@@ -114,29 +114,8 @@ SAFE=$(cast call --rpc-url "$LOCAL" --from "$DEPLOYER" $SAFE_SIDE "createProxyWi
 cast send --rpc-url "$LOCAL" --private-key "$REHEARSAL_DEPLOYER_KEY" $SAFE_SIDE "createProxyWithNonce(address,bytes,uint256)" $SAFE_L2 "$SETUP" "$SALT" >/dev/null 2>&1
 ok "Safe $SAFE (1.4.1, owners $OWNER1 $OWNER2, threshold 1)"
 
-# On testnet the deployer is roles.admin, the reused core's DEFAULT_ADMIN_ROLE, which launch-testnet.sh's pauser step
-# needs to grant the Safe ADMIN_ROLE. Here the deployer is dev0, so roles.admin (impersonated, on the fork only) first
-# makes it the core's admin too; the grant to the Safe is then launch-testnet.sh's own transaction.
-CORE=$(jq -r .deployment.core config/monad-testnet.json)
-REAL_ADMIN=$(jq -r .roles.admin config/monad-testnet.json)
-DEFAULT_ADMIN_ROLE=0x0000000000000000000000000000000000000000000000000000000000000000
-[[ "$(cast call --rpc-url "$LOCAL" "$CORE" "hasRole(bytes32,address)(bool)" $DEFAULT_ADMIN_ROLE "$REAL_ADMIN" 2>/dev/null)" == true ]] \
-  || fail "roles.admin $REAL_ADMIN is not the core's DEFAULT_ADMIN_ROLE on testnet"
-cast rpc --rpc-url "$LOCAL" anvil_impersonateAccount "$REAL_ADMIN" >/dev/null 2>&1
-cast rpc --rpc-url "$LOCAL" anvil_setBalance "$REAL_ADMIN" 0x3635c9adc5dea00000 >/dev/null 2>&1
-cast send --rpc-url "$LOCAL" --unlocked --from "$REAL_ADMIN" "$CORE" "grantRole(bytes32,address)" $DEFAULT_ADMIN_ROLE "$DEPLOYER" \
-  >/dev/null 2>&1 || fail "could not make the fork deployer the core's admin"
-cast rpc --rpc-url "$LOCAL" anvil_stopImpersonatingAccount "$REAL_ADMIN" >/dev/null 2>&1
-ok "dev0 stands in for roles.admin as the core's admin (DEFAULT_ADMIN_ROLE, granted by an impersonated roles.admin)"
-
-# The G1c rehearsal prepares a verbatim G1b copy before replacing signers/Safe with local fork stand-ins.
-cp config/monad-testnet.json "$CONFIG"
-if [[ "${PREP_REDEPLOY:-0}" == 1 ]]; then
-  ARCHIVE="$FOUNDRY_BROADCAST/monad-testnet-g1b.json"
-  prepare_rehearsal_redeploy "$CONFIG" "$ARCHIVE" config/monad-testnet.json REHEARSAL_RPC \
-    || fail "G1b redeploy preparation"
-  ok "G1b archived verbatim; main absent; legacy pairs, core, roles, oddTokens/liquidity/fast inputs preserved"
-fi
+# Fresh deployment outputs in a scratch copy; the tracked record remains untouched.
+jq '{rewardTokens: .deployment.rewardTokens} as $fresh | .deployment = $fresh' config/monad-testnet.json >"$CONFIG"
 
 # The scratch config: testnet's prepared input, with the fork's deployer, fresh Safe and odd-token wallets.
 jq --arg safe "$SAFE" --arg admin "$DEPLOYER" --arg a "$WALLET_A" --arg b "$WALLET_B" '
@@ -167,70 +146,11 @@ refused "refusing: another launch or rehearsal is running" "${LAUNCH[@]}" --yes 
 ok "a launch started while this rehearsal runs refuses (the launch lock); this rehearsal's own runs inherit the lock"
 
 # The launch itself, with both optional flags.
-if [[ "${PREP_REDEPLOY:-0}" == 1 ]]; then
-  PRE_DRY=$(sha256sum "$CONFIG")
-  PRE_NONCE=$(cast nonce --rpc-url "$LOCAL" "$DEPLOYER")
-  "${LAUNCH[@]}" --private-keys --fee-proposal --holding-probe --dry-run \
-    >"$LAUNCH_LOGS/prepared-dry.out" 2>&1 || { cat "$LAUNCH_LOGS/prepared-dry.out"; fail "prepared launch dry run"; }
-  [[ "$(sha256sum "$CONFIG")" == "$PRE_DRY" && "$(cast nonce --rpc-url "$LOCAL" "$DEPLOYER")" == "$PRE_NONCE" ]] \
-    || fail "prepared launch dry run mutated config or chain"
-  ok "prepare -> launch-testnet.sh --dry-run passed; config and chain unchanged"
-fi
 LAUNCH_FLAGS=(--yes --fee-proposal --holding-probe)
-[[ "${PREP_REDEPLOY:-0}" != 1 ]] || LAUNCH_FLAGS+=(--private-keys)
 "${LAUNCH[@]}" "${LAUNCH_FLAGS[@]}" | tee "$LAUNCH_LOGS/launch.out"
 grep -q "LAUNCH-TESTNET DONE" "$LAUNCH_LOGS/launch.out" || fail "launch-testnet.sh did not finish"
 cp "$LAUNCH_LOGS/hashes.tsv" "$LAUNCH_LOGS/launch-hashes.tsv" # later runs start their own list
 ok "launch-testnet.sh ran end to end"
-if [[ "${PREP_REDEPLOY:-0}" == 1 ]]; then
-  jq -e --slurpfile old "$ARCHIVE" '
-    (.deployment.legacy | keys) == ($old[0].deployment.legacy | keys)
-    and all(.deployment.legacy[]; .kind == "legacy")
-    and .deployment.main.kind == "sidequest-v1"
-    and .deployment.main.holding != $old[0].deployment.main.holding
-    and .deployment.factory != $old[0].deployment.factory
-    and .deployment.sidequest.clocks == .sidequest.clocks
-    and (.deployment.sidequest.clocks | keys | length) == 9' "$CONFIG" >/dev/null \
-    || fail "G1c promotion kept G1b as legacy or reused its SIDE/pair"
-  # The nine promoted values and all duplicated clocks must match deployed getters, not just the input file.
-  H=$(jq -r .deployment.main.holding "$CONFIG")
-  V=$(jq -r .deployment.sidequest.vault "$CONFIG")
-  F=$(jq -r .deployment.sidequest.feeSchedule "$CONFIG")
-  R=$(jq -r .deployment.sidequest.miningReserve "$CONFIG")
-  D=$(jq -r .deployment.sidequest.distributor "$CONFIG")
-  while read -r target getter key; do
-    actual=$(cast call --rpc-url "$LOCAL" "$target" "$getter" | cut -d ' ' -f1)
-    [[ "$actual" == "$(jq -r ".deployment.sidequest.clocks.$key" "$CONFIG")" ]] || fail "promoted clock $key differs from $getter"
-  done <<EOF
-$H MIN_REVIEW_WINDOW()(uint32) minReviewWindow
-$H MIN_DISPUTE_WINDOW()(uint32) minDisputeWindow
-$H MIN_ARBITRATION_WINDOW()(uint32) minArbitrationWindow
-$V UNSTAKE_DELAY()(uint48) unstakeDelay
-$V HOLDING_DELAY()(uint48) holdingDelay
-$V PROPOSAL_GRACE()(uint48) proposalGrace
-$F DELAY()(uint48) feeDelay
-$F PROPOSAL_GRACE()(uint48) proposalGrace
-$R EPOCH_ZERO_DURATION()(uint48) epochZeroDuration
-$R EPOCH_DURATION()(uint48) epochDuration
-$D EPOCH_ZERO_DURATION()(uint48) epochZeroDuration
-$D EPOCH_DURATION()(uint48) epochDuration
-EOF
-  SDK_CLOCKS="$LAUNCH_LOGS/sdk-clocks.ts"
-  cat >"$SDK_CLOCKS" <<EOF
-import { readFileSync } from 'node:fs'
-import { deploymentFromConfig } from '$PWD/../packages/sdk/src/deployment.ts'
-const config = JSON.parse(readFileSync(process.argv[2], 'utf8'))
-const d = deploymentFromConfig('monad-testnet', config)
-const loaded = Object.entries(d.sidequest?.clocks ?? {})
-if (loaded.length !== 9) throw new Error('SDK did not load all nine promoted clocks')
-for (const [key, value] of loaded) {
-  if (config.sidequest.clocks[key] !== value) throw new Error('SDK clock differs: ' + key)
-}
-console.log('sdk: all nine fast promoted clocks loaded synchronously')
-EOF
-  bun --no-env-file "$SDK_CLOCKS" "$PWD/$CONFIG" || fail "SDK promoted clocks"
-  ok "full fast recipe -> promotion -> SDK passed; G1 never enters legacy; nine clocks match twelve getters"
-fi
 if [[ "${KEEP:-0}" == 1 ]]; then
   [[ "$(real_logs "$CHAIN")" == "$REAL_LOGS" ]] || fail "a chain-$CHAIN forge log outside this run's directories changed"
   ok "no chain-$CHAIN forge log outside $FOUNDRY_BROADCAST and $FOUNDRY_CACHE_PATH was touched"
@@ -245,9 +165,11 @@ fi
 
 refused "already records a v1 deployment" "${LAUNCH[@]}" --yes || fail "a second launch was not refused: $OUT"
 ok "a second launch refuses before sending"
-"${LAUNCH[@]}" --from pauser --to sdk >"$LAUNCH_LOGS/readback.out" 2>&1 || { cat "$LAUNCH_LOGS/readback.out"; fail "--from pauser"; }
-grep -q "already holds the core's ADMIN_ROLE" "$LAUNCH_LOGS/readback.out" || fail "--from pauser granted ADMIN_ROLE again"
-ok "--from pauser --to sdk re-reads cleanly (the Safe already holds ADMIN_ROLE; nothing sent)"
+"${LAUNCH[@]}" --from readback --to sdk >"$LAUNCH_LOGS/readback.out" 2>&1 || { cat "$LAUNCH_LOGS/readback.out"; fail "--from readback"; }
+for role in ADMIN_ROLE DEFAULT_ADMIN_ROLE; do
+  grep -q " $role: Safe" "$LAUNCH_LOGS/readback.out" || fail "--from readback did not verify $role"
+done
+ok "--from readback --to sdk re-reads cleanly (the Safe holds both core admin roles; nothing sent)"
 
 # D18 holds only while execTransaction is the Safe's one way to act: a module or a guard is refused.
 SENTINEL=0x0000000000000000000000000000000000000001
@@ -301,13 +223,12 @@ while IFS=$'\t' read -r label hash; do
     DeploySidequest*) k="DeploySidequest (deployer)" ;;
     SafeAccept*) k="SafeAccept (Safe owner)" ;;
     DeployOddTokens*) k="DeployOddTokens (deployer)" ;;
-    pauser*) k="core ADMIN_ROLE (deployer)" ;;
     *) k="proposals (Safe owner)" ;;
   esac
   LIMIT[$k]=$(( ${LIMIT[$k]:-0} + $(cast tx --rpc-url "$LOCAL" "$hash" gas 2>/dev/null) ))
   COUNT[$k]=$(( ${COUNT[$k]:-0} + 1 ))
 done <"$LAUNCH_LOGS/launch-hashes.tsv"
-for k in "DeploySidequest (deployer)" "core ADMIN_ROLE (deployer)" "DeployOddTokens (deployer)" "SafeAccept (Safe owner)" "proposals (Safe owner)"; do
+for k in "DeploySidequest (deployer)" "DeployOddTokens (deployer)" "SafeAccept (Safe owner)" "proposals (Safe owner)"; do
   printf '  %-28s %3s txs %12s gas  %s MON at 102 gwei\n' "$k" "${COUNT[$k]:-0}" "${LIMIT[$k]:-0}" \
     "$(bc <<<"scale=4; ${LIMIT[$k]:-0} * 102 / 1000000000")"
 done

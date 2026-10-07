@@ -17,8 +17,7 @@ const configured = () => {
     network: 'monad-mainnet', chainId: 143,
     roles: { admin: '0x7777777777777777777777777777777777777777', relay: '0x8888888888888888888888888888888888888888', attester: '0x9999999999999999999999999999999999999999', arbitrator },
     erc8004: { identity: '0x8004A169FB4a3325136EB29fA0ceB6D2e539a432', reputation: '0x8004BAa17C55a88189AE136b182e5fdA19dE9b63' },
-    x402: { usdc: USDC }, factory: { faucet: false }, holdGates: { minHoldToPublish: 0, minHoldToClaim: 0 },
-    faucetTokens: { names: [], symbols: [] }, knownTokens: [USDC], stacks: { names: ['main'] },
+    x402: { usdc: USDC }, knownTokens: [USDC],
   })
   config.sidequest = { ...config.sidequest, defaultArbitrator: arbitrator }
   config.deployment = {
@@ -65,7 +64,7 @@ test('a consistent synthetic complete artifact passes structural validation only
   expect(validateProdConfig(config, artifact)).toEqual([])
 })
 
-test.each(['stage', 'chain', 'RPC', 'HyperSync', 'Privy', 'secret', 'address', 'openTokens', 'legacy', 'faucet', 'remoteState', 'mainKind', 'mainFactory', 'sidequestFactory', 'vault', 't0', 'sidequestBlock', 'stackNames'])('rejects %s inconsistency', kind => {
+test.each(['stage', 'chain', 'RPC', 'HyperSync', 'Privy', 'secret', 'address', 'openTokens', 'legacy', 'remoteState', 'mainKind', 'mainFactory', 'sidequestFactory', 'vault', 't0', 'sidequestBlock', 'demoStack', 'fastStack'])('rejects %s inconsistency', kind => {
   const { config, artifact } = configured()
   if (kind === 'stage') artifact.stage = 'staging'
   if (kind === 'chain') artifact.chainId = 10143
@@ -76,7 +75,6 @@ test.each(['stage', 'chain', 'RPC', 'HyperSync', 'Privy', 'secret', 'address', '
   if (kind === 'address') artifact.addresses.core = '0x0000000000000000000000000000000000000000'
   if (kind === 'openTokens') config.deployment.main!.openTokens = false
   if (kind === 'legacy') config.deployment.legacy = { old: { kind: 'legacy', factory: '0x2222222222222222222222222222222222222222', holding: '0x3333333333333333333333333333333333333333', evaluator: '0x4444444444444444444444444444444444444444', openTokens: true } }
-  if (kind === 'faucet') config.factory.faucet = true
   if (kind === 'remoteState') artifact.remoteState = false
   if (kind === 'mainKind') config.deployment.main!.kind = 'legacy'
   if (kind === 'mainFactory') config.deployment.main!.factory = '0x2222222222222222222222222222222222222222'
@@ -84,7 +82,8 @@ test.each(['stage', 'chain', 'RPC', 'HyperSync', 'Privy', 'secret', 'address', '
   if (kind === 'vault') artifact.deployment.sidequest.vault = '0x0000000000000000000000000000000000000000'
   if (kind === 't0') config.deployment.sidequest!.t0 = 0
   if (kind === 'sidequestBlock') artifact.deployment.sidequest.block = 124
-  if (kind === 'stackNames') config.stacks.names.push('demo')
+  if (kind === 'demoStack') config.deployment.demo = { ...config.deployment.main! }
+  if (kind === 'fastStack') config.deployment.fast = { ...config.deployment.main! }
   expect(validateProdConfig(config, artifact).length).toBeGreaterThan(0)
 })
 

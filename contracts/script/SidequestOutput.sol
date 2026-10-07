@@ -2,7 +2,6 @@
 pragma solidity ^0.8.28;
 
 import {Vm} from "forge-std/Vm.sol";
-import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {SidequestClocks} from "../src/sidequest/SidequestClocks.sol";
 import {SidequestRecipe} from "./SidequestRecipe.sol";
 import {BroadcastPath} from "./BroadcastPath.sol";
@@ -20,9 +19,8 @@ import {MiningReserve} from "../src/sidequest/MiningReserve.sol";
 /// @notice Rewrites `.deployment` in a network config after the Sidequest v1 deploy has been verified on-chain
 ///         (`PromoteSidequest`), in the shape of decisions D1:
 ///         `factory` becomes SIDE v2; `sidequest` lists the owner Safe (D5), the protocol contracts and `t0`; `main` is the v1 pair
-///         (`kind: "sidequest-v1"`); the previous `main` and `demo` move into `legacy` as the next free `main-vN` and
-///         `demo-vN`; every legacy pair gets an explicit `kind` and `factory`. Every other key is copied. An unknown key,
-///         or a config that already records a v1 deployment, refuses instead of dropping anything. On mainnet
+///         (`kind: "sidequest-v1"`). A fresh core is recorded from its creation receipt. An unknown deployment key,
+///         or a config that already records a v1 deployment, refuses. On mainnet
 ///         (LAUNCH-AUDIT-004) `rewardTokens` is kept or, when absent, derived from the single `knownTokens` entry, and must
 ///         contain `x402.usdc`: the SDK and Explore read their reward tokens from it.
 library SidequestOutput {
@@ -52,25 +50,16 @@ library SidequestOutput {
 
     /// @notice Refuses a config this writer could not rewrite faithfully, before anything is broadcast.
     function preflight(Vm vm, string memory json) internal view {
+        if (vm.keyExistsJson(json, ".deployment.sidequest")) revert AlreadyDeployed();
         string[] memory keys = _keys(vm, json, ".deployment");
-        string[8] memory known =
-            ["block", "core", "network", "factory", "poolFactory", "rewardTokens", "stacksBlock", "legacy"];
+        string[5] memory known = ["block", "core", "network", "factory", "rewardTokens"];
         for (uint256 i; i < keys.length; ++i) {
             string memory k = keys[i];
-            if (_eq(k, "sidequest")) revert AlreadyDeployed();
-            if (_eq(k, "main") || _eq(k, "demo")) {
-                _checkPair(vm, json, string.concat(".deployment.", k), k);
-                continue;
-            }
             bool ok;
             for (uint256 j; j < known.length; ++j) {
                 if (_eq(k, known[j])) ok = true;
             }
             if (!ok) revert UnknownKey("deployment", k);
-        }
-        string[] memory legacy = _keys(vm, json, ".deployment.legacy");
-        for (uint256 i; i < legacy.length; ++i) {
-            _checkPair(vm, json, string.concat(".deployment.legacy.", legacy[i]), legacy[i]);
         }
         if (_mainnet(vm, json)) rewardTokens(vm, json);
     }
@@ -97,18 +86,7 @@ library SidequestOutput {
         return vm.keyExistsJson(json, ".chainId") && vm.parseJsonUint(json, ".chainId") == MAINNET;
     }
 
-    function _checkPair(Vm vm, string memory json, string memory at, string memory name) private pure {
-        string[] memory keys = vm.parseJsonKeys(json, at);
-        for (uint256 i; i < keys.length; ++i) {
-            string memory k = keys[i];
-            if (!(_eq(k, "holding") || _eq(k, "evaluator") || _eq(k, "openTokens") || _eq(k, "kind")
-                        || _eq(k, "factory"))) {
-                revert UnknownKey(name, k);
-            }
-        }
-    }
-
-    /// @notice Writes the D1/D5 record. `coreBlock` is the fresh core's deploy block (ignored for a reused core) and
+    /// @notice Writes the D1/D5 record. `coreBlock` is the fresh core's deploy block and
     ///         `sidequestBlock` the first block of the v1 deploy; `PromoteSidequest` takes both from the receipts.
     function write(
         Vm vm,
@@ -123,28 +101,17 @@ library SidequestOutput {
         SidequestClocks.Config memory clocks = readClocks(d);
         SidequestClocks.Config memory input = SidequestRecipe.loadClocks(vm, json, ".sidequest.clocks");
         if (keccak256(abi.encode(clocks)) != keccak256(abi.encode(input))) revert ClockMismatch();
-        if (_mainnet(vm, json) && keccak256(abi.encode(clocks)) != keccak256(abi.encode(SidequestClocks.production()))) {
+        if (_mainnet(vm, json) && keccak256(abi.encode(clocks)) != keccak256(abi.encode(SidequestClocks.production())))
+        {
             revert ClockMismatch();
         }
         string memory o = "deployment";
         string[] memory keys = _keys(vm, json, ".deployment");
 
-        if (d.coreDeployed) {
-            vm.serializeAddress(o, "core", address(d.core));
-            vm.serializeUint(o, "block", coreBlock);
-        } else {
-            vm.serializeAddress(o, "core", vm.parseJsonAddress(json, ".deployment.core"));
-            vm.serializeUint(o, "block", vm.parseJsonUint(json, ".deployment.block"));
-        }
-        if (_has(keys, "poolFactory")) {
-            vm.serializeAddress(o, "poolFactory", vm.parseJsonAddress(json, ".deployment.poolFactory"));
-        }
+        vm.serializeAddress(o, "core", address(d.core));
+        vm.serializeUint(o, "block", coreBlock);
         address[] memory rewards = rewardTokens(vm, json);
         if (_has(keys, "rewardTokens") || rewards.length > 0) vm.serializeAddress(o, "rewardTokens", rewards);
-        if (_has(keys, "stacksBlock")) {
-            vm.serializeUint(o, "stacksBlock", vm.parseJsonUint(json, ".deployment.stacksBlock"));
-        }
-        address oldFactory = _has(keys, "factory") ? vm.parseJsonAddress(json, ".deployment.factory") : address(0);
         vm.serializeAddress(o, "factory", address(d.factory));
 
         string memory h = "deployment.sidequest";
@@ -174,20 +141,6 @@ library SidequestOutput {
         vm.serializeAddress(m, "holding", address(d.holding));
         vm.serializeAddress(m, "evaluator", address(d.evaluator));
         vm.serializeString(o, "main", vm.serializeBool(m, "openTokens", true));
-
-        string[] memory legacy = _keys(vm, json, ".deployment.legacy");
-        bool moveMain = _has(keys, "main");
-        bool moveDemo = _has(keys, "demo");
-        if (legacy.length > 0 || moveMain || moveDemo) {
-            string memory l = "deployment.legacy";
-            string memory out;
-            for (uint256 i; i < legacy.length; ++i) {
-                out = _pair(vm, json, l, string.concat(".deployment.legacy.", legacy[i]), legacy[i], oldFactory);
-            }
-            if (moveMain) out = _pair(vm, json, l, ".deployment.main", _next(legacy, "main-v"), oldFactory);
-            if (moveDemo) out = _pair(vm, json, l, ".deployment.demo", _next(legacy, "demo-v"), oldFactory);
-            vm.serializeString(o, "legacy", out);
-        }
 
         string memory result = vm.serializeString(o, "network", vm.parseJsonString(json, ".network"));
         vm.writeJson(result, path, ".deployment");
@@ -263,7 +216,6 @@ library SidequestOutput {
         string memory k = "candidate";
         vm.serializeUint(k, "chainId", chainId);
         vm.serializeAddress(k, "safe", safe);
-        vm.serializeBool(k, "coreDeployed", d.coreDeployed);
         vm.serializeUint(k, "t0", d.t0);
         vm.serializeAddress(k, "core", address(d.core));
         vm.serializeAddress(k, "teamVesting", address(d.vesting));
@@ -284,7 +236,6 @@ library SidequestOutput {
         string memory json = vm.readFile(path);
         chainId = vm.parseJsonUint(json, ".chainId");
         safe = vm.parseJsonAddress(json, ".safe");
-        d.coreDeployed = vm.parseJsonBool(json, ".coreDeployed");
         d.t0 = uint48(vm.parseJsonUint(json, ".t0"));
         d.core = ERC8183WithAuthorization(vm.parseJsonAddress(json, ".core"));
         d.vesting = TeamVesting(payable(vm.parseJsonAddress(json, ".teamVesting")));
@@ -295,37 +246,5 @@ library SidequestOutput {
         d.evaluator = SidequestEvaluator(vm.parseJsonAddress(json, ".evaluator"));
         d.distributor = EpochDistributor(vm.parseJsonAddress(json, ".distributor"));
         d.reserve = MiningReserve(vm.parseJsonAddress(json, ".miningReserve"));
-    }
-
-    /// @dev One legacy pair with an explicit `kind` and `factory`, added to the legacy object under `name`.
-    function _pair(
-        Vm vm,
-        string memory json,
-        string memory parent,
-        string memory at,
-        string memory name,
-        address oldFactory
-    ) private returns (string memory) {
-        string memory p = string.concat(parent, ".", name);
-        vm.serializeString(p, "kind", "legacy");
-        address factory = vm.keyExistsJson(json, string.concat(at, ".factory"))
-            ? vm.parseJsonAddress(json, string.concat(at, ".factory"))
-            : oldFactory;
-        vm.serializeAddress(p, "factory", factory);
-        if (vm.keyExistsJson(json, string.concat(at, ".openTokens"))) {
-            vm.serializeBool(p, "openTokens", vm.parseJsonBool(json, string.concat(at, ".openTokens")));
-        }
-        vm.serializeAddress(p, "holding", vm.parseJsonAddress(json, string.concat(at, ".holding")));
-        string memory pair =
-            vm.serializeAddress(p, "evaluator", vm.parseJsonAddress(json, string.concat(at, ".evaluator")));
-        return vm.serializeString(parent, name, pair);
-    }
-
-    /// @dev The first `prefix<N>` (N from 1) not already in `legacy`.
-    function _next(string[] memory legacy, string memory prefix) private pure returns (string memory name) {
-        for (uint256 n = 1;; ++n) {
-            name = string.concat(prefix, Strings.toString(n));
-            if (!_has(legacy, name)) return name;
-        }
     }
 }

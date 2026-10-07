@@ -4,7 +4,7 @@ pragma solidity ^0.8.28;
 import {Test} from "forge-std/Test.sol";
 import {IERC8004Identity, IERC8004Reputation} from "../../src/vendor/erc8004/IERC8004.sol";
 
-/// @dev Stands in for JobsEvaluator: a contract that writes feedback about a worker's agent.
+/// @dev Stands in for SidequestEvaluator: a contract that writes feedback about a worker's agent.
 contract FeedbackCaller {
     IERC8004Reputation internal immutable reputation;
 
@@ -14,7 +14,14 @@ contract FeedbackCaller {
 
     function record(uint256 agentId, bool completed, bytes32 jobRef) external {
         reputation.giveFeedback(
-            agentId, completed ? int128(1) : int128(0), 0, "sidequest", completed ? "completed" : "rejected", "", "", jobRef
+            agentId,
+            completed ? int128(1) : int128(0),
+            0,
+            "sidequest",
+            completed ? "completed" : "rejected",
+            "",
+            "",
+            jobRef
         );
     }
 }
@@ -23,8 +30,7 @@ contract FeedbackCaller {
 ///      the default suite stays hermetic. State changes happen on the fork, never on the real chain.
 contract Erc8004ForkTest is Test {
     IERC8004Identity internal constant IDENTITY = IERC8004Identity(0x8004A818BFB912233c491871b3d84c89A494BD9e);
-    IERC8004Reputation internal constant REPUTATION =
-        IERC8004Reputation(0x8004B663056A597Dffe9eCcC1965A193B7388713);
+    IERC8004Reputation internal constant REPUTATION = IERC8004Reputation(0x8004B663056A597Dffe9eCcC1965A193B7388713);
 
     address internal worker = makeAddr("worker");
     FeedbackCaller internal caller;

@@ -6,7 +6,7 @@ import { verifyJobEconomics, verifyOwedWithdrawal } from './v1-flow-economics.ts
 import { v1FlowActions } from './v1-flow-actions.ts'
 import { isDelegatedStakeFlow, runDelegatedStakeFlow } from './v1-flow-delegated-stake.ts'
 
-export const V1_CORE_FLOWS = ['hire', 'silence', 'ruling-worker', 'ruling-worker-slash', 'ruling-creator', 'ruling-creator-slash', 'violation', 'missed', 'cancel', 'arbitration-timeout', 'topup-paid', 'topup-refund', 'stake-cooldown', 'delegate', 'slash-pro-rata', 'undelegate-pending-slash', 'fees', 'legacy-contest', 'legacy-dispute'] as const
+export const V1_CORE_FLOWS = ['hire', 'silence', 'ruling-worker', 'ruling-worker-slash', 'ruling-creator', 'ruling-creator-slash', 'violation', 'missed', 'cancel', 'arbitration-timeout', 'topup-paid', 'topup-refund', 'stake-cooldown', 'delegate', 'slash-pro-rata', 'undelegate-pending-slash', 'fees'] as const
 export type V1CoreFlow = typeof V1_CORE_FLOWS[number]
 /** A scheduled chain wait leaves the same case resumable without claiming it completed. */
 export class FlowWaiting extends Error {
@@ -18,28 +18,15 @@ export interface V1FlowDeps {
   agentId: bigint; token: Address; reward: bigint; bond: bigint
   waitUntil: (label: string, timestamp: number) => Promise<void>
   log: (text: string) => void
-  legacyArbitrator?: sdk.Wallet
   refusingToken?: { owner: sdk.Wallet; kind: 'blocklist' | 'gasBurner' }
 }
 const eq = (a: string, b: string) => a.toLowerCase() === b.toLowerCase()
 const check = (what: string, actual: bigint | number | string | boolean, expected: bigint | number | string | boolean) => { if (actual !== expected) throw new Error(`${what}: got ${String(actual)}, expected ${String(expected)}`) }
-/** Check the legacy open-token pair before the runner performs any setup or publish send. */
-export async function requireLegacyContestFactory(ctx: sdk.Ctx, creator: sdk.Wallet) {
-  const pair = Object.values(ctx.deployment.legacyStacks).find(p => p.kind === 'legacy' && p.openTokens)
-  if (pair === undefined) throw new Error('legacy-contest requires a configured legacy open-token pair')
-  const factory = await ctx.publicClient.readContract({ address: pair.holding, abi: sdk.jobHoldingAbi, functionName: 'factory' })
-  const decimals = await ctx.publicClient.readContract({ address: factory, abi: sdk.factoryTokenAbi, functionName: 'decimals' })
-  const required = 10n ** BigInt(decimals)
-  const held = await ctx.publicClient.readContract({ address: factory, abi: sdk.factoryTokenAbi, functionName: 'balanceOf', args: [creator.account.address] })
-  if (held < required) throw new Error(`legacy-contest requires creator to hold at least 1 SIDE v1 (factory ${factory}); creator balance is below 1 token`)
-  return { pair, factory, held, required }
-}
 
 export async function runV1CoreFlow(d: V1FlowDeps, flow: V1CoreFlow, scope = flow as string) {
   const { ctx, creator, worker, relay, journal: j } = d, h = ctx.deployment.sidequest
   if (ctx.deployment.chainId !== 10143 || await ctx.publicClient.getChainId() !== 10143 || ctx.stack.kind !== 'sidequest-v1' || h === null) throw new Error('v1 flows require deployed Sidequest on chain 10143')
   if (j.state.values[`${scope}/done`] === true) { d.log(`${scope}: already verified; no sends`); return }
-  if (flow === 'legacy-contest' && j.state.sends[`${scope}/publish`] === undefined) await requireLegacyContestFactory(ctx, creator)
   const { receipts, now, call, approve, publish, activate, submit, settle } = v1FlowActions(d, flow, scope)
   const waitForSettlement = (target: number) => d.waitUntil(flow, target)
   if (isDelegatedStakeFlow(flow)) {
@@ -58,26 +45,6 @@ export async function runV1CoreFlow(d: V1FlowDeps, flow: V1CoreFlow, scope = flo
     await d.waitUntil(flow, unlock)
     await call('withdraw', worker, h.vault, sdk.stakeVaultAbi, 'withdraw', [worker.account.address])
     check('cooldown amount withdrawn', (await sdk.getPosition(ctx, worker.account.address, worker.account.address)).queuedShares, 0n)
-  } else if (flow.startsWith('legacy-')) {
-    const pair = Object.values(ctx.deployment.legacyStacks).find(p => p.kind === 'legacy' && p.openTokens)
-    if (pair === undefined) throw new Error(`${flow}: no configured legacy open-token pair`)
-    const legacy = { ...ctx, stack: pair }, x = await publish(legacy)
-    if (flow === 'legacy-contest') {
-      const entry = await j.once(`${scope}/entry`, () => sdk.signEntry(legacy, worker, x.jobId, d.agentId, sdk.hashText('finished legacy contest work')))
-      await call('award', creator, pair.holding, sdk.jobHoldingAbi, 'award', [x.jobId, entry], sdk.V1_GAS.evaluator)
-      check('legacy contest completed', (await sdk.getJob(legacy, x.jobId)).statusName, 'Completed')
-    } else {
-      const arb = d.legacyArbitrator
-      if (arb === undefined) throw new Error('legacy-dispute requires LEGACY_ARBITRATOR_PRIVATE_KEY')
-      check('legacy key matches evaluator', eq(arb.account.address, await ctx.publicClient.readContract({ address: pair.evaluator, abi: sdk.jobsEvaluatorAbi, functionName: 'arbitrator' })), true)
-      await activate(x, legacy); await submit(x.jobId)
-      await call('reject', creator, pair.evaluator, sdk.jobsEvaluatorAbi, 'reject', [x.jobId, 1, sdk.hashText('legacy rejection')])
-      await call('dispute', worker, pair.evaluator, sdk.jobsEvaluatorAbi, 'dispute', [x.jobId])
-      const r = await j.once(`${scope}/ruling`, async () => { const ruling = { jobId: x.jobId, forWorker: true, slashLoser: false, reasonHash: sdk.hashText('legacy ruling'), deadline: BigInt((await now()) + 3600), nonce: sdk.randomNonce() }; return { ruling, signature: await sdk.signRuling(legacy, arb, ruling) } })
-      await call('rule', relay, pair.evaluator, sdk.jobsEvaluatorAbi, 'ruleWithSignature', [r.ruling, r.signature], sdk.V1_GAS.evaluator)
-    }
-    const oldJob = await sdk.getJob(legacy, x.jobId)
-    if (oldJob.statusName !== 'Completed' && !(await sdk.getListing(legacy, x.jobId)).rewardSettled) await settle(x.jobId, legacy)
   } else {
     if (flow === 'fees') {
       const { tiers, staked } = await j.once(`${scope}/tier-input`, async () => ({ tiers: await ctx.publicClient.readContract({ address: h.feeSchedule, abi: sdk.feeScheduleAbi, functionName: 'schedule' }), staked: (await sdk.getBacking(ctx, worker.account.address)).active }))

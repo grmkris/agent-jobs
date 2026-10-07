@@ -5,7 +5,7 @@
  *
  * Async over any SQL with `all` + atomic `batch` (D1 in the Worker, node:sqlite in tests). The verification of the
  * signature is a callback so this stays free of chain clients: the Worker passes `publicClient.verifyMessage`, which
- * accepts EOAs and ERC-1271 wallets alike (a JobPool signs in through its curator this way, ADR-0007).
+ * accepts EOAs and ERC-1271 wallets alike.
  */
 import { type Address, getAddress, isAddress } from 'viem'
 import { createSiweMessage, parseSiweMessage } from 'viem/siwe'

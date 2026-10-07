@@ -28,7 +28,6 @@ export function lifecycleInput(chain: ChainJob | undefined, task: TaskIndexEntry
     mode: task.mode,
     status: task.jobId === null ? 'awaiting-publish' : 'unknown',
     deliveryDeadline: task.deliveryDeadline,
-    selectionDeadline: task.selectionDeadline,
     workerBond: task.workerBond,
     parties: { creator: task.creator, approver: task.approver },
   }

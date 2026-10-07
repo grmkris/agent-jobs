@@ -32,16 +32,12 @@ export interface GasSizing {
    */
   margin?: number
 }
-/** A shared journal/relay can call archived legacy pairs from its current v1 context. */
-export function stackGasSizing(ctx: Ctx, target: Address, fallback?: bigint): GasSizing {
-  const address = target.toLowerCase()
-  const stacks = [ctx.stack, ...Object.values(ctx.deployment.stacks ?? {}), ...Object.values(ctx.deployment.legacyStacks ?? {})]
-  const pair = stacks.find(s => s !== undefined && (s.holding.toLowerCase() === address || s.evaluator.toLowerCase() === address))
-  if (fallback === undefined) return {}
-  return pair?.kind === 'legacy' ? { fallback, floor: fallback } : { fallback }
+/** V1 protocol limits are fallbacks after exact-limit simulation. */
+export function stackGasSizing(_ctx: Ctx, _target: Address, fallback?: bigint): GasSizing {
+  return fallback === undefined ? {} : { fallback }
 }
 
-/** Monad charges the full limit. A legacy payout floor is a minimum; v1 protocol limits remain fallbacks. */
+/** Monad charges the full limit. Protocol limits remain fallbacks. */
 export async function transactionGas(client: Pick<PublicClient, 'estimateGas' | 'call'>, request: GasRequest, sizing?: bigint | GasSizing) {
   const options: GasSizing = typeof sizing === 'bigint' ? { fallback: sizing } : (sizing ?? {})
   const floor = options.floor

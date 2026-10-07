@@ -150,9 +150,8 @@ DeploySidequest refuses either mistake before it sends anything (LAUNCH-AUDIT-FI
 | attester | `roles.attester` (a fresh R2 key) | 1 MON | attaches evidence |
 | arbitrator | `roles.arbitrator` (a fresh R2 key) | 0.11 | signs rulings, which the relay sends. It also sends `cancelRuling` itself, to burn a recorded ruling's nonce (arbiter `cancel_ruling`). Bounded reserve: 10 cancellations at 51,848 gas (estimated on a Monad-pricing fork) × 203 gwei = 0.105 MON. Refill when below 0.05; no other use |
 
-The arbiter process (`apps/arbiter`, a separate source from the Worker) refuses to start without both
-`ARBITRATOR_PRIVATE_KEY` (legacy) and `V1_ARBITRATOR_PRIVATE_KEY` (the fresh v1 key above, which holds the cancellation
-reserve). Provision both, even though mainnet has no legacy pair.
+The arbiter process (`apps/arbiter`, a separate source from the Worker) requires
+`V1_ARBITRATOR_PRIVATE_KEY` (the fresh v1 key above, which holds the cancellation reserve).
 
 If the deployer is also the liquidity holder, send it both rows and use `sidequest-deployer` in §3.7. Space out
 transfers to one wallet (Monad's reserve-balance rule; see `reality-check.md`).

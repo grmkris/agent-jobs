@@ -18,23 +18,21 @@ function fixture() {
     if (functionName === 'defaultArbitrator') return creator
     throw new Error(`unexpected chain read: ${functionName}`)
   })
-  const legacy: sdk.Stack = { ...base.stack, kind: 'legacy', holding: '0x7777777777777777777777777777777777777777' }
-  const ctx = { ...base, deployment: { ...base.deployment, legacyStacks: { fixture: legacy } }, publicClient: { ...base.publicClient, readContract: read } } as unknown as sdk.Ctx
+  const ctx = { ...base, publicClient: { ...base.publicClient, readContract: read } } as unknown as sdk.Ctx
   const db = new DatabaseSync(':memory:'); databases.push(db)
   const sql = fromNodeSqlite(db)
   const boot = () => new Board(sql, { network: 'monad-testnet', contexts: { main: ctx }, domain: 'archive.test', uri: 'https://archive.test', manifestBaseUrl: 'https://archive.test/offers', now: () => 1000 })
   const board = boot()
   const add = (taskId: string, holding: Address, createdAt: number, jobId: string | null = null) => {
     const terms: OfferTerms = {
-      v: 2, taskId, projectId: null, policyVersion: null, mode: 'hire', title: taskId, brief: 'Historical record', acceptanceCriteria: [],
+      v: 2, mode: 'hire', taskId, projectId: null, policyVersion: null, title: taskId, brief: 'Historical record', acceptanceCriteria: [],
       deployment: { chainId: ctx.deployment.chainId, core: ctx.deployment.core, holding, evaluator: ctx.stack.evaluator, identity: ctx.deployment.identity },
       creator, approver: creator, token: ctx.deployment.rewardTokens[0]!, reward: 5n, creatorBond: 0n, workerBond: 0n,
-      deliveryDeadline: 2000, selectionDeadline: null, windows: { reviewSeconds: 120, disputeSeconds: 120, arbitrationSeconds: 300 }, eligibility: null, evidencePolicy: null, quote: null, salt: sdk.EMPTY_HASH,
+      deliveryDeadline: 2000, windows: { reviewSeconds: 120, disputeSeconds: 120, arbitrationSeconds: 300 }, eligibility: null, evidencePolicy: null, quote: null, salt: sdk.EMPTY_HASH,
     }
     sql.run('INSERT INTO tasks (id,creator,stack,terms_json,terms_hash,job_id,from_block,created_at) VALUES (?,?,?,?,?,?,?,?)', taskId, creator, 'main', canonicalJson(terms), termsHash(terms), jobId, 0, createdAt)
   }
   add('current', ctx.stack.holding, 1)
-  add('legacy', Object.values(ctx.deployment.legacyStacks)[0]!.holding, 2)
   add('archived', retired, 3, '62')
   add('archived-unpublished', retired, 4)
   sql.run('INSERT INTO operations (id,task_id,kind,actor,status,tx_hash,detail,created_at,updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', 'old-operation', 'archived', 'submit', creator, 'confirmed', sdk.EMPTY_HASH, null, 0, 0)
@@ -42,12 +40,12 @@ function fixture() {
   return { board, boot, db, read, ctx }
 }
 
-it('excludes archived tasks before list limits while retaining current and configured legacy pairs', async () => {
+it('excludes archived tasks before list limits while retaining the current pair', async () => {
   const f = fixture()
-  expect(f.board.taskIndex({}).map(task => [task.taskId, task.kind])).toEqual([['legacy', 'legacy'], ['current', 'sidequest-v1']])
-  expect((await f.board.listTasks({}, { limit: 1 })).map(task => task.taskId)).toEqual(['legacy'])
+  expect(f.board.taskIndex({}).map(task => [task.taskId, task.kind])).toEqual([['current', 'sidequest-v1']])
+  expect((await f.board.listTasks({}, { limit: 1 })).map(task => task.taskId)).toEqual(['current'])
   expect(await f.board.getTask({}, { taskId: 'current' })).toMatchObject({ taskId: 'current', chain: { status: 'awaiting-publish' } })
-  expect(f.db.prepare('SELECT COUNT(*) AS n FROM tasks').get()).toEqual({ n: 4 })
+  expect(f.db.prepare('SELECT COUNT(*) AS n FROM tasks').get()).toEqual({ n: 3 })
 })
 
 it('direct archived reads and action preparations refuse before any RPC, including unpublished recovery', async () => {

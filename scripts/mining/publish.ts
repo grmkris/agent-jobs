@@ -14,12 +14,12 @@ try {
   const envPath = resolve('.env.local')
   const env = { ...process.env, ...(existsSync(envPath) ? parseEnv(readFileSync(envPath, 'utf8')) : {}) }
   if ((env.SIDEQUEST_STAGE && env.SIDEQUEST_STAGE !== selected.stage) || (env.SIDEQUEST_NETWORK && env.SIDEQUEST_NETWORK !== selected.network)) throw new MiningPublishError('stage-chain-mismatch')
-  const rpc = env[selected.stage === 'prod' ? 'MONAD_MAINNET_RPC_URL' : 'MONAD_TESTNET_RPC_URL']
+  const rpc = env[selected.network === 'monad-mainnet' ? 'MONAD_MAINNET_RPC_URL' : 'MONAD_TESTNET_RPC_URL']
   if (!rpc || rpc === 'unset') throw new MiningPublishError('credentials-missing')
   const bytes = readFileSync(resolve(args[0]))
   const config = JSON.parse(readFileSync(new URL(`../../contracts/config/${selected.network}.json`, import.meta.url), 'utf8')) as DeploymentConfig
   const c = client(rpc)
-  await publishEpoch(bytes, selected.stage, config, {
+  await publishEpoch(bytes, selected, config, {
     getChainId: () => c.getChainId(),
     readRoot: (address, epoch) => c.readContract({ address, abi: epochDistributorAbi, functionName: 'rootOf', args: [epoch] }),
   }, new CloudflareManifests(env))

@@ -74,7 +74,7 @@
       Creator: item.creator, Worker: extra.worker || item.worker, Approver: item.approver || terms.approver,
       Arbitrator: item.arbitrator || terms.arbitrator, 'Creator bond (base units)': item.creatorBond || terms.creatorBond,
       'Worker bond (base units)': item.workerBond || terms.workerBond, Windows: item.windows || terms.windows,
-      'Delivery deadline': date(item.deliveryDeadline || terms.deliveryDeadline), 'Selection deadline': date(item.selectionDeadline || terms.selectionDeadline),
+      'Delivery deadline': date(item.deliveryDeadline || terms.deliveryDeadline),
       'Acceptance criteria': terms.acceptanceCriteria, 'Execution budget': terms.executionBudget || 'None', ...extra,
     })) detail(facts, label, value);
     parent.append(facts);

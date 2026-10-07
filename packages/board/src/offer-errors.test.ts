@@ -29,7 +29,7 @@ function fixture(failBounds: boolean) {
   const ctx = { ...base, stack: { ...base.stack, kind: 'sidequest-v1' }, publicClient: client } as unknown as sdk.Ctx
   const db = new DatabaseSync(':memory:'); databases.push(db)
   const board = new Board(fromNodeSqlite(db), { network: 'monad-testnet', contexts: { main: ctx }, domain: 'offer.test', uri: 'https://offer.test', manifestBaseUrl: 'https://offer.test/offers', now: () => 1000 })
-  const input = { title: 'Offer', brief: 'Brief', acceptanceCriteria: ['works'], mode: 'hire' as const, token: base.deployment.rewardTokens[0]!, reward: '1',
+  const input = { title: 'Offer', brief: 'Brief', acceptanceCriteria: ['works'], token: base.deployment.rewardTokens[0]!, reward: '1',
     creatorBond: '0', workerBond: '0', deliveryDeadline: 200_000, windows: { reviewSeconds: 120, disputeSeconds: 120, arbitrationSeconds: 300 },
     arbitrator: '0x4444444444444444444444444444444444444444' }
   return { board, input, read }

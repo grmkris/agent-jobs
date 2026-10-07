@@ -4,7 +4,7 @@
  *
  *   BOARD_URL=https://… bun apps/arbiter/src/main.ts [--once]   (from the repo root, with .env.local loaded)
  *
- * Env: ARBITRATOR_PRIVATE_KEY (legacy), V1_ARBITRATOR_PRIVATE_KEY (v1), ARBITER_MODEL_BASE_URL,
+ * Env: V1_ARBITRATOR_PRIVATE_KEY, ARBITER_MODEL_BASE_URL,
  * ARBITER_MODEL, ARBITER_MODEL_API_KEY, NETWORK (default monad-testnet), ARBITER_RUNNER
  * (default arbiter@<host>), ARBITER_INTERVAL_SECONDS (default 60). Only keys for the network's deployed pair kinds
  * are required. Each signs in separately; the board returns disputes whose named arbitrator matches that session.

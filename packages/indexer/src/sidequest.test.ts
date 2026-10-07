@@ -1,27 +1,18 @@
-/** ABI-encoded v1 logs in real SQLite, alongside the captured legacy testnet fixture. No RPC writes. */
-import { readFileSync } from 'node:fs'
+/** ABI-encoded v1 logs in real SQLite. No RPC writes. */
 import { DatabaseSync } from 'node:sqlite'
 import * as sdk from '@sidequest/sdk'
 import { type Abi, type AbiEvent, type Address, type Hex, encodeAbiParameters, encodeEventTopics, stringToHex } from 'viem'
 import { describe, expect, it } from 'vitest'
-import legacyLogs from '../test/fixtures/testnet-logs.json' with { type: 'json' }
-import historicalConfig from '../../sdk/src/fixtures/legacy-deployment.json' with { type: 'json' }
 import {
   type AsyncSql, type IndexerConfig, type RawLog, contractsFromDeployment, decode, fromNodeSqlite,
-  agentDetail, configuredJobs, jobAvailability, jobDetail, listAgents, migrate, networkStats, protocolEvents, resetIndex, runOnce, stmt,
+  agentDetail, jobDetail, listAgents, migrate, networkStats, protocolEvents, resetIndex, runOnce, stmt,
 } from './index.ts'
 
 const addr = (n: number): Address => `0x${n.toString(16).padStart(40, '0')}`
 const hash = (n: number): Hex => `0x${n.toString(16).padStart(64, '0')}`
-const historical = sdk.deploymentFromConfig('monad-testnet', historicalConfig)
-const legacy: sdk.Deployment = {
-  ...historical,
-  legacyStacks: { ...historical.legacyStacks, 'main-v3': historical.stacks.main!, 'demo-v2': historical.stacks.demo! },
-}
 const d: sdk.Deployment = {
-  ...legacy,
+  ...sdk.deployment('monad-testnet'),
   stacks: { main: { kind: 'sidequest-v1', factory: addr(1), holding: addr(2), evaluator: addr(3), openTokens: true } },
-  legacyStacks: { ...legacy.legacyStacks },
   sidequest: { block: 100n, safe: addr(9), factory: addr(1), vault: addr(4), feeSchedule: addr(5), distributor: addr(6), miningReserve: addr(7), teamVesting: addr(8), t0: 1_000 },
 }
 const contracts = contractsFromDeployment(d)
@@ -96,61 +87,6 @@ describe('Sidequest event indexing', () => {
     await runOnce(sql, cfg(paidLogs))
     const stats = await networkStats(sql, contracts.chainId)
     expect(stats.accounting[token]).toEqual({ gross: '1100', fee: '110', net: '990', paid: '0' })
-  })
-
-  it('chooses each address ABI and keeps the captured legacy logs readable beside v1', () => {
-    expect(decode(contracts, published())?.args.reviewWindow).toBe(3600)
-    expect(decode(contracts, { ...published(), address: legacy.legacyStacks['main-v3']!.holding })).toBeUndefined()
-    const captured = (legacyLogs.logs as unknown as RawLog[]).find((l) => decode(contracts, l)?.name === 'Published')!
-    const event = decode(contracts, captured)!
-    expect(event.args.mode).toBeDefined()
-    expect(event.args.reviewWindow).toBeUndefined()
-    expect(decode(contracts, { ...captured, address: addr(2) })).toBeUndefined()
-    expect(decode(contracts, { ...published(), address: addr(99) })).toBeUndefined()
-  })
-
-  it('keeps archived v1 schema and evidence through a shared-core refold while excluding the retired Holding', async () => {
-    const sql = await db()
-    const submission = log(sdk.coreAbi as Abi, d.core, 'JobSubmitted', { jobId: 1000n, provider: worker, deliverable: hash(22) }, 102)
-    const evidence = log(evaluator, addr(3), 'EvidenceAttached', { jobId: 1000n, verifier: addr(25), digest: hash(21), submissionHash: hash(22), policyHash: hash(2), testedSha: hash(23), conclusion: 1, validUntil: 20_000 }, 102)
-    const captured = (legacyLogs.logs as unknown as RawLog[]).find(l => decode(contracts, l)?.name === 'Published')!
-    const legacyPublication = log(sdk.jobHoldingAbi as Abi, captured.address, 'Published', { ...decode(contracts, captured)!.args, jobId: 1001n }, 100)
-    const initial = [published(), activated(), submission, evidence,
-      log(evaluator, addr(3), 'Accepted', { jobId: 1000n, approver }, 103),
-      log(evaluator, addr(3), 'PayoutDeferred', { jobId: 1000n, refundedToHolding: false }, 103, 1), legacyPublication]
-    await runOnce(sql, cfg(initial))
-    const original = await jobDetail(sql, contracts.chainId, '1000', 0)
-    const promoted: sdk.Deployment = { ...d, stacks: { main: { kind: 'sidequest-v1', factory: addr(30), holding: addr(31), evaluator: addr(32), openTokens: true } } }
-    // The paused-core decision still has agreed worker rights when the shared core later expires the job.
-    const expired = log(sdk.coreAbi as Abi, d.core, 'JobExpired', { jobId: 1000n }, 111)
-    const current = { ...published(1002n, 112), address: addr(31) }
-    const legacySubmitted = log(sdk.coreAbi as Abi, d.core, 'JobSubmitted', { jobId: 1001n, provider: worker, deliverable: hash(24) }, 113)
-    const promotedLogs = [...initial, expired, current, legacySubmitted]
-    const nextCfg = cfg(promotedLogs, 50, 120, promoted)
-    expect(decode(nextCfg.contracts, published())).toBeUndefined()
-    expect(decode(nextCfg.contracts, evidence)).toBeUndefined()
-    await runOnce(sql, nextCfg)
-    const detail = await jobDetail(sql, contracts.chainId, '1000', 0)
-    expect(detail?.job).toMatchObject({ kind: 'sidequest-v1', arbitrator, review_window: 3600, dispute_window: 7200, arbitration_window: 43_200, expired_at: 60_000,
-      mode: 'hire', outcome: 'Accepted', payout_deferred: 1, fee_bps: 1000, fee: '100', net: '900', status: 'expired' })
-    expect(detail?.evidence).toEqual(original?.evidence)
-    expect(detail?.evidence).toMatchObject([{ submission_hash: hash(22), onchainMatch: true }])
-    expect(detail?.timeline.slice(0, -1)).toEqual(original?.timeline)
-    expect(detail?.timeline.at(-1)).toMatchObject({ name: 'JobExpired', block: 111 })
-    expect(await jobAvailability(sql, promoted, '1000')).toMatchObject({ status: 'archived', actionable: false, holding: addr(2).toLowerCase() })
-    const active = configuredJobs(promoted)
-    expect((await sql.all<{ job_id: string }>(`SELECT job_id FROM jobs WHERE ${active.clause} ORDER BY job_id`, ...active.params)).map(job => job.job_id)).toEqual(['1001', '1002'])
-    expect((await jobDetail(sql, contracts.chainId, '1001', 0))?.job).toMatchObject({ kind: 'legacy', arbitrator: null, review_window: null, outcome: null })
-    expect(await jobAvailability(sql, promoted, '1001')).toMatchObject({ actionable: true })
-    // A canonical-hash mismatch triggers the normal rewind/refold with the retired publication still in storage.
-    await sql.batch([stmt('UPDATE checkpoint SET block_hash=? WHERE chain_id=?', hash(999), contracts.chainId)])
-    expect((await runOnce(sql, { ...nextCfg, rewindBlocks: 10 })).rewound).toBe(true)
-    expect(await jobDetail(sql, contracts.chainId, '1000', 0)).toEqual(detail)
-    // A coordinator-style cursor replay re-decodes only current addresses; archived facts and interpretation survive.
-    await sql.batch([stmt('UPDATE checkpoint SET next_block=100, block_hash=NULL WHERE chain_id=?', contracts.chainId)])
-    await runOnce(sql, cfg(promotedLogs, 1, 120, promoted))
-    expect(await jobDetail(sql, contracts.chainId, '1000', 0)).toEqual(detail)
-    expect(await jobAvailability(sql, promoted, '1000')).toMatchObject({ status: 'archived', actionable: false })
   })
 
   it('folds fees, windows, top-ups, paid rights, deferrals and reserved stake bonds', async () => {
@@ -291,17 +227,5 @@ describe('Sidequest event indexing', () => {
     expect((await jobDetail(sql, contracts.chainId, '1000', 0))?.job).toMatchObject({ status: 'active', outcome: 'None', bonus: '0', payout_deferred: 0 })
     await runOnce(sql, config)
     expect((await jobDetail(sql, contracts.chainId, '1000', 0))?.job.outcome).toBe('RuledForWorker')
-  })
-
-  it('adds v1 columns to a populated pre-v1 schema and initializes repeatedly without touching its row', async () => {
-    const sqlite = new DatabaseSync(':memory:')
-    sqlite.exec(readFileSync(new URL('../test/fixtures/legacy-jobs.sql', import.meta.url), 'utf8'))
-    sqlite.prepare("INSERT INTO jobs (chain_id, job_id, status, updated_block, agent_id) VALUES (10143, '9', 'completed', 100, '7')").run()
-    const sql = fromNodeSqlite(sqlite)
-    await migrate(sql)
-    await migrate(sql)
-    expect(await sql.all('SELECT job_id, status, agent_id, fee_bps, review_window FROM jobs')).toEqual([
-      { job_id: '9', status: 'completed', agent_id: '7', fee_bps: null, review_window: null },
-    ])
   })
 })

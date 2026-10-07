@@ -13,15 +13,8 @@ const target = join(root, 'packages/sdk/src/abi')
 
 /** The Sidequest v1 entries (ADR-0011) come from the implementations in `contracts/src/sidequest/`. */
 const contracts: Array<[file: string, name: string, module: string, exportName: string]> = [
-  ['JobHolding.sol', 'JobHolding', 'holding', 'jobHoldingAbi'],
-  ['JobsEvaluator.sol', 'JobsEvaluator', 'evaluator', 'jobsEvaluatorAbi'],
   ['ERC8183WithAuthorization.sol', 'ERC8183WithAuthorization', 'core', 'coreAbi'],
-  ['FactoryToken.sol', 'FactoryToken', 'factory', 'factoryTokenAbi'],
-  ['MockPaymentToken.sol', 'MockPaymentToken', 'faucetToken', 'faucetTokenAbi'],
   ['IERC8004.sol', 'IERC8004Identity', 'identity', 'identityAbi'],
-  ['IERC8004.sol', 'IERC8004Reputation', 'reputation', 'reputationAbi'],
-  ['JobPool.sol', 'JobPool', 'pool', 'jobPoolAbi'],
-  ['JobPoolFactory.sol', 'JobPoolFactory', 'poolFactory', 'jobPoolFactoryAbi'],
   ['SidequestHolding.sol', 'SidequestHolding', 'sidequestHolding', 'sidequestHoldingAbi'],
   ['SidequestEvaluator.sol', 'SidequestEvaluator', 'sidequestEvaluator', 'sidequestEvaluatorAbi'],
   ['StakeVault.sol', 'StakeVault', 'stakeVault', 'stakeVaultAbi'],

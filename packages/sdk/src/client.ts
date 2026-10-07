@@ -44,7 +44,7 @@ export function context(network: Network, stackName: StackName, rpcUrl: string):
   }
 }
 
-/** A context on any pair of the network, e.g. a legacy one (`stackByHolding`). */
+/** A context for the configured pair found by its Holding (`stackByHolding`). */
 export function contextFor(network: Network, s: Stack, rpcUrl: string): Ctx {
   return { publicClient: createPublicClient({ chain: chains[network], transport: transport(rpcUrl) }), deployment: deployment(network), stack: s }
 }

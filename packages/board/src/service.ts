@@ -16,7 +16,6 @@ import {
   type Address,
   type Hex,
   decodeEventLog,
-  bytesToHex,
   encodeFunctionData,
   erc20Abi,
   fromRlp,
@@ -50,7 +49,6 @@ import { BoardError } from './board-error.ts'
 import type { HostedCreatorFacts, HostedCreatorQuery } from './hosted-creators.ts'
 import {
   type ApplicationRow,
-  type CandidateRow,
   type OperationRow,
   type QuoteRequestRow,
   type QuoteRow,
@@ -59,9 +57,8 @@ import {
   type Sql,
   type TaskRow,
   migrate,
-  type PoolRow,
 } from './store.ts'
-import { type CallBudget, type ExecutionBudget, type OfferMode, type OfferTerms, TermsError, callFunction, canonicalJson, listingMatches, parseTerms, termsHash, validateOffer } from './terms.ts'
+import { type CallBudget, type ExecutionBudget, type OfferTerms, TermsError, callFunction, canonicalJson, parseTerms, termsHash, validateOffer } from './terms.ts'
 import {
   type Deliverable,
   type DeliverableCheck,
@@ -98,7 +95,7 @@ export { BoardError }
 
 export interface BoardConfig {
   readonly network: sdk.Network
-  /** One chain context per deployed stack ("main", and on testnet "demo"). */
+  /** The chain context for the configured v1 main stack. */
   readonly contexts: Partial<Record<sdk.StackName, sdk.Ctx>>
   /** SIWE domain and URI: the host and origin the API is served from. */
   readonly domain: string
@@ -453,9 +450,6 @@ export class Board {
     const holding = binding.holding
     const current = Object.values(this.#config.contexts).find((c) => c !== undefined && eq(c.stack.holding, holding))
     if (current !== undefined) return current
-    const any = Object.values(this.#config.contexts).find((c) => c !== undefined)
-    const legacy = sdk.stackByHolding(any?.deployment ?? sdk.deployment(this.#config.network), holding)
-    if (any !== undefined && legacy !== undefined) return { ...any, deployment: { ...any.deployment, core: binding.core }, stack: legacy[1] }
     return undefined
   }
 
@@ -631,15 +625,13 @@ export class Board {
       workerBond: string
       /** Unix seconds. */
       deliveryDeadline: number
-      mode: OfferMode
-      selectionDeadline?: number
       approver?: string
       /** V1 per-job windows, within the deployed Holding's bounds, in seconds. */
       windows?: import('./terms.ts').EvaluatorWindows
       arbitrator?: string
       /** Shortcut to a pre-created application. The worker still signs and activates. */
       invite?: { agentId: string }
-      /** "main" (real windows) or, on testnet, "demo" (minute windows). */
+      /** The v1 main stack. */
       stack?: sdk.StackName
       /** GitHub check names evidence must cover; they become the offer's evidence policy. */
       requiredChecks?: string[]
@@ -671,7 +663,7 @@ export class Board {
     const ctx = this.#ctx(stack)
     await this.#requireUnpaused(stack)
     const token = await this.#resolveToken(ctx, input.token)
-    const decimals = await ctx.publicClient.readContract({ address: token, abi: sdk.factoryTokenAbi, functionName: 'decimals' })
+    const decimals = await ctx.publicClient.readContract({ address: token, abi: erc20Abi, functionName: 'decimals' })
     const [windows, arbitrator, block] = await Promise.all([
       sidequest.offerWindows(ctx, input.windows),
       sidequest.offerArbitrator(ctx, input.arbitrator),
@@ -691,7 +683,7 @@ export class Board {
       taskId,
       projectId: null,
       policyVersion: null,
-      mode: input.mode,
+      mode: 'hire',
       title: input.title,
       brief: input.brief,
       acceptanceCriteria: input.acceptanceCriteria,
@@ -701,7 +693,6 @@ export class Board {
       creatorBond: parseUnits(input.creatorBond, 18),
       workerBond: parseUnits(input.workerBond, 18),
       deliveryDeadline: input.deliveryDeadline,
-      selectionDeadline: input.selectionDeadline ?? null,
       creator,
       approver: input.approver === undefined ? creator : getAddress(input.approver),
       ...(arbitrator === undefined ? {} : { arbitrator }),
@@ -717,8 +708,8 @@ export class Board {
       salt: `0x${randomId(32)}`,
     }
     // The chain reads stay outside the catch: an RPC failure is not a refusal, and its text names the provider URL.
-    const enforced = sidequest.isSidequest(ctx) ? windows : await sidequest.offerWindows(ctx)
-    const bounds = sidequest.isSidequest(ctx) ? await sdk.readWindowBounds(ctx) : undefined
+    const enforced = windows
+    const bounds = await sdk.readWindowBounds(ctx)
     try {
       validateOffer(terms, enforced, this.#now(), ctx.stack.kind, bounds)
     } catch (e) {
@@ -728,14 +719,13 @@ export class Board {
     const manifest = canonicalJson(terms)
     let invited: { worker: Address; agentId: string } | undefined
     if (input.invite !== undefined) {
-      if (!sidequest.isSidequest(ctx) || input.mode !== 'hire') throw new BoardError('invalid', 'direct hire is available on v1 hires')
       const agentId = input.invite.agentId
       if (typeof agentId !== 'string' || !/^[1-9]\d*$/.test(agentId) || BigInt(agentId) >= 2n ** 256n) throw new BoardError('invalid', 'invite.agentId must be a nonzero uint256 decimal string')
       const worker = await sdk.agentWallet(ctx, BigInt(agentId))
       if (worker === zeroAddress || [creator, terms.approver, terms.arbitrator].some(a => eq(a, worker))) throw new BoardError('invalid', 'the invited agent must have a registered wallet distinct from creator, approver and arbitrator')
       invited = { worker, agentId }
     }
-    const symbol = await ctx.publicClient.readContract({ address: token, abi: sdk.factoryTokenAbi, functionName: 'symbol' })
+    const symbol = await ctx.publicClient.readContract({ address: token, abi: erc20Abi, functionName: 'symbol' })
     // "mEUR"/"mUSD" read as millions to a model; say what the unit is.
     const unit = this.#config.network === 'monad-testnet' ? ` (${symbol} is a testnet mock token worth about 1 ${symbol.replace(/^m/, '')} of play money; "m" means mock, not million)` : ''
     const screening = await screenOffer(this.#config.screening, terms, `${input.reward} ${symbol}${unit}`, this.#now())
@@ -781,45 +771,7 @@ export class Board {
 
   /** The approvals and the `publish` of one frozen offer, exactly as agreed (terms hash = manifest hash). */
   async #publishTransactions(ctx: sdk.Ctx, creator: Address, terms: OfferTerms, hash: Hex): Promise<TxRequest[]> {
-    if (sidequest.isSidequest(ctx)) return sidequest.publishSidequest(ctx, terms, hash)
-    const token = terms.token
-    const expiredAt =
-      terms.deliveryDeadline +
-      Number(await ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: sidequest.evaluatorAbi(ctx), functionName: 'settlementWindow' }))
-    const transactions: TxRequest[] = []
-    transactions.push(
-      ...(await this.#approvals(ctx, creator, [
-        [token, terms.reward, 'reward token'],
-        [ctx.stack.factory, terms.creatorBond, 'SIDE (creator bond)'],
-      ])),
-    )
-    transactions.push(
-      this.#tx(
-        ctx,
-        'publish: escrows the reward and the creator bond and lists the offer',
-        ctx.stack.holding,
-        encodeFunctionData({
-          abi: sidequest.holdingAbi(ctx),
-          functionName: 'publish',
-          args: [
-            {
-              approver: terms.approver,
-              manifestHash: hash,
-              policyHash: hash,
-              token,
-              reward: terms.reward,
-              creatorBond: terms.creatorBond,
-              workerBond: terms.workerBond,
-              deliveryDeadline: terms.deliveryDeadline,
-              expiredAt,
-              mode: terms.mode === 'hire' ? 0 : 1,
-              selectionDeadline: terms.selectionDeadline ?? 0,
-            },
-          ],
-        }),
-      ),
-    )
-    return transactions
+    return sidequest.publishSidequest(ctx, terms, hash)
   }
 
   /**
@@ -860,7 +812,7 @@ export class Board {
     if (b.kind !== 'advance') throw new BoardError('invalid', "an execution budget is an 'advance' or a 'call'")
     if (b.token === undefined) throw new BoardError('invalid', 'an advance needs its `token`')
     const token = await this.#advanceToken(ctx, b.token)
-    const decimals = await ctx.publicClient.readContract({ address: token, abi: sdk.factoryTokenAbi, functionName: 'decimals' })
+    const decimals = await ctx.publicClient.readContract({ address: token, abi: erc20Abi, functionName: 'decimals' })
     let cap: bigint
     try {
       cap = parseUnits(b.cap, decimals)
@@ -874,7 +826,7 @@ export class Board {
   async #advanceToken(ctx: sdk.Ctx, token: string): Promise<Address> {
     if (!isAddress(token)) return this.#resolveToken(ctx, token)
     const t = getAddress(token)
-    await ctx.publicClient.readContract({ address: t, abi: sdk.factoryTokenAbi, functionName: 'decimals' }).catch(() => {
+    await ctx.publicClient.readContract({ address: t, abi: erc20Abi, functionName: 'decimals' }).catch(() => {
       throw new BoardError('invalid', `${t} is not an ERC-20 on ${ctx.deployment.network}`)
     })
     return t
@@ -883,8 +835,8 @@ export class Board {
   /** A base-unit amount as people read it: the token's symbol and a decimal amount. */
   async #displayAmount<T extends { token: Address; amount: string }>(ctx: sdk.Ctx, x: T): Promise<T & { symbol: string }> {
     const [symbol, decimals] = await Promise.all([
-      ctx.publicClient.readContract({ address: x.token, abi: sdk.factoryTokenAbi, functionName: 'symbol' }),
-      ctx.publicClient.readContract({ address: x.token, abi: sdk.factoryTokenAbi, functionName: 'decimals' }),
+      ctx.publicClient.readContract({ address: x.token, abi: erc20Abi, functionName: 'symbol' }),
+      ctx.publicClient.readContract({ address: x.token, abi: erc20Abi, functionName: 'decimals' }),
     ])
     return { ...x, symbol, amount: formatUnits(BigInt(x.amount), decimals) }
   }
@@ -896,7 +848,7 @@ export class Board {
   async #resolveToken(ctx: sdk.Ctx, token: string): Promise<Address> {
     if (!isAddress(token)) {
       for (const t of ctx.deployment.rewardTokens) {
-        const symbol = await ctx.publicClient.readContract({ address: t, abi: sdk.factoryTokenAbi, functionName: 'symbol' })
+        const symbol = await ctx.publicClient.readContract({ address: t, abi: erc20Abi, functionName: 'symbol' })
         if (symbol.toLowerCase() === token.toLowerCase()) return t
       }
       throw new BoardError('invalid', `"${token}" is not a known token symbol; name the token by its address (any ERC-20)`)
@@ -904,8 +856,8 @@ export class Board {
     const t = getAddress(token)
     if (ctx.deployment.rewardTokens.some((r) => eq(r, t))) return t
     const symbol = await Promise.all([
-      ctx.publicClient.readContract({ address: t, abi: sdk.factoryTokenAbi, functionName: 'symbol' }),
-      ctx.publicClient.readContract({ address: t, abi: sdk.factoryTokenAbi, functionName: 'decimals' }),
+      ctx.publicClient.readContract({ address: t, abi: erc20Abi, functionName: 'symbol' }),
+      ctx.publicClient.readContract({ address: t, abi: erc20Abi, functionName: 'decimals' }),
     ]).then(
       ([sym]) => sym,
       () => {
@@ -920,32 +872,6 @@ export class Board {
       )
     }
     return t
-  }
-
-  /** Approvals a step needs, each for exactly its amount; the spender is JobHolding unless a need names another. */
-  async #approvals(ctx: sdk.Ctx, owner: Address, needs: Array<[Address, bigint, string, spender?: [Address, string]]>): Promise<TxRequest[]> {
-    const out: TxRequest[] = []
-    for (const [token, amount, label, to] of needs) {
-      if (amount === 0n) continue
-      const [spender, spenderLabel] = to ?? [ctx.stack.holding, 'JobHolding']
-      const allowance = await ctx.publicClient.readContract({
-        address: token,
-        abi: sdk.factoryTokenAbi,
-        functionName: 'allowance',
-        args: [owner, spender],
-      })
-      if (allowance >= amount) continue
-      out.push(
-        this.#tx(
-          ctx,
-          `approve ${label} for ${spenderLabel}`,
-          token,
-          // Exactly the amount this step needs, never an unlimited allowance a mismatched listing could draw on.
-          encodeFunctionData({ abi: sdk.factoryTokenAbi, functionName: 'approve', args: [spender, amount] }),
-        ),
-      )
-    }
-    return out
   }
 
   /** Reconcile the original vault operation; omitting txHash polls a previously reported hash. Never prepares or sends. */
@@ -1042,7 +968,7 @@ export class Board {
   listApplications(caller: Caller, input: { taskId: string }) {
     const me = this.#requireCaller(caller)
     const task = this.#task(input.taskId)
-    if (!this.#actsForCreator(task, me)) throw new BoardError('forbidden', 'only the creator (or the pool’s curator) sees applications')
+    if (!this.#actsForCreator(task, me)) throw new BoardError('forbidden', 'only the creator sees applications')
     return this.#sql.all<ApplicationRow>('SELECT * FROM applications WHERE task_id = ? ORDER BY created_at', task.id)
   }
 
@@ -1050,9 +976,8 @@ export class Board {
   async selectWorker(caller: Caller, input: { taskId: string; applicationId: string; activateBy?: number }) {
     const me = this.#requireCaller(caller)
     const task = this.#task(input.taskId)
-    if (!this.#actsForCreator(task, me)) throw new BoardError('forbidden', 'only the creator (or the pool’s curator) selects')
+    if (!this.#actsForCreator(task, me)) throw new BoardError('forbidden', 'only the creator selects')
     const terms = parseTerms(task.terms_json)
-    if (terms.mode !== 'hire') throw new BoardError('invalid', 'contests are awarded, not selected')
     if (task.job_id === null) throw new BoardError('conflict', 'publish the offer first')
     const [app] = this.#sql.all<ApplicationRow>('SELECT * FROM applications WHERE id = ? AND task_id = ?', input.applicationId, task.id)
     if (app === undefined) throw new BoardError('not-found', 'no such application')
@@ -1093,7 +1018,6 @@ export class Board {
     if (typeof input.args.taskId !== 'string') throw new BoardError('invalid', 'signing requires a task')
     const task = this.#task(input.args.taskId)
     const ctx = this.#taskCtx(task)
-    if (!sidequest.isSidequest(ctx)) throw new BoardError('forbidden', 'hosted agents sign only for the v1 stack')
     const typed = assertAgentEnvelope(ctx, input.typedData, me)
     await this.#requireUnpaused(task)
     const view = await this.#requireListingMatches(task)
@@ -1138,7 +1062,7 @@ export class Board {
   async submitSelection(caller: Caller, input: { taskId: string; nonce: string; signature: string }) {
     const me = this.#requireCaller(caller)
     const task = this.#task(input.taskId)
-    if (!this.#actsForCreator(task, me)) throw new BoardError('forbidden', 'only the creator (or the pool’s curator) selects')
+    if (!this.#actsForCreator(task, me)) throw new BoardError('forbidden', 'only the creator selects')
     const [sel] = this.#sql.all<SelectionRow>('SELECT * FROM selections WHERE task_id = ? AND nonce = ?', task.id, input.nonce)
     if (sel === undefined) throw new BoardError('not-found', 'no such pending selection')
     const ctx = this.#taskCtx(task)
@@ -1150,7 +1074,7 @@ export class Board {
       message: { ...this.#selection(task, sel) },
       signature: input.signature as Hex,
     })
-    if (!valid) throw new BoardError('forbidden', 'the signature is not the creator’s over this selection (a pool accepts its curator’s, ERC-1271)')
+    if (!valid) throw new BoardError('forbidden', 'the signature is not the creator’s over this selection')
     this.#sql.run('UPDATE selections SET signature = ? WHERE task_id = ? AND nonce = ?', input.signature, task.id, input.nonce)
     return { ok: true, worker: sel.worker, activateBy: sel.activate_by }
   }
@@ -1168,237 +1092,24 @@ export class Board {
 
   /**
    * Creator: withdraw an open hire nobody has activated. Holding's `cancel` ends it on-chain; `settle` in the same
-   * list returns the reward and the creator bond (both permissionless-effect, one wallet run). A contest cannot be
-   * cancelled: entrants work against the locked prize.
+   * call returns the reward and unlocks the creator bond.
    */
   async cancelTask(caller: Caller, input: { taskId: string }) {
     const me = this.#requireCaller(caller)
     const task = this.#task(input.taskId)
     await this.#requireUnpaused(task)
-    const terms = parseTerms(task.terms_json)
-    if (!this.#actsForCreator(task, me)) throw new BoardError('forbidden', 'only the creator (or the pool’s curator) cancels')
-    if (terms.mode !== 'hire') throw new BoardError('invalid', 'a published contest cannot be cancelled; it ends by award or expiry')
+    if (!this.#actsForCreator(task, me)) throw new BoardError('forbidden', 'only the creator cancels')
     const view = await this.#chainView(task)
-    if (view.status !== 'open' && view.status !== 'lapsed') throw new BoardError('conflict', `only an open hire nobody activated can be cancelled (it is ${view.status})`)
+    if (view.status !== 'open' && view.status !== 'lapsed') throw new BoardError('conflict', 'only an open hire nobody activated can be cancelled')
     const ctx = this.#taskCtx(task)
-    const jobId = this.#jobId(task)
     this.#operation(task.id, 'cancel', me)
-    if (sidequest.isSidequest(ctx)) return { transactions: [this.#tx(ctx, 'Cancel the unactivated hire and refund its reward', ctx.stack.holding,
-      encodeFunctionData({ abi: sdk.sidequestHoldingAbi, functionName: 'cancel', args: [jobId] }), sdk.V1_GAS.cancel)] }
-    const pool = task.pool_id === null ? null : this.#poolRow(task.pool_id)
-    return {
-      transactions: [
-        pool === null
-          ? this.#tx(ctx, 'cancel: ends the listing before anyone activated it', ctx.stack.holding,
-              encodeFunctionData({ abi: sidequest.holdingAbi(ctx), functionName: 'cancel', args: [jobId] }))
-          : this.#tx(ctx, 'cancel: the curator ends the pool’s listing before anyone activated it (forwarded by the pool)', getAddress(pool.pool),
-              encodeFunctionData({ abi: sdk.jobPoolAbi, functionName: 'cancel', args: [] })),
-        this.#tx(ctx, pool === null ? 'settle: returns the reward and your bond' : 'settle: returns the reward to the pool; pledgers then call pool_refund', ctx.stack.holding,
-          encodeFunctionData({ abi: sidequest.holdingAbi(ctx), functionName: 'settle', args: [jobId] })),
-      ],
-    }
+    return { transactions: [this.#tx(ctx, 'Cancel the unactivated hire and refund its reward', ctx.stack.holding,
+      encodeFunctionData({ abi: sdk.sidequestHoldingAbi, functionName: 'cancel', args: [this.#jobId(task)] }), sdk.V1_GAS.cancel)] }
   }
 
-  // -----------------------------------------------------------------------------------------------
-  // Pools (ADR-0007): a JobPool is the creator; its curator acts where the creator would
-  // -----------------------------------------------------------------------------------------------
-
-  /** The creator, or the curator of the pool that is the creator. */
+  /** Whether the caller is the creator. */
   #actsForCreator(task: TaskRow, me: Address): boolean {
-    if (eq(task.creator, me)) return true
-    if (task.pool_id === null || task.pool_id === undefined) return false
-    return eq(this.#poolRow(task.pool_id).curator, me)
-  }
-
-  #poolRow(poolId: string): PoolRow {
-    const [row] = this.#sql.all<PoolRow>('SELECT * FROM pools WHERE id = ?', poolId)
-    if (row === undefined) throw new BoardError('not-found', 'no such pool')
-    return row
-  }
-
-  /**
-   * Curator (or anyone): freeze an offer whose creator is a pool that does not exist yet, at the address the factory
-   * will give it. The caller becomes the curator unless one is named: approver of the offer, signer of its
-   * selections, the one who cancels. Returns the transactions that clone the pool (the SIDE publish hold moves
-   * in with it). Pledgers then `pledge`; anyone launches once the goal is reached.
-   */
-  async createPool(
-    caller: Caller,
-    input: Omit<Parameters<Board['createTask']>[1], 'reward' | 'creatorBond' | 'approver' | 'executionBudget'> & {
-      /** The goal, in the token's units: the offer's reward. */
-      goal: string
-      /** Unix seconds; pledging closes here and a full pool may still launch for a day after. */
-      pledgeDeadline: number
-      curator?: string
-    },
-  ) {
-    const me = this.#requireCaller(caller)
-    const stack = input.stack ?? 'main'
-    const ctx = this.#ctx(stack)
-    const factory = ctx.deployment.poolFactory
-    if (sidequest.isSidequest(ctx)) throw new BoardError('invalid', 'Pools are not supported on Sidequest v1')
-    if (factory === null) throw new BoardError('invalid', `no JobPoolFactory on ${ctx.deployment.network}`)
-    const curator = getAddress(input.curator ?? me)
-    const now = this.#now()
-    if (input.pledgeDeadline <= now + 60) throw new BoardError('invalid', 'the pledge deadline must be in the future')
-    if (input.deliveryDeadline <= input.pledgeDeadline + 86_400) {
-      throw new BoardError('invalid', 'the delivery deadline must lie at least a day past the pledge deadline (the launch grace)')
-    }
-    if (input.mode === 'contest' && (input.selectionDeadline ?? 0) <= input.pledgeDeadline + 86_400) {
-      throw new BoardError('invalid', 'a pooled contest’s selection deadline must lie past the launch grace (pledge deadline + 1 day)')
-    }
-    const salt = bytesToHex(crypto.getRandomValues(new Uint8Array(32)))
-    const pool = await sdk.predictPool(ctx, me, salt)
-    const { goal, pledgeDeadline, curator: _c, ...offer } = input
-    const created = await this.createTask({ address: pool }, { ...offer, stack, reward: goal, creatorBond: '0', approver: curator })
-    const task = this.#task(created.taskId)
-    const terms = parseTerms(task.terms_json)
-    this.#sql.run(
-      'INSERT INTO pools (id, task_id, factory, salt, pool, curator, token, goal, pledge_deadline, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      task.id, task.id, factory, salt, pool, curator, terms.token, terms.reward.toString(), pledgeDeadline, now,
-    )
-    this.#sql.run('UPDATE tasks SET pool_id = ? WHERE id = ?', task.id, task.id)
-    this.#operation(task.id, 'create-pool', me, { pool, curator, salt })
-    const params = await sdk.poolParams(ctx, {
-      salt,
-      curator,
-      goal: terms.reward,
-      pledgeDeadline,
-      publish: {
-        mode: terms.mode,
-        token: terms.token,
-        workerBond: terms.workerBond,
-        manifestHash: task.terms_hash as Hex,
-        termsHash: task.terms_hash as Hex,
-        deliveryDeadline: terms.deliveryDeadline,
-        ...(typeof terms.selectionDeadline === 'number' ? { selectionDeadline: terms.selectionDeadline } : {}),
-      },
-    })
-    const hold = await ctx.publicClient.readContract({ address: ctx.stack.holding, abi: sidequest.holdingAbi(ctx), functionName: 'minHoldToPublish' })
-    const transactions: TxRequest[] = [
-      ...(await this.#approvals(ctx, me, [[ctx.stack.factory, hold, 'SIDE (the publish hold, held by the pool and returned after)', [factory, 'the pool factory']]])),
-      this.#tx(ctx, 'create pool: clones the pool at its predicted address and moves the hold in', factory,
-        encodeFunctionData({ abi: sdk.jobPoolFactoryAbi, functionName: 'create', args: [salt, params] })),
-    ]
-    return {
-      poolId: task.id,
-      taskId: task.id,
-      termsHash: task.terms_hash,
-      pool,
-      curator,
-      goal: terms.reward.toString(),
-      token: terms.token,
-      pledgeDeadline,
-      manifestUrl: created.manifestUrl,
-      transactions,
-      next: 'Send the transactions from your wallet. Pledgers call pledge; once the goal is reached anyone calls launch_pool and reports its hash with report_transaction.',
-    }
-  }
-
-  /** Anyone: the approval and the pledge of `amount` (decimal, in the token's units); the pool caps it to the goal. */
-  async pledge(caller: Caller, input: { poolId: string; amount: string }) {
-    const me = this.#requireCaller(caller)
-    const row = this.#poolRow(input.poolId)
-    const task = this.#task(row.task_id)
-    const ctx = this.#taskCtx(task)
-    const token = getAddress(row.token)
-    const decimals = await ctx.publicClient.readContract({ address: token, abi: sdk.factoryTokenAbi, functionName: 'decimals' })
-    const amount = parseUnits(input.amount, decimals)
-    if (amount <= 0n) throw new BoardError('invalid', 'amount must be positive')
-    const pool = getAddress(row.pool)
-    return {
-      transactions: [
-        ...(await this.#approvals(ctx, me, [[token, amount, 'reward token (the pledge)', [pool, 'the pool']]])),
-        this.#tx(ctx, 'pledge: puts the amount into the pool (capped to what the goal still needs)', pool,
-          encodeFunctionData({ abi: sdk.jobPoolAbi, functionName: 'pledge', args: [amount] })),
-      ],
-    }
-  }
-
-  /** Anyone, once the goal is reached: the launch transaction. Report its hash with report_transaction. */
-  launchPool(caller: Caller, input: { poolId: string }) {
-    this.#requireCaller(caller)
-    const row = this.#poolRow(input.poolId)
-    const task = this.#task(row.task_id)
-    const ctx = this.#taskCtx(task)
-    return {
-      taskId: task.id,
-      transactions: [
-        this.#tx(ctx, 'launch: the pool publishes the offer as its creator, the curator as approver', getAddress(row.pool),
-          encodeFunctionData({ abi: sdk.jobPoolAbi, functionName: 'launch', args: [] })),
-      ],
-    }
-  }
-
-  /** A pledger: the refund transaction (whatever came back to the pool, pro rata), plus the hold reclaim. */
-  poolRefund(caller: Caller, input: { poolId: string }) {
-    this.#requireCaller(caller)
-    const row = this.#poolRow(input.poolId)
-    const task = this.#task(row.task_id)
-    const ctx = this.#taskCtx(task)
-    const pool = getAddress(row.pool)
-    return {
-      transactions: [
-        this.#tx(ctx, 'refund: your share of what came back to the pool (settles the listing first if needed)', pool,
-          encodeFunctionData({ abi: sdk.jobPoolAbi, functionName: 'refund', args: [] })),
-      ],
-      reclaimHold: this.#tx(ctx, 'reclaim hold: returns the SIDE publish hold to the pool’s creator (anyone, once the pool is over)', pool,
-        encodeFunctionData({ abi: sdk.jobPoolAbi, functionName: 'reclaimHold', args: [] })),
-    }
-  }
-
-  async #poolView(row: PoolRow) {
-    const task = this.#task(row.task_id)
-    const ctx = this.#taskCtx(task)
-    const pool = getAddress(row.pool)
-    const code = await ctx.publicClient.getCode({ address: pool })
-    const terms = parseTerms(task.terms_json)
-    const base = {
-      poolId: row.id,
-      taskId: row.task_id,
-      title: terms.title,
-      mode: terms.mode,
-      stack: task.stack,
-      pool,
-      curator: row.curator,
-      token: row.token,
-      goal: row.goal,
-      pledgeDeadline: row.pledge_deadline,
-      jobId: task.job_id,
-    }
-    if (code === undefined || code === '0x') return { ...base, phase: 'pending' as const, totalPledged: '0', paidOut: '0', refundable: false }
-    const s = await sdk.getPool(ctx, pool)
-    return {
-      ...base,
-      phase: s.phase,
-      totalPledged: s.totalPledged.toString(),
-      paidOut: s.paidOut.toString(),
-      refundable: s.refundable,
-      launchedAt: s.launchedAt,
-      cancelledAt: s.cancelledAt,
-      jobId: task.job_id ?? (s.jobId === 0n ? null : s.jobId.toString()),
-    }
-  }
-
-  async listPools(caller: Caller, input: { limit?: number }) {
-    void caller
-    const rows = this.#sql.all<PoolRow>('SELECT * FROM pools ORDER BY created_at DESC LIMIT ?', Math.min(input.limit ?? 50, 200))
-    return { pools: await Promise.all(rows.map((r) => this.#poolView(r))) }
-  }
-
-  async getPool(caller: Caller, input: { poolId: string }) {
-    void caller
-    return this.#poolView(this.#poolRow(input.poolId))
-  }
-
-  /** What a wallet pledged, from the chain. */
-  async pledgedBy(caller: Caller, input: { poolId: string; address?: string }) {
-    const who = input.address === undefined ? this.#requireCaller(caller) : getAddress(input.address)
-    const row = this.#poolRow(input.poolId)
-    const ctx = this.#taskCtx(this.#task(row.task_id))
-    const code = await ctx.publicClient.getCode({ address: getAddress(row.pool) })
-    if (code === undefined || code === '0x') return { address: who, pledged: '0' }
-    return { address: who, pledged: (await sdk.pledgedBy(ctx, getAddress(row.pool), who)).toString() }
+    return eq(task.creator, me)
   }
 
   async approveWork(caller: Caller, input: { taskId: string }) {
@@ -1412,7 +1123,7 @@ export class Board {
     return {
       transactions: [
         this.#tx(ctx, 'accept: pays the reward from escrow, returns both bonds', ctx.stack.evaluator,
-          encodeFunctionData({ abi: sidequest.evaluatorAbi(ctx), functionName: 'accept', args: [this.#jobId(task)] }), sidequest.isSidequest(ctx) ? sdk.V1_GAS.evaluator : undefined),
+          encodeFunctionData({ abi: sidequest.evaluatorAbi(ctx), functionName: 'accept', args: [this.#jobId(task)] }), sdk.V1_GAS.evaluator),
       ],
     }
   }
@@ -1510,16 +1221,16 @@ export class Board {
       deliveryDeadline: input.deliveryDeadline,
       quoteDeadline: input.quoteDeadline,
       requiredChecks: input.requiredChecks ?? [],
-      ...(sidequest.isSidequest(ctx) ? { windows: await sidequest.offerWindows(ctx, input.windows), arbitrator: await sidequest.offerArbitrator(ctx, input.arbitrator) } : {}),
+      windows: await sidequest.offerWindows(ctx, input.windows), arbitrator: await sidequest.offerArbitrator(ctx, input.arbitrator),
       ...(input.deliverable === undefined ? {} : { deliverable: normalSpec(input.deliverable) }),
       salt: `0x${randomId(32)}`,
     }
-    if (sidequest.isSidequest(ctx)) {
+    {
       const bounds = await sdk.readWindowBounds(ctx)
       try {
         validateOffer({ mode: 'hire', windows: request.windows!, arbitrator: request.arbitrator!, creator,
           approver: request.approver, reward: 1n, creatorBond: parseUnits(input.creatorBond, 18), workerBond: parseUnits(input.workerBond, 18),
-          deliveryDeadline: input.deliveryDeadline, selectionDeadline: null } as OfferTerms, request.windows!, now, 'sidequest-v1', bounds)
+          deliveryDeadline: input.deliveryDeadline,  } as OfferTerms, request.windows!, now, 'sidequest-v1', bounds)
       } catch (e) { throw invalidTerms(e) }
     }
     const requestJson = canonicalJson(request)
@@ -1548,7 +1259,7 @@ export class Board {
       throw new BoardError('invalid', 'budget is {token, max}')
     }
     const token = await this.#resolveToken(ctx, input.token)
-    const decimals = await ctx.publicClient.readContract({ address: token, abi: sdk.factoryTokenAbi, functionName: 'decimals' })
+    const decimals = await ctx.publicClient.readContract({ address: token, abi: erc20Abi, functionName: 'decimals' })
     let max: bigint
     try {
       max = parseUnits(input.max, decimals)
@@ -1707,7 +1418,7 @@ export class Board {
     if (!request.tokens.some((t) => eq(t, token))) throw new BoardError('invalid', 'that token is not accepted by this request')
     const agentWallet = await sdk.agentWallet(ctx, BigInt(input.agentId)).catch(() => zeroAddress)
     if (!eq(agentWallet, me)) throw new BoardError('forbidden', `agent ${input.agentId}'s registered wallet is ${agentWallet}, not ${me}`)
-    const decimals = await ctx.publicClient.readContract({ address: token, abi: sdk.factoryTokenAbi, functionName: 'decimals' })
+    const decimals = await ctx.publicClient.readContract({ address: token, abi: erc20Abi, functionName: 'decimals' })
     let amount: bigint
     try {
       amount = parseUnits(input.amount, decimals)
@@ -1721,7 +1432,7 @@ export class Board {
     let expectedCosts: { token: Address; amount: string; note: string } | undefined
     if (input.expectedCosts !== undefined) {
       const costToken = await this.#advanceToken(ctx, input.expectedCosts.token)
-      const costDecimals = await ctx.publicClient.readContract({ address: costToken, abi: sdk.factoryTokenAbi, functionName: 'decimals' })
+      const costDecimals = await ctx.publicClient.readContract({ address: costToken, abi: erc20Abi, functionName: 'decimals' })
       let cost: bigint
       try {
         cost = parseUnits(input.expectedCosts.amount, costDecimals)
@@ -1763,8 +1474,8 @@ export class Board {
     for (const q of this.#sql.all<QuoteRow>('SELECT * FROM quotes WHERE request_id = ? ORDER BY created_at', req.id)) {
       if (!all && !eq(q.worker, me)) continue
       const [symbol, decimals] = await Promise.all([
-        ctx.publicClient.readContract({ address: q.token as Address, abi: sdk.factoryTokenAbi, functionName: 'symbol' }),
-        ctx.publicClient.readContract({ address: q.token as Address, abi: sdk.factoryTokenAbi, functionName: 'decimals' }),
+        ctx.publicClient.readContract({ address: q.token as Address, abi: erc20Abi, functionName: 'symbol' }),
+        ctx.publicClient.readContract({ address: q.token as Address, abi: erc20Abi, functionName: 'decimals' }),
       ])
       out.push({
         quoteId: q.id,
@@ -1807,7 +1518,7 @@ export class Board {
     }
     const taskKey = input.idempotencyKey === undefined ? undefined : `pick-${sdk.hashText(input.idempotencyKey).slice(2)}`
     // A crash can leave pick_task committed before pick_quote. Refuse a retired nested preparation before even
-    // reading token metadata for the reused stack name; a configured legacy preparation keeps its original bytes.
+    // reading token metadata for the reused stack name.
     const taskSaved = this.#idempotent<TaskPreparation>(me, 'pick_task', taskKey)
     if (taskSaved !== undefined) this.#task(taskSaved.taskId)
     const req = this.#quoteRequest(input.requestId)
@@ -1826,7 +1537,7 @@ export class Board {
       windows?: import('./terms.ts').EvaluatorWindows; arbitrator?: Address
       tags?: sdk.JobTag[]
     }
-    const decimals = await ctx.publicClient.readContract({ address: q.token as Address, abi: sdk.factoryTokenAbi, functionName: 'decimals' })
+    const decimals = await ctx.publicClient.readContract({ address: q.token as Address, abi: erc20Abi, functionName: 'decimals' })
     const created = await this.createTask(
       caller,
       {
@@ -1840,7 +1551,6 @@ export class Board {
         creatorBond: r.creatorBond,
         workerBond: r.workerBond,
         deliveryDeadline: r.deliveryDeadline,
-        mode: 'hire',
         stack: req.stack as sdk.StackName,
         approver: r.approver,
         ...(r.windows === undefined ? {} : { windows: r.windows }),
@@ -1920,8 +1630,7 @@ export class Board {
   }
 
   /**
-   * For a selected worker: the creator's signed Selection plus the budget authorisation to sign, and any SIDE
-   * approval the worker bond needs. Activation is the worker's own transaction (R114-01).
+   * For a selected worker: the creator's signed Selection and the net budget authorisation to sign. Activation is the worker's own transaction (R114-01).
    */
   async prepareActivation(caller: Caller, input: { taskId: string }) {
     const me = this.#requireCaller(caller)
@@ -1941,25 +1650,25 @@ export class Board {
       budgetNonce.toString(),
       budgetDeadline,
     )
-    const feeQuote = sidequest.isSidequest(ctx) ? await sidequest.activationQuote(ctx, this.#jobId(task), me, terms) : null
+    const feeQuote = await sidequest.activationQuote(ctx, this.#jobId(task), me, terms)
     return {
       selection: this.#selection(task, sel),
       activateBy: sel.activate_by,
-      transactions: sidequest.isSidequest(ctx) ? [] : await this.#approvals(ctx, me, [[ctx.stack.factory, terms.workerBond, 'SIDE (worker bond)']]),
-      ...(feeQuote === null ? {} : { feeQuote: { feeBps: feeQuote.feeBps, fee: feeQuote.fee.toString(), net: feeQuote.net.toString() } }),
+      transactions: [],
+      feeQuote: { feeBps: feeQuote.feeBps, fee: feeQuote.fee.toString(), net: feeQuote.net.toString() },
       sign: {
         description: 'SetBudgetAuthorization for the quoted worker payment: sign with your wallet, then build_activation with the signature',
         typedData: typedDataJson(sdk.coreDomain(ctx.deployment.chainId, ctx.deployment.core), sdk.setBudgetTypes, 'SetBudgetAuthorization', {
           signer: me,
           jobId: this.#jobId(task),
           token: terms.token,
-          amount: feeQuote?.net ?? terms.reward,
+          amount: feeQuote.net,
           optParamsHash: sdk.EMPTY_HASH,
           nonce: budgetNonce,
           deadline: BigInt(budgetDeadline),
         }),
       } satisfies SignRequest,
-      next: 'Sign the typed data, then build_activation({ taskId, budgetSignature }): it returns any approval still missing and activate, which a batching wallet sends as one transaction. Or send the approval now, then sign and build.',
+      next: 'Sign the quoted net budget authorization, then build_activation({ taskId, budgetSignature }) to confirm activation and reserve your bond from stake.',
     }
   }
 
@@ -1989,7 +1698,7 @@ export class Board {
     if (prep === undefined || prep.nonce !== sel.nonce) throw new BoardError('conflict', 'call prepare_activation first')
     const ctx = this.#taskCtx(task)
     const terms = parseTerms(task.terms_json)
-    if (sidequest.isSidequest(ctx)) {
+    {
       const quote = await sidequest.activationQuote(ctx, this.#jobId(task), me, terms)
       const valid = await ctx.publicClient.verifyTypedData({ address: me,
         domain: sdk.coreDomain(ctx.deployment.chainId, ctx.deployment.core), types: sdk.setBudgetTypes, primaryType: 'SetBudgetAuthorization',
@@ -2001,9 +1710,6 @@ export class Board {
     this.#operation(task.id, 'activate', me, { selectionNonce: sel.nonce })
     return {
       transactions: [
-        // Any approval not sent yet: a wallet that batches (EIP-7702) signs first and sends approve + activate as
-        // one transaction; one that already sent prepare_activation's approval gets none here.
-        ...(sidequest.isSidequest(ctx) ? [] : await this.#approvals(ctx, me, [[ctx.stack.factory, terms.workerBond, 'SIDE (worker bond)']])),
         this.#tx(ctx, 'activate: your final confirmation; sets you as provider, posts your bond, funds the job', ctx.stack.holding,
           encodeFunctionData({
             abi: sidequest.holdingAbi(ctx),
@@ -2088,156 +1794,14 @@ export class Board {
   }
 
   // -----------------------------------------------------------------------------------------------
-  // Contest: finished entries and the approver's atomic award
-  // -----------------------------------------------------------------------------------------------
-
-  /**
-   * An entrant's finished candidate: the board records it and returns the two core authorisations to sign once
-   * (budget = the prize, submit = exactly this deliverable), valid until the selection deadline. After
-   * `submit_entry` the entrant is done: an award pays it with the entrant offline.
-   */
-  async prepareEntry(caller: Caller, input: { taskId: string; agentId: string; deliverable?: unknown; repo?: string; branch?: string; sha?: string }) {
-    const me = this.#requireCaller(caller)
-    const task = this.#task(input.taskId)
-    const terms = parseTerms(task.terms_json)
-    if (terms.mode !== 'contest') throw new BoardError('invalid', 'this task is a hire; apply instead')
-    const view = await this.#requireListingMatches(task)
-    if (view.status !== 'open') throw new BoardError('conflict', `the contest is ${view.status}`)
-    const ctx = this.#taskCtx(task)
-    const agentWallet = await sdk.agentWallet(ctx, BigInt(input.agentId)).catch(() => zeroAddress)
-    if (!eq(agentWallet, me)) throw new BoardError('forbidden', `agent ${input.agentId}'s registered wallet is ${agentWallet}, not ${me}`)
-    const deliverable = this.#acceptedDeliverable(terms, input)
-    const deliverableHash = hashDeliverable(deliverable)
-    const check = await this.#checkDeliverable(deliverable)
-    const cols = legacyColumns(deliverable)
-    const deadline = terms.selectionDeadline ?? 0
-    const id = randomId(8)
-    const budgetNonce = randomUint(9)
-    const submitNonce = randomUint(9)
-    this.#sql.run(
-      `INSERT INTO candidates (id, task_id, worker, agent_id, deliverable_hash, repo, branch, sha, kind, descriptor_json, check_json, deadline, budget_nonce, submit_nonce, budget_sig, submit_sig, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?)
-       ON CONFLICT (task_id, worker, deliverable_hash) DO UPDATE SET agent_id = excluded.agent_id, check_json = excluded.check_json, budget_nonce = excluded.budget_nonce, submit_nonce = excluded.submit_nonce, budget_sig = NULL, submit_sig = NULL`,
-      id, task.id, me, input.agentId, deliverableHash, cols.repo, cols.branch, cols.sha, deliverable.kind, canonicalJson(deliverable), JSON.stringify(check), deadline,
-      budgetNonce.toString(), submitNonce.toString(), this.#now(),
-    )
-    const [row] = this.#sql.all<CandidateRow>('SELECT * FROM candidates WHERE task_id = ? AND worker = ? AND deliverable_hash = ?', task.id, me, deliverableHash)
-    const candidate = row as CandidateRow
-    const core = sdk.coreDomain(ctx.deployment.chainId, ctx.deployment.core)
-    return {
-      candidateId: candidate.id,
-      deliverableHash,
-      deliverable,
-      check,
-      sign: [
-        {
-          description: 'SetBudgetAuthorization for exactly the prize (used only if you are awarded)',
-          typedData: typedDataJson(core, sdk.setBudgetTypes, 'SetBudgetAuthorization', {
-            signer: me, jobId: this.#jobId(task), token: terms.token, amount: terms.reward,
-            optParamsHash: sdk.EMPTY_HASH, nonce: BigInt(candidate.budget_nonce), deadline: BigInt(deadline),
-          }),
-        },
-        {
-          description: 'SubmitAuthorization for exactly this deliverable (used only if you are awarded)',
-          typedData: typedDataJson(core, sdk.submitTypes, 'SubmitAuthorization', {
-            signer: me, jobId: this.#jobId(task), deliverable: deliverableHash,
-            optParamsHash: sdk.EMPTY_HASH, nonce: BigInt(candidate.submit_nonce), deadline: BigInt(deadline),
-          }),
-        },
-      ] satisfies SignRequest[],
-      next: 'Sign both, then submit_entry({taskId, candidateId, budgetSignature, submitSignature}). Nothing else is needed from you.',
-    }
-  }
-
-  /** Stores an entry's two signed authorisations after checking both recover to the entrant. */
-  async submitEntry(caller: Caller, input: { taskId: string; candidateId: string; budgetSignature: string; submitSignature: string }) {
-    const me = this.#requireCaller(caller)
-    const task = this.#task(input.taskId)
-    const c = this.#candidate(task.id, input.candidateId)
-    if (!eq(c.worker, me)) throw new BoardError('forbidden', 'not your candidate')
-    const ctx = this.#taskCtx(task)
-    const terms = parseTerms(task.terms_json)
-    const domain = sdk.coreDomain(ctx.deployment.chainId, ctx.deployment.core)
-    const budgetOk = await ctx.publicClient.verifyTypedData({
-      address: me, domain, types: sdk.setBudgetTypes, primaryType: 'SetBudgetAuthorization',
-      message: { signer: me, jobId: this.#jobId(task), token: terms.token, amount: terms.reward, optParamsHash: sdk.EMPTY_HASH, nonce: BigInt(c.budget_nonce), deadline: BigInt(c.deadline) },
-      signature: input.budgetSignature as Hex,
-    })
-    const submitOk = await ctx.publicClient.verifyTypedData({
-      address: me, domain, types: sdk.submitTypes, primaryType: 'SubmitAuthorization',
-      message: { signer: me, jobId: this.#jobId(task), deliverable: c.deliverable_hash as Hex, optParamsHash: sdk.EMPTY_HASH, nonce: BigInt(c.submit_nonce), deadline: BigInt(c.deadline) },
-      signature: input.submitSignature as Hex,
-    })
-    if (!budgetOk || !submitOk) throw new BoardError('forbidden', 'a signature does not match your entry')
-    this.#sql.run('UPDATE candidates SET budget_sig = ?, submit_sig = ? WHERE id = ?', input.budgetSignature, input.submitSignature, c.id)
-    return { ok: true, candidateId: c.id, deliverableHash: c.deliverable_hash }
-  }
-
-  #candidate(taskId: string, candidateId: string): CandidateRow {
-    const [c] = this.#sql.all<CandidateRow>('SELECT * FROM candidates WHERE id = ? AND task_id = ?', candidateId, taskId)
-    if (c === undefined) throw new BoardError('not-found', 'no such candidate')
-    return c
-  }
-
-  /** The approver and creator see every complete entry; an entrant sees its own. */
-  listCandidates(caller: Caller, input: { taskId: string }) {
-    const me = this.#requireCaller(caller)
-    const task = this.#task(input.taskId)
-    const terms = parseTerms(task.terms_json)
-    const all = eq(terms.approver, me) || eq(terms.creator, me)
-    const rows = this.#sql.all<CandidateRow>(
-      'SELECT * FROM candidates WHERE task_id = ? AND budget_sig IS NOT NULL AND submit_sig IS NOT NULL ORDER BY created_at',
-      task.id,
-    )
-    return rows
-      .filter((r) => all || eq(r.worker, me))
-      .map((r) => {
-        const v = deliverableView(r)
-        return { candidateId: r.id, worker: r.worker, agentId: r.agent_id, repo: r.repo, branch: r.branch, sha: r.sha, deliverableHash: r.deliverable_hash, descriptor: v.descriptor, check: v.check }
-      })
-  }
-
-  /** The approver's award: pays the chosen entry in one transaction; any failure leaves the contest open. */
-  async awardCandidate(caller: Caller, input: { taskId: string; candidateId: string }) {
-    const me = this.#requireCaller(caller)
-    const task = this.#task(input.taskId)
-    await this.#requireUnpaused(task)
-    const terms = parseTerms(task.terms_json)
-    if (!eq(terms.approver, me)) throw new BoardError('forbidden', 'only the approver awards')
-    const c = this.#candidate(task.id, input.candidateId)
-    if (c.budget_sig === null || c.submit_sig === null) throw new BoardError('conflict', 'the entry is not complete')
-    const ctx = this.#taskCtx(task)
-    this.#operation(task.id, 'award', me, { candidateId: c.id, worker: c.worker, agentId: c.agent_id, deliverableHash: c.deliverable_hash })
-    const auth = (nonce: string, sig: string) => ({ signer: getAddress(c.worker), nonce: BigInt(nonce), deadline: BigInt(c.deadline), sig: sig as Hex })
-    return {
-      transactions: [
-        this.#tx(ctx, 'award: pays this entry and closes the contest in one transaction', ctx.stack.holding,
-          encodeFunctionData({
-            abi: sidequest.holdingAbi(ctx),
-            functionName: 'award',
-            args: [this.#jobId(task), {
-              worker: getAddress(c.worker),
-              agentId: BigInt(c.agent_id),
-              deliverable: c.deliverable_hash as Hex,
-              budgetAuth: auth(c.budget_nonce, c.budget_sig),
-              submitAuth: auth(c.submit_nonce, c.submit_sig),
-            }],
-          })),
-      ],
-      next: 'Send it, then report_transaction.',
-    }
-  }
-
-  // -----------------------------------------------------------------------------------------------
   // Evidence (the attester)
   // -----------------------------------------------------------------------------------------------
 
   /**
-   * The attester reads the GitHub check runs of a deliverable's exact SHA (a contest candidate, or a hire's
-   * recorded deliverable), signs an `EvidenceAttestation` bound to this offer's policy and that deliverable, and the
+   * The attester reads the GitHub check runs of a hire's recorded deliverable SHA, signs an `EvidenceAttestation` bound to this offer's policy and that deliverable, and the
    * relay attaches it on-chain. Evidence is advisory: it moves no money and gates nothing.
    */
-  async requestEvidence(caller: Caller, input: { taskId: string; candidateId?: string }) {
+  async requestEvidence(caller: Caller, input: { taskId: string }) {
     const me = this.#requireCaller(caller)
     const cfg = this.#config.evidence
     if (cfg === undefined) throw new BoardError('invalid', 'the attester is not configured on this board (unavailable)')
@@ -2245,18 +1809,14 @@ export class Board {
     await this.#requireUnpaused(task)
     const terms = parseTerms(task.terms_json)
     const ctx = this.#taskCtx(task)
-    const target =
-      input.candidateId !== undefined
-        ? this.#candidate(task.id, input.candidateId)
-        : this.#sql.all<{ repo: string; sha: string; deliverable_hash: string }>(
+    const target = this.#sql.all<{ repo: string; sha: string; deliverable_hash: string }>(
             'SELECT repo, sha, deliverable_hash FROM deliverables WHERE task_id = ? ORDER BY created_at DESC LIMIT 1',
             task.id,
           )[0]
     if (target === undefined) throw new BoardError('not-found', 'no deliverable to attest')
-    // The relay pays for each attestation: only the parties (or the candidate's own entrant) may ask for one.
-    const entrant = 'worker' in target && eq(target.worker as string, me)
-    if (!entrant && this.#roles(terms, await this.#chainView(task), me).length === 0) {
-      throw new BoardError('forbidden', 'only the creator, approver, worker or the entrant asks for evidence')
+    // The relay pays for each attestation: only the parties may ask for one.
+    if (this.#roles(terms, await this.#chainView(task), me).length === 0) {
+      throw new BoardError('forbidden', 'only the creator, approver, worker asks for evidence')
     }
     const [already] = this.#sql.all<{ conclusion: number; tx_hash: string }>(
       'SELECT conclusion, tx_hash FROM evidence WHERE task_id = ? AND submission_hash = ? AND tested_sha = ? AND created_at > ? ORDER BY created_at DESC LIMIT 1',
@@ -2304,7 +1864,7 @@ export class Board {
   }
 
   /**
-   * Every evidence statement on this task with its label (R114-06): "matches the awarded on-chain deliverable" only
+   * Every evidence statement on this task with its label (R114-06): "matches the on-chain deliverable" only
    * when it names the deliverable the core recorded in `JobSubmitted`; before that, "matches this submitted
    * candidate" when it names a deliverable the board recorded. A job id alone is never a match.
    */
@@ -2312,7 +1872,6 @@ export class Board {
     const onchain = this.#sql.all<{ deliverable_hash: string }>('SELECT deliverable_hash FROM onchain_submissions WHERE task_id = ?', task.id)[0]
     const known = new Set(
       [
-        ...this.#sql.all<{ h: string }>('SELECT deliverable_hash AS h FROM candidates WHERE task_id = ?', task.id),
         ...this.#sql.all<{ h: string }>('SELECT deliverable_hash AS h FROM deliverables WHERE task_id = ?', task.id),
       ].map((r) => r.h.toLowerCase()),
     )
@@ -2329,28 +1888,16 @@ export class Board {
         checks: JSON.parse(e.checks_json) as unknown,
         txHash: e.tx_hash,
         label: eq(onchain?.deliverable_hash, e.submission_hash)
-          ? 'matches the awarded on-chain deliverable'
+          ? 'matches the on-chain deliverable'
           : known.has(e.submission_hash.toLowerCase())
-            ? 'matches this submitted candidate'
+            ? 'matches this submitted deliverable'
             : 'unmatched',
       }))
   }
 
-  // -----------------------------------------------------------------------------------------------
-  // Arbitration (any harness holding the arbitrator key: apps/arbiter, a Claude Code session, a person)
-  // -----------------------------------------------------------------------------------------------
-
-  readonly #arbitrators = new Map<string, Address>()
-
   async #arbitratorOf(task: TaskRow): Promise<Address> {
     const ctx = this.#taskCtx(task)
-    if (sidequest.isSidequest(ctx)) return (await sdk.termsOf(ctx, this.#jobId(task))).arbitrator
-    const key = ctx.stack.evaluator.toLowerCase()
-    const known = this.#arbitrators.get(key)
-    if (known !== undefined) return known
-    const a = await ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: sdk.jobsEvaluatorAbi, functionName: 'arbitrator' })
-    this.#arbitrators.set(key, a)
-    return a
+    return (await sdk.termsOf(ctx, this.#jobId(task))).arbitrator
   }
 
   async #requireArbitrator(caller: Caller, task: TaskRow): Promise<Address> {
@@ -2366,9 +1913,7 @@ export class Board {
     }
     for (const ctx of Object.values(this.#config.contexts)) {
       if (ctx === undefined) continue
-      const address = sidequest.isSidequest(ctx)
-        ? await ctx.publicClient.readContract({ address: ctx.stack.holding, abi: sdk.sidequestHoldingAbi, functionName: 'defaultArbitrator' })
-        : await ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: sdk.jobsEvaluatorAbi, functionName: 'arbitrator' })
+      const address = await ctx.publicClient.readContract({ address: ctx.stack.holding, abi: sdk.sidequestHoldingAbi, functionName: 'defaultArbitrator' })
       if (eq(address, me)) return true
     }
     return false
@@ -2579,7 +2124,7 @@ export class Board {
       throw new BoardError('conflict', 'this dispute already has a different decision recorded')
     }
     const ctx = this.#taskCtx(task)
-    if (recorded !== undefined && sidequest.isSidequest(ctx)) {
+    if (recorded !== undefined) {
       const spent = await sidequest.rulingNonceUsed(ctx, me, BigInt(row.nonce))
       if (spent) {
         // The case is still unresolved (checked above), so this nonce was cancelled. Preserve the decision,
@@ -2681,11 +2226,11 @@ export class Board {
     if (!valid) throw new BoardError('forbidden', 'the signature is not the arbitrator’s over this ruling')
     this.#sql.run('UPDATE rulings SET signature = ? WHERE task_id = ? AND disputed_at = ?', input.signature, task.id, disputedAt)
     const tx = this.#tx(ctx, 'ruleWithSignature: settles the dispute as ruled', ctx.stack.evaluator,
-      encodeFunctionData({ abi: sidequest.evaluatorAbi(ctx), functionName: 'ruleWithSignature', args: [ruling, input.signature as Hex] }), sidequest.isSidequest(ctx) ? sdk.V1_GAS.evaluator : undefined)
+      encodeFunctionData({ abi: sidequest.evaluatorAbi(ctx), functionName: 'ruleWithSignature', args: [ruling, input.signature as Hex] }), sdk.V1_GAS.evaluator)
     const relay = this.#config.relay
     // A crash after an earlier relay: the nonce is spent, so that ruling is on-chain; never send a second one.
     const spent = await sidequest.rulingNonceUsed(ctx, arbitrator, ruling.nonce)
-    if (spent && sidequest.isSidequest(ctx) && (await sdk.caseOf(ctx, this.#jobId(task))).outcome === 0) throw new BoardError('conflict', 'the ruling nonce was cancelled; prepare_ruling returns a new nonce for the recorded decision')
+    if (spent && (await sdk.caseOf(ctx, this.#jobId(task))).outcome === 0) throw new BoardError('conflict', 'the ruling nonce was cancelled; prepare_ruling returns a new nonce for the recorded decision')
     if (spent) return { relayed: true, txHash: null, note: 'this ruling is already on-chain (its nonce is spent)', task: await this.getTask(caller, { taskId: task.id }) }
     if (relay === undefined) return { relayed: false, transactions: [tx], next: 'Anyone may send it; then report_transaction.' }
     const hash = await this.#sendRelay({ key: `ruling:${ctx.stack.evaluator}:${ruling.nonce}:${input.signature}`, to: tx.to, data: tx.data,
@@ -2704,7 +2249,6 @@ export class Board {
     const task = this.#task(input.taskId)
     const me = await this.#requireArbitrator(caller, task)
     const ctx = this.#taskCtx(task)
-    if (!sidequest.isSidequest(ctx)) throw new BoardError('invalid', 'Legacy rulings cannot be cancelled')
     const decision = await sdk.caseOf(ctx, this.#jobId(task))
     if (decision.outcome !== 0) return { resolved: true, nonce: null, transactions: [] }
     const row = this.#ruling(task.id, decision.disputedAt)
@@ -2723,49 +2267,8 @@ export class Board {
   async settlementActions(caller: Caller, input: { taskId: string }) {
     const task = this.#task(input.taskId)
     const ctx = this.#taskCtx(task)
-    if (sidequest.isSidequest(ctx)) return { status: (await this.#chainView(task)).status,
+    return { status: (await this.#chainView(task)).status,
       transactions: await sidequest.settleSidequest(ctx, this.#jobId(task), caller.address, this.#now()) }
-    await this.#requireUnpaused(task)
-    const view = await this.#chainView(task)
-    const jobId = this.#jobId(task)
-    const call = (fn: 'completeAfterSilence' | 'rejectAfterWindow' | 'refundAfterArbitrationTimeout' | 'rejectAfterDeliveryDeadline', what: string) =>
-      this.#tx(ctx, what, ctx.stack.evaluator, encodeFunctionData({ abi: sidequest.evaluatorAbi(ctx), functionName: fn, args: [jobId] }))
-    const txs: TxRequest[] = []
-    const now = this.#now()
-    const s = view.status
-    if (s === 'submitted' && view.reviewEndsAt !== null && now > view.reviewEndsAt && view.timely) {
-      txs.push(call('completeAfterSilence', 'silence is acceptance: pays the worker'))
-    }
-    if (s === 'rejected-pending' && view.disputeEndsAt !== null && now > view.disputeEndsAt) {
-      txs.push(call('rejectAfterWindow', 'the undisputed rejection becomes final'))
-    }
-    if (s === 'disputed' && view.arbitrationEndsAt !== null && now > view.arbitrationEndsAt) {
-      txs.push(call('refundAfterArbitrationTimeout', 'arbitrator inactive: refund, both bonds back'))
-    }
-    if ((s === 'active' || (s === 'submitted' && !view.timely)) && now > view.deliveryDeadline) {
-      txs.push(call('rejectAfterDeliveryDeadline', 'missed delivery: refund, the worker bond burns'))
-    }
-    if (s === 'selection-closed') {
-      txs.push(this.#tx(ctx, 'expireContest: no award by the selection deadline; the prize returns', ctx.stack.holding,
-        encodeFunctionData({ abi: sidequest.holdingAbi(ctx), functionName: 'expireContest', args: [jobId] })))
-    }
-    // A timeout that ends in a refund leaves the reward in Holding: offer settle right after it, so a batching
-    // wallet sends both as one transaction (a sequential one sends them in order).
-    const completes = txs.length === 1 && s === 'submitted' && view.timely
-    if (txs.length === 1 && !completes) {
-      txs.push(this.#tx(ctx, 'settle: pays out what the timeout left in Holding', ctx.stack.holding,
-        encodeFunctionData({ abi: sidequest.holdingAbi(ctx), functionName: 'settle', args: [jobId] })))
-    } else if (['rejected', 'expired', 'cancelled'].includes(s) || (view.coreStatus === 'Expired')) {
-      // Offered only while Holding still has something to pay out: a settled job answers NothingToSettle.
-      const pending = await ctx.publicClient
-        .simulateContract({ address: ctx.stack.holding, abi: sidequest.holdingAbi(ctx), functionName: 'settle', args: [jobId] })
-        .then(() => true, () => false)
-      if (pending) {
-        txs.push(this.#tx(ctx, 'settle: pays out what is still in Holding', ctx.stack.holding,
-          encodeFunctionData({ abi: sidequest.holdingAbi(ctx), functionName: 'settle', args: [jobId] })))
-      }
-    }
-    return { status: s, transactions: txs }
   }
 
   /**
@@ -2796,8 +2299,7 @@ export class Board {
         creator: terms.creator,
         approver: terms.approver,
         deliveryDeadline: terms.deliveryDeadline,
-        selectionDeadline: terms.selectionDeadline,
-        requiredChecks: terms.evidencePolicy?.checks ?? [],
+          requiredChecks: terms.evidencePolicy?.checks ?? [],
         quoted: terms.quote !== null,
         deliverable: specOf(terms),
         executionBudget: terms.executionBudget === undefined ? null : { ...terms.executionBudget, cap: terms.executionBudget.cap.toString() },
@@ -2933,7 +2435,6 @@ export class Board {
       arbitrator: terms.arbitrator ?? null,
       windows: terms.windows,
       deliveryDeadline: terms.deliveryDeadline,
-      selectionDeadline: terms.selectionDeadline,
       termsHash: task.terms_hash,
       manifestUrl: `${this.#config.manifestBaseUrl}/${task.terms_hash}.json`,
       deliverable: specOf(terms),
@@ -2989,9 +2490,7 @@ export class Board {
    */
   async #recoverPublish(task: TaskRow): Promise<string | null> {
     const ctx = this.#taskCtx(task)
-    const listed = sidequest.isSidequest(ctx)
-      ? await ctx.publicClient.readContract({ address: ctx.stack.holding, abi: sdk.sidequestHoldingAbi, functionName: 'policyListed', args: [getAddress(task.creator), task.terms_hash as Hex] })
-      : await ctx.publicClient.readContract({ address: ctx.stack.holding, abi: sdk.jobHoldingAbi, functionName: 'policyListed', args: [task.terms_hash as Hex] }).catch(() => false)
+    const listed = await ctx.publicClient.readContract({ address: ctx.stack.holding, abi: sdk.sidequestHoldingAbi, functionName: 'policyListed', args: [getAddress(task.creator), task.terms_hash as Hex] })
     if (!listed) return null
     const counter = await ctx.publicClient.readContract({ address: ctx.deployment.core, abi: sdk.coreAbi, functionName: 'jobCounter' })
     for (let id = counter; id > 0n && id > counter - 64n; id--) {
@@ -3012,90 +2511,20 @@ export class Board {
   /** The task's chain facts, read now. The board's own records never override these. */
   async #chainView(task: TaskRow): Promise<ChainView> {
     const terms = parseTerms(task.terms_json)
-    const base: ChainView = {
-      status: 'awaiting-publish',
-      coreStatus: null,
-      listingMatchesOffer: null,
-      provider: null,
-      submittedAt: null,
-      timely: false,
-      deliveryDeadline: terms.deliveryDeadline,
-      reviewEndsAt: null,
-      disputeEndsAt: null,
-      arbitrationEndsAt: null,
-      violation: null,
-    }
+    const base: ChainView = { status: 'awaiting-publish', coreStatus: null, listingMatchesOffer: null, provider: null,
+      submittedAt: null, timely: false, deliveryDeadline: terms.deliveryDeadline, reviewEndsAt: null,
+      disputeEndsAt: null, arbitrationEndsAt: null, violation: null }
     if (task.job_id === null && (await this.#recoverPublish(task)) === null) return base
-    const ctx = this.#taskCtx(task)
-    const jobId = BigInt(task.job_id as string)
-    if (sidequest.isSidequest(ctx)) return await sidequest.sidequestChainView(ctx, jobId, terms, task.terms_hash as Hex, this.#now()) as ChainView
-    const [job, listing, rejectedAt, disputedAt, violation] = await Promise.all([
-      sdk.getJob(ctx, jobId),
-      sdk.getListing(ctx, jobId),
-      ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: sidequest.evaluatorAbi(ctx), functionName: 'rejectedAt', args: [jobId] }),
-      ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: sidequest.evaluatorAbi(ctx), functionName: 'disputedAt', args: [jobId] }),
-      ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: sidequest.evaluatorAbi(ctx), functionName: 'violationOf', args: [jobId] }),
-    ])
-    const matches = listingMatches(terms, task.terms_hash as Hex, {
-      creator: listing.creator,
-      approver: listing.approver,
-      token: listing.token,
-      reward: listing.reward,
-      creatorBond: listing.creatorBond,
-      workerBond: listing.workerBond,
-      deliveryDeadline: listing.deliveryDeadline,
-      selectionDeadline: listing.selectionDeadline,
-      mode: listing.mode,
-      policyHash: listing.policyHash,
-    })
-    const submittedAt = job.submittedAt === 0 ? null : job.submittedAt
-    const timely = submittedAt !== null && submittedAt <= terms.deliveryDeadline
-    const now = this.#now()
-    let status: TaskStatus
-    switch (job.statusName) {
-      case 'Open':
-        status =
-          terms.mode === 'contest'
-            ? now > (terms.selectionDeadline ?? 0) ? 'selection-closed' : 'open'
-            : now > terms.deliveryDeadline ? 'lapsed' : 'open'
-        break
-      case 'Funded':
-        status = 'active'
-        break
-      case 'Submitted':
-        status = disputedAt !== 0 ? 'disputed' : rejectedAt !== 0 ? 'rejected-pending' : 'submitted'
-        break
-      case 'Completed':
-        status = 'completed'
-        break
-      case 'Rejected':
-        status = job.provider === zeroAddress ? 'cancelled' : 'rejected'
-        break
-      default:
-        status = 'expired'
-    }
-    return {
-      status,
-      coreStatus: job.statusName,
-      listingMatchesOffer: matches,
-      provider: job.provider === zeroAddress ? null : job.provider,
-      submittedAt,
-      timely,
-      deliveryDeadline: terms.deliveryDeadline,
-      reviewEndsAt: submittedAt === null ? null : submittedAt + terms.windows.reviewSeconds,
-      disputeEndsAt: rejectedAt === 0 ? null : rejectedAt + terms.windows.disputeSeconds,
-      arbitrationEndsAt: disputedAt === 0 ? null : disputedAt + terms.windows.arbitrationSeconds,
-      violation: rejectedAt === 0 ? null : (['None', 'Quality', 'Falsified'][violation] ?? null),
-    }
+    return await sidequest.sidequestChainView(this.#taskCtx(task), BigInt(task.job_id as string), terms, task.terms_hash as Hex, this.#now()) as ChainView
   }
 }
 
 export const TASK_STATUSES = [
-  'awaiting-publish', 'open', 'lapsed', 'selection-closed', 'active', 'submitted', 'rejected-pending', 'disputed', 'completed', 'rejected', 'cancelled', 'expired',
+  'awaiting-publish', 'open', 'lapsed', 'active', 'submitted', 'rejected-pending', 'disputed', 'completed', 'rejected', 'cancelled', 'expired',
 ] as const
 export type TaskStatus = (typeof TASK_STATUSES)[number]
 
-/** list_tasks roles: creator includes a pool's curator; worker is any application; invited is a direct invite or a picked quote. */
+/** list_tasks roles: creator owns the offer; worker is any application; invited is a direct invite or a picked quote. */
 export const TASK_ROLES = ['creator', 'approver', 'worker', 'invited'] as const
 export type TaskRole = (typeof TASK_ROLES)[number]
 

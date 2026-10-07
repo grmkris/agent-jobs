@@ -2,9 +2,9 @@ import { readFileSync } from 'node:fs'
 import { createHash, generateKeyPairSync } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import { authorityPolicy } from './policy.ts'
-import { sidequestPolicyPlan } from './sidequest-policy-plan.ts'
+import { sidequestPolicyPlan } from './cutover-policy.ts'
 import { assertFreshPolicy, assertQuorum, createSeparateAuthority, devAuthorityEnv, publicKey, type CutoverState } from './sidequest-cutover.ts'
-import { canonical } from './update-holding.ts'
+import { canonical } from './policy-document.ts'
 const hash = (v: string) => createHash('sha256').update(v).digest('hex')
 const archived = JSON.parse(readFileSync(new URL('../../../../contracts/config/archive/pre-sidequest-monad-testnet.json', import.meta.url), 'utf8'))
 function key() {

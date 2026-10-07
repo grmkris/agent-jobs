@@ -25,24 +25,18 @@
       "timestamp": "0x1046bb45C8d673d4ea75321280DB34899413c069"
     }
   },
-  "x402": { "usdc": "0x754704Bc059F8C67012fEd69BC8A327a5aafb603", "facilitator": "https://x402-facilitator.molandak.org" },
-  "factory": { "faucet": false, "minter": "0x675269d710692d4d0d7166da11B76463577aad73" },
-  "holdGates": { "minHoldToPublish": 0, "minHoldToClaim": 0 },
-  "faucetTokens": { "names": [], "symbols": [] },
-  "knownTokens": ["0x754704Bc059F8C67012fEd69BC8A327a5aafb603"],
-  "usdPegged": ["0x754704Bc059F8C67012fEd69BC8A327a5aafb603"],
-  "links": { "testnet": "https://dev.sidequest.exchange" },
-  "stacks": {
-    "names": ["main"],
-    "review": [259200],
-    "dispute": [259200],
-    "arbitration": [604800],
-    "margin": [86400]
+  "x402": {
+    "usdc": "0x754704Bc059F8C67012fEd69BC8A327a5aafb603",
+    "facilitator": "https://x402-facilitator.molandak.org"
   },
-  "cre": {
-    "forwarder": "0x76c9cf548b4179F8901cda1f8623568b58215E62",
-    "workflowOwner": null,
-    "workflowName": "sidequest-evidence"
+  "knownTokens": [
+    "0x754704Bc059F8C67012fEd69BC8A327a5aafb603"
+  ],
+  "usdPegged": [
+    "0x754704Bc059F8C67012fEd69BC8A327a5aafb603"
+  ],
+  "links": {
+    "testnet": "https://dev.sidequest.exchange"
   },
   "liquidity": {
     "uniswapV4": {

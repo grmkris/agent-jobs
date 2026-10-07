@@ -1,31 +1,22 @@
-/** Kind-specific v1 preparation. Chain facts remain authoritative; the board supplies unsigned calls only. */
+import { erc20Abi } from 'viem'
+/** V1 preparation. Chain facts remain authoritative; the board supplies unsigned calls only. */
 import * as sdk from '@sidequest/sdk'
 import { type Address, type Hex, encodeFunctionData, formatEther, getAddress, zeroAddress } from 'viem'
 import { AgentFailure } from './agent-failure.ts'
 import { type EvaluatorWindows, type OfferTerms, listingMatches } from './terms.ts'
 
-export const isSidequest = (ctx: sdk.Ctx) => ctx.stack.kind === 'sidequest-v1'
-export const holdingAbi = (ctx: sdk.Ctx) => isSidequest(ctx) ? sdk.sidequestHoldingAbi : sdk.jobHoldingAbi
-export const evaluatorAbi = (ctx: sdk.Ctx) => isSidequest(ctx) ? sdk.sidequestEvaluatorAbi : sdk.jobsEvaluatorAbi
+export const holdingAbi = (_ctx: sdk.Ctx) => sdk.sidequestHoldingAbi
+export const evaluatorAbi = (_ctx: sdk.Ctx) => sdk.sidequestEvaluatorAbi
 
 export function rulingNonceUsed(ctx: sdk.Ctx, arbitrator: Address, nonce: bigint) {
-  return isSidequest(ctx)
-    ? ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: sdk.sidequestEvaluatorAbi, functionName: 'rulingNonceUsed', args: [arbitrator, nonce] })
-    : ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: sdk.jobsEvaluatorAbi, functionName: 'rulingNonceUsed', args: [nonce] })
+  return ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: sdk.sidequestEvaluatorAbi, functionName: 'rulingNonceUsed', args: [arbitrator, nonce] })
 }
 
 export async function offerWindows(ctx: sdk.Ctx, input?: EvaluatorWindows): Promise<EvaluatorWindows> {
-  if (isSidequest(ctx)) return input ?? sdk.standardOfferWindows(await sdk.readWindowBounds(ctx))
-  const [reviewSeconds, disputeSeconds, arbitrationSeconds] = await Promise.all([
-    ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: sdk.jobsEvaluatorAbi, functionName: 'reviewWindow' }),
-    ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: sdk.jobsEvaluatorAbi, functionName: 'disputeWindow' }),
-    ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: sdk.jobsEvaluatorAbi, functionName: 'arbitrationWindow' }),
-  ])
-  return input ?? { reviewSeconds, disputeSeconds, arbitrationSeconds }
+  return input ?? sdk.standardOfferWindows(await sdk.readWindowBounds(ctx))
 }
 
 export async function offerArbitrator(ctx: sdk.Ctx, requested?: string): Promise<Address | undefined> {
-  if (!isSidequest(ctx)) return undefined
   return requested === undefined
     ? ctx.publicClient.readContract({ address: ctx.stack.holding, abi: sdk.sidequestHoldingAbi, functionName: 'defaultArbitrator' })
     : getAddress(requested)
@@ -52,10 +43,10 @@ export async function publishSidequest(ctx: sdk.Ctx, terms: OfferTerms, hash: He
   await requireBacking(ctx, terms.creator, terms.creatorBond, 'creator')
   const windows = { reviewWindow: terms.windows.reviewSeconds, disputeWindow: terms.windows.disputeSeconds, arbitrationWindow: terms.windows.arbitrationSeconds }
   const expiredAt = await sdk.minExpiry(ctx, terms.deliveryDeadline, windows)
-  const allowance = await ctx.publicClient.readContract({ address: terms.token, abi: sdk.factoryTokenAbi, functionName: 'allowance', args: [terms.creator, ctx.stack.holding] })
+  const allowance = await ctx.publicClient.readContract({ address: terms.token, abi: erc20Abi, functionName: 'allowance', args: [terms.creator, ctx.stack.holding] })
   const out: sdk.TxRequest[] = []
   if (allowance < terms.reward) out.push(transaction(ctx, 'Approve the escrowed reward', terms.token,
-    encodeFunctionData({ abi: sdk.factoryTokenAbi, functionName: 'approve', args: [ctx.stack.holding, terms.reward] })))
+    encodeFunctionData({ abi: erc20Abi, functionName: 'approve', args: [ctx.stack.holding, terms.reward] })))
   out.push(transaction(ctx, 'Publish the funded hire and reserve your bond from stake', ctx.stack.holding,
     encodeFunctionData({ abi: sdk.sidequestHoldingAbi, functionName: 'publish', args: [{
       approver: terms.approver, arbitrator: terms.arbitrator, manifestHash: hash, policyHash: hash,
@@ -74,7 +65,7 @@ export function acceptedActivationTerms(terms: OfferTerms): sdk.ActivationTerms 
 
 export function matchesSidequest(terms: OfferTerms, hash: Hex, listing: Awaited<ReturnType<typeof sdk.getV1Listing>>): boolean {
   try { sdk.assertActivationTerms(listing, acceptedActivationTerms(terms)) } catch { return false }
-  return listingMatches(terms, hash, { ...listing, mode: 0, selectionDeadline: 0 })
+  return listingMatches(terms, hash, listing)
 }
 
 export async function activationQuote(ctx: sdk.Ctx, jobId: bigint, worker: Address, terms: OfferTerms) {

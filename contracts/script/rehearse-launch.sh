@@ -136,7 +136,7 @@ jq --arg safe "$SAFE" --arg admin "$DEPLOYER" --arg relay "$RELAY" --arg atteste
   --arg arbitrator "$ARBITRATOR" --arg team "$TEAM" '
   .roles = { admin: $admin, relay: $relay, attester: $attester, arbitrator: $arbitrator }
   | .sidequest = {
-      reuseCore: false, safe: $safe, defaultArbitrator: $arbitrator, margin: 3600,
+      safe: $safe, defaultArbitrator: $arbitrator, margin: 3600,
       schedule: { thresholds: [0, 10000, 100000, 1000000], bps: [3000, 1000, 300, 100], treasury: $safe },
       allocation: { treasury: $safe, ecosystem: $safe, liquidity: $admin },
       vesting: { beneficiary: $team, startOffset: 31536000, duration: 94608000, cliff: 0 },

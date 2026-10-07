@@ -1,4 +1,4 @@
-import * as sdk from '@sidequest/sdk'
+import { erc20Abi } from 'viem'
 import { useSyncExternalStore } from 'react'
 import { type Address, zeroAddress } from 'viem'
 import { useBalance, useReadContracts } from 'wagmi'
@@ -55,7 +55,7 @@ export function useWalletBalances(address: Address): WalletBalances {
   const tokens = useWalletTokens()
   const reads = useReadContracts({
     contracts: tokens.map(
-      (t) => ({ address: t, abi: sdk.factoryTokenAbi, functionName: 'balanceOf', args: [address], chainId: chain.id }) as const,
+      (t) => ({ address: t, abi: erc20Abi, functionName: 'balanceOf', args: [address], chainId: chain.id }) as const,
     ),
     query: { refetchInterval: 10_000 },
   })

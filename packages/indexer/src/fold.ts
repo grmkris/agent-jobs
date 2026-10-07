@@ -40,19 +40,17 @@ export function foldJob(contracts: Contracts, chainId: number, jobId: string, ev
         // self-describing, so preserve that historical interpretation during shared-core refolds while leaving the
         // retired Holding out of active discovery (configuredJobs/jobAvailability still use current addresses).
         const role = contracts.roles.get(e.contract)
-        const publicationIsV1 = a.arbitrator !== undefined && a.reviewWindow !== undefined && a.disputeWindow !== undefined && a.arbitrationWindow !== undefined
-        const kind = publicationIsV1 ? 'sidequest-v1' : 'legacy'
         Object.assign(job, {
           stack: role?.stack ?? null,
-          kind,
-          mode: kind === 'sidequest-v1' || Number(a.mode) === 0 ? 'hire' : 'contest',
+          kind: 'sidequest-v1',
+          mode: 'hire',
           creator: a.creator, approver: a.approver, token: a.token, reward: a.reward,
           creator_bond: a.creatorBond, worker_bond: a.workerBond, policy_hash: a.policyHash,
-          delivery_deadline: Number(a.deliveryDeadline), selection_deadline: a.selectionDeadline === undefined ? null : Number(a.selectionDeadline),
+          delivery_deadline: Number(a.deliveryDeadline), selection_deadline: null,
           expired_at: Number(a.expiredAt),
           status: 'open', published_block: e.block, published_tx: e.txHash,
         })
-        if (kind === 'sidequest-v1') Object.assign(job, {
+        Object.assign(job, {
           arbitrator: a.arbitrator, review_window: Number(a.reviewWindow), dispute_window: Number(a.disputeWindow),
           arbitration_window: Number(a.arbitrationWindow), bonus: '0', outcome: 'None', settlement_outcome: 'None',
           charged_fee: '0', bonus_fee: '0', payout_deferred: 0, refund_deferred: 0,
@@ -62,12 +60,9 @@ export function foldJob(contracts: Contracts, chainId: number, jobId: string, ev
         Object.assign(job, { worker: a.worker, agent_id: a.agentId, status: 'active' })
         if (a.feeBps !== undefined) Object.assign(job, { fee_bps: Number(a.feeBps), fee: a.fee, net: a.net })
         break
-      case 'Awarded':
-        Object.assign(job, { worker: a.worker, agent_id: a.agentId, status: 'awarded' })
-        break
       case 'JobSubmitted':
         job.deliverable = a.deliverable as string
-        if (job.status !== 'awarded') job.status = 'submitted'
+        job.status = 'submitted'
         out.push(stmt('INSERT INTO submissions (chain_id, job_id, deliverable, provider, block, tx_hash) VALUES (?, ?, ?, ?, ?, ?)',
           chainId, jobId, a.deliverable as string, a.provider as string, e.block, e.txHash))
         break
@@ -109,7 +104,6 @@ export function foldJob(contracts: Contracts, chainId: number, jobId: string, ev
           chainId, jobId, e.block, e.logIndex, a.token as string, a.worker as string, a.creator as string, a.amount as string, a.bonusPart as string, e.txHash))
         break
       case 'PayoutOwed':
-      case 'RewardOwed':
         out.push(stmt('INSERT INTO payout_owed (chain_id, job_id, block, log_index, recipient, token, amount, tx_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
           chainId, jobId, e.block, e.logIndex, a.to as string, a.token as string, a.amount as string, e.txHash))
         break
@@ -120,7 +114,6 @@ export function foldJob(contracts: Contracts, chainId: number, jobId: string, ev
         job.status = 'rejected'
         break
       case 'JobExpired':
-      case 'ContestExpired':
         job.status = 'expired'
         break
       case 'Cancelled':
@@ -134,20 +127,18 @@ export function foldJob(contracts: Contracts, chainId: number, jobId: string, ev
           chainId, jobId, e.block, e.logIndex, 'paid', a.recipient as string, a.amount as string, e.txHash))
         break
       case 'RewardSettled':
-        if (a.outcome !== undefined) job.settlement_outcome = SETTLEMENT_OUTCOMES[Number(a.outcome)] ?? null
-        const owed = ordered.some((other) => other.txHash === e.txHash && (other.name === 'PayoutOwed' || other.name === 'RewardOwed')
+        job.settlement_outcome = SETTLEMENT_OUTCOMES[Number(a.outcome)] ?? null
+        const owed = ordered.some((other) => other.txHash === e.txHash && other.name === 'PayoutOwed'
           && String(other.args.to).toLowerCase() === String(a.to).toLowerCase())
         out.push(stmt('INSERT INTO reward_outcomes (chain_id, job_id, block, log_index, kind, recipient, amount, tx_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-          chainId, jobId, e.block, e.logIndex, owed ? 'owed' : a.outcome === undefined ? 'settled' : Number(a.outcome) === 1 ? 'paid' : 'refunded',
+          chainId, jobId, e.block, e.logIndex, owed ? 'owed' : Number(a.outcome) === 1 ? 'paid' : 'refunded',
           a.to as string, a.amount as string, e.txHash))
         break
-      case 'BondBurned':
-      case 'BondReturned':
       case 'BondReleased':
       case 'BondSlashed':
         out.push(stmt('INSERT INTO bond_outcomes (chain_id, job_id, block, log_index, side, outcome, recipient, amount, tx_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-          chainId, jobId, e.block, e.logIndex, SIDES[Number(a.side)] ?? String(a.side), e.name === 'BondBurned' || e.name === 'BondSlashed' ? 'burned' : 'returned',
-          a.account as string ?? (e.name === 'BondReturned' ? a.to as string : null), a.amount as string, e.txHash))
+          chainId, jobId, e.block, e.logIndex, SIDES[Number(a.side)] ?? String(a.side), e.name === 'BondSlashed' ? 'burned' : 'returned',
+          a.account as string, a.amount as string, e.txHash))
         break
       case 'FeedbackRecorded':
       case 'FeedbackFailed':

@@ -41,7 +41,7 @@ LOGDIR="$FOUNDRY_BROADCAST/DeploySidequest.s.sol/$CHAIN"
 fail() { echo "FAIL: $*" >&2; exit 1; }
 ok() { echo "ok: $*"; }
 
-cp config/monad-testnet.json "$CONFIG"
+jq '{rewardTokens: .deployment.rewardTokens} as $fresh | .deployment = $fresh' config/monad-testnet.json >"$CONFIG"
 # The fork must be this run's own anvil: refuse a port something else already serves.
 cast chain-id --rpc-url "$LOCAL" >/dev/null 2>&1 && fail "port $PORT already serves an RPC; stop it, or set PORT"
 anvil --fork-url "$FORK_RPC" --port "$PORT" --block-time 1 --silent 9>&- &

@@ -19,7 +19,7 @@ export function publisherNextAction(view: ChainView, now: number): NextAction | 
     case 'disputed': return view.arbitrationEndsAt !== null && now > view.arbitrationEndsAt
       ? { actor: 'anyone', action: 'settle_arbitration_timeout', deadline: null }
       : { actor: 'arbitrator', action: 'rule', deadline: view.arbitrationEndsAt }
-    case 'lapsed': case 'selection-closed': return { actor: 'anyone', action: 'settle', deadline: null }
+    case 'lapsed': return { actor: 'anyone', action: 'settle', deadline: null }
     default: return null
   }
 }

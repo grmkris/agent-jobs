@@ -76,7 +76,7 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
       const key = JSON.stringify(env)
       if (service?.key === key) return service.board
       const contexts: Partial<Record<sdk.StackName, sdk.Ctx>> = {}
-      for (const name of ['main', 'demo', 'fast'] as const) {
+      for (const name of ['main'] as const) {
         if (sdk.deployment(env.network).stacks[name] !== undefined) contexts[name] = sdk.context(env.network, name, env.rpcUrl)
       }
       const board = new BoardService(fromDurableObjectSql(state.storage.sql.raw, write => state.raw.storage.transactionSync(write)), {
@@ -267,9 +267,9 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
                 if (!isAddress(request.to) || request.data !== '0x' || request.authorizationList.length !== 1 || request.authorizationList[0]!.address.toLowerCase() !== deployment.delegation.delegator.toLowerCase())
                   throw new BoardError('forbidden', 'invalid account-upgrade relay request')
               } else {
-                const pair = [...Object.values(deployment.stacks), ...Object.values(deployment.legacyStacks)].find(s => s?.evaluator.toLowerCase() === request.to.toLowerCase())
+                const pair = Object.values(deployment.stacks).find(s => s?.evaluator.toLowerCase() === request.to.toLowerCase())
                 if (pair === undefined) throw new BoardError('forbidden', 'relay target is not a configured evaluator')
-                const decoded = decodeFunctionData({ abi: pair.kind === 'sidequest-v1' ? sdk.sidequestEvaluatorAbi : sdk.jobsEvaluatorAbi, data: request.data })
+                const decoded = decodeFunctionData({ abi: sdk.sidequestEvaluatorAbi, data: request.data })
                 if (!['attachEvidence', 'ruleWithSignature'].includes(decoded.functionName)) throw new BoardError('forbidden', 'invalid evaluator relay method')
               }
               return toJson({ ok: true, result: await boardFor(req.env).relayTransaction(request) })

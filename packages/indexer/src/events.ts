@@ -46,7 +46,6 @@ export function contractsOf(network: sdk.Network): Contracts {
 /** Use an archived deployment when replaying historical logs offline. */
 export function contractsFromDeployment(d: sdk.Deployment): Contracts {
   const roles = new Map<string, { role: Role; stack: string | null; kind: sdk.StackKind | null }>([[d.core.toLowerCase(), { role: 'core', stack: null, kind: null }]])
-  // Legacy pairs too: jobs published before a redeploy keep emitting there with the legacy ABI.
   for (const [name, s] of sdk.allStacks(d)) {
     roles.set(s.holding.toLowerCase(), { role: 'holding', stack: name, kind: s.kind })
     roles.set(s.evaluator.toLowerCase(), { role: 'evaluator', stack: name, kind: s.kind })
@@ -60,7 +59,6 @@ export function contractsFromDeployment(d: sdk.Deployment): Contracts {
   return { chainId: d.chainId, roles }
 }
 
-const legacyAbis: Partial<Record<Role, Abi>> = { core: sdk.coreAbi as Abi, holding: sdk.jobHoldingAbi as Abi, evaluator: sdk.jobsEvaluatorAbi as Abi }
 const v1Abis: Partial<Record<Role, Abi>> = {
   core: sdk.coreAbi as Abi,
   holding: sdk.sidequestHoldingAbi as Abi,
@@ -86,7 +84,7 @@ export function decode(contracts: Contracts, log: RawLog): IndexedEvent | undefi
   if (topics.length === 0) return undefined
   let decoded: { eventName: string; args: unknown }
   try {
-    const abi = who.kind === 'sidequest-v1' ? v1Abis[who.role] : legacyAbis[who.role]
+    const abi = v1Abis[who.role]
     if (abi === undefined) return undefined
     decoded = decodeEventLog({ abi, data: log.data, topics: topics as [Hex, ...Hex[]] }) as typeof decoded
   } catch {

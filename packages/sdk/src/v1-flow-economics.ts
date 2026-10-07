@@ -1,6 +1,7 @@
+import { erc20Abi } from 'viem'
 /** Per-job economic assertions for the live harness, using its original reconciled terminal receipts. */
 import { type Abi, type Address, type TransactionReceipt, decodeEventLog, zeroAddress } from 'viem'
-import { coreAbi, factoryTokenAbi, sidequestHoldingAbi, stakeVaultAbi } from './abi/index.ts'
+import { coreAbi, sidequestHoldingAbi, stakeVaultAbi } from './abi/index.ts'
 
 interface Event { name: string; args: Record<string, unknown> }
 const eq = (a: unknown, b: Address) => typeof a === 'string' && a.toLowerCase() === b.toLowerCase()
@@ -45,7 +46,7 @@ export function verifyJobEconomics(receipts: readonly TransactionReceipt[], x: J
     exact(`side ${side} Vault release`, amount(vault, 'Released', vaultMatch), slash ? 0n : bond)
     exact(`side ${side} Vault slash`, amount(vault, 'Slashed', vaultMatch), slash ? bond : 0n)
   }
-  const transfers = events(receipts, factoryTokenAbi, x.factory)
+  const transfers = events(receipts, erc20Abi, x.factory)
   // Factory v2 burns supply, so the recipient is zero (not the legacy dead-address sink).
   exact('SIDE burned by Vault', amount(transfers, 'Transfer', a => eq(a.from, x.vault) && eq(a.to, zeroAddress)),
     (x.slashCreator ? x.creatorBond : 0n) + (x.slashWorker ? x.workerBond : 0n))
@@ -53,12 +54,12 @@ export function verifyJobEconomics(receipts: readonly TransactionReceipt[], x: J
   exact('worker reward entitlement', amount(core, 'PaymentReleased', a => eq(a.recipient, x.worker))
     + amount(holding, 'RewardSettled', a => eq(a.to, x.worker) && Number(a.outcome) === 1), x.workerCredit)
   exact('worker deferred reward', amount(holding, 'PayoutOwed', a => eq(a.to, x.worker) && eq(a.token, x.token)), x.workerOwed)
-  exact('worker reward transferred', amount(events(receipts, factoryTokenAbi, x.token), 'Transfer', a => eq(a.to, x.worker)
+  exact('worker reward transferred', amount(events(receipts, erc20Abi, x.token), 'Transfer', a => eq(a.to, x.worker)
     && (eq(a.from, x.core) || eq(a.from, x.holding))), x.workerCredit - x.workerOwed)
 }
 
 /** A withdrawal has no jobId: bind it to this scope's exact reconciled withdrawal receipt and token/account. */
 export function verifyOwedWithdrawal(receipt: TransactionReceipt, holding: Address, token: Address, worker: Address, expected: bigint) {
   exact('worker owed withdrawal', amount(events([receipt], sidequestHoldingAbi, holding), 'OwedWithdrawn', a => eq(a.to, worker) && eq(a.token, token)), expected)
-  exact('worker owed reward transferred', amount(events([receipt], factoryTokenAbi, token), 'Transfer', a => eq(a.from, holding) && eq(a.to, worker)), expected)
+  exact('worker owed reward transferred', amount(events([receipt], erc20Abi, token), 'Transfer', a => eq(a.from, holding) && eq(a.to, worker)), expected)
 }

@@ -91,11 +91,7 @@ export default class Indexer extends Cloudflare.Worker<Indexer>()(
             const now = Math.floor(Date.now() / 1000)
             const deployment = sdk.deployment(network)
             const client = sdk.context(network, 'main', rpcUrl).publicClient
-            const notifications = await queueTelegramNotifications(sql, network, now, { caughtUp, legacyReviewWindow: async (job) => {
-              const pair = Object.entries({ ...deployment.stacks, ...deployment.legacyStacks }).find(([name]) => name === job.stack)?.[1]
-              if (pair === undefined || pair.kind !== 'legacy') return null
-              return Number(await client.readContract({ address: pair.evaluator, abi: sdk.jobsEvaluatorAbi, functionName: 'reviewWindow' }))
-            } })
+            const notifications = await queueTelegramNotifications(sql, network, now, { caughtUp })
             allowSilence = !notifications.stale
             // Owner alert when the sponsorship relay nears its floor; never fails the indexing run.
             await watchRelay(sql, { network, now, relay: deployment.relay, balance: () => client.getBalance({ address: deployment.relay }) })

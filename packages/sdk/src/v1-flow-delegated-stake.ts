@@ -1,3 +1,4 @@
+import { erc20Abi } from 'viem'
 /** Delegated-stake matrix cases, using real jobs and the same durable send journal as every other flow. */
 import { BaseError, ContractFunctionRevertedError, decodeEventLog } from 'viem'
 import * as sdk from './index.ts'
@@ -83,7 +84,7 @@ export async function runDelegatedStakeFlow(d: V1FlowDeps, flow: DelegatedStakeF
   await deposit('creator', firstAmount)
   if (flow === 'slash-pro-rata') {
     // The relay is the second outside owner; reuse its existing key and persist its funding before broadcast.
-    await call('fund-relay', creator, h.factory, sdk.factoryTokenAbi, 'transfer', [relay.account.address, input.amount])
+    await call('fund-relay', creator, h.factory, erc20Abi, 'transfer', [relay.account.address, input.amount])
     await deposit('relay', input.amount)
     await deposit('worker', d.bond + 3n)
   }
@@ -236,7 +237,7 @@ export async function runDelegatedStakeFlow(d: V1FlowDeps, flow: DelegatedStakeF
       exact('withdrawal redeems the fixed shares', event.shares, queued.shares)
       const paid = receipt.logs.filter(log => sameAddress(log.address, h.factory)).reduce((sum, log) => {
         try {
-          const e = decodeEventLog({ abi: sdk.factoryTokenAbi, topics: log.topics, data: log.data })
+          const e = decodeEventLog({ abi: erc20Abi, topics: log.topics, data: log.data })
           return e.eventName === 'Transfer' && sameAddress(e.args.from, h.vault) && sameAddress(e.args.to, wallets[role].account.address)
             ? sum + e.args.value : sum
         } catch { return sum }

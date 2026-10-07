@@ -39,16 +39,12 @@ library SidequestVerify {
         _require(address(d.reserve).code.length != 0, "miningReserve code");
         _require(c.safe.code.length != 0, "safe code");
 
-        // Core: the configured one, charging nothing; a fresh core's admin roles held by the Safe alone.
-        _require(d.coreDeployed != c.reuseCore, "core reuse");
-        if (!d.coreDeployed) _require(address(d.core) == c.existingCore, "reused core");
+        // A fresh core charges nothing and its admin roles belong to the Safe alone.
         _require(d.core.platformFeeBP() == 0 && d.core.evaluatorFeeBP() == 0, "core fees");
-        if (d.coreDeployed) {
-            _require(d.core.hasRole(d.core.DEFAULT_ADMIN_ROLE(), c.safe), "core admin role: safe");
-            _require(d.core.hasRole(d.core.ADMIN_ROLE(), c.safe), "core pause role: safe");
-            _require(!d.core.hasRole(d.core.DEFAULT_ADMIN_ROLE(), c.admin), "core admin role: deployer");
-            _require(!d.core.hasRole(d.core.ADMIN_ROLE(), c.admin), "core pause role: deployer");
-        }
+        _require(d.core.hasRole(d.core.DEFAULT_ADMIN_ROLE(), c.safe), "core admin role: safe");
+        _require(d.core.hasRole(d.core.ADMIN_ROLE(), c.safe), "core pause role: safe");
+        _require(!d.core.hasRole(d.core.DEFAULT_ADMIN_ROLE(), c.admin), "core admin role: deployer");
+        _require(!d.core.hasRole(d.core.ADMIN_ROLE(), c.admin), "core pause role: deployer");
 
         // Wiring.
         _require(address(d.holding.core()) == address(d.core), "holding.core");
@@ -129,13 +125,14 @@ library SidequestVerify {
 
     /// @notice Forge's broadcast log for the deploy: `<broadcast>/DeploySidequest.s.sol/<chainId>/run-latest.json`.
     function runPath(Vm vm, uint256 chainId) internal view returns (string memory) {
-        return string.concat(BroadcastPath.root(vm), "/DeploySidequest.s.sol/", vm.toString(chainId), "/run-latest.json");
+        return
+            string.concat(BroadcastPath.root(vm), "/DeploySidequest.s.sol/", vm.toString(chainId), "/run-latest.json");
     }
 
     /// @notice Deploy blocks from the receipts, after checking the log is complete: every transaction has a successful
     ///         receipt, every candidate contract was created by one of them, and the Factory's creation receipt mints
     ///         exactly the 1e9 supply (review C8-002; SIDE has no mint after its constructor). `sidequestBlock` is the
-    ///         first block of the run; `coreBlock` is the core proxy's block (zero when the core was reused).
+    ///         first block of the run; `coreBlock` is the core proxy's block.
     function blocks(Vm vm, string memory path, SidequestRecipe.Deployed memory d)
         internal
         view
@@ -176,12 +173,10 @@ library SidequestVerify {
         for (uint256 k; k < expected.length; ++k) {
             if (!_contains(created, expected[k])) revert BadBroadcast("candidate contract not created by this run");
         }
-        if (d.coreDeployed) {
-            for (uint256 i; i < n; ++i) {
-                if (created[i] == address(d.core)) coreBlock = blockOf[i];
-            }
-            if (coreBlock == 0) revert BadBroadcast("core proxy not created by this run");
+        for (uint256 i; i < n; ++i) {
+            if (created[i] == address(d.core)) coreBlock = blockOf[i];
         }
+        if (coreBlock == 0) revert BadBroadcast("core proxy not created by this run");
         for (uint256 i; i < n; ++i) {
             if (created[i] == address(d.factory)) {
                 if (_minted(vm, json, receiptOf[i], address(d.factory)) != SidequestConstants.SIDE_SUPPLY) {

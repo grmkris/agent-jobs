@@ -28,7 +28,7 @@ type Auth = ReturnType<typeof useSignedIn>
 interface SavedOffer {
   taskId: string
   title: string
-  kind: 'legacy' | 'sidequest-v1'
+  kind: 'sidequest-v1'
   token: string
   reward: string
   creatorBond: string

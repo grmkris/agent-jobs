@@ -32,7 +32,6 @@ export interface OfferDefaults {
   evidencePolicy?: EvidencePolicy
 }
 
-export type OfferMode = 'hire' | 'contest'
 
 /**
  * An execution budget (ADR-0009): what the creator approved for the worker's running costs, apart from the reward.
@@ -85,12 +84,12 @@ export interface DeploymentBinding {
 }
 
 export interface OfferTerms {
+  mode: 'hire'
   v: 2
   deployment: DeploymentBinding
   taskId: string
   projectId: string | null
   policyVersion: number | null
-  mode: OfferMode
   title: string
   brief: string
   acceptanceCriteria: readonly string[]
@@ -102,11 +101,9 @@ export interface OfferTerms {
   workerBond: bigint
   /** Unix seconds. */
   deliveryDeadline: number
-  /** Contest only; null for a hire. */
-  selectionDeadline: number | null
   creator: Address
   approver: Address
-  /** The arbitrator frozen into a v1 listing; legacy offers omit this field and use the pair's immutable key. */
+  /** The arbitrator frozen into the v1 listing. */
   arbitrator?: Address
   windows: EvaluatorWindows
   eligibility: EligibilityPolicy | null
@@ -173,7 +170,6 @@ export class TermsError extends Error {
       | 'terms-hash-mismatch'
       | 'invalid-deadlines'
       | 'invalid-amounts'
-      | 'contest-worker-bond'
       | 'invalid-budget'
       | 'invalid-deliverable',
     message: string,
@@ -187,32 +183,16 @@ export class TermsError extends Error {
  * publish that must revert, and against the deployed evaluator's windows.
  * @param now Unix seconds.
  */
-export function validateOffer(offer: OfferTerms, evaluator: EvaluatorWindows, now: number, kind: 'legacy' | 'sidequest-v1' = 'legacy', bounds: WindowBounds = windowBounds()): void {
-  if (kind === 'sidequest-v1') {
-    validateSidequestWindows(offer.windows, bounds)
-    if (offer.mode !== 'hire') throw new TermsError('unsupported-mode', 'Sidequest v1 supports hires only.')
-    const a = offer.arbitrator
-    if (a === undefined || !isAddress(a) || a.toLowerCase() === zeroAddress || eq(a, offer.creator) || eq(a, offer.approver)) {
-      throw new TermsError('invalid-arbitrator', 'A v1 offer needs a nonzero arbitrator distinct from its creator and approver.')
-    }
-  } else if (canonicalJson(offer.windows) !== canonicalJson(evaluator)) {
-    throw new TermsError('windows-mismatch', 'Offer windows must equal the deployed evaluator windows.')
+export function validateOffer(offer: OfferTerms, evaluator: EvaluatorWindows, now: number, _kind: 'sidequest-v1' = 'sidequest-v1', bounds: WindowBounds = windowBounds()): void {
+  validateSidequestWindows(offer.windows, bounds)
+  const a = offer.arbitrator
+  if (a === undefined || !isAddress(a) || a.toLowerCase() === zeroAddress || eq(a, offer.creator) || eq(a, offer.approver)) {
+    throw new TermsError('invalid-arbitrator', 'A v1 offer needs a nonzero arbitrator distinct from its creator and approver.')
   }
   if (offer.reward <= 0n || offer.creatorBond < 0n || offer.workerBond < 0n) {
     throw new TermsError('invalid-amounts', 'The reward must be positive and bonds not negative.')
   }
   if (offer.deliveryDeadline <= now) throw new TermsError('invalid-deadlines', 'The delivery deadline has passed.')
-  if (offer.mode === 'contest') {
-    if (offer.workerBond !== 0n) throw new TermsError('contest-worker-bond', 'Contests carry no worker bond.')
-    if (offer.selectionDeadline === null || offer.selectionDeadline <= now) {
-      throw new TermsError('invalid-deadlines', 'A contest needs a future selection deadline.')
-    }
-    if (offer.selectionDeadline >= offer.deliveryDeadline) {
-      throw new TermsError('invalid-deadlines', 'The selection deadline must precede the delivery deadline.')
-    }
-  } else if (offer.selectionDeadline !== null) {
-    throw new TermsError('invalid-deadlines', 'A hire has no selection deadline.')
-  }
   if (offer.deliverable !== undefined) {
     const problem = validateSpec(offer.deliverable)
     if (problem !== undefined) throw new TermsError('invalid-deliverable', `Deliverable: ${problem}.`)
@@ -222,7 +202,6 @@ export function validateOffer(offer: OfferTerms, evaluator: EvaluatorWindows, no
   }
   const b = offer.executionBudget
   if (b !== undefined) {
-    if (offer.mode !== 'hire') throw new TermsError('invalid-budget', 'Only a hire carries an execution budget.')
     if (b.kind === 'advance' && b.cap <= 0n) throw new TermsError('invalid-budget', 'An advance must be positive.')
     if (b.kind === 'call' && b.cap < 0n) throw new TermsError('invalid-budget', 'A call budget cannot send negative value.')
     if (b.kind === 'call') {
@@ -247,8 +226,6 @@ export interface OnChainListing {
   creatorBond: bigint
   workerBond: bigint
   deliveryDeadline: number
-  selectionDeadline: number
-  mode: number
   policyHash: Hex
   arbitrator?: Address
 }
@@ -270,9 +247,7 @@ export function listingMatches(offer: OfferTerms, hash: Hex, listing: OnChainLis
     listing.creatorBond === offer.creatorBond &&
     listing.workerBond === offer.workerBond &&
     listing.deliveryDeadline === offer.deliveryDeadline &&
-    listing.selectionDeadline === (offer.selectionDeadline ?? 0) &&
-    listing.mode === (offer.mode === 'hire' ? 0 : 1)
-    && (offer.arbitrator === undefined || (listing.arbitrator !== undefined && eq(listing.arbitrator, offer.arbitrator)))
+    (listing.arbitrator !== undefined && offer.arbitrator !== undefined && eq(listing.arbitrator, offer.arbitrator))
   )
 }
 
@@ -282,7 +257,7 @@ export interface SidequestWindows {
   arbitrationSeconds: number
 }
 
-/** V1 bounds come from chain/config clocks; production is the fallback for offline legacy records. */
+/** V1 bounds come from chain/config clocks; production is the fallback for records without clock configuration. */
 export function validateSidequestWindows(windows: SidequestWindows, bounds: WindowBounds = windowBounds()): void {
   try { validateOfferWindows(windows, bounds) }
   catch (error) { throw new TermsError('windows-bounds', (error as Error).message) }

@@ -90,7 +90,7 @@ confirmed the deployed icon in the live sign-in modal with no provider errors.
 The separate Sidequest routine policy now pins the fresh contracts and preserves
 the legacy policy and its recovery authority. Its dev binding is guarded by a
 private journal and a four-field dev overlay. See
-[the cutover handoff](sidequest-agent-handoff-2026-10-06.md) for dated readbacks.
+[release evidence](reality-check.md#sidequest-greenfield-dev-release-6-oct-2026) for dated readbacks.
 The indexer retains its minute cron and progressing checkpoints; one completed
 testnet hire is now indexed. V11 verified chain events entering the feed and a
 paid request to the public `/x402/demo` endpoint. Its local test-wallet signature
@@ -154,7 +154,7 @@ records that boundary.
 Rename notices were attempted before overlapping edits; the stored mytmux
 receipts still have unknown delivery. V1.1 and profile have now explicitly
 acknowledged the rename after resuming. The verified local
-[agent handoff](sidequest-agent-handoff-2026-10-06.md) records exact operations,
+[release evidence](reality-check.md#sidequest-greenfield-dev-release-6-oct-2026) records exact operations,
 track heads, ownership and pending gates. GitHub is `grmkris/sidequest`, companion
 deliveries are `grmkris/sidequest-demo-deliveries`, and the shared origin points to
 the new repository. The reviewed reset, V1.1 fixes, S3–S5/P1b, profile C8–C14, Explore W4, the canonical x402 routing fix

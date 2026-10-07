@@ -15,7 +15,7 @@ const artifacts = path => path.startsWith('.artifact-video/') || path.startsWith
 const hash = bytes => createHash('sha256').update(bytes).digest('hex')
 
 export function assertCheckout({ branch, staged, dirty, unknown }) {
-  if (branch !== 'main') throw new Error('checkout-not-main')
+  if (branch !== 'dev') throw new Error('checkout-not-dev')
   if (staged.length || dirty.some(path => !sharedPaths.has(path)) || unknown.some(path => !artifacts(path))) throw new Error('uncommitted-release-source')
 }
 

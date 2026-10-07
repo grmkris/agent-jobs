@@ -1,15 +1,14 @@
 /**
  * Addresses come from `contracts/config/<network>.json`, the file the deployment recipe writes; never from code
- * (AGENTS.md). One network, one core and the current Sidequest pair. Readers also retain every legacy pair and
- * its own SIDE token; legacy jobs never switch contracts when a new pair deploys.
+ * (AGENTS.md). One network, one core and the current Sidequest v1 pair.
  */
 import { type Address, type Hex, encodeAbiParameters, keccak256, parseAbiParameters, zeroAddress } from 'viem'
 import testnet from '../../../contracts/config/monad-testnet.json' with { type: 'json' }
 import mainnet from '../../../contracts/config/monad-mainnet.json' with { type: 'json' }
 
 export type Network = 'monad-testnet' | 'monad-mainnet'
-export type StackName = 'main' | 'demo' | 'fast'
-export type StackKind = 'legacy' | 'sidequest-v1'
+export type StackName = 'main'
+export type StackKind = 'sidequest-v1'
 
 /** Deploy-time protocol clocks. Values are seconds unless the field name says otherwise. */
 export interface SidequestClocks {
@@ -106,11 +105,6 @@ export interface Deployment {
    */
   readonly rewardTokens: readonly Address[]
   readonly stacks: Readonly<Partial<Record<StackName, Stack>>>
-  /**
-   * Earlier pairs replaced by a stacks-only redeploy (`script/DeployStacks.s.sol`), by name (`main-v1`): jobs
-   * published on them stay there, so readers keep serving them. New offers go to `stacks` only.
-   */
-  readonly legacyStacks: Readonly<Record<string, Stack>>
   readonly identity: Address
   readonly reputation: Address
   /**
@@ -122,8 +116,6 @@ export interface Deployment {
   readonly delegation: DelegationDeployment
   /** The core's admin (deployer EOA): pauses, upgrades and verifier registration. */
   readonly admin: Address
-  /** `JobPoolFactory` (ADR-0007): pooled funding of one offer. Null where none is deployed. */
-  readonly poolFactory: Address | null
   readonly arbitrator: Address
   readonly attester: Address
   readonly relay: Address
@@ -208,11 +200,7 @@ export interface DeploymentConfig {
     }
     rewardTokens?: string[]
     testnetFaucet?: string
-    poolFactory?: string
     main?: StackEntry
-    demo?: StackEntry | null
-    fast?: StackEntry | null
-    legacy?: Record<string, StackEntry>
   }
 }
 
@@ -226,12 +214,10 @@ interface StackEntry {
 
 const validAddress = (value: unknown): value is Address => typeof value === 'string' && /^0x[0-9a-fA-F]{40}$/.test(value) && !/^0x0{40}$/.test(value)
 
-const stackOf = (s: StackEntry, fallbackFactory: string, mixed: boolean): Stack => {
-  if (mixed && s.kind === undefined) throw new Error('Sidequest deployment requires an explicit kind on every pair')
-  const kind = s.kind === undefined ? 'legacy' : s.kind
-  if (kind !== 'legacy' && kind !== 'sidequest-v1') throw new Error('Unknown deployment stack kind')
-  // Only pre-v1 legacy configurations may omit the per-pair SIDE.
-  const factory = !mixed && s.factory === undefined && kind === 'legacy' ? fallbackFactory : s.factory
+const stackOf = (s: StackEntry): Stack => {
+  const kind = s.kind
+  if (kind !== 'sidequest-v1') throw new Error('Unknown deployment stack kind')
+  const factory = s.factory
   if (!validAddress(factory)) throw new Error('Deployment stack requires a SIDE address')
   return { kind, factory, holding: s.holding as Address, evaluator: s.evaluator as Address, openTokens: s.openTokens === true }
 }
@@ -283,12 +269,8 @@ export function deploymentFromConfig(network: Network, c: DeploymentConfig): Dep
   if (c.network !== network) throw new Error('Deployment config network mismatch')
   const d = c.deployment
   if (d.core === undefined || d.factory === undefined || d.main === undefined) throw new NotDeployedError(network)
-  const mixed = d.sidequest !== undefined
-  if (mixed && d.main.kind !== 'sidequest-v1') throw new Error('Sidequest deployment requires a sidequest-v1 main pair')
-  const stacks: Partial<Record<StackName, Stack>> = { main: stackOf(d.main, d.factory, mixed) }
-  if (d.demo != null) stacks.demo = stackOf(d.demo, d.factory, mixed)
-  if (d.fast != null) stacks.fast = stackOf(d.fast, d.factory, mixed)
-  const legacyStacks = Object.fromEntries(Object.entries(d.legacy ?? {}).map(([name, s]) => [name, stackOf(s, d.factory!, mixed)]))
+  if (d.sidequest === undefined) throw new Error('Sidequest stack requires its matching v1 deployment')
+  const stacks: Partial<Record<StackName, Stack>> = { main: stackOf(d.main) }
   let sidequest: SidequestDeployment | null = null
   if (d.sidequest !== undefined) {
     const h = d.sidequest
@@ -301,10 +283,7 @@ export function deploymentFromConfig(network: Network, c: DeploymentConfig): Dep
       distributor: h.distributor as Address, miningReserve: h.miningReserve as Address, teamVesting: h.teamVesting as Address, t0: h.t0,
       ...(clocks === undefined ? {} : { clocks }) }
   }
-  for (const s of [...Object.values(stacks), ...Object.values(legacyStacks)]) {
-    if (s?.kind === 'sidequest-v1' && (sidequest === null || s.factory.toLowerCase() !== sidequest.factory.toLowerCase())) throw new Error('Sidequest stack requires its matching v1 deployment')
-  }
-  if (stacks.main?.kind === 'sidequest-v1' && stacks.main.factory.toLowerCase() !== d.factory.toLowerCase()) throw new Error('Current Sidequest SIDE does not match deployment SIDE')
+  if (sidequest !== null && stacks.main?.factory.toLowerCase() !== sidequest.factory.toLowerCase()) throw new Error('Current Sidequest SIDE does not match deployment SIDE')
   return {
     network,
     chainId: c.chainId,
@@ -313,7 +292,6 @@ export function deploymentFromConfig(network: Network, c: DeploymentConfig): Dep
     sidequest,
     rewardTokens: (d.rewardTokens ?? []) as Address[],
     stacks,
-    legacyStacks,
     identity: c.erc8004.identity as Address,
     reputation: c.erc8004.reputation as Address,
     delegation: {
@@ -322,7 +300,6 @@ export function deploymentFromConfig(network: Network, c: DeploymentConfig): Dep
       enforcers: c.delegation.enforcers as DelegationEnforcers,
     },
     admin: c.roles.admin as Address,
-    poolFactory: d.poolFactory === undefined ? null : (d.poolFactory as Address),
     arbitrator: c.roles.arbitrator as Address,
     attester: c.roles.attester as Address,
     relay: c.roles.relay as Address,
@@ -333,11 +310,6 @@ export function deploymentFromConfig(network: Network, c: DeploymentConfig): Dep
   }
 }
 
-/**
- * @param d A deployment.
- * @param name The window set.
- * @throws Error when that stack is not deployed on this network (mainnet has no "demo").
- */
 function marketFromConfig(side: Address, l: LiquidityConfig | undefined): Market | null {
   if (l === undefined || !validAddress(l.quote)) return null
   const v4 = l.uniswapV4
@@ -356,15 +328,14 @@ export function stack(d: Deployment, name: StackName): Stack {
   return s
 }
 
-/** Every pair on the network, current and legacy, by name: what a reader of past jobs must know. */
+/** The configured v1 pairs on the network, by name. */
 export function allStacks(d: Deployment): Array<[name: string, stack: Stack]> {
   const out: Array<[string, Stack]> = []
   for (const [name, s] of Object.entries(d.stacks)) if (s !== undefined) out.push([name, s])
-  for (const [name, s] of Object.entries(d.legacyStacks)) out.push([name, s])
   return out
 }
 
-/** The pair (current or legacy) whose Holding is `holding`, with its name; undefined for an unknown address. */
+/** The configured pair whose Holding is `holding`; undefined for a retired or unknown address. */
 export function stackByHolding(d: Deployment, holding: string): [name: string, stack: Stack] | undefined {
   return allStacks(d).find(([, s]) => s.holding.toLowerCase() === holding.toLowerCase())
 }

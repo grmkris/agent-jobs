@@ -1,9 +1,9 @@
+import { erc20Abi } from 'viem'
 import { Button } from './ui/button.tsx'
 import { Item, ItemGroup, ItemContent, ItemDescription } from './ui/item.tsx'
 import { Details, Address, CopyButton, Section, textLinkClass } from './kit.tsx'
 import { TestnetFaucet } from './TestnetFaucet.tsx'
 import { BuyButtons } from './Buy.tsx'
-import * as sdk from '@sidequest/sdk'
 import { Fragment, useState } from 'react'
 import { zeroAddress } from 'viem'
 import { useBalance, useReadContracts } from 'wagmi'
@@ -35,7 +35,7 @@ function FundPanel({ address, onClose }: { address: `0x${string}`; onClose: () =
   const tokens = useWalletTokens()
   const balances = useReadContracts({
     contracts: tokens.map(
-      (t) => ({ address: t, abi: sdk.factoryTokenAbi, functionName: 'balanceOf', args: [address], chainId: chain.id }) as const,
+      (t) => ({ address: t, abi: erc20Abi, functionName: 'balanceOf', args: [address], chainId: chain.id }) as const,
     ),
     query: { refetchInterval: 10_000 },
   })

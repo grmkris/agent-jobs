@@ -1,3 +1,4 @@
+import { erc20Abi } from 'viem'
 import * as Cloudflare from 'alchemy/Cloudflare'
 import type { RuntimeContext } from 'alchemy/RuntimeContext'
 import * as Config from 'effect/Config'
@@ -165,8 +166,8 @@ export default class Api extends Cloudflare.Worker<Api>()(
           if (cached !== undefined) return cached
           if (reads === undefined) return { address, symbol: address.slice(0, 8), decimals: 18 }
           const [symbol, decimals] = await Promise.all([
-            reads.readContract({ address, abi: sdk.factoryTokenAbi, functionName: 'symbol' }),
-            reads.readContract({ address, abi: sdk.factoryTokenAbi, functionName: 'decimals' }),
+            reads.readContract({ address, abi: erc20Abi, functionName: 'symbol' }),
+            reads.readContract({ address, abi: erc20Abi, functionName: 'decimals' }),
           ])
           const t = { address, symbol, decimals }
           tokenCache.set(address.toLowerCase(), t)
@@ -305,7 +306,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
             const reply = JSON.parse(
               yield* boards.getByName(sponsorToolNames.has(tool) ? SPONSOR_OBJECT_NAME : tenant.id).call({ tool, args: pre.forward.args, bearer, mcpSession, caller: pre.forward.caller, ip, env }),
             ) as BoardReply
-            if (reply.ok && (tool === 'create_task' || tool === 'pick_quote' || tool === 'create_pool')) {
+            if (reply.ok && (tool === 'create_task' || tool === 'pick_quote')) {
               const r = reply.result as { taskId: string; termsHash: string; manifest?: string }
               if (r.manifest !== undefined) {
                 yield* manifests.put(`offers/${r.termsHash}.json`, r.manifest)

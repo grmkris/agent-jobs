@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # G1-DRY: backend's B11 runner (packages/sdk/scripts/v1-flows.ts) against a real v1 deploy, on a throwaway anvil fork of
 # Monad testnet (chain 10143). Steps:
-#   1. a fresh 1-of-2 Safe; launch-testnet.sh deploys, promotes, accepts, grants the Safe the core's ADMIN_ROLE, deploys
+#   1. a fresh 1-of-2 Safe; launch-testnet.sh deploys, promotes, accepts, deploys
 #      odd tokens and makes the fee proposal and Holding probe, all with fresh keys, promoting into a scratch
 #      config/rehearsal-<pid>-<random>.json (gitignored). The tracked config/monad-testnet.json is only ever read: at G1 the real
 #      launch promotes into it, possibly in this same checkout (G1-DRY-001);
-#   2. the wallets get MON, fresh-stack SIDE and legacy SIDE and the reward token (mUSD) on the fork, and deployment.oddTokens is
+#   2. the wallets get MON, SIDE and the reward token (mUSD) on the fork, and deployment.oddTokens is
 #      recorded;
 #   3. the runner, which reads the SDK's bundled monad-testnet config, runs from a private mirror: byte-identical copies
 #      of packages/sdk/src and scripts (without any journal), the real node_modules, and the scratch config as its
@@ -34,9 +34,8 @@ CHAIN=10143
 TRACKED="config/monad-testnet.json" # read only
 # Order matters: admin-vault-refusal must cancel the still-timelocked Holding probe before any wait. admin-fees executes
 # the unchanged launch schedule next, before job windows and delegated cooldowns can expire its proposal grace.
-# stake-cooldown runs last. legacy-dispute is left out: it signs
-# with the real legacy arbitrator key, the evaluator's immutable, which a fork cannot stand in for.
-DEFAULT_CASES="admin-ownership,admin-vault-refusal,admin-fees,hire,cancel,topup-paid,topup-refund,silence,ruling-worker,ruling-worker-slash,ruling-creator,ruling-creator-slash,violation,missed,arbitration-timeout,delegate,slash-pro-rata,undelegate-pending-slash,fees,owed-blocklist,owed-gas,legacy-contest,admin-pause,stake-cooldown"
+# stake-cooldown runs last.
+DEFAULT_CASES="admin-ownership,admin-vault-refusal,admin-fees,hire,cancel,topup-paid,topup-refund,silence,ruling-worker,ruling-worker-slash,ruling-creator,ruling-creator-slash,violation,missed,arbitration-timeout,delegate,slash-pro-rata,undelegate-pending-slash,fees,owed-blocklist,owed-gas,admin-pause,stake-cooldown"
 CASES="${1:-${FLOW_CASES:-$DEFAULT_CASES}}"
 PROFILE="g1dry-$(date +%s)"
 WORK="$(mktemp -d)"
@@ -95,24 +94,8 @@ SETUP=$(cast calldata "setup(address[],uint256,address,bytes,address,address,uin
 SALT=$(date +%s)
 SAFE=$(cast call --rpc-url "$LOCAL" --from "$DEPLOYER" $SAFE_SIDE "createProxyWithNonce(address,bytes,uint256)(address)" $SAFE_L2 "$SETUP" "$SALT" 2>/dev/null)
 cast send --rpc-url "$LOCAL" --private-key "$K_DEPLOYER" $SAFE_SIDE "createProxyWithNonce(address,bytes,uint256)" $SAFE_L2 "$SETUP" "$SALT" >/dev/null 2>&1
-# On testnet the deployer is roles.admin, which holds the reused core's DEFAULT_ADMIN_ROLE, so launch-testnet.sh's
-# pauser step can grant the Safe ADMIN_ROLE. Here the deployer is a fresh key, so roles.admin (impersonated, on the fork
-# only) first makes it the core's admin too; the grant to the Safe is then launch-testnet.sh's own transaction.
-CORE=$(jq -r .deployment.core "$WORK/config.base")
-REAL_ADMIN=$(jq -r .roles.admin "$WORK/config.base")
-DEFAULT_ADMIN_ROLE=0x0000000000000000000000000000000000000000000000000000000000000000
-[[ "$(cast call --rpc-url "$LOCAL" "$CORE" "hasRole(bytes32,address)(bool)" $DEFAULT_ADMIN_ROLE "$REAL_ADMIN" 2>/dev/null)" == true ]] \
-  || fail "roles.admin $REAL_ADMIN is not the core's DEFAULT_ADMIN_ROLE on testnet"
-rpc anvil_impersonateAccount "$REAL_ADMIN"; rpc anvil_setBalance "$REAL_ADMIN" 0x3635c9adc5dea00000
-cast send --rpc-url "$LOCAL" --unlocked --from "$REAL_ADMIN" "$CORE" "grantRole(bytes32,address)" $DEFAULT_ADMIN_ROLE "$DEPLOYER" \
-  >/dev/null 2>&1 || fail "could not make the fork deployer the core's admin"
-rpc anvil_stopImpersonatingAccount "$REAL_ADMIN"
-# Prepare the pristine G1b copy before fixture overrides: the archive identity includes the original roles.
-cp "$WORK/config.base" "$CONFIG"
-export FLOW_RPC="$LOCAL"
-prepare_rehearsal_redeploy "$CONFIG" "$FOUNDRY_BROADCAST/monad-testnet-g1b.json" "$WORK/config.base" FLOW_RPC \
-  || fail "G1b redeploy preparation"
-ok "G1b archived verbatim; fresh deployment outputs removed; core and legacy pairs preserved"
+# Fresh deployment outputs in a scratch copy; the tracked record remains untouched.
+jq '{rewardTokens: .deployment.rewardTokens} as $fresh | .deployment = $fresh' "$WORK/config.base" >"$CONFIG"
 jq --arg safe "$SAFE" --arg admin "$DEPLOYER" --arg relay "$RELAY" --arg attester "$ATTESTER" --arg arb "$ARBITRATOR" \
   --arg c "$CREATOR" --arg w "$WORKER" '
   .roles = { admin: $admin, relay: $relay, attester: $attester, arbitrator: $arb }
@@ -125,6 +108,7 @@ env RPC_ENV=FLOW_RPC DEPLOYER_KEY_ENV=FLOW_DEPLOYER_KEY SAFE_OWNER_KEY_ENV=FLOW_
   bash script/launch-testnet.sh --yes --private-keys --fee-proposal --holding-probe >"$WORK/launch.out" 2>&1 \
   || { tail -30 "$WORK/launch.out"; fail "launch-testnet.sh"; }
 grep -q "LAUNCH-TESTNET DONE" "$WORK/launch.out" || fail "launch-testnet.sh did not finish"
+CORE=$(jq -r .deployment.core "$CONFIG")
 ADMIN_ROLE=$(cast call --rpc-url "$LOCAL" "$CORE" "ADMIN_ROLE()(bytes32)" 2>/dev/null)
 [[ "$(cast call --rpc-url "$LOCAL" "$CORE" "hasRole(bytes32,address)(bool)" "$ADMIN_ROLE" "$SAFE" 2>/dev/null)" == true ]] \
   || fail "launch-testnet.sh did not give the Safe the core's ADMIN_ROLE"
@@ -145,17 +129,7 @@ MUSD=$(jq -r '.deployment.rewardTokens[0]' "$CONFIG")
 rpc anvil_dealERC20 "$CREATOR" "$MUSD" 0x3b9aca00 # 1,000 mUSD (6 decimals)
 [[ "$(cast call --rpc-url "$LOCAL" "$MUSD" "balanceOf(address)(uint256)" "$CREATOR" 2>/dev/null | awk '{print $1}')" -ge 1000000000 ]] \
   || fail "could not deal mUSD to the creator on the fork"
-# Fund the actual legacy open-token pair preserved by preparation, rather than the archived G1b v1 main pair.
-LEGACY_HOLDING=$(jq -r '[.deployment.legacy[] | select(.kind == "legacy" and .openTokens == true)][0].holding // empty' "$CONFIG")
-[[ -n "$LEGACY_HOLDING" ]] || fail "no configured legacy open-token pair"
-SIDE_V1=$(cast call --rpc-url "$LOCAL" "$LEGACY_HOLDING" "factory()(address)" 2>/dev/null)
-[[ "${SIDE_V1,,}" != "${SIDE,,}" ]] || fail "the legacy pair uses the new SIDE?"
-for w in $CREATOR $WORKER; do
-  rpc anvil_dealERC20 "$w" "$SIDE_V1" 0x56bc75e2d63100000 # 100 SIDE v1
-  [[ "$(cast call --rpc-url "$LOCAL" "$SIDE_V1" "balanceOf(address)(uint256)" "$w" 2>/dev/null | awk '{print $1}')" == 100000000000000000000 ]] \
-    || fail "could not deal SIDE v1 to $w on the fork"
-done
-ok "creator and worker hold 50,000 fresh-stack SIDE and 100 legacy SIDE; the creator holds 1,000 mUSD; deployment.oddTokens recorded"
+ok "creator and worker hold 50,000 SIDE; the creator holds 1,000 mUSD; deployment.oddTokens recorded"
 if [[ -n "${HOLD:-}" ]]; then # HOLD=<file>: pause here, fork up and config promoted, until the file is removed
   touch "$HOLD"; echo "holding: fork $LOCAL, config $PWD/$CONFIG; remove $HOLD to run the cases"
   while [[ -e "$HOLD" ]]; do sleep 2; done
@@ -245,7 +219,6 @@ per_wallet() {
 }
 echo "GAS PER WALLET, LAUNCH (launch-testnet.sh; Monad charges the limit; testnet gas price now $(cast from-wei "$PRICE" gwei 2>/dev/null | cut -c1-6) gwei)"
 per_wallet "$WORK/launch-gas.tsv"
-awk -F'\t' '$1 ~ /^pauser/ { printf "  of which %s: gas limit %d, used %d\n", $1, $3, $4 }' "$WORK/launch-gas.tsv"
 echo
 echo "GAS PER WALLET, FLOWS"
 per_wallet "$WORK/gas.tsv"

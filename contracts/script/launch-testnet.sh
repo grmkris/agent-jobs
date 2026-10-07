@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# G1: the Sidequest v1 launch on Monad testnet (core reused), the docs/mainnet-runbook.md sequence without the seed, for
+# G1: the Sidequest v1 launch on Monad testnet (fresh core), the docs/mainnet-runbook.md sequence without the seed, for
 # the coordinator to run once the wallets hold MON. Refuses chain 143. From the repo root, with keystores (below):
 #   bash -c 'set -a; . ./.env.local; set +a; DEPLOYER_ACCOUNT=<name> DEPLOYER_PASSWORD_FILE=<file> \
 #     SAFE_OWNER_ACCOUNT=<name> SAFE_OWNER_PASSWORD_FILE=<file> bash contracts/script/launch-testnet.sh [flags]'
@@ -7,22 +7,16 @@
 # Steps (any failure stops the run; every transaction hash is printed, and listed again at the end):
 #   0. checks: the RPC's chain is the config's and not 143; no v1 deployment recorded yet; the deployer key is
 #      roles.admin; the Safe is v1.4.1 with threshold 1, no modules and no guard, and the Safe-owner key is an owner; the
-#      oddTokens config
-#      exists; with the core reused, the deployer may grant its ADMIN_ROLE; both senders hold enough MON for the gas
-#      limits at twice the current gas price;
+#      oddTokens config exists; both senders hold enough MON for the gas limits at twice the current gas price;
 #   1. DeploySidequest dry run (no --broadcast);
 #   2. DeploySidequest --broadcast --slow, from the deployer;
 #   3. PromoteSidequest (reads only; writes config/<network>.json, which the coordinator commits);
 #   4. SafeAccept (six execTransactions from the Safe owner), then its check();
-#   5. pauser, with the core reused (testnet): the deployer grants the Safe the core's ADMIN_ROLE, which pause() and
-#      unpause() require, so /admin's pause (core pause + evaluator notePause in one MultiSend from the Safe) works.
-#      On mainnet the Recipe deploys the core and hands it ADMIN_ROLE and DEFAULT_ADMIN_ROLE itself. The Safe gets
-#      ADMIN_ROLE only (not the upgrade role); the deployer keeps its roles. Skipped when the Safe holds it already;
-#   6. readback: owner() == Safe and pendingOwner() == 0 on vault, feeSchedule, holding, evaluator, distributor and
+#   5. readback: owner() == Safe and pendingOwner() == 0 on vault, feeSchedule, holding, evaluator, distributor and
 #      miningReserve; the Safe holds the core's ADMIN_ROLE, and still has no modules and no guard (the mining fund's
 #      nonce guard, D18, holds only while execTransaction is the Safe's one way to act);
-#   7. the SDK loads the promoted deployment (`deployment('monad-testnet')`: a sidequest-v1 main pair under this Safe);
-#   8. DeployOddTokens, from the deployer.
+#   6. the SDK loads the promoted deployment (`deployment('monad-testnet')`: a sidequest-v1 main pair under this Safe);
+#   7. DeployOddTokens, from the deployer.
 # Flags:
 #   --fee-proposal   the Safe proposes a fee schedule through execTransaction: FEE_PROPOSAL, as JSON
 #                    {"thresholds":[…],"bps":[…],"treasury":"0x…"} with thresholds in whole SIDE like the config;
@@ -32,7 +26,7 @@
 #                    early acceptHolding is shown to refuse (eth_call). It stays pending; anyone may accept it from
 #                    HOLDING_DELAY later within PROPOSAL_GRACE; the Safe's cancelHoldingProposal() withdraws it.
 #   --dry-run        stop after step 1.      --yes   don't ask before broadcasting.
-#   --from STEP      resume at deploy|promote|accept|pauser|readback|sdk|odd|flags (after fixing whatever stopped a run;
+#   --from STEP      resume at deploy|promote|accept|readback|sdk|odd|flags (after fixing whatever stopped a run;
 #                    finish a cut-off deploy with forge's --resume first).   --to STEP   stop after STEP.
 # Signers: an encrypted Foundry keystore per role, as on mainnet (docs/mainnet-runbook.md §2), unlocked by a password
 # file you own with mode 600. One-time: `cast wallet import <name> --interactive` (it prompts, so the key never reaches
@@ -67,9 +61,9 @@ SAFE_OWNER_KEY_ENV="${SAFE_OWNER_KEY_ENV:-SAFE_BACKUP_TESTNET_PRIVATE_KEY}"
 MAINNET=143
 ZERO=0x0000000000000000000000000000000000000000
 SIX=(vault feeSchedule holding evaluator distributor miningReserve)
-STEPS=(deploy promote accept pauser readback sdk odd flags)
+STEPS=(deploy promote accept readback sdk odd flags)
 # Gas limits from the fork rehearsal (Monad charges the limit), with headroom.
-GAS_DEPLOYER=$((24 * 1000000)) # DeploySidequest (reused core) + DeployOddTokens + the core's grantRole
+GAS_DEPLOYER=$((36 * 1000000)) # Conservative fresh-core DeploySidequest + DeployOddTokens allowance; rehearse before use
 GAS_SAFE_OWNER=$((2 * 1000000)) # SafeAccept + the two proposals
 
 FEE_PROPOSAL_FLAG=0 HOLDING_PROBE_FLAG=0 DRY_RUN=0 YES=0 FROM=deploy TO=flags PRIVATE_KEYS=0
@@ -210,15 +204,6 @@ if runs odd; then
   jq -e '(.oddTokens.wallets | type == "array" and length > 0) and (.oddTokens.mint | type == "number")' "$CONFIG" \
     >/dev/null || fail "$CONFIG needs oddTokens = { wallets: [...], mint: <whole tokens> } for DeployOddTokens"
 fi
-CORE=$(json .deployment.core)
-if [[ "$(json .sidequest.reuseCore)" == true ]] && runs pauser; then
-  ADMIN_ROLE=$(call "$CORE" "ADMIN_ROLE()(bytes32)") || fail "core $CORE: no ADMIN_ROLE()"
-  if [[ "$(call "$CORE" "hasRole(bytes32,address)(bool)" "$ADMIN_ROLE" "$SAFE")" != true ]]; then
-    granter=$(call "$CORE" "getRoleAdmin(bytes32)(bytes32)" "$ADMIN_ROLE")
-    [[ "$(call "$CORE" "hasRole(bytes32,address)(bool)" "$granter" "$DEPLOYER")" == true ]] \
-      || fail "the deployer $DEPLOYER cannot grant the Safe ADMIN_ROLE on the reused core $CORE (it lacks the role's admin role)"
-  fi
-fi
 [[ "$(call "$SAFE" "VERSION()(string)")" == '"1.4.1"' ]] || fail "the Safe is not v1.4.1"
 [[ "$(call "$SAFE" "getThreshold()(uint256)")" == "1" ]] || fail "the Safe's threshold is not 1 (SafeAccept needs it)"
 [[ "$(call "$SAFE" "isOwner(address)(bool)" "$SAFE_OWNER")" == "true" ]] || fail "the Safe-owner key is not an owner"
@@ -272,25 +257,7 @@ if runs accept; then
   ok "the Safe accepted the six"
 fi
 
-# 5. The reused core's ADMIN_ROLE for the Safe (testnet only; see the header).
-if [[ "$(json .sidequest.reuseCore)" == true ]] && runs pauser; then
-  if [[ "$(call "$CORE" "hasRole(bytes32,address)(bool)" "$ADMIN_ROLE" "$SAFE")" == true ]]; then
-    ok "the Safe already holds the core's ADMIN_ROLE"
-  else
-    if ! out=$(cast send --rpc-url "$RPC" "${DEPLOYER_SIGNER[@]}" --json "$CORE" "grantRole(bytes32,address)" \
-      "$ADMIN_ROLE" "$SAFE" 2>"$LOGS/cast.err"); then
-      redact <"$LOGS/cast.err" | tail -5 >&2
-      fail "core ADMIN_ROLE grant"
-    fi
-    h=$(jq -r .transactionHash <<<"$out")
-    [[ "$(jq -r .status <<<"$out")" == "0x1" ]] || fail "core ADMIN_ROLE grant: reverted ($h)"
-    hash_line "pauser (deployer → core.grantRole(ADMIN_ROLE, Safe))" "$h"
-    [[ "$(call "$CORE" "hasRole(bytes32,address)(bool)" "$ADMIN_ROLE" "$SAFE")" == true ]] || fail "the Safe does not hold ADMIN_ROLE after the grant"
-    ok "the Safe holds the core's ADMIN_ROLE (pause/unpause); the deployer keeps its roles"
-  fi
-fi
-
-# 6. Readback.
+# 5. Readback.
 if runs readback; then
   for name in "${SIX[@]}"; do
     a=$(address_of "$name")
@@ -298,17 +265,21 @@ if runs readback; then
     [[ "$(call "$a" "pendingOwner()(address)")" == "$ZERO" ]] || fail "$name $a: a handover is still pending"
     echo "  $name $a owner = Safe"
   done
-  if [[ "$(json .sidequest.reuseCore)" == true ]]; then
-    [[ "$(call "$CORE" "hasRole(bytes32,address)(bool)" "$(call "$CORE" "ADMIN_ROLE()(bytes32)")" "$SAFE")" == true ]] \
-      || fail "the Safe does not hold the reused core's ADMIN_ROLE (step pauser)"
-    echo "  core $CORE ADMIN_ROLE: Safe"
-  fi
+  CORE=$(json .deployment.core)
+  for role in ADMIN_ROLE DEFAULT_ADMIN_ROLE; do
+    role_id=$(call "$CORE" "$role()(bytes32)")
+    [[ "$(call "$CORE" "hasRole(bytes32,address)(bool)" "$role_id" "$SAFE")" == true ]] \
+      || fail "the Safe does not hold the core's $role"
+    [[ "$(call "$CORE" "hasRole(bytes32,address)(bool)" "$role_id" "$(json .roles.admin)")" == false ]] \
+      || fail "the deployer still holds the core's $role"
+    echo "  core $CORE $role: Safe"
+  done
   safe_plain
   echo "  Safe $SAFE: no modules, no guard"
   ok "owner() == Safe on all six, nothing pending"
 fi
 
-# 7. The SDK.
+# 6. The SDK.
 if runs sdk; then
   SDK_TS="$LOGS/sdk-check.ts"
   cat >"$SDK_TS" <<EOF
@@ -331,7 +302,7 @@ EOF
   ok "the SDK loads the promoted deployment"
 fi
 
-# 8. DeployOddTokens.
+# 7. DeployOddTokens.
 if runs odd; then
   log 7-odd.log forge script script/DeployOddTokens.s.sol --rpc-url "$RPC" "${DEPLOYER_SIGNER[@]}" \
     --broadcast --slow || fail "DeployOddTokens"

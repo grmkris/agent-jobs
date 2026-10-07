@@ -1,4 +1,4 @@
-import { admissionFailure, disabledP0HostedTools, hostedToolNames, parseHostedAdmission, readOnlyHostedTools, recoveryHostedTools } from '@sidequest/board'
+import { admissionFailure, hostedToolNames, parseHostedAdmission, readOnlyHostedTools, recoveryHostedTools } from '@sidequest/board'
 import { expect, test } from 'vitest'
 import { hostedCallFailure } from '../src/hosted-admission.ts'
 import { tools } from '../src/tools.ts'
@@ -12,18 +12,18 @@ const stranger = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 const allTools = Object.keys({ ...tools, ...tenantTools, ...directoryTools, ...telegramTools })
 const policy = parseHostedAdmission('0')
 
-test('every REST/MCP tool is classified; authenticated writes are open except pools', () => {
+test('every REST/MCP tool is classified; authenticated writes are open', () => {
   expect([...hostedToolNames].toSorted()).toEqual(allTools.toSorted())
   for (const tool of allTools) {
     expect(admissionFailure(policy, 'monad-mainnet', 'public', tool, undefined) === undefined, tool).toBe(readOnlyHostedTools.has(tool))
-    expect(admissionFailure(policy, 'monad-mainnet', 'new-board', tool, stranger) === undefined, tool).toBe(!disabledP0HostedTools.has(tool))
+    expect(admissionFailure(policy, 'monad-mainnet', 'new-board', tool, stranger) === undefined, tool).toBe(true)
     expect(admissionFailure(policy, 'monad-testnet', 'public', tool, undefined), tool).toBeUndefined()
   }
 })
 
 test.each(['workers.dev', 'direct REST', 'MCP', 'embed'])('%s does not take authentication from arguments', () => {
   const malicious = { caller: wallet, address: wallet, origin: 'https://sidequest.exchange', boardId: 'ops', network: 'monad-testnet', steps: [{ caller: wallet, tool: 'create_task' }], admission: { drain: false } }
-  for (const tool of ['create_task', 'request_quotes', 'apply', 'publish_transactions', 'select_worker', 'prepare_activation', 'create_board', 'update_board', 'upgrade_account', 'create_pool']) {
+  for (const tool of ['create_task', 'request_quotes', 'apply', 'publish_transactions', 'select_worker', 'prepare_activation', 'create_board', 'update_board', 'upgrade_account']) {
     expect(hostedCallFailure(policy, 'monad-mainnet', 'public', tool, malicious, undefined), tool).toBeDefined()
   }
 })

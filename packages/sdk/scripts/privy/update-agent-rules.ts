@@ -8,7 +8,7 @@ import { PrivyApi, PrivyApiError } from './client.ts'
 import { adminEnv, localEnv, required } from './env.ts'
 import { DIRECTORY_RECORD_KINDS, X402_PAYMENT_CAP, authorityPolicy, config } from './policy.ts'
 import { verifyAuthority } from './setup.ts'
-import { canonical, writablePolicy } from './update-holding.ts'
+import { canonical, writablePolicy } from './policy-document.ts'
 
 type JsonRecord = Record<string, unknown>
 type Rule = ReturnType<typeof authorityPolicy>['rules'][number]

@@ -5,12 +5,10 @@ import { enqueuePublicRequest, enqueueTelegram, telegramChainId, telegramPublicC
 
 type Event = { contract: string; block: number; log_index: number; tx_hash: string; job_id: string; name: string; args_json: string; timestamp: number }
 const eventId = (chainId: number, e: Event) => `${chainId}:${e.contract}:${e.block}:${e.log_index}:${e.tx_hash}`
-const NOTIFIED = ['Published', 'Activated', 'JobSubmitted', 'Ruled', 'PayoutDeferred', 'RefundDeferred', 'PayoutOwed', 'RewardOwed', 'JobCompleted', 'JobRejected', 'JobExpired', 'Cancelled']
+const NOTIFIED = ['Published', 'Activated', 'JobSubmitted', 'Ruled', 'PayoutDeferred', 'RefundDeferred', 'PayoutOwed', 'JobCompleted', 'JobRejected', 'JobExpired', 'Cancelled']
 const PAID = new Set(['Accepted', 'Silence', 'RuledForWorker'])
 
 export async function queueTelegramNotifications(sql: AsyncSql, network: Network, now: number, options: {
-  /** Legacy windows are immutable evaluator values, read from their own pair by the cron. */
-  legacyReviewWindow?: (job: JobRow) => Promise<number | null>
   channel?: string
   limit?: number
   caughtUp?: boolean
@@ -46,12 +44,12 @@ export async function queueTelegramNotifications(sql: AsyncSql, network: Network
     if (e.name === 'JobSubmitted') await notify([job.creator, job.approver], `telegram:delivery:${id}`, `Delivery submitted for Sidequest job #${e.job_id}. Review the work.\n${url}`, e.timestamp)
     if (e.name === 'Activated') await notify([job.creator, job.worker], `telegram:hired:${id}`, `Sidequest job #${e.job_id} is active.\n${url}`, e.timestamp)
     if (e.name === 'Ruled') await notify([job.creator, job.worker], `telegram:ruling:${id}`, `The arbitrator ruled for the ${args.forWorker === true ? 'worker' : 'creator'} on Sidequest job #${e.job_id}.\n${url}`, e.timestamp)
-    if (e.name === 'PayoutOwed' || e.name === 'RewardOwed') {
+    if (e.name === 'PayoutOwed') {
       await notify([typeof args.to === 'string' ? args.to : null], `telegram:owed:${id}`, `Sidequest job #${e.job_id} has a payout to collect.\n${telegramSite(network)}/collect`, e.timestamp)
     } else if (['PayoutDeferred', 'RefundDeferred', 'JobCompleted', 'JobRejected', 'JobExpired', 'Cancelled'].includes(e.name)) {
       const contributors = await sql.all<{ contributor: string }>('SELECT DISTINCT contributor FROM top_ups WHERE chain_id = ? AND job_id = ? AND refunded = 0', chainId, e.job_id)
       const hasRefunds = job.kind === 'sidequest-v1' && job.outcome !== null && job.outcome !== 'None' && !PAID.has(job.outcome)
-      const unsettled = job.kind !== 'sidequest-v1' || job.settlement_outcome === 'None'
+      const unsettled = job.settlement_outcome === 'None'
       if (unsettled || hasRefunds) await notify([
         ...(unsettled ? [job.creator, job.worker] : []), ...(hasRefunds ? contributors.map(c => c.contributor) : []),
       ], `telegram:collect:${chainId}:${e.job_id}:${e.tx_hash}`, `Sidequest job #${e.job_id} has a decision recorded. Review Collect for settlement or refunds.\n${telegramSite(network)}/collect`, e.timestamp)
@@ -66,7 +64,7 @@ export async function queueTelegramNotifications(sql: AsyncSql, network: Network
     AND EXISTS (SELECT 1 FROM telegram_links l WHERE l.chain_id = j.chain_id AND l.wallet IN (lower(j.creator), lower(j.approver), lower(j.worker)))`, chainId)
   let reminders = 0
   for (const job of submitted) {
-    const window = job.review_window ?? await options.legacyReviewWindow?.(job) ?? null
+    const window = job.review_window
     if (window === null || !Number.isSafeInteger(window) || window <= 0) continue
     const paysAt = job.submitted_at + window
     if (now < paysAt - 86400 || now >= paysAt) continue
