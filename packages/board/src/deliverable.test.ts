@@ -57,6 +57,20 @@ describe('descriptors', () => {
     expect(() => parseDeliverable({ kind: 'zip' })).toThrow(DeliverableError)
   })
 
+  it('accepts only public https and ipfs:// URLs, since the board fetches them at submit', () => {
+    const artifact = (url: string) => ({ kind: 'artifact', url, sha256: 'a'.repeat(64), mediaType: 'text/plain', name: 'a.txt' })
+    for (const url of [
+      'http://site.example/', 'https://localhost/', 'https://api.localhost/', 'https://127.0.0.1/', 'https://10.0.0.5/a',
+      'https://169.254.169.254/latest', 'https://[::1]/', 'https://0x7f000001/', 'https://intranet/', 'https://nas.local/f',
+      'https://db.internal/x', 'https://router.lan/', 'https://user:pass@site.example/',
+    ]) {
+      expect(() => parseDeliverable({ kind: 'url', url }), url).toThrow(DeliverableError)
+      expect(() => parseDeliverable(artifact(url)), url).toThrow(DeliverableError)
+    }
+    expect(parseDeliverable({ kind: 'url', url: 'https://site.example/' })).toEqual({ kind: 'url', url: 'https://site.example/' })
+    expect(parseDeliverable(artifact('ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi'))).toMatchObject({ kind: 'artifact' })
+  })
+
   it('lowercases on-chain identifiers so the hash does not depend on checksum casing', () => {
     const a = parseDeliverable({ kind: 'onchain', chainId: 10143, address: `0x${'AB'.repeat(20)}` })
     const b = parseDeliverable({ kind: 'onchain', chainId: 10143, address: `0x${'ab'.repeat(20)}` })

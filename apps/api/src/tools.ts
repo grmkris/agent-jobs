@@ -71,7 +71,7 @@ const deliverableSpecSchema = {
 const deliverableSchema = {
   type: 'object',
   description:
-    'Where the work is, in a form the offer accepts: git {kind, url, ref, sha} on any host; patch {kind, url, sha256, base}; artifact {kind, url, sha256, mediaType, name}; url {kind, url}; onchain {kind, chainId, txHash?, address?}. A patch or artifact url is http(s):// or ipfs://, a url deliverable http(s):// only; sha256 is lowercase hex of the exact file.',
+    'Where the work is, in a form the offer accepts: git {kind, url, ref, sha} on any host; patch {kind, url, sha256, base}; artifact {kind, url, sha256, mediaType, name}; url {kind, url}; onchain {kind, chainId, txHash?, address?}. A patch or artifact url is a public https:// URL or ipfs://, a url deliverable a public https:// URL only (no plain http, IP literals or private hosts); sha256 is lowercase hex of the exact file.',
   properties: {
     kind: { type: 'string', enum: ['git', 'patch', 'artifact', 'url', 'onchain'] },
     url: str('Repository, file or page URL.'),

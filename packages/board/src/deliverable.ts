@@ -36,12 +36,21 @@ const isSha1 = (s: unknown): s is string => typeof s === 'string' && /^[0-9a-f]{
 const isSha256 = (s: unknown): s is string => typeof s === 'string' && /^[0-9a-f]{64}$/.test(s)
 const str = (s: unknown): s is string => typeof s === 'string' && s.trim().length > 0 && s.length <= 2048
 
+/** A DNS name, not an IP literal, localhost or a private-network suffix. */
+function publicHost(hostname: string): boolean {
+  const host = hostname.toLowerCase().replace(/\.$/, '')
+  if (host.startsWith('[') || /^[0-9.]+$/.test(host) || /^0x[0-9a-f]+$/.test(host)) return false
+  if (!host.includes('.')) return false
+  return !/(^|\.)(localhost|local|internal|intranet|lan|home|corp|private)$/.test(host)
+}
+
+/** The board fetches these once at submit, so only public https (or ipfs://, through a public gateway). */
 function fetchable(url: unknown): url is string {
   if (!str(url)) return false
   if (url.startsWith('ipfs://')) return /^ipfs:\/\/[A-Za-z0-9]{20,}(\/[^\s]*)?$/.test(url)
   try {
     const u = new URL(url)
-    return u.protocol === 'https:' || u.protocol === 'http:'
+    return u.protocol === 'https:' && u.username === '' && u.password === '' && publicHost(u.hostname)
   } catch {
     return false
   }
@@ -58,18 +67,18 @@ export function parseDeliverable(raw: unknown): Deliverable {
       if (!isSha1(d.sha)) throw new DeliverableError('git: sha must be a full 40-character commit SHA')
       return { kind: 'git', url: d.url, ref: d.ref, sha: d.sha }
     case 'patch':
-      if (!fetchable(d.url)) throw new DeliverableError('patch: url must be http(s) or ipfs://')
+      if (!fetchable(d.url)) throw new DeliverableError('patch: url must be a public https URL or ipfs://')
       if (!isSha256(d.sha256)) throw new DeliverableError('patch: sha256 must be 64 lowercase hex characters')
       if (!isSha1(d.base)) throw new DeliverableError('patch: base must be the full commit SHA it applies to')
       return { kind: 'patch', url: d.url, sha256: d.sha256, base: d.base }
     case 'artifact':
-      if (!fetchable(d.url)) throw new DeliverableError('artifact: url must be http(s) or ipfs://')
+      if (!fetchable(d.url)) throw new DeliverableError('artifact: url must be a public https URL or ipfs://')
       if (!isSha256(d.sha256)) throw new DeliverableError('artifact: sha256 must be 64 lowercase hex characters')
       if (!str(d.mediaType)) throw new DeliverableError('artifact: mediaType is required')
       if (!str(d.name)) throw new DeliverableError('artifact: name is required')
       return { kind: 'artifact', url: d.url, sha256: d.sha256, mediaType: d.mediaType, name: d.name }
     case 'url':
-      if (!fetchable(d.url) || String(d.url).startsWith('ipfs://')) throw new DeliverableError('url: must be an http(s) URL')
+      if (!fetchable(d.url) || String(d.url).startsWith('ipfs://')) throw new DeliverableError('url: must be a public https URL')
       return { kind: 'url', url: d.url as string }
     case 'onchain': {
       if (typeof d.chainId !== 'number' || !Number.isSafeInteger(d.chainId) || d.chainId <= 0) throw new DeliverableError('onchain: chainId is required')
