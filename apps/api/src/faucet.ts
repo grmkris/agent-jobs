@@ -9,7 +9,7 @@
 import { errorDiagnostics } from '@sidequest/board'
 import * as sdk from '@sidequest/sdk'
 import type { AsyncSql } from '@sidequest/indexer'
-import { type Address, type Hex, parseEther } from 'viem'
+import { type Address, type Hex, decodeFunctionData, parseEther } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { type DripDeps, type DripOutcome, dripOnce } from './drip.ts'
 import { dripFinish, dripReserve, dripState } from './registry.ts'
@@ -48,12 +48,11 @@ export interface FaucetDeps {
 }
 
 export function faucetChain(deps: DripDeps): FaucetChain | undefined {
-  if (deps.network !== 'monad-testnet' || !/^0x[0-9a-fA-F]{64}$/.test(deps.relayKey) || deps.rpcUrl === '') return undefined
+  if (deps.network !== 'monad-testnet' || !/^0x[0-9a-fA-F]{64}$/.test(deps.relayKey) || deps.rpcUrl === '' || deps.relaySend === undefined) return undefined
   const ctx = sdk.context(deps.network, 'main', deps.rpcUrl)
   const faucet = ctx.deployment.testnetFaucet
   if (faucet === null) return undefined
   const relay = privateKeyToAccount(deps.relayKey as Hex)
-  const wallet = sdk.wallet(deps.network, relay, deps.rpcUrl)
   return {
     chainId: ctx.deployment.chainId,
     call: (to) => sdk.dripCall(ctx, to),
@@ -61,7 +60,12 @@ export function faucetChain(deps: DripDeps): FaucetChain | undefined {
     nextDripAt: (to) => sdk.nextDripAt(ctx, to),
     balance: (address) => ctx.publicClient.getBalance({ address }),
     relay: relay.address,
-    relaySend: (tx) => wallet.sendTransaction({ ...tx, gas: DRIP_GAS }),
+    relaySend: async (tx) => {
+      const decoded = decodeFunctionData({ abi: sdk.testnetFaucetAbi, data: tx.data })
+      if (decoded.functionName !== 'drip') throw new Error('Invalid faucet method')
+      const last = await ctx.publicClient.readContract({ address: faucet, abi: sdk.testnetFaucetAbi, functionName: 'lastDrip', args: [decoded.args[0]] })
+      return deps.relaySend!({ ...tx, gas: DRIP_GAS.toString(), key: `faucet:${tx.data}:${last}` })
+    },
     receipt: async (hash, wait) => {
       const receipt = wait
         ? await ctx.publicClient.waitForTransactionReceipt({ hash, timeout: 20_000 }).catch(() => undefined)

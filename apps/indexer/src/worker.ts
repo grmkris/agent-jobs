@@ -11,7 +11,7 @@ import { Database } from '@sidequest/indexer/database'
 import { rpcUrlForNetwork } from '@sidequest/indexer/network'
 import { runtimeSecret } from '@sidequest/board/runtime'
 import { queueTelegramNotifications } from '@sidequest/indexer/telegram-notifications'
-import { drainTelegramOutbox, migrateTelegram, telegramTransport } from '@sidequest/indexer/telegram'
+import { configurePublicSite, drainTelegramOutbox, migrateTelegram, telegramTransport } from '@sidequest/indexer/telegram'
 import { reportRelayWatchFailure, watchRelay } from '@sidequest/indexer/relay-watch'
 import { feedFromChain, pruneFeed, reportFeedFailure } from '@sidequest/indexer/feed'
 import { deliverWebhooks, reportWebhookFailure } from '@sidequest/indexer/webhooks'
@@ -46,6 +46,7 @@ export default class Indexer extends Cloudflare.Worker<Indexer>()(
   Effect.gen(function* () {
     const db = yield* Cloudflare.D1.QueryDatabase(Database)
     sdk.setRelayOverride((yield* Config.String('RELAY_ADDRESS')) as `0x${string}`)
+    configurePublicSite(yield* Config.String('PUBLIC_ORIGIN'), yield* Config.String('TELEGRAM_BOT_USERNAME'))
 
     /** The last cron outcome, kept in D1 for `GET /` (Workers logs need a permission the deploy token lacks). */
     const record = (outcome: IndexerRunOutcome) =>

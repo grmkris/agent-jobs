@@ -4,7 +4,7 @@
  * row is reserved before the transfer (R114-07); a reserved row without a hash is reconciled by the recipient's
  * balance before anything is resent. Never on mainnet.
  */
-import { errorDiagnostics } from '@sidequest/board'
+import { errorDiagnostics, type RelayRequest } from '@sidequest/board'
 import * as sdk from '@sidequest/sdk'
 import type { AsyncSql } from '@sidequest/indexer'
 import { type Address, type Hex, formatEther, parseEther } from 'viem'
@@ -21,13 +21,14 @@ export interface DripDeps {
   readonly rpcUrl: string
   readonly relayKey: string
   readonly now: () => number
+  readonly relaySend?: (request: RelayRequest) => Promise<Hex>
 }
 
 export type DripOutcome = { status: 'sent'; txHash: Hex } | { status: 'skipped' | 'failed' | 'already' | 'unavailable'; reason: string }
 
 export async function dripOnce(deps: DripDeps, input: { boardId: string; address: Address }): Promise<DripOutcome> {
   if (deps.network !== 'monad-testnet') return { status: 'unavailable', reason: 'drips are testnet only' }
-  if (!/^0x[0-9a-fA-F]{64}$/.test(deps.relayKey) || deps.rpcUrl === '') return { status: 'unavailable', reason: 'no relay configured' }
+  if (!/^0x[0-9a-fA-F]{64}$/.test(deps.relayKey) || deps.rpcUrl === '' || deps.relaySend === undefined) return { status: 'unavailable', reason: 'no relay configured' }
   const existing = await dripState(deps.sql, input.boardId, input.address)
   if (existing !== undefined && existing.status !== 'reserved' && existing.status !== 'failed') return { status: 'already', reason: existing.status }
   const ctx = sdk.context(deps.network, 'main', deps.rpcUrl)
@@ -55,8 +56,7 @@ export async function dripOnce(deps: DripDeps, input: { boardId: string; address
       await dripFinish(deps.sql, input.boardId, input.address, 'skipped', null)
       return { status: 'skipped', reason: 'the relay is low on MON' }
     }
-    const wallet = sdk.wallet(deps.network, relay, deps.rpcUrl)
-    const txHash = await wallet.sendTransaction({ to: input.address, value: parseEther(DRIP_MON) })
+    const txHash = await deps.relaySend({ key: `drip:${input.boardId}:${input.address.toLowerCase()}`, to: input.address, data: '0x', value: parseEther(DRIP_MON).toString(), gas: '30000' })
     await dripFinish(deps.sql, input.boardId, input.address, 'sent', txHash)
     return { status: 'sent', txHash }
   } catch (e) {

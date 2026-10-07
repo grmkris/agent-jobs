@@ -7,7 +7,7 @@ import { BoardError, errorDiagnostics } from '@sidequest/board'
 import { type AsyncSql, type Statement, stmt } from './store.ts'
 import type { JobRow } from './read.ts'
 import type { Network } from '@sidequest/sdk'
-import { telegramChainId, telegramSite } from './telegram.ts'
+import { telegramChainId, publicOrigin } from './telegram.ts'
 
 export const FEED_SCHEMA = [
   `CREATE TABLE IF NOT EXISTS feed_events (
@@ -278,7 +278,7 @@ export async function feedFromChain(sql: AsyncSql, network: Network, now: number
     if (job === undefined || e.timestamp < oldest) continue
     const spec = CHAIN_KINDS[e.name]!
     const args = JSON.parse(e.args_json) as Record<string, unknown>
-    const url = `${telegramSite(network)}/job/${encodeURIComponent(e.job_id)}`
+    const url = `${publicOrigin()}/job/${encodeURIComponent(e.job_id)}`
     const seen = new Set<string>()
     for (const [address, role] of spec.to(job, args)) {
       if (address === null || seen.has(address.toLowerCase())) continue

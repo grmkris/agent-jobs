@@ -3,9 +3,9 @@ import { privateKeyToAccount } from 'viem/accounts'
 import { stageProfile, validateStageProfile } from '../../../infra/stage.ts'
 import testnet from '../../../contracts/config/monad-testnet.json' with { type: 'json' }
 import { deploymentFromConfig, type DeploymentConfig } from '@sidequest/sdk'
-import { rpcUrlForNetwork } from './network.ts'
-import { assertDeployConfig, assertTestnetProdConfig } from './deploy-preflight.ts'
-import { validateReleaseProbe } from './prod-config.ts'
+import { rpcUrlForNetwork } from '../src/network.ts'
+import { assertDeployConfig, assertTestnetProdConfig } from '../src/deploy-preflight.ts'
+import { validateReleaseProbe } from '../src/prod-config.ts'
 import { assertLiveRelease, stateMode } from '../../../scripts/sidequest/state.ts'
 
 afterEach(() => vi.unstubAllEnvs())
@@ -26,7 +26,7 @@ test('dev and prod dry profiles own distinct resources/domains on the same testn
 
 test('flipping the prod profile selects mainnet contracts, plain RPC, and the artifact preflight', async () => {
   const p = validateStageProfile({ ...stageProfile('prod'), network: 'monad-mainnet', chainId: 143 }, 'prod')
-  const config: DeploymentConfig = { ...testnet, network: 'monad-mainnet', chainId: 143 } as unknown as DeploymentConfig
+  const config: DeploymentConfig = { ...structuredClone(testnet), network: 'monad-mainnet', chainId: 143 } as unknown as DeploymentConfig
   if (config.deployment?.sidequest) delete config.deployment.sidequest.clocks
   expect(deploymentFromConfig(p.network, config).chainId).toBe(143)
   expect(rpcUrlForNetwork({ SIDEQUEST_STAGE: 'prod', MONAD_RPC_URL: 'https://rpc.example/mainnet' })).toBe('https://rpc.example/mainnet')

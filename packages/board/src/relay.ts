@@ -4,7 +4,7 @@ import type { Sql } from './store.ts'
 import { SPONSOR_LIMITS } from './sponsor-policy.ts'
 import { SponsorRecovery } from './sponsor-recovery.ts'
 
-export interface RelayRequest { key: string; to: Address; data: Hex; gas?: string; authorizationList?: SignedAuthorization<number>[] }
+export interface RelayRequest { key: string; to: Address; data: Hex; gas?: string; value?: string; authorizationList?: SignedAuthorization<number>[] }
 interface RelayRecord { id: string; raw_tx: Hex; tx_hash: Hex; nonce: number; status: string }
 
 /** Exact signed bytes persist in the reserved object before every relay send. */
@@ -40,10 +40,12 @@ export class RelaySender {
         const nonce = await this.ctx.publicClient.getTransactionCount({ address: this.account.address, blockTag: 'pending' })
         const explicitGas = request.gas === undefined ? 100_000n : BigInt(request.gas)
         const sizing = { ...sdk.stackGasSizing(this.ctx, request.to, explicitGas), margin: SPONSOR_LIMITS.gasMargin }
-        const gas = await sdk.transactionGas(this.ctx.publicClient, { account: this.account, to: request.to, data: request.data, value: 0n,
+        const value = BigInt(request.value ?? '0')
+        if (value < 0n || (value > 0n && (this.ctx.deployment.network !== 'monad-testnet' || request.data !== '0x' || request.authorizationList !== undefined || value !== 50_000_000_000_000_000n))) throw new Error('Invalid testnet relay value')
+        const gas = await sdk.transactionGas(this.ctx.publicClient, { account: this.account, to: request.to, data: request.data, value,
           ...(request.authorizationList === undefined ? {} : { authorizationList: request.authorizationList }) }, sizing)
         const { maxFeePerGas, maxPriorityFeePerGas } = await sdk.transactionFees(this.ctx.publicClient)
-        const tx = { chainId: this.ctx.deployment.chainId, to: request.to, data: request.data, value: 0n, nonce, gas, maxFeePerGas, maxPriorityFeePerGas }
+        const tx = { chainId: this.ctx.deployment.chainId, to: request.to, data: request.data, value, nonce, gas, maxFeePerGas, maxPriorityFeePerGas }
         const raw = request.authorizationList === undefined
           ? await this.account.signTransaction({ ...tx, type: 'eip1559' })
           : await this.account.signTransaction({ ...tx, type: 'eip7702', authorizationList: request.authorizationList })

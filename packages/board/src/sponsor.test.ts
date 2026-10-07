@@ -12,7 +12,7 @@ import { RelaySender } from './relay.ts'
 import { admissionFailure, hostedToolNames, parseHostedAdmission, readOnlyHostedTools } from './admission.ts'
 
 const dbs: DatabaseSync[] = []
-afterEach(() => dbs.splice(0).forEach(db => db.close()))
+afterEach(() => { dbs.splice(0).forEach(db => db.close()); sdk.setRelayOverride(undefined) })
 const addr = (n: string) => `0x${n.repeat(40)}` as Address
 function fixture(network: sdk.Network = 'monad-testnet') {
   const owner = privateKeyToAccount(generatePrivateKey()), relay = privateKeyToAccount(generatePrivateKey())
@@ -89,6 +89,17 @@ function fixture(network: sdk.Network = 'monad-testnet') {
 }
 
 describe('ERC-7710 sponsorship boundaries and recovery', () => {
+  it('SDK stage override reaches the SponsorDesk relay check and prepared grant', async () => {
+    const f = fixture()
+    sdk.setRelayOverride(f.relay.address)
+    const ctx = { ...sdk.context('monad-testnet', 'main', 'http://127.0.0.1:1'), publicClient: f.ctx.publicClient }
+    const desk = new SponsorDesk({ sql: f.sql, ctx, relay: { account: f.relay, rpcUrl: 'http://127.0.0.1:1' }, now: () => 1800000000, fail: (code, message) => new BoardError(code, message) })
+    const prep = await desk.prepare(f.owner.address)
+    expect(JSON.parse(prep.sign.typedData).message.delegate).toBe(f.relay.address.toLowerCase())
+    const wrong = new SponsorDesk({ sql: f.sql, ctx: { ...ctx, deployment: { ...ctx.deployment, relay: f.owner.address } }, relay: { account: f.relay, rpcUrl: 'http://127.0.0.1:1' }, now: () => 1800000000, fail: (code, message) => new BoardError(code, message) })
+    await expect(wrong.prepare(f.owner.address)).rejects.toThrow('configured sponsorship relay')
+  })
+
   it('prepared permissions read none, can be replaced, and use packed 20-byte targets plus finite D10 caveats', async () => {
     const f = fixture()
     const first = await f.desk.prepare(f.owner.address)

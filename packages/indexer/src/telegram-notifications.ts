@@ -2,7 +2,7 @@
 import type { Network } from '@sidequest/sdk'
 import { type AsyncSql, stmt } from './store.ts'
 import type { JobRow } from './read.ts'
-import { enqueuePublicRequest, enqueueTelegram, telegramChainId, telegramPublicChannel, telegramSite } from './telegram.ts'
+import { enqueuePublicRequest, enqueueTelegram, telegramChainId, telegramPublicChannel, publicOrigin } from './telegram.ts'
 
 type Event = { contract: string; block: number; log_index: number; tx_hash: string; job_id: string; name: string; args_json: string; timestamp: number }
 const eventId = (chainId: number, e: Event) => `${chainId}:${e.contract}:${e.block}:${e.log_index}:${e.tx_hash}`
@@ -38,7 +38,7 @@ export async function queueTelegramNotifications(sql: AsyncSql, network: Network
     const [job] = await sql.all<JobRow>('SELECT * FROM jobs WHERE chain_id = ? AND job_id = ?', chainId, e.job_id)
     if (job === undefined) continue
     const args = JSON.parse(e.args_json) as Record<string, unknown>
-    const url = `${telegramSite(network)}/job/${encodeURIComponent(e.job_id)}`
+    const url = `${publicOrigin()}/job/${encodeURIComponent(e.job_id)}`
     if (e.name === 'Published' && e.timestamp >= now - 3600) {
       await enqueuePublicRequest(sql, options.channel ?? telegramPublicChannel(network), { boardId: 'public', taskId: e.job_id, kind: 'job', network, now })
     }
@@ -46,14 +46,14 @@ export async function queueTelegramNotifications(sql: AsyncSql, network: Network
     if (e.name === 'Activated') await notify([job.creator, job.worker], `telegram:hired:${id}`, `Sidequest job #${e.job_id} is active.\n${url}`, e.timestamp)
     if (e.name === 'Ruled') await notify([job.creator, job.worker], `telegram:ruling:${id}`, `The arbitrator ruled for the ${args.forWorker === true ? 'worker' : 'creator'} on Sidequest job #${e.job_id}.\n${url}`, e.timestamp)
     if (e.name === 'PayoutOwed') {
-      await notify([typeof args.to === 'string' ? args.to : null], `telegram:owed:${id}`, `Sidequest job #${e.job_id} has a payout to collect.\n${telegramSite(network)}/collect`, e.timestamp)
+      await notify([typeof args.to === 'string' ? args.to : null], `telegram:owed:${id}`, `Sidequest job #${e.job_id} has a payout to collect.\n${publicOrigin()}/collect`, e.timestamp)
     } else if (['PayoutDeferred', 'RefundDeferred', 'JobCompleted', 'JobRejected', 'JobExpired', 'Cancelled'].includes(e.name)) {
       const contributors = await sql.all<{ contributor: string }>('SELECT DISTINCT contributor FROM top_ups WHERE chain_id = ? AND job_id = ? AND refunded = 0', chainId, e.job_id)
       const hasRefunds = job.kind === 'sidequest-v1' && job.outcome !== null && job.outcome !== 'None' && !PAID.has(job.outcome)
       const unsettled = job.settlement_outcome === 'None'
       if (unsettled || hasRefunds) await notify([
         ...(unsettled ? [job.creator, job.worker] : []), ...(hasRefunds ? contributors.map(c => c.contributor) : []),
-      ], `telegram:collect:${chainId}:${e.job_id}:${e.tx_hash}`, `Sidequest job #${e.job_id} has a decision recorded. Review Collect for settlement or refunds.\n${telegramSite(network)}/collect`, e.timestamp)
+      ], `telegram:collect:${chainId}:${e.job_id}:${e.tx_hash}`, `Sidequest job #${e.job_id} has a decision recorded. Review Collect for settlement or refunds.\n${publicOrigin()}/collect`, e.timestamp)
     }
     // A crash before this marker repeats only INSERT OR IGNORE notifications with deterministic ids.
     await sql.batch([stmt('INSERT OR IGNORE INTO telegram_notified_events (id, processed_at) VALUES (?, ?)', id, now)])
@@ -70,7 +70,7 @@ export async function queueTelegramNotifications(sql: AsyncSql, network: Network
     const paysAt = job.submitted_at + window
     if (now < paysAt - 86400 || now >= paysAt) continue
     await notify([job.creator, job.approver, job.worker], `telegram:silence:${chainId}:${job.job_id}:${job.submitted_tx}`,
-      `Sidequest job #${job.job_id}: silence accepts this delivery at ${new Date(paysAt * 1000).toISOString()}. Review the work before then.\n${telegramSite(network)}/job/${encodeURIComponent(job.job_id)}`,
+      `Sidequest job #${job.job_id}: silence accepts this delivery at ${new Date(paysAt * 1000).toISOString()}. Review the work before then.\n${publicOrigin()}/job/${encodeURIComponent(job.job_id)}`,
       now, { jobId: job.job_id, until: paysAt })
     reminders++
   }

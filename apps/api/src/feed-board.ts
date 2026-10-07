@@ -8,7 +8,7 @@ import type { Sql } from '@sidequest/board'
 import type { AsyncSql } from '@sidequest/indexer'
 import type { Network } from '@sidequest/sdk'
 import { type FeedEvent, PUBLIC_ADDRESS, reportFeedFailure, writeFeed } from './feed.ts'
-import { enqueuePublicRequest, enqueueWalletNotification, telegramPublicChannel, telegramSite } from './telegram.ts'
+import { enqueuePublicRequest, enqueueWalletNotification, telegramPublicChannel, publicOrigin } from './telegram.ts'
 
 const text = (value: unknown) => typeof value === 'string' && value !== '' ? value : undefined
 
@@ -25,7 +25,7 @@ export interface BoardToolEvent {
 export function boardFeedEvents(board: Sql, input: BoardToolEvent): FeedEvent[] {
   const { tool, args, boardId, now } = input
   const result = (input.result ?? {}) as Record<string, unknown>
-  const base = `${telegramSite(input.network)}${boardId === 'public' ? '' : `/b/${encodeURIComponent(boardId)}`}`
+  const base = `${publicOrigin()}${boardId === 'public' ? '' : `/b/${encodeURIComponent(boardId)}`}`
   const jobUrl = (task: { id: string; job_id: string | null }) => `${base}/job/${encodeURIComponent(task.job_id ?? task.id)}`
   const task = (taskId: string | undefined) => taskId === undefined ? undefined
     : board.all<{ id: string; creator: string; job_id: string | null }>('SELECT id, creator, job_id FROM tasks WHERE id = ?', taskId)[0]

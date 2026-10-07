@@ -64,3 +64,11 @@ test('mainnet directory mutations use the same shared wallet/IP limiter as other
   expect(await enforceHostedRate(bindings, { network: 'monad-mainnet', tool: 'prepare_directory_enrollment', boardId: 'public', caller: wallet, ip: '192.0.2.10' })).toEqual({ ok: true })
   expect(calls[0]).toMatchObject({ tool: 'prepare_directory_enrollment', caller: wallet, ip: '192.0.2.10' })
 })
+
+test('prod testnet has the production drain and counter posture while dev testnet stays open', async () => {
+  expect(admissionFailure(parseHostedAdmission('1'), 'monad-testnet', 'public', 'create_task', wallet, 'prod')).toContain('drain')
+  expect(admissionFailure(policy, 'monad-testnet', 'public', 'create_task', undefined, 'prod')).toContain('authenticated')
+  expect(admissionFailure(policy, 'monad-testnet', 'public', 'create_task', wallet, 'prod')).toBeUndefined()
+  expect(await enforceHostedRate({ DEPLOY_STAGE: 'prod' }, { network: 'monad-testnet', tool: 'create_task', boardId: 'public' })).toMatchObject({ ok: false, code: 'unavailable' })
+  expect(await enforceHostedRate({ DEPLOY_STAGE: 'dev' }, { network: 'monad-testnet', tool: 'create_task', boardId: 'public' })).toEqual({ ok: true })
+})

@@ -27,7 +27,7 @@ export interface AdmissionNamespace {
 export const needsWriteRate = (tool: string) => !readOnlyHostedTools.has(tool) || tool === 'auth_challenge' || tool === 'auth_login'
 
 export async function admissionIdentity(bindings: Record<string, unknown>, input: AdmissionCall) {
-  if (bindings.NETWORK !== input.network || input.network !== 'monad-mainnet' || bindings.DEPLOY_STAGE !== 'prod') throw new Error('admission runtime network/stage mismatch')
+  if (bindings.NETWORK !== input.network || (input.network !== 'monad-mainnet' && bindings.DEPLOY_STAGE !== 'prod')) throw new Error('admission runtime network/stage mismatch')
   const desk = new SessionDesk({ sql: fromD1(bindings.Database as never), verify: async () => false })
   const session = await desk.resolve(input)
   let address = session?.address
@@ -46,7 +46,7 @@ export async function admissionIdentity(bindings: Record<string, unknown>, input
   }
   if (input.caller !== undefined && input.caller.toLowerCase() !== address?.toLowerCase()) throw new Error('caller is not the authenticated wallet')
   const policy = parseHostedAdmission(typeof bindings.PROD_ADMISSION_DRAIN === 'string' ? bindings.PROD_ADMISSION_DRAIN : '1')
-  const denied = admissionFailure(policy, input.network, input.boardId, input.tool, address)
+  const denied = admissionFailure(policy, input.network, input.boardId, input.tool, address, String(bindings.DEPLOY_STAGE ?? ''))
   if (denied !== undefined) throw new Error(denied)
   return address
 }
@@ -61,7 +61,7 @@ export async function admissionIpHash(ip: string | undefined): Promise<string> {
 
 /** Both the Worker and board DO use the same counter object; failures refuse the write. */
 export async function enforceHostedRate(bindings: Record<string, unknown>, input: AdmissionCall): Promise<AdmissionReply> {
-  if (input.network !== 'monad-mainnet' || !needsWriteRate(input.tool)) return { ok: true }
+  if ((input.network !== 'monad-mainnet' && bindings.DEPLOY_STAGE !== 'prod') || !needsWriteRate(input.tool)) return { ok: true }
   try {
     const namespace = bindings.Board as AdmissionNamespace | undefined
     if (namespace === undefined) throw new Error('missing admission namespace')

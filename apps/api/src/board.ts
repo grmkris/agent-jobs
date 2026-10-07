@@ -18,6 +18,7 @@ import { resourceBoard } from './oauth-validation.ts'
 import { runAgent, type AgentExecuteRequest } from './agent-runtime.ts'
 import { agentManagement } from './agent-management.ts'
 import { recordBoardEvent } from './feed-board.ts'
+import { configurePublicSite } from './telegram.ts'
 import { operatorRequest, type AgentManagementRequest } from './agent-requests.ts'
 
 /** What the Worker passes on every call: the tool, its arguments, the caller's credentials and the runtime env. */
@@ -62,6 +63,9 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
   Effect.gen(function* () {
     const state = yield* Cloudflare.DurableObjectState
     const runtimeEnv = yield* Cloudflare.WorkerEnvironment
+    const startup = runtimeEnv as Record<string, unknown>
+    if (typeof startup.RELAY_ADDRESS === 'string') sdk.setRelayOverride(startup.RELAY_ADDRESS as Hex)
+    if (typeof startup.PUBLIC_ORIGIN === 'string') configurePublicSite(startup.PUBLIC_ORIGIN, String(startup.TELEGRAM_BOT_USERNAME ?? ''))
     let service: { key: string; board: BoardService } | undefined
     let limits: AdmissionRateLimits | undefined
     // Serialize across awaits and service/config replacement, including callers from different tenants.
@@ -266,6 +270,11 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
               if (request.authorizationList !== undefined) {
                 if (!isAddress(request.to) || request.data !== '0x' || request.authorizationList.length !== 1 || request.authorizationList[0]!.address.toLowerCase() !== deployment.delegation.delegator.toLowerCase())
                   throw new BoardError('forbidden', 'invalid account-upgrade relay request')
+              } else if (request.value !== undefined && request.value !== '0') {
+                if (deployment.network !== 'monad-testnet' || !request.key.startsWith('drip:') || !isAddress(request.to) || request.data !== '0x' || request.value !== '50000000000000000') throw new BoardError('forbidden', 'invalid testnet MON drip')
+              } else if (deployment.network === 'monad-testnet' && deployment.testnetFaucet?.toLowerCase() === request.to.toLowerCase()) {
+                const decoded = decodeFunctionData({ abi: sdk.testnetFaucetAbi, data: request.data })
+                if (!request.key.startsWith('faucet:') || decoded.functionName !== 'drip') throw new BoardError('forbidden', 'invalid testnet faucet relay request')
               } else {
                 const pair = Object.values(deployment.stacks).find(s => s?.evaluator.toLowerCase() === request.to.toLowerCase())
                 if (pair === undefined) throw new BoardError('forbidden', 'relay target is not a configured evaluator')
@@ -313,26 +322,27 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
               const namespace = bindings.Board as { idFromName: (name: string) => { toString: () => string } } | undefined
               const sponsored = sponsorToolNames.has(req.tool)
               const objectName = sponsored ? SPONSOR_OBJECT_NAME : req.env.boardId
-              if ((sponsored || network === 'monad-mainnet') && (namespace === undefined || namespace.idFromName(objectName).toString() !== state.id.toString())) return toJson({ ok: false, code: 'forbidden', message: 'Durable Object board identity mismatch' })
+              const production = network === 'monad-mainnet' || stage === 'prod'
+              if ((sponsored || production) && (namespace === undefined || namespace.idFromName(objectName).toString() !== state.id.toString())) return toJson({ ok: false, code: 'forbidden', message: 'Durable Object board identity mismatch' })
               let directCaller = req.caller !== undefined ? { address: getAddress(req.caller) } : undefined
               if (req.agentAuth !== undefined) {
                 const grant = await authenticatedAgent(req)
                 directCaller = { address: getAddress(grant.address) }
                 const rate = await enforceHostedRate(bindings, { network, tool: req.tool, boardId: req.env.boardId, bearer: req.bearer, caller: req.caller, ip: req.ip, agentAuth: req.agentAuth })
                 if (!rate.ok) return toJson(rate)
-              } else if (network === 'monad-mainnet') {
+              } else if (production) {
                 const desk = new SessionDesk({ sql: fromD1((runtimeEnv as Record<string, unknown>).Database as never), now: () => Math.floor(Date.now() / 1000), verify: async () => false })
                 const session = await desk.resolve({ bearer: req.bearer, mcpSession: req.mcpSession })
                 if (req.caller !== undefined && session?.address.toLowerCase() !== req.caller.toLowerCase()) return toJson({ ok: false, code: 'forbidden', message: 'Durable Object caller is not the authenticated session wallet' })
                 directCaller = session === undefined ? undefined : { address: session.address }
-                const directDenied = admissionFailure(admission, network, req.env.boardId, req.tool, directCaller?.address)
+                const directDenied = admissionFailure(admission, network, req.env.boardId, req.tool, directCaller?.address, String(stage ?? ''))
                 if (directDenied !== undefined) return toJson({ ok: false, code: 'forbidden', message: directDenied })
                 const rate = await enforceHostedRate(bindings, { network, tool: req.tool, boardId: req.env.boardId, bearer: req.bearer, mcpSession: req.mcpSession, caller: req.caller, ip: req.ip })
                 if (!rate.ok) return toJson(rate)
               }
               const board = boardFor(req.env)
               const caller = directCaller ?? board.resolveCaller({ bearer: req.bearer, mcpSession: req.mcpSession })
-              const denied = admissionFailure(admission, network, req.env.boardId, req.tool, caller?.address)
+              const denied = admissionFailure(admission, network, req.env.boardId, req.tool, caller?.address, String(stage ?? ''))
               if (denied !== undefined) return toJson({ ok: false, code: 'forbidden', message: denied })
               const ctx: ToolContext = { network: req.env.network, mcpSession: req.mcpSession }
               const toolResult = await tool.run(board, caller, req.args, ctx)

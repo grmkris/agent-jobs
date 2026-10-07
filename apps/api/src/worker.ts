@@ -7,12 +7,12 @@ import * as Layer from 'effect/Layer'
 import * as Redacted from 'effect/Redacted'
 import * as HttpServerRequest from 'effect/http/HttpServerRequest'
 import * as HttpServerResponse from 'effect/http/HttpServerResponse'
-import { BoardError, parseHostedAdmission, PUBLIC_BOARD_ID, SPONSOR_OBJECT_NAME, sponsorToolNames, SessionDesk, type TenantConfig, type TenantToken, isAllowedOrigin, publicTenant } from '@sidequest/board'
+import { BoardError, parseHostedAdmission, PUBLIC_BOARD_ID, SPONSOR_OBJECT_NAME, sponsorToolNames, SessionDesk, type TenantConfig, type TenantToken, type RelayRequest, failureFromReply, isAllowedOrigin, publicTenant } from '@sidequest/board'
 import { admissionDrainBinding, runtimeSecret } from './prod-config.ts'
 import { type AsyncSql, agentsOfWallet, fromD1, indexStatus, listAgents, networkStats } from '@sidequest/indexer'
 import * as sdk from '@sidequest/sdk'
 import { stageProfile } from '../../../infra/stage.ts'
-import type { Address } from 'viem'
+import type { Address, Hex } from 'viem'
 import Board, { type BoardCall, type BoardReply } from './board.ts'
 import { corsHeaders } from './cors.ts'
 import { Database } from './database.ts'
@@ -26,7 +26,7 @@ import DirectoryObject, { directoryObjectName } from './directory-object.ts'
 import { directoryTools, migrateDirectory, runDirectoryTool } from './directory.ts'
 import { hostedCallFailure } from './hosted-admission.ts'
 import { enforceHostedRate } from './admission-rate.ts'
-import { handleTelegramWebhook, migrateTelegram } from './telegram.ts'
+import { configurePublicSite, handleTelegramWebhook, migrateTelegram } from './telegram.ts'
 import { feedTools } from './feed.ts'
 import { telegramTools } from './tools-telegram.ts'
 import type { OAuthReply, OAuthGrant } from './oauth.ts'
@@ -117,6 +117,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
     const boards = yield* Board
     const runtimeEnv = yield* Cloudflare.WorkerEnvironment
     sdk.setRelayOverride((yield* Config.String('RELAY_ADDRESS')) as Address)
+    configurePublicSite(yield* Config.String('PUBLIC_ORIGIN'), yield* Config.String('TELEGRAM_BOT_USERNAME'))
     const directory = yield* DirectoryObject
     const manifests = yield* Cloudflare.R2.ReadWriteBucket(Manifests)
     // Explore's chain facts (read-only here; the indexer is the only writer of its tables) and the board registry.
@@ -246,6 +247,11 @@ export default class Api extends Cloudflare.Worker<Api>()(
             privateKeyPem: yield* secret('GITHUB_APP_PRIVATE_KEY'),
           },
         }
+        const relaySend = async (relayRequest: RelayRequest): Promise<Hex> => {
+          const reply = JSON.parse(await Effect.runPromise(boards.getByName(SPONSOR_OBJECT_NAME).relay({ env, request: relayRequest }))) as BoardReply
+          if (!reply.ok) throw failureFromReply(reply)
+          return reply.result as Hex
+        }
         const bearer = request.headers.authorization?.replace(/^Bearer\s+/i, '') || undefined
         const ip = request.headers['cf-connecting-ip']
         const directoryCall = (tool: string, args: Record<string, unknown>, mcpSession?: string, caller?: string) => runDirectoryTool({
@@ -277,12 +283,12 @@ export default class Api extends Cloudflare.Worker<Api>()(
                 if (tool === 'auth_login') {
                   const r = await desk.login({ message: String(args.message ?? ''), signature: String(args.signature ?? ''), boardId: tenant.id, domainAllowed })
                   if (mcpSession !== undefined) await desk.bindMcp(mcpSession, r.session)
-                  const drip = network === 'monad-testnet' && tenant.drip ? await dripOnce({ sql, network, rpcUrl, relayKey, now }, { boardId: tenant.id, address: r.address }) : undefined
+                  const drip = network === 'monad-testnet' && tenant.drip ? await dripOnce({ sql, network, rpcUrl, relayKey, now, relaySend }, { boardId: tenant.id, address: r.address }) : undefined
                   return { reply: { ok: true, result: { ...r, boardId: tenant.id, ...(drip === undefined ? {} : { drip }) } } }
                 }
                 if (tool === 'testnet_faucet') {
                   if (session === undefined) return { reply: { ok: false, code: 'unauthenticated', message: 'Sign in to claim test tokens' } }
-                  return { reply: { ok: true, result: await claimFaucet({ sql, network, now, chain: faucetChain({ sql, network, rpcUrl, relayKey, now }) }, { address: session.address }) } }
+                  return { reply: { ok: true, result: await claimFaucet({ sql, network, now, chain: faucetChain({ sql, network, rpcUrl, relayKey, now, relaySend }) }, { address: session.address }) } }
                 }
                 if (tool === 'whoami' && session !== undefined) {
                   const drip = await dripState(sql, tenant.id, session.address)
@@ -290,7 +296,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
                 }
                 // A read of the caller's own feed in D1; hosted board admission governs board tools, not this.
                 if (tool === 'inbox') return { reply: { ok: true, result: await feedTools.inbox.run({ sql, network, now: now() }, session?.address, args) } }
-                const denied = hostedCallFailure(admission, network, tenant.id, tool, args, session?.address)
+                const denied = hostedCallFailure(admission, network, tenant.id, tool, args, session?.address, stage)
                 if (denied !== undefined) return { reply: { ok: false, code: 'forbidden', message: denied } }
                 if (Object.hasOwn(directoryTools, tool)) return { reply: { ok: true, result: await directoryCall(tool, args, mcpSession, session?.address) } }
                 const telegram = telegramTools[tool]
@@ -372,7 +378,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
               if (path === '/data/boards') {
                 const stored = await listBoards(sql)
                 const pub = publicTenant(deployment, await Promise.all(deployment.rewardTokens.map(tokenInfo)))
-                return { ok: true, boards: [pub, ...stored].map(boardView) }
+                return { ok: true, boards: [pub, ...stored].map(config => boardView(config, deployment.relay)) }
               }
               if (path === '/data/jobs') {
                 const which = url.searchParams.get('board') ?? (boardId === PUBLIC_BOARD_ID ? null : boardId)

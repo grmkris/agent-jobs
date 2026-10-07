@@ -7,7 +7,7 @@ import type { AgentExecuteResult, AgentRow, ApprovalRow } from '@sidequest/board
 import type { AsyncSql } from '@sidequest/indexer'
 import type { Network } from '@sidequest/sdk'
 import { type FeedEvent, reportFeedFailure, writeFeed } from './feed.ts'
-import { enqueueWalletNotification, telegramSite } from './telegram.ts'
+import { enqueueWalletNotification, publicOrigin } from './telegram.ts'
 
 const KIND_WORDS: Record<ApprovalRow['kind'], string> = {
   'hire-over-limit': 'a hire above its weekly allowance',
@@ -19,8 +19,8 @@ type Agent = Pick<AgentRow, 'id' | 'name' | 'operator' | 'address' | 'agent_id'>
 
 /** Where the operator reviews and signs: the agent's approvals tab, with this approval in view. */
 export function approvalUrl(network: Network, agent: Agent, approvalId: string): string {
-  if (agent.agent_id === null) return `${telegramSite(network)}/agents`
-  return `${telegramSite(network)}/agent/${encodeURIComponent(agent.agent_id)}?tab=approvals&approval=${encodeURIComponent(approvalId)}`
+  if (agent.agent_id === null) return `${publicOrigin()}/agents`
+  return `${publicOrigin()}/agent/${encodeURIComponent(agent.agent_id)}?tab=approvals&approval=${encodeURIComponent(approvalId)}`
 }
 
 /** Feed rows plus, for a new approval, the one Telegram message the operator gets. */

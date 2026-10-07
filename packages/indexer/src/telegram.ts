@@ -2,6 +2,7 @@
 import type { Address, Hex } from 'viem'
 import { isAddress } from 'viem'
 import type { Network } from '@sidequest/sdk'
+import { stageProfile } from '../../../infra/stage.ts'
 import { type AsyncSql, type Statement, stmt } from './store.ts'
 
 /** D9: release configuration, not Worker bindings. Kris supplies the real public handles. */
@@ -13,7 +14,16 @@ const OWNER_WALLETS_BY_NETWORK: Record<Network, readonly string[]> = {
   'monad-mainnet': ['0xB9970A6371358F6C74DFb15A7cB2653E3AE3E471'],
 }
 export const telegramOwnerWallets = (network: Network): readonly string[] => OWNER_WALLETS_BY_NETWORK[network]
-export const telegramSite = (network: Network): string => network === 'monad-mainnet' ? 'https://sidequest.exchange' : 'https://dev.sidequest.exchange'
+let siteOrigin: string | undefined
+let botUsername: string | undefined
+/** Worker/DO startup sets its canonical stage bindings once for all notification/feed producers. */
+export function configurePublicSite(origin: string, bot: string): void {
+  siteOrigin = new URL(origin).origin
+  if (bot !== '' && !/^[A-Za-z0-9_]+$/.test(bot)) throw new Error('Invalid Telegram bot username')
+  botUsername = bot
+}
+export const telegramBot = (_network: Network): string => botUsername ?? stageProfile()?.telegram.botUsername ?? stageProfile('dev')!.telegram.botUsername
+export const publicOrigin = (): string => siteOrigin ?? stageProfile()?.origin ?? stageProfile('dev')!.origin
 export const telegramChainId = (network: Network) => network === 'monad-mainnet' ? 143 : 10143
 const chainIdOf = telegramChainId
 
@@ -113,7 +123,7 @@ export async function telegramLinkPrepare(sql: AsyncSql, network: Network, walle
   if (!isAddress(wallet)) throw new TelegramError('invalid', 'Wallet must be an address')
   const nonce = randomCode()
   const expiresAt = now + 15 * 60
-  const message = `Link my wallet to Sidequest Telegram notifications.\nWallet: ${wallet}\nSite: ${telegramSite(network)}\nChain: ${chainIdOf(network)}\nNonce: ${nonce}\nExpires: ${expiresAt}`
+  const message = `Link my wallet to Sidequest Telegram notifications.\nWallet: ${wallet}\nSite: ${publicOrigin()}\nChain: ${chainIdOf(network)}\nNonce: ${nonce}\nExpires: ${expiresAt}`
   await sql.batch([stmt('INSERT OR REPLACE INTO telegram_challenges (wallet, chain_id, nonce, message, expires_at) VALUES (?, ?, ?, ?, ?)', wallet.toLowerCase(), chainIdOf(network), nonce, message, expiresAt)])
   return { nonce, message, expiresAt }
 }
@@ -132,7 +142,7 @@ export async function telegramLinkConfirm(sql: AsyncSql, network: Network, walle
   await sql.batch([stmt('UPDATE telegram_challenges SET confirmed_at = ? WHERE chain_id = ? AND wallet = ? AND nonce = ? AND expires_at > ? AND consumed_at IS NULL', now, chainIdOf(network), wallet.toLowerCase(), nonce, now)])
   const [confirmed] = await sql.all<{ confirmed_at: number | null }>('SELECT confirmed_at FROM telegram_challenges WHERE nonce = ? AND wallet = ? AND consumed_at IS NULL AND expires_at > ?', nonce, wallet.toLowerCase(), now)
   if (confirmed?.confirmed_at === null || confirmed === undefined) throw new TelegramError('invalid', 'The pending link changed; prepare a fresh link')
-  return { pending: true, botUrl: `https://t.me/sidequest_xyz_bot?start=${nonce}` }
+  return { pending: true, botUrl: `https://t.me/${telegramBot(network)}?start=${nonce}` }
 }
 
 /** Only authenticated private bot chats can create or remove links. Replies go through the outbox. */
@@ -151,12 +161,12 @@ export async function handleTelegramWebhook(sql: AsyncSql, network: Network, bod
   const gate = 'EXISTS (SELECT 1 FROM telegram_updates WHERE id = ? AND claim_token = ?)'
   let reply: string
   let linkNonce: string | undefined
-  if (/^\/start(?:@sidequest_xyz_bot)?(?:\s|$)/i.test(text)) {
+  if (new RegExp(`^\\/start(?:@${telegramBot(network)})?(?:\\s|$)`, 'i').test(text)) {
     const nonce = text.split(/\s+/)[1] ?? ''
     const [pending] = /^[A-Za-z0-9_-]{1,64}$/.test(nonce)
       ? await sql.all<{ wallet: string }>('SELECT wallet FROM telegram_challenges WHERE chain_id = ? AND nonce = ? AND confirmed_at IS NOT NULL AND consumed_at IS NULL AND expires_at > ?', chainIdOf(network), nonce, now)
       : []
-    if (pending === undefined) reply = `Link your wallet in Sidequest first:\n${telegramSite(network)}/telegram`
+    if (pending === undefined) reply = `Link your wallet in Sidequest first:\n${publicOrigin()}/telegram`
     else {
       const username = typeof m.from?.username === 'string' && /^[A-Za-z0-9_]{1,64}$/.test(m.from.username) ? m.from.username : null
       statements.push(
@@ -167,21 +177,21 @@ export async function handleTelegramWebhook(sql: AsyncSql, network: Network, bod
       reply = 'Your wallet is linked to Sidequest job notifications. Use /stop to turn them off.'
       linkNonce = nonce
     }
-  } else if (/^\/stop(?:@sidequest_xyz_bot)?(?:\s|$)/i.test(text)) {
+  } else if (new RegExp(`^\\/stop(?:@${telegramBot(network)})?(?:\\s|$)`, 'i').test(text)) {
     statements.push(
       stmt(`UPDATE telegram_outbox SET status = 'cancelled' WHERE chat_id = ? AND status = 'pending' AND ${gate}`, chatId, webhook.id, webhook.claim),
       stmt(`DELETE FROM telegram_challenges WHERE wallet IN (SELECT wallet FROM telegram_links WHERE chat_id = ?) AND ${gate}`, chatId, webhook.id, webhook.claim),
       stmt(`DELETE FROM telegram_links WHERE chat_id = ? AND ${gate}`, chatId, webhook.id, webhook.claim),
     )
     reply = 'Sidequest notifications are off. Link your wallet again in Sidequest to turn them on.'
-  } else if (text !== '') reply = `Link your wallet in Sidequest:\n${telegramSite(network)}/telegram\nOr send /stop to turn off notifications.`
+  } else if (text !== '') reply = `Link your wallet in Sidequest:\n${publicOrigin()}/telegram\nOr send /stop to turn off notifications.`
   else return { ok: true, queued: false }
   if (linkNonce === undefined) statements.push(outboxStatement({ id: `telegram:reply:${webhook.id}`, chatId, text: reply, now }, webhook))
   else statements.push(stmt(`INSERT OR IGNORE INTO telegram_outbox (id, chat_id, text, status, due_at, created_at)
     SELECT ?, ?, CASE WHEN EXISTS (SELECT 1 FROM telegram_challenges WHERE nonce = ? AND consume_token = ?)
       THEN ? ELSE ? END, 'pending', ?, ? WHERE ${gate}`,
     `telegram:reply:${webhook.id}`, chatId, linkNonce, webhook.claim, reply,
-    `This link expired or was used. Prepare a fresh link in Sidequest:\n${telegramSite(network)}/telegram`, now, now, webhook.id, webhook.claim))
+    `This link expired or was used. Prepare a fresh link in Sidequest:\n${publicOrigin()}/telegram`, now, now, webhook.id, webhook.claim))
   await sql.batch(statements)
   const [owned] = await sql.all('SELECT id FROM telegram_updates WHERE id = ? AND claim_token = ?', webhook.id, webhook.claim)
   return { ok: true, queued: owned !== undefined }
@@ -263,5 +273,5 @@ export async function enqueuePublicRequest(sql: AsyncSql, channelId: string, inp
   if (channelId === '') { console.info('Telegram public request skipped: channel unset', input.network); return }
   const boardPath = input.boardId === 'public' ? '' : `/b/${encodeURIComponent(input.boardId)}`
   await enqueueTelegram(sql, { id: `telegram:request:${input.boardId}:${input.taskId}`, chatId: channelId,
-    text: `New Sidequest request${input.title === undefined ? '' : `: ${input.title.slice(0, 200)}`}\n${telegramSite(input.network)}${boardPath}/${input.kind === 'job' ? 'job' : 'quotes'}/${encodeURIComponent(input.taskId)}`, now: input.now })
+    text: `New Sidequest request${input.title === undefined ? '' : `: ${input.title.slice(0, 200)}`}\n${publicOrigin()}${boardPath}/${input.kind === 'job' ? 'job' : 'quotes'}/${encodeURIComponent(input.taskId)}`, now: input.now })
 }

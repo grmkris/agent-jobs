@@ -102,6 +102,7 @@ export const tools: Record<string, Tool> = {
         network: ctx.network,
         paused: await board.paused().catch(() => null),
         chainId: d.chainId,
+        relay: d.relay,
         explorer: ctx.network === 'monad-testnet' ? 'https://testnet.monadscan.com' : 'https://monadscan.com',
         contracts: { core: d.core, factory: d.factory, stacks: d.stacks, identity: d.identity, reputation: d.reputation, delegator: d.delegation.delegator, delegationManager: d.delegation.manager, ...(d.testnetFaucet === null ? {} : { testnetFaucet: d.testnetFaucet }) },
         /** Tokens the apps list first. A reward may be any ERC-20, by address, on a stack marked `openTokens` (ADR-0010). */

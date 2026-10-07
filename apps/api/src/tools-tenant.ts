@@ -67,7 +67,7 @@ function inputOf(config: TenantConfig): CreateBoardInput {
 }
 
 /** What anyone may see of a board: its config, which carries no secret. */
-export const boardView = (config: TenantConfig) => ({ ...config, public: config.id === PUBLIC_BOARD_ID })
+export const boardView = (config: TenantConfig, relay?: string) => ({ ...config, ...(relay === undefined ? {} : { relay }), public: config.id === PUBLIC_BOARD_ID })
 
 export const tenantTools: Record<string, TenantTool> = {
   list_boards: {
@@ -76,7 +76,7 @@ export const tenantTools: Record<string, TenantTool> = {
     run: async (deps, _caller, tenant) => {
       const boards = await listBoards(deps.sql)
       const pub = tenant.id === PUBLIC_BOARD_ID ? [tenant] : []
-      return { boards: [...pub, ...boards].map(boardView) }
+      return { boards: [...pub, ...boards].map(config => boardView(config, deps.deployment.relay)) }
     },
   },
 
@@ -85,10 +85,10 @@ export const tenantTools: Record<string, TenantTool> = {
     inputSchema: { type: 'object', properties: { boardId: str('The board slug.') } },
     run: async (deps, _caller, tenant, a) => {
       const id = typeof a.boardId === 'string' ? a.boardId : tenant.id
-      if (id === tenant.id) return { board: boardView(tenant) }
+      if (id === tenant.id) return { board: boardView(tenant, deps.deployment.relay) }
       const stored = await getBoard(deps.sql, id)
       if (stored === undefined) throw new TenantError('invalid', `no board "${id}"`)
-      return { board: boardView(stored.config) }
+      return { board: boardView(stored.config, deps.deployment.relay) }
     },
   },
 
@@ -107,7 +107,7 @@ export const tenantTools: Record<string, TenantTool> = {
       const webhookSecret = config.webhookUrl === undefined ? null : secretHex()
       const created = await createBoard(deps.sql, config, webhookSecret, deps.now())
       if (!created) throw new TenantError('invalid', `board "${config.id}" already exists`)
-      return { board: boardView(config), ...(webhookSecret === null ? {} : { webhookSecret }) }
+      return { board: boardView(config, deps.deployment.relay), ...(webhookSecret === null ? {} : { webhookSecret }) }
     },
   },
 
@@ -129,7 +129,7 @@ export const tenantTools: Record<string, TenantTool> = {
       const rotate = a.rotateWebhookSecret === true || (config.webhookUrl !== undefined && stored.webhookSecret === null)
       const webhookSecret = rotate ? secretHex() : config.webhookUrl === undefined ? null : undefined
       await updateBoard(deps.sql, config, webhookSecret, deps.now())
-      return { board: boardView(config), ...(rotate && webhookSecret !== undefined && webhookSecret !== null ? { webhookSecret } : {}) }
+      return { board: boardView(config, deps.deployment.relay), ...(rotate && webhookSecret !== undefined && webhookSecret !== null ? { webhookSecret } : {}) }
     },
   },
 }

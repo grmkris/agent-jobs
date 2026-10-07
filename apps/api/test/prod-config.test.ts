@@ -71,7 +71,7 @@ test.each(['stage', 'chain', 'RPC', 'HyperSync', 'Privy', 'secret', 'address', '
   if (kind === 'RPC') artifact.rpc.url = 'https://testnet-rpc.monad.xyz'
   if (kind === 'HyperSync') artifact.hyperSync.url = 'https://monad-testnet.hypersync.xyz'
   if (kind === 'Privy') artifact.privy.origins = ['https://dev.sidequest.exchange']
-  if (kind === 'secret') artifact.secretSources.RELAY_PRIVATE_KEY = 'RELAY_PRIVATE_KEY'
+  if (kind === 'secret') artifact.secretSources.RELAY_PRIVATE_KEY = 'SIDEQUEST_PROD_RELAY_PRIVATE_KEY'
   if (kind === 'address') artifact.addresses.core = '0x0000000000000000000000000000000000000000'
   if (kind === 'openTokens') config.deployment.main!.openTokens = false
   if (kind === 'legacy') config.deployment.legacy = { old: { kind: 'legacy', factory: '0x2222222222222222222222222222222222222222', holding: '0x3333333333333333333333333333333333333333', evaluator: '0x4444444444444444444444444444444444444444', openTokens: true } }

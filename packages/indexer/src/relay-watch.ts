@@ -2,7 +2,7 @@ import { errorDiagnostics } from '@sidequest/board'
 import type { AsyncSql } from './store.ts'
 import type { Network } from '@sidequest/sdk'
 import { type Address, formatEther } from 'viem'
-import { enqueueWalletNotification, telegramOwnerWallets, telegramSite } from './telegram.ts'
+import { enqueueWalletNotification, telegramOwnerWallets, publicOrigin } from './telegram.ts'
 
 /** The relay refuses sponsored sends below 2 MON plus the send's cost (sponsorRelayFloor); warn well before that. */
 export const RELAY_ALERT = { warnWei: 3n * 10n ** 18n, criticalWei: 22n * 10n ** 17n, repeatSeconds: 3600 } as const
@@ -22,7 +22,7 @@ export async function watchRelay(sql: AsyncSql, input: { network: Network; now: 
   const level = relayLevel(balance)
   if (level === 'ok') return { level, balance: balance.toString(), queued: false }
   const text = `<b>Sidequest relay ${level}</b> (${input.network}): ${Number(formatEther(balance)).toFixed(3)} MON at ${input.relay}. `
-    + `Sponsored agent actions refuse below 2 MON plus the send cost. Top up per docs/sponsorship.md (Relay funding). ${telegramSite(input.network)}`
+    + `Sponsored agent actions refuse below 2 MON plus the send cost. Top up per docs/sponsorship.md (Relay funding). ${publicOrigin()}`
   const id = `relay:${input.network}:${level}:${Math.floor(input.now / RELAY_ALERT.repeatSeconds)}`
   for (const wallet of telegramOwnerWallets(input.network)) await enqueueWalletNotification(sql, input.network, wallet, { id: `${id}:${wallet.toLowerCase()}`, text, now: input.now })
   return { level, balance: balance.toString(), queued: true }

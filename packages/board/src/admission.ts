@@ -51,8 +51,8 @@ export function parseHostedAdmission(drain: string): HostedAdmission {
   return { drain: drain !== '0' && drain.toLowerCase() !== 'false' }
 }
 
-export function admissionFailure(admission: HostedAdmission, network: string, _board: string, tool: string, caller: string | undefined): string | undefined {
-  if (network !== 'monad-mainnet' || readOnlyHostedTools.has(tool)) return undefined
+export function admissionFailure(admission: HostedAdmission, network: string, _board: string, tool: string, caller: string | undefined, stage?: string): string | undefined {
+  if ((network !== 'monad-mainnet' && stage !== 'prod') || readOnlyHostedTools.has(tool)) return undefined
   if (!hostedToolNames.has(tool)) return 'unknown hosted tool'
   if (admission.drain && !drainHostedTools.has(tool)) return 'production hosted writes are in drain mode'
   if (recoveryHostedTools.has(tool) && caller !== undefined) return undefined
