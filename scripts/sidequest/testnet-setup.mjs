@@ -13,10 +13,13 @@ import {
   zeroAddress,
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
+import { existingSafe, parseSetupArgs, safeNonce, setupOperationId } from './testnet-setup-model.mjs'
 import { stageProfile } from '../../infra/stage.ts'
 import { loadEnv, testnetOperation } from './transaction.mjs'
 
+const { command, generation } = parseSetupArgs(process.argv.slice(2))
 const env = loadEnv()
+const op = (name) => setupOperationId(name, generation)
 const infra = stageProfile(env.SIDEQUEST_STAGE ?? 'dev') ?? stageProfile('dev')
 if (infra.network !== 'monad-testnet') throw new Error('testnet-only')
 const client = createPublicClient({ transport: http(env.MONAD_RPC_URL) })
@@ -34,14 +37,14 @@ const factoryAbi = parseAbi([
 
 try {
   if ((await client.getChainId()) !== 10143) throw new Error('testnet-chain-mismatch')
-  if (process.argv[2] === 'fund') {
+  if (command === 'fund') {
     // Leave the old Safe owner funded for outstanding-work reconciliation; only native testnet gas moves.
     for (const [role, amount] of [
       ['DEPLOYER', '2.5'],
       ['RELAY', '0.4'],
     ]) {
       const result = await testnetOperation({
-        id: `fund-${role.toLowerCase()}-20261006`,
+        id: op(`fund-${role.toLowerCase()}`),
         key: 'SAFE_BACKUP_TESTNET_PRIVATE_KEY',
         to: address(role),
         value: parseEther(amount),
@@ -50,7 +53,7 @@ try {
       })
       console.log(JSON.stringify({ id: result.id, hash: result.hash, block: result.block, status: result.status }))
     }
-  } else if (process.argv[2] === 'rewards') {
+  } else if (command === 'rewards') {
     const artifact = JSON.parse(readFileSync('contracts/out/MockPaymentToken.sol/MockPaymentToken.json', 'utf8'))
     const tokens = []
     for (const [name, symbol] of [
@@ -62,7 +65,7 @@ try {
         encodeAbiParameters(parseAbiParameters('string,string'), [name, symbol]),
       ])
       const result = await testnetOperation({
-        id: `reward-${symbol.toLowerCase()}-20261006`,
+        id: op(`reward-${symbol.toLowerCase()}`),
         key: 'DEPLOYER_PRIVATE_KEY',
         data,
         gas: 1_000_000n,
@@ -85,7 +88,7 @@ try {
     config.knownTokens = tokens
     config.deployment.rewardTokens = tokens
     writeFileSync('contracts/config/monad-testnet.json', JSON.stringify(config, null, 2) + '\n')
-  } else if (process.argv[2] === 'faucet') {
+  } else if (command === 'faucet') {
     // The testnet "Get test tokens" faucet: 1,000 SIDE (transferred from its balance) + 1,000 of each payment token
     // (minted) per address per day. Owned by the admin; funded with 10M SIDE from the ecosystem allocation.
     const config = JSON.parse(readFileSync('contracts/config/monad-testnet.json', 'utf8'))
@@ -103,7 +106,7 @@ try {
       ]),
     ])
     const deployed = await testnetOperation({
-      id: 'faucet-deploy-20261006',
+      id: op('faucet-deploy'),
       key: 'DEPLOYER_PRIVATE_KEY',
       data,
       gas: 1_500_000n,
@@ -130,7 +133,7 @@ try {
       args: [faucet, parseEther('10000000')],
     })
     const funded = await testnetOperation({
-      id: 'faucet-fund-20261006',
+      id: op('faucet-fund'),
       key: 'CREATOR_PRIVATE_KEY',
       to: side,
       data: transfer,
@@ -140,7 +143,13 @@ try {
     console.log(JSON.stringify({ funded: '10000000 SIDE', hash: funded.hash, block: funded.block }))
     config.deployment.testnetFaucet = getAddress(faucet)
     writeFileSync('contracts/config/monad-testnet.json', JSON.stringify(config, null, 2) + '\n')
-  } else if (process.argv[2] === 'safe') {
+  } else if (command === 'safe') {
+    const config = JSON.parse(readFileSync('contracts/config/monad-testnet.json', 'utf8'))
+    const existing = await existingSafe(config, client)
+    if (existing !== null) {
+      console.log(JSON.stringify({ generation, skipped: 'safe-exists', safe: existing }))
+      process.exit(0)
+    }
     for (const target of Object.values(infra.safeInfrastructure)) {
       if (!(await client.getCode({ address: target }))) throw new Error('safe-infrastructure-missing')
     }
@@ -150,13 +159,14 @@ try {
       functionName: 'setup',
       args: [owners, 1n, zeroAddress, '0x', infra.safeInfrastructure.fallbackHandler, zeroAddress, 0n, zeroAddress],
     })
+    const nonce = safeNonce(generation)
     const data = encodeFunctionData({
       abi: factoryAbi,
       functionName: 'createProxyWithNonce',
-      args: [infra.safeInfrastructure.singleton, initialization, 2026100601n],
+      args: [infra.safeInfrastructure.singleton, initialization, nonce],
     })
     const result = await testnetOperation({
-      id: 'safe-create-20261006',
+      id: op('safe-create'),
       key: 'DEPLOYER_PRIVATE_KEY',
       to: infra.safeInfrastructure.factory,
       data,
