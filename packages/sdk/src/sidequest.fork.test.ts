@@ -5,7 +5,6 @@ import { activate, balanceOf, cancel, claimTopUpRefund, getJob, getV1Listing, ha
   registerAgent, requestUndelegate, settle, settleDeferred, signSelection, delegate, submit, accept, topUp, withdraw, type ActivationTerms } from './actions.ts'
 import { getBacking, getPosition } from './staking.ts'
 import { coreAbi } from './abi/index.ts'
-import { factoryV2Abi, jobHoldingAbi, jobPoolAbi } from './abi/index.ts'
 import { sidequestLifecycle, sidequestState } from './sidequest.ts'
 import { lifecycle } from './lifecycle.ts'
 import type { Selection } from './typed-data.ts'
@@ -30,7 +29,7 @@ fork('SDK v1 against real bytecode on a local Monad fork', () => {
     const expected: ActivationTerms = { creator: creator.account.address, approver: creator.account.address,
       token: ctx.stack.factory, reward: 101n, creatorBond: parseEther('10'), workerBond: parseEther('10'),
       arbitrator: arbitrator.account.address, reviewWindow: 3600, disputeWindow: 7200, arbitrationWindow: 43200, deliveryDeadline: now + 3600 }
-    const { jobId } = await publish(ctx, creator, { ...expected, mode: 'hire', manifestHash: hashText('fork'), termsHash: policy })
+    const { jobId } = await publish(ctx, creator, { ...expected, manifestHash: hashText('fork'), termsHash: policy })
     const selection: Selection = { jobId, worker: worker.account.address, agentId, termsHash: policy, activateBy: now + 1800, nonce: BigInt(sequence) }
     return { jobId, expected, selection, creatorSig: await signSelection(ctx, creator, selection) }
   }
@@ -98,24 +97,5 @@ fork('SDK v1 against real bytecode on a local Monad fork', () => {
     await f.rpc('evm_mine')
     await withdraw(f.ctx, f.worker)
     expect((await getPosition(f.ctx, f.worker.account.address, f.worker.account.address)).queued).toBe(0n)
-  }, 120_000)
-
-  it('creates a legacy pool using only its old SIDE after the global token changes to v2', async () => {
-    const { createPool } = await import('./actions.ts')
-    const oldFactory = await f.deploy('Factory', ['Legacy Factory', 'OLD', [f.admin.account.address], [parseEther('1000000000')]])
-    await f.send(oldFactory, factoryV2Abi, 'transfer', [f.creator.account.address, parseEther('100')])
-    const holding = await f.deploy('JobHolding', [f.ctx.deployment.core, oldFactory, f.ctx.deployment.identity, parseEther('10'), 0n])
-    const evaluator = await f.deploy('JobsEvaluator', [f.ctx.deployment.core, holding, f.ctx.deployment.reputation, f.admin.account.address, 120, 120, 300, 120])
-    await f.send(holding, jobHoldingAbi, 'setEvaluator', [evaluator])
-    const poolFactory = await f.deploy('JobPoolFactory')
-    const ctx = { ...f.ctx, stack: { kind: 'legacy' as const, factory: oldFactory, holding, evaluator, openTokens: true }, deployment: { ...f.ctx.deployment, poolFactory } }
-    const now = Number((await f.ctx.publicClient.getBlock()).timestamp)
-    const before = await balanceOf(ctx, oldFactory, f.creator.account.address)
-    const { pool } = await createPool(ctx, f.creator, { salt: hashText('legacy-pool-token'), goal: 101n, pledgeDeadline: now + 120, curator: f.creator.account.address,
-      publish: { mode: 'hire', token: f.ctx.stack.factory, workerBond: 0n, manifestHash: hashText('pool-manifest'), termsHash: hashText('pool-offer'), deliveryDeadline: now + 2 * 86400 } })
-    expect(before - await balanceOf(ctx, oldFactory, f.creator.account.address)).toBe(parseEther('10'))
-    expect(await balanceOf(ctx, oldFactory, pool)).toBe(parseEther('10'))
-    expect(await ctx.publicClient.readContract({ address: f.ctx.stack.factory, abi: factoryV2Abi, functionName: 'allowance', args: [f.creator.account.address, poolFactory] })).toBe(0n)
-    expect(await ctx.publicClient.readContract({ address: pool, abi: jobPoolAbi, functionName: 'holdAmount' })).toBe(parseEther('10'))
   }, 120_000)
 })

@@ -1,8 +1,0 @@
-{
-  "png": "image/png",
-  "jpg": "image/jpeg",
-  "jpeg": "image/jpeg",
-  "txt": "text/plain",
-  "md": "text/markdown",
-  "json": "application/json"
-}

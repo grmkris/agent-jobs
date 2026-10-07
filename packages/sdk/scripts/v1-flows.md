@@ -7,19 +7,13 @@ a promoted v1 `main` pair. The runner never deploys or edits the deployment conf
 
 Run from the backend worktree. Bun loads its testnet-only `.env.local`. Required names:
 `MONAD_TESTNET_RPC_URL`, `TESTNET_CREATOR_PRIVATE_KEY`, `TESTNET_WORKER_PRIVATE_KEY`, `RELAY_PRIVATE_KEY`,
-`V1_ARBITRATOR_PRIVATE_KEY`. `ARBITRATOR_PRIVATE_KEY` is a fallback for the v1 signer only when that is the
-configured v1 key (`sidequest.defaultArbitrator`, not the legacy `roles.arbitrator`). `legacy-dispute` uses
-`LEGACY_ARBITRATOR_PRIVATE_KEY` or the legacy `ARBITRATOR_PRIVATE_KEY`; its address is checked against the
-legacy evaluator before activation. The named arbitrator is
+`V1_ARBITRATOR_PRIVATE_KEY`. Its address is checked against `sidequest.defaultArbitrator`. The named arbitrator is
 passed explicitly at publish; the worker checks the listing and signs a fresh net quote before activation.
 
 Optional `TESTNET_AGENT_ID` reuses a registered worker identity. Otherwise registration is journaled.
 `V1_FLOW_REWARD` (default 1 token), `V1_FLOW_BOND` (default 10 SIDE), and `V1_STAKE_TARGET` (default
 100 SIDE) are whole-token decimal amounts. Decimals are read on chain. Fund these wallets with testnet
-MON, SIDE v2 and the configured reward token before running; v2 SIDE has no faucet. The `legacy-contest`
-case also requires the creator to hold at least 1 SIDE v1 from the legacy open-token Holding's `factory()`
-address. The runner reads that address and balance before any setup or flow send and stops with a clear prerequisite
-message when it is missing; do not assume the v2 SIDE balance satisfies it.
+MON, SIDE v2 and the configured reward token before running.
 
 The three delegated cases reuse the creator as an outside owner and, for `slash-pro-rata`, the relay as
 another outside owner. The creator journals the relay's SIDE funding; no extra keys are needed. Start with
@@ -58,7 +52,6 @@ journal keeps its original terms and signed bytes through a code update; a redep
 | Slash queued shares, retain a second bond, then withdraw | `undelegate-pending-slash` |
 | Two fee tiers | `fees` (worker must begin below tier 2 and have enough liquid SIDE to reach it) |
 | Real refusing tokens → owed → withdrawal | `owed-blocklist`, `owed-gas` |
-| Legacy contracts and immutable key | `legacy-contest`, `legacy-dispute` |
 | Direct hire with sponsored activation/decisions | `direct-hire` |
 | Request → quote → hire | `quotes` |
 | Execution budget with worker bond | `budget-advance`, `budget-call` |
@@ -69,7 +62,7 @@ journal keeps its original terms and signed bytes through a code update; a redep
 | Safe ownership, fee delay, vault delay, pause | `admin-ownership`, `admin-fees`, `admin-vault-refusal`, `admin-pause` |
 
 The G1c candidate adds `delegate`, `slash-pro-rata` and `undelegate-pending-slash`,
-bringing the default board-free rehearsal from 21 to 24 cases. Use `--list` to
+bringing the default board-free rehearsal to 23 v1 cases. Use `--list` to
 confirm the runner candidate is adopted before starting them. Outside delegators
 retain their positions; a slash reduces self and outside positions pro-rata,
 including queued shares. The pending-slash case proves `StillBonded` refusal and

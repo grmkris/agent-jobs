@@ -1,7 +1,6 @@
 /**
  * Addresses come from `contracts/config/<network>.json`, the file the deployment recipe writes; never from code
- * (AGENTS.md). One network, one core and the current Sidequest pair. Readers also retain every legacy pair and
- * its own SIDE token; legacy jobs never switch contracts when a new pair deploys.
+ * (AGENTS.md). One network, one core and the current Sidequest v1 pair.
  */
 import { type Address, type Hex, encodeAbiParameters, keccak256, parseAbiParameters, zeroAddress } from 'viem'
 import testnet from '../../../contracts/config/monad-testnet.json' with { type: 'json' }
@@ -106,10 +105,6 @@ export interface Deployment {
    */
   readonly rewardTokens: readonly Address[]
   readonly stacks: Readonly<Partial<Record<StackName, Stack>>>
-  /**
-   * Earlier pairs replaced by a stacks-only redeploy (`script/DeployStacks.s.sol`), by name (`main-v1`): jobs
-   * published on them stay there, so readers keep serving them. New offers go to `stacks` only.
-   */
   readonly identity: Address
   readonly reputation: Address
   /**
@@ -121,7 +116,6 @@ export interface Deployment {
   readonly delegation: DelegationDeployment
   /** The core's admin (deployer EOA): pauses, upgrades and verifier registration. */
   readonly admin: Address
-  /** `JobPoolFactory` (ADR-0007): pooled funding of one offer. Null where none is deployed. */
   readonly arbitrator: Address
   readonly attester: Address
   readonly relay: Address
@@ -220,10 +214,10 @@ interface StackEntry {
 
 const validAddress = (value: unknown): value is Address => typeof value === 'string' && /^0x[0-9a-fA-F]{40}$/.test(value) && !/^0x0{40}$/.test(value)
 
-const stackOf = (s: StackEntry, fallbackFactory: string): Stack => {
-  const kind = s.kind ?? 'sidequest-v1'
+const stackOf = (s: StackEntry): Stack => {
+  const kind = s.kind
   if (kind !== 'sidequest-v1') throw new Error('Unknown deployment stack kind')
-  const factory = s.factory ?? fallbackFactory
+  const factory = s.factory
   if (!validAddress(factory)) throw new Error('Deployment stack requires a SIDE address')
   return { kind, factory, holding: s.holding as Address, evaluator: s.evaluator as Address, openTokens: s.openTokens === true }
 }
@@ -275,7 +269,8 @@ export function deploymentFromConfig(network: Network, c: DeploymentConfig): Dep
   if (c.network !== network) throw new Error('Deployment config network mismatch')
   const d = c.deployment
   if (d.core === undefined || d.factory === undefined || d.main === undefined) throw new NotDeployedError(network)
-  const stacks: Partial<Record<StackName, Stack>> = { main: stackOf(d.main, d.factory) }
+  if (d.sidequest === undefined) throw new Error('Sidequest stack requires its matching v1 deployment')
+  const stacks: Partial<Record<StackName, Stack>> = { main: stackOf(d.main) }
   let sidequest: SidequestDeployment | null = null
   if (d.sidequest !== undefined) {
     const h = d.sidequest
@@ -315,11 +310,6 @@ export function deploymentFromConfig(network: Network, c: DeploymentConfig): Dep
   }
 }
 
-/**
- * @param d A deployment.
- * @param name The window set.
- * @throws Error when that stack is not deployed on this network (mainnet has no "demo").
- */
 function marketFromConfig(side: Address, l: LiquidityConfig | undefined): Market | null {
   if (l === undefined || !validAddress(l.quote)) return null
   const v4 = l.uniswapV4
@@ -338,14 +328,14 @@ export function stack(d: Deployment, name: StackName): Stack {
   return s
 }
 
-/** Every pair on the network, current and legacy, by name: what a reader of past jobs must know. */
+/** The configured v1 pairs on the network, by name. */
 export function allStacks(d: Deployment): Array<[name: string, stack: Stack]> {
   const out: Array<[string, Stack]> = []
   for (const [name, s] of Object.entries(d.stacks)) if (s !== undefined) out.push([name, s])
   return out
 }
 
-/** The pair (current or legacy) whose Holding is `holding`, with its name; undefined for an unknown address. */
+/** The configured pair whose Holding is `holding`; undefined for a retired or unknown address. */
 export function stackByHolding(d: Deployment, holding: string): [name: string, stack: Stack] | undefined {
   return allStacks(d).find(([, s]) => s.holding.toLowerCase() === holding.toLowerCase())
 }

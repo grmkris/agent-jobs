@@ -52,7 +52,7 @@ it('falls back when the tighter margin cannot run, never broadcasting a limit th
   expect(await transactionGas(client as unknown as PublicClient, request, { fallback: 1_200_000n, margin: 110 })).toBe(1_200_000n)
   expect((client.call.mock.calls as unknown as Array<[{ gas: bigint }]>).map(([call]) => call.gas)).toEqual([120_002n, 1_200_000n])
 })
-it('raises a legacy payout estimate to its explicit floor before simulation', async () => {
+it('raises a payout estimate to its explicit floor before simulation', async () => {
   const client = gas()
   expect(await transactionGas(client as unknown as PublicClient, request, { fallback: 1_200_000n, floor: 1_200_000n })).toBe(1_200_000n)
   expect(client.call).toHaveBeenCalledExactlyOnceWith({ ...request, gas: 1_200_000n })

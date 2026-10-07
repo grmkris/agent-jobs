@@ -15,8 +15,8 @@ import {
   type PublicClient,
   type Transport,
   type WalletClient,
-  decodeEventLog,
   encodeFunctionData,
+  decodeEventLog,
   keccak256,
   maxUint256,
   stringToHex,
@@ -24,12 +24,7 @@ import {
 } from 'viem'
 import {
   coreAbi,
-  faucetTokenAbi,
   identityAbi,
-  jobHoldingAbi,
-  jobPoolAbi,
-  jobPoolFactoryAbi,
-  jobsEvaluatorAbi,
   sidequestHoldingAbi,
   sidequestEvaluatorAbi,
   stakeVaultAbi,
@@ -54,9 +49,7 @@ import {
 
 export type Wallet = WalletClient<Transport, Chain, Account>
 
-/** The protocol's modes, as `JobHolding.Mode`. */
-export const Mode = { Hire: 0, Contest: 1 } as const
-/** A rejection's finding, as `JobsEvaluator.Violation`. */
+/** A rejection's finding. */
 export const Violation = { None: 0, Quality: 1, Falsified: 2 } as const
 export type ViolationName = keyof typeof Violation
 
@@ -106,9 +99,8 @@ async function write(
   return send(ctx, wallet, request as never)
 }
 
-const isV1 = (ctx: Ctx) => ctx.stack.kind === 'sidequest-v1'
-const holdingAbi = (ctx: Ctx) => isV1(ctx) ? sidequestHoldingAbi : jobHoldingAbi
-const evaluatorAbi = (ctx: Ctx) => isV1(ctx) ? sidequestEvaluatorAbi : jobsEvaluatorAbi
+const holdingAbi = (_ctx: Ctx) => sidequestHoldingAbi
+const evaluatorAbi = (_ctx: Ctx) => sidequestEvaluatorAbi
 /** ADR-0011/D4b: Monad charges the requested limit; floors are deliberately explicit. */
 export const V1_GAS = { settle: 1_000_000n, claimTopUpRefund: 450_000n, cancel: 700_000n, evaluator: 1_200_000n, retryDeferred: 300_000n } as const
 
@@ -116,11 +108,7 @@ export const V1_GAS = { settle: 1_000_000n, claimTopUpRefund: 450_000n, cancel: 
 // Tokens and identity
 // -------------------------------------------------------------------------------------------------
 
-/** Testnet only: mints a payment token's faucet amount (mUSD, mEUR) to the wallet. SIDE has no faucet: use `drip`. */
-export function faucet(ctx: Ctx, wallet: Wallet, token: Address) {
-  return write(ctx, wallet, token, faucetTokenAbi, 'faucet', [])
-}
-
+/** The configured testnet faucet, unavailable on mainnet. */
 function testnetFaucetOf(ctx: Ctx): Address {
   if (ctx.deployment.testnetFaucet === null) throw new Error('No testnet faucet is deployed on this network')
   return ctx.deployment.testnetFaucet
@@ -184,7 +172,6 @@ export function agentWallet(ctx: Ctx, agentId: bigint) {
 // -------------------------------------------------------------------------------------------------
 
 export interface PublishInput {
-  readonly mode: 'hire' | 'contest'
   readonly token: Address
   readonly reward: bigint
   readonly creatorBond: bigint
@@ -193,11 +180,9 @@ export interface PublishInput {
   /** The offer's `termsHash`; Holding refuses one it has already listed. */
   readonly termsHash: Hex
   readonly deliveryDeadline: number
-  /** Contest only. */
-  readonly selectionDeadline?: number
   /** Defaults to the creator. */
   readonly approver?: Address
-  /** Required on v1; frozen per offer instead of taken from a legacy evaluator. */
+  /** Frozen per offer. */
   readonly reviewWindow?: number
   readonly disputeWindow?: number
   readonly arbitrationWindow?: number
@@ -206,23 +191,13 @@ export interface PublishInput {
 
 /** The earliest `expiredAt` the listing accepts: the delivery deadline plus the evaluator's settlement window. */
 export async function minExpiry(ctx: Ctx, deliveryDeadline: number, windows?: { reviewWindow: number; disputeWindow: number; arbitrationWindow: number }): Promise<number> {
-  if (isV1(ctx)) {
-    if (windows === undefined) throw new Error('v1 expiry needs the offer windows')
-    const margin = await ctx.publicClient.readContract({ address: ctx.stack.holding, abi: sidequestHoldingAbi, functionName: 'margin' })
-    return deliveryDeadline + windows.reviewWindow + windows.disputeWindow + windows.arbitrationWindow + Number(margin)
-  }
-  const window = await ctx.publicClient.readContract({
-    address: ctx.stack.evaluator,
-    abi: jobsEvaluatorAbi,
-    functionName: 'settlementWindow',
-  })
-  return deliveryDeadline + Number(window)
+  if (windows === undefined) throw new Error('v1 expiry needs the offer windows')
+  const margin = await ctx.publicClient.readContract({ address: ctx.stack.holding, abi: sidequestHoldingAbi, functionName: 'margin' })
+  return deliveryDeadline + windows.reviewWindow + windows.disputeWindow + windows.arbitrationWindow + Number(margin)
 }
 
 /** Escrows the reward and posts or reserves the creator bond. Returns the job id. */
 export async function publish(ctx: Ctx, wallet: Wallet, p: PublishInput) {
-  if (isV1(ctx)) {
-    if (p.mode !== 'hire') throw new Error('sidequest-v1 supports hires only')
     if (p.arbitrator === undefined || p.arbitrator.toLowerCase() === zeroAddress) throw new Error('v1 publish needs an explicit arbitrator')
     const windows = { reviewWindow: p.reviewWindow, disputeWindow: p.disputeWindow, arbitrationWindow: p.arbitrationWindow }
     if (Object.values(windows).some(v => v === undefined || !Number.isSafeInteger(v) || v <= 0)) throw new Error('v1 publish needs explicit review, dispute and arbitration windows')
@@ -244,34 +219,6 @@ export async function publish(ctx: Ctx, wallet: Wallet, p: PublishInput) {
       } catch { /* Other logs are not the listing receipt. */ }
     }
     throw new Error(`publish ${receipt.transactionHash} emitted no Published event`)
-  }
-  await ensureAllowance(ctx, wallet, p.token, ctx.stack.holding, p.reward)
-  if (p.creatorBond > 0n) await ensureAllowance(ctx, wallet, ctx.stack.factory, ctx.stack.holding, p.creatorBond)
-  const receipt = await write(ctx, wallet, ctx.stack.holding, jobHoldingAbi, 'publish', [
-    {
-      approver: p.approver ?? '0x0000000000000000000000000000000000000000',
-      manifestHash: p.manifestHash,
-      policyHash: p.termsHash,
-      token: p.token,
-      reward: p.reward,
-      creatorBond: p.creatorBond,
-      workerBond: p.workerBond,
-      deliveryDeadline: p.deliveryDeadline,
-      expiredAt: await minExpiry(ctx, p.deliveryDeadline),
-      mode: p.mode === 'hire' ? Mode.Hire : Mode.Contest,
-      selectionDeadline: p.selectionDeadline ?? 0,
-    },
-  ])
-  for (const log of receipt.logs) {
-    if (log.address.toLowerCase() !== ctx.stack.holding.toLowerCase()) continue
-    try {
-      const event = decodeEventLog({ abi: jobHoldingAbi, data: log.data, topics: log.topics })
-      if (event.eventName === 'Published') return { jobId: event.args.jobId, receipt }
-    } catch {
-      // not ours
-    }
-  }
-  throw new Error(`publish ${receipt.transactionHash} emitted no Published event`)
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -288,7 +235,7 @@ export function signSelection(ctx: Ctx, creator: Wallet, sel: Selection): Promis
   })
 }
 
-/** The worker's core `SetBudgetAuthorization`, which Holding applies inside `activate` or `award`. */
+/** The worker's core `SetBudgetAuthorization`, which Holding applies inside `activate`. */
 export async function signBudget(
   ctx: Ctx,
   worker: Wallet,
@@ -312,7 +259,7 @@ export async function signBudget(
   return { signer: worker.account.address, nonce, deadline: a.deadline, sig }
 }
 
-/** The worker's core `SubmitAuthorization` for one exact deliverable (contest entries). */
+/** The worker's core `SubmitAuthorization` for one exact deliverable. */
 export async function signSubmit(
   ctx: Ctx,
   worker: Wallet,
@@ -363,18 +310,11 @@ export function assertActivationTerms(listing: ActivationTerms, expected: Activa
 /** The worker's activation: provider, bond, budget and funding in one transaction. V1 requires accepted chain terms. */
 export async function activate(ctx: Ctx, worker: Wallet, sel: Selection, creatorSig: Hex, expected?: ActivationTerms) {
   const listing = await getListing(ctx, sel.jobId)
-  if (isV1(ctx)) {
-    if (expected === undefined) throw new Error('v1 activation needs the accepted offer terms')
-    // Read the v1 shape explicitly: a legacy listing lacks the offer's arbitrator and windows.
-    const actual = await getV1Listing(ctx, sel.jobId)
-    assertActivationTerms(actual, expected)
-    if (actual.policyHash.toLowerCase() !== sel.termsHash.toLowerCase()) throw new Error('Listing policy hash does not match Selection')
-    await requireStake(ctx, worker.account.address, listing.workerBond)
-  }
-  else if (listing.workerBond > 0n) {
-    await ensureAllowance(ctx, worker, ctx.stack.factory, ctx.stack.holding, listing.workerBond)
-  }
-  const amount = isV1(ctx) ? (await quoteActivation(ctx, sel.jobId, worker.account.address))[2] : listing.reward
+  if (expected === undefined) throw new Error('v1 activation needs the accepted offer terms')
+  assertActivationTerms(listing, expected)
+  if (listing.policyHash.toLowerCase() !== sel.termsHash.toLowerCase()) throw new Error('Listing policy hash does not match Selection')
+  await requireStake(ctx, worker.account.address, listing.workerBond)
+  const amount = (await quoteActivation(ctx, sel.jobId, worker.account.address))[2]
   const budgetAuth = await signBudget(ctx, worker, {
     jobId: sel.jobId,
     token: listing.token,
@@ -389,7 +329,7 @@ export function cancelSelection(ctx: Ctx, creator: Wallet, nonce: bigint) {
 }
 
 export function cancel(ctx: Ctx, creator: Wallet, jobId: bigint) {
-  return write(ctx, creator, ctx.stack.holding, holdingAbi(ctx), 'cancel', [jobId], isV1(ctx) ? V1_GAS.cancel : undefined)
+  return write(ctx, creator, ctx.stack.holding, holdingAbi(ctx), 'cancel', [jobId], V1_GAS.cancel)
 }
 
 /** The worker's final submission, sent directly to the core. */
@@ -398,48 +338,11 @@ export function submit(ctx: Ctx, worker: Wallet, jobId: bigint, deliverable: Hex
 }
 
 // -------------------------------------------------------------------------------------------------
-// Contest
-// -------------------------------------------------------------------------------------------------
-
-export interface Candidate {
-  readonly worker: Address
-  readonly agentId: bigint
-  readonly deliverable: Hex
-  readonly budgetAuth: Authorization
-  readonly submitAuth: Authorization
-}
-
-/** What an entrant signs at entry: both authorisations, valid until the contest's selection deadline. */
-export async function signEntry(ctx: Ctx, worker: Wallet, jobId: bigint, agentId: bigint, deliverable: Hex) {
-  if (isV1(ctx)) throw new Error('sidequest-v1 supports hires only')
-  const listing = await getListing(ctx, jobId)
-  const deadline = BigInt(listing.selectionDeadline)
-  return {
-    worker: worker.account.address,
-    agentId,
-    deliverable,
-    budgetAuth: await signBudget(ctx, worker, { jobId, token: listing.token, amount: listing.reward, deadline }),
-    submitAuth: await signSubmit(ctx, worker, { jobId, deliverable, deadline }),
-  } satisfies Candidate
-}
-
-/** The approver buys one finished entry: paid in this transaction, the winner offline. */
-export function award(ctx: Ctx, approver: Wallet, jobId: bigint, candidate: Candidate) {
-  if (isV1(ctx)) throw new Error('sidequest-v1 supports hires only')
-  return write(ctx, approver, ctx.stack.holding, jobHoldingAbi, 'award', [jobId, candidate])
-}
-
-export function expireContest(ctx: Ctx, anyone: Wallet, jobId: bigint) {
-  if (isV1(ctx)) throw new Error('sidequest-v1 supports hires only')
-  return write(ctx, anyone, ctx.stack.holding, jobHoldingAbi, 'expireContest', [jobId])
-}
-
-// -------------------------------------------------------------------------------------------------
 // Review, dispute, ruling
 // -------------------------------------------------------------------------------------------------
 
 export function accept(ctx: Ctx, approver: Wallet, jobId: bigint) {
-  return write(ctx, approver, ctx.stack.evaluator, evaluatorAbi(ctx), 'accept', [jobId], isV1(ctx) ? V1_GAS.evaluator : undefined)
+  return write(ctx, approver, ctx.stack.evaluator, evaluatorAbi(ctx), 'accept', [jobId], V1_GAS.evaluator)
 }
 
 export function reject(ctx: Ctx, approver: Wallet, jobId: bigint, violation: ViolationName, reasonHash: Hex) {
@@ -460,7 +363,7 @@ export function rule(ctx: Ctx, arbitrator: Wallet, r: Omit<Ruling, 'deadline' | 
     r.forWorker,
     r.slashLoser,
     r.reasonHash,
-  ], isV1(ctx) ? V1_GAS.evaluator : undefined)
+  ], V1_GAS.evaluator)
 }
 
 /** The arbitrator signs a ruling; any harness can do this without gas. */
@@ -475,7 +378,7 @@ export function signRuling(ctx: Ctx, arbitrator: Wallet, r: Ruling): Promise<Hex
 
 /** Anyone relays a signed ruling; it carries only the arbitrator's authority. */
 export function ruleWithSignature(ctx: Ctx, relayer: Wallet, r: Ruling, sig: Hex) {
-  return write(ctx, relayer, ctx.stack.evaluator, evaluatorAbi(ctx), 'ruleWithSignature', [r, sig], isV1(ctx) ? V1_GAS.evaluator : undefined)
+  return write(ctx, relayer, ctx.stack.evaluator, evaluatorAbi(ctx), 'ruleWithSignature', [r, sig], V1_GAS.evaluator)
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -483,30 +386,29 @@ export function ruleWithSignature(ctx: Ctx, relayer: Wallet, r: Ruling, sig: Hex
 // -------------------------------------------------------------------------------------------------
 
 export function completeAfterSilence(ctx: Ctx, anyone: Wallet, jobId: bigint) {
-  return write(ctx, anyone, ctx.stack.evaluator, evaluatorAbi(ctx), 'completeAfterSilence', [jobId], isV1(ctx) ? V1_GAS.evaluator : undefined)
+  return write(ctx, anyone, ctx.stack.evaluator, evaluatorAbi(ctx), 'completeAfterSilence', [jobId], V1_GAS.evaluator)
 }
 
 export function rejectAfterWindow(ctx: Ctx, anyone: Wallet, jobId: bigint) {
-  return write(ctx, anyone, ctx.stack.evaluator, evaluatorAbi(ctx), 'rejectAfterWindow', [jobId], isV1(ctx) ? V1_GAS.evaluator : undefined)
+  return write(ctx, anyone, ctx.stack.evaluator, evaluatorAbi(ctx), 'rejectAfterWindow', [jobId], V1_GAS.evaluator)
 }
 
 export function refundAfterArbitrationTimeout(ctx: Ctx, anyone: Wallet, jobId: bigint) {
-  return write(ctx, anyone, ctx.stack.evaluator, evaluatorAbi(ctx), 'refundAfterArbitrationTimeout', [jobId], isV1(ctx) ? V1_GAS.evaluator : undefined)
+  return write(ctx, anyone, ctx.stack.evaluator, evaluatorAbi(ctx), 'refundAfterArbitrationTimeout', [jobId], V1_GAS.evaluator)
 }
 
 /** The missed-delivery burn, after the delivery deadline. */
 export function burnMissedDelivery(ctx: Ctx, anyone: Wallet, jobId: bigint) {
-  return write(ctx, anyone, ctx.stack.evaluator, evaluatorAbi(ctx), 'rejectAfterDeliveryDeadline', [jobId], isV1(ctx) ? V1_GAS.evaluator : undefined)
+  return write(ctx, anyone, ctx.stack.evaluator, evaluatorAbi(ctx), 'rejectAfterDeliveryDeadline', [jobId], V1_GAS.evaluator)
 }
 
 /** Pays whatever of a terminal job is still in Holding to whoever the evaluator says is owed it. */
 export function settle(ctx: Ctx, anyone: Wallet, jobId: bigint) {
-  return write(ctx, anyone, ctx.stack.holding, holdingAbi(ctx), 'settle', [jobId], isV1(ctx) ? V1_GAS.settle : undefined)
+  return write(ctx, anyone, ctx.stack.holding, holdingAbi(ctx), 'settle', [jobId], V1_GAS.settle)
 }
 
 /** C9 deferred decision recovery. A caller must send this before `settle`. */
 export function retryDeferred(ctx: Ctx, anyone: Wallet, jobId: bigint) {
-  if (!isV1(ctx)) throw new Error('retryDeferred is only available on sidequest-v1')
   return write(ctx, anyone, ctx.stack.evaluator, sidequestEvaluatorAbi, 'retryDeferred', [jobId], V1_GAS.retryDeferred)
 }
 
@@ -518,7 +420,6 @@ export async function settleDeferred(ctx: Ctx, anyone: Wallet, jobId: bigint) {
 }
 
 export async function topUp(ctx: Ctx, contributor: Wallet, jobId: bigint, amount: bigint) {
-  if (!isV1(ctx)) throw new Error('topUp is only available on sidequest-v1')
   if (amount <= 0n) throw new Error('top-up amount must be positive')
   const listing = await getListing(ctx, jobId)
   await ensureAllowance(ctx, contributor, listing.token, ctx.stack.holding, amount)
@@ -526,25 +427,24 @@ export async function topUp(ctx: Ctx, contributor: Wallet, jobId: bigint, amount
 }
 
 export function claimTopUpRefund(ctx: Ctx, caller: Wallet, jobId: bigint, contributor: Address = caller.account.address) {
-  if (!isV1(ctx)) throw new Error('claimTopUpRefund is only available on sidequest-v1')
   return write(ctx, caller, ctx.stack.holding, sidequestHoldingAbi, 'claimTopUpRefund', [jobId, contributor], V1_GAS.claimTopUpRefund)
 }
 
 export async function delegate(ctx: Ctx, staker: Wallet, amount: bigint, account: Address = staker.account.address) {
-  if (!isV1(ctx) || ctx.deployment.sidequest === null) throw new Error('delegate is only available on sidequest-v1')
+  if (ctx.deployment.sidequest === null) throw new Error('delegate is only available on sidequest-v1')
   if (amount <= 0n) throw new Error('delegation amount must be positive')
   await ensureAllowance(ctx, staker, ctx.deployment.sidequest.factory, ctx.deployment.sidequest.vault, amount)
   return write(ctx, staker, ctx.deployment.sidequest.vault, stakeVaultAbi, 'delegate', [account, amount])
 }
 
 export function delegateWithPermit(ctx: Ctx, staker: Wallet, amount: bigint, permit: { deadline: bigint; v: number; r: Hex; s: Hex }, account: Address = staker.account.address) {
-  if (!isV1(ctx) || ctx.deployment.sidequest === null) throw new Error('delegateWithPermit is only available on sidequest-v1')
+  if (ctx.deployment.sidequest === null) throw new Error('delegateWithPermit is only available on sidequest-v1')
   if (amount <= 0n) throw new Error('delegation amount must be positive')
   return write(ctx, staker, ctx.deployment.sidequest.vault, stakeVaultAbi, 'delegateWithPermit', [account, amount, permit.deadline, permit.v, permit.r, permit.s])
 }
 
 export async function delegatePermit(ctx: Ctx, staker: Address, amount: bigint, deadline: bigint) {
-  if (!isV1(ctx) || ctx.deployment.sidequest === null) throw new Error('delegatePermit is only available on sidequest-v1')
+  if (ctx.deployment.sidequest === null) throw new Error('delegatePermit is only available on sidequest-v1')
   const factory = ctx.deployment.sidequest.factory
   const [name, nonce] = await Promise.all([
     ctx.publicClient.readContract({ address: factory, abi: factoryV2Abi, functionName: 'name' }),
@@ -558,7 +458,7 @@ export async function delegatePermit(ctx: Ctx, staker: Address, amount: bigint, 
 
 /** Convert SIDE assets to an owned, unqueued share amount before preparing an exit. */
 export async function undelegationShares(ctx: Ctx, account: Address, delegator: Address, amount: bigint): Promise<bigint> {
-  if (!isV1(ctx) || ctx.deployment.sidequest === null) throw new Error('undelegation requires Sidequest v1')
+  if (ctx.deployment.sidequest === null) throw new Error('undelegation requires Sidequest v1')
   if (amount <= 0n) throw new Error('undelegation amount must be positive')
   const vault = ctx.deployment.sidequest.vault
   const blockNumber = await ctx.publicClient.getBlockNumber()
@@ -578,32 +478,31 @@ export async function undelegationShares(ctx: Ctx, account: Address, delegator: 
 }
 
 export async function requestUndelegate(ctx: Ctx, staker: Wallet, amount: bigint, account: Address = staker.account.address) {
-  if (!isV1(ctx) || ctx.deployment.sidequest === null) throw new Error('requestUndelegate is only available on sidequest-v1')
+  if (ctx.deployment.sidequest === null) throw new Error('requestUndelegate is only available on sidequest-v1')
   const shares = await undelegationShares(ctx, account, staker.account.address, amount)
   return write(ctx, staker, ctx.deployment.sidequest.vault, stakeVaultAbi, 'requestUndelegate', [account, shares])
 }
 
 export function cancelUndelegate(ctx: Ctx, staker: Wallet, account: Address = staker.account.address) {
-  if (!isV1(ctx) || ctx.deployment.sidequest === null) throw new Error('cancelUndelegate is only available on sidequest-v1')
+  if (ctx.deployment.sidequest === null) throw new Error('cancelUndelegate is only available on sidequest-v1')
   return write(ctx, staker, ctx.deployment.sidequest.vault, stakeVaultAbi, 'cancelUndelegate', [account])
 }
 
 export function withdraw(ctx: Ctx, staker: Wallet, account: Address = staker.account.address) {
-  if (!isV1(ctx) || ctx.deployment.sidequest === null) throw new Error('withdraw is only available on sidequest-v1')
+  if (ctx.deployment.sidequest === null) throw new Error('withdraw is only available on sidequest-v1')
   return write(ctx, staker, ctx.deployment.sidequest.vault, stakeVaultAbi, 'withdraw', [account])
 }
 
 export async function requireStake(ctx: Ctx, account: Address, bond: bigint): Promise<void> {
   if (bond < 0n) throw new Error('bond cannot be negative')
   if (bond === 0n) return
-  if (!isV1(ctx) || ctx.deployment.sidequest === null) throw new Error('Backing requires Sidequest v1')
+  if (ctx.deployment.sidequest === null) throw new Error('Backing requires Sidequest v1')
   const available = await ctx.publicClient.readContract({ address: ctx.deployment.sidequest.vault,
     abi: stakeVaultAbi, functionName: 'availableOf', args: [account] })
   if (available < bond) throw new Error('Insufficient available stake for the bond; back the account with SIDE before proceeding')
 }
 
 export function quoteActivation(ctx: Ctx, jobId: bigint, worker: Address) {
-  if (!isV1(ctx)) throw new Error('quoteActivation is only available on sidequest-v1')
   return ctx.publicClient.readContract({ address: ctx.stack.holding, abi: sidequestHoldingAbi, functionName: 'quoteActivation', args: [jobId, worker] })
 }
 
@@ -621,17 +520,8 @@ export async function getJob(ctx: Ctx, jobId: bigint) {
   return { ...job, statusName: JobStatus[job.status] as JobStatusName }
 }
 
-export async function getListing(ctx: Ctx, jobId: bigint) {
-  if (isV1(ctx)) {
-    const listing = await ctx.publicClient.readContract({ address: ctx.stack.holding, abi: sidequestHoldingAbi, functionName: 'getListing', args: [jobId] })
-    return { ...listing, mode: 0, selectionDeadline: 0, workerBondPosted: listing.workerBondReserved }
-  }
-  return ctx.publicClient.readContract({
-    address: ctx.stack.holding,
-    abi: jobHoldingAbi,
-    functionName: 'getListing',
-    args: [jobId],
-  })
+export function getListing(ctx: Ctx, jobId: bigint) {
+  return getV1Listing(ctx, jobId)
 }
 
 export function selectionDigest(ctx: Ctx, sel: Selection) {
@@ -644,22 +534,18 @@ export function selectionDigest(ctx: Ctx, sel: Selection) {
 }
 
 export function getV1Listing(ctx: Ctx, jobId: bigint) {
-  if (!isV1(ctx)) throw new Error('v1 listing is only available on sidequest-v1')
   return ctx.publicClient.readContract({ address: ctx.stack.holding, abi: sidequestHoldingAbi, functionName: 'getListing', args: [jobId] })
 }
 
 export function termsOf(ctx: Ctx, jobId: bigint) {
-  if (!isV1(ctx)) throw new Error('termsOf is only available on sidequest-v1')
   return ctx.publicClient.readContract({ address: ctx.stack.holding, abi: sidequestHoldingAbi, functionName: 'termsOf', args: [jobId] })
 }
 
 export function caseOf(ctx: Ctx, jobId: bigint) {
-  if (!isV1(ctx)) throw new Error('v1 caseOf is only available on sidequest-v1')
   return ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: sidequestEvaluatorAbi, functionName: 'caseOf', args: [jobId] })
 }
 
 export function cancelRuling(ctx: Ctx, arbitrator: Wallet, nonce: bigint) {
-  if (!isV1(ctx)) throw new Error('cancelRuling is only available on sidequest-v1')
   return write(ctx, arbitrator, ctx.stack.evaluator, sidequestEvaluatorAbi, 'cancelRuling', [nonce])
 }
 
@@ -697,152 +583,3 @@ export function attachEvidence(
   return write(ctx, relay, ctx.stack.evaluator, evaluatorAbi(ctx), 'attachEvidence', [attestation.jobId, attestation, verifier, sig])
 }
 
-// -------------------------------------------------------------------------------------------------
-// Pools (ADR-0007): pooled funding of one offer through a JobPool clone
-// -------------------------------------------------------------------------------------------------
-
-export interface PoolInput {
-  /** The salt the creator picks; with the creator's address it fixes the pool's address. */
-  readonly salt: Hex
-  readonly curator: Address
-  readonly goal: bigint
-  readonly pledgeDeadline: number
-  /** The offer the pool publishes at launch: its reward is the goal, its creator bond zero. */
-  readonly publish: Omit<PublishInput, 'reward' | 'creatorBond' | 'approver'>
-  /** Receives the SIDE hold back; defaults to the creator. */
-  readonly holdProvider?: Address
-}
-
-function poolFactoryOf(ctx: Ctx): Address {
-  if (isV1(ctx)) throw new Error('Pools are not supported on Sidequest v1')
-  const f = ctx.deployment.poolFactory
-  if (f === null) throw new Error(`no JobPoolFactory on ${ctx.deployment.network}`)
-  return f
-}
-
-/** The address `createPool` will give this creator's pool for `salt`. */
-export function predictPool(ctx: Ctx, creator: Address, salt: Hex) {
-  return ctx.publicClient.readContract({ address: poolFactoryOf(ctx), abi: jobPoolFactoryAbi, functionName: 'predict', args: [creator, salt] })
-}
-
-/** The `JobPool.Params` tuple `create` takes, as the SDK builds it. */
-export async function poolParams(ctx: Ctx, p: PoolInput) {
-  if (isV1(ctx)) throw new Error('Pools are not supported on Sidequest v1')
-  const pub = p.publish
-  return {
-    token: pub.token,
-    goal: p.goal,
-    pledgeDeadline: p.pledgeDeadline,
-    curator: p.curator,
-    holding: ctx.stack.holding,
-    publish: {
-      approver: p.curator,
-      manifestHash: pub.manifestHash,
-      policyHash: pub.termsHash,
-      token: pub.token,
-      reward: p.goal,
-      creatorBond: 0n,
-      workerBond: pub.workerBond,
-      deliveryDeadline: pub.deliveryDeadline,
-      expiredAt: await minExpiry(ctx, pub.deliveryDeadline),
-      mode: pub.mode === 'hire' ? Mode.Hire : Mode.Contest,
-      selectionDeadline: pub.selectionDeadline ?? 0,
-    },
-    governance: 0,
-    holdProvider: p.holdProvider ?? '0x0000000000000000000000000000000000000000',
-  } as const
-}
-
-/** Clones the pool (approving the SIDE hold to the factory first). Returns the pool address. */
-export async function createPool(ctx: Ctx, creator: Wallet, p: PoolInput) {
-  const factory = poolFactoryOf(ctx)
-  const hold = await ctx.publicClient.readContract({ address: ctx.stack.holding, abi: jobHoldingAbi, functionName: 'minHoldToPublish' })
-  if (hold > 0n) await ensureAllowance(ctx, creator, ctx.stack.factory, factory, hold)
-  const receipt = await write(ctx, creator, factory, jobPoolFactoryAbi, 'create', [p.salt, await poolParams(ctx, p)])
-  for (const log of receipt.logs) {
-    if (log.address.toLowerCase() !== factory.toLowerCase()) continue
-    try {
-      const event = decodeEventLog({ abi: jobPoolFactoryAbi, data: log.data, topics: log.topics })
-      if (event.eventName === 'PoolCreated') return { pool: event.args.pool, receipt }
-    } catch {
-      // not ours
-    }
-  }
-  throw new Error(`createPool ${receipt.transactionHash} emitted no PoolCreated event`)
-}
-
-/** Pledges `amount` of the pool's token (approving it first); the pool caps it to what the goal still needs. */
-export async function pledge(ctx: Ctx, pledger: Wallet, pool: Address, token: Address, amount: bigint) {
-  await ensureAllowance(ctx, pledger, token, pool, amount)
-  return write(ctx, pledger, pool, jobPoolAbi, 'pledge', [amount])
-}
-
-export function unpledge(ctx: Ctx, pledger: Wallet, pool: Address, amount: bigint) {
-  return write(ctx, pledger, pool, jobPoolAbi, 'unpledge', [amount])
-}
-
-/** Publishes the full pool's offer. Returns the job id from the pool's `Launched` event. */
-export async function launchPool(ctx: Ctx, anyone: Wallet, pool: Address) {
-  const receipt = await write(ctx, anyone, pool, jobPoolAbi, 'launch', [])
-  for (const log of receipt.logs) {
-    if (log.address.toLowerCase() !== pool.toLowerCase()) continue
-    try {
-      const event = decodeEventLog({ abi: jobPoolAbi, data: log.data, topics: log.topics })
-      if (event.eventName === 'Launched') return { jobId: event.args.jobId, receipt }
-    } catch {
-      // not ours
-    }
-  }
-  throw new Error(`launch ${receipt.transactionHash} emitted no Launched event`)
-}
-
-export function poolRefund(ctx: Ctx, pledger: Wallet, pool: Address) {
-  return write(ctx, pledger, pool, jobPoolAbi, 'refund', [])
-}
-
-/** The curator cancels the launched, unactivated hire (Holding's `cancel`, forwarded by the pool). */
-export function poolCancel(ctx: Ctx, curator: Wallet, pool: Address) {
-  return write(ctx, curator, pool, jobPoolAbi, 'cancel', [])
-}
-
-export function poolCancelPool(ctx: Ctx, curator: Wallet, pool: Address) {
-  return write(ctx, curator, pool, jobPoolAbi, 'cancelPool', [])
-}
-
-export function reclaimHold(ctx: Ctx, anyone: Wallet, pool: Address) {
-  return write(ctx, anyone, pool, jobPoolAbi, 'reclaimHold', [])
-}
-
-export const PoolPhase = ['funding', 'launched', 'cancelled', 'expired'] as const
-
-/** One read of a pool: its params, totals, phase and job id. */
-export async function getPool(ctx: Ctx, pool: Address) {
-  const read = <F extends string>(functionName: F, args: readonly unknown[] = []) =>
-    ctx.publicClient.readContract({ address: pool, abi: jobPoolAbi, functionName, args } as never)
-  const [params, totalPledged, paidOut, jobId, launchedAt, cancelledAt, phase, refundable, holdAmount] = await Promise.all([
-    read('params'),
-    read('totalPledged'),
-    read('paidOut'),
-    read('jobId'),
-    read('launchedAt'),
-    read('cancelledAt'),
-    read('phase'),
-    read('refundable'),
-    read('holdAmount'),
-  ])
-  return {
-    params: params as Awaited<ReturnType<typeof poolParams>>,
-    totalPledged: totalPledged as bigint,
-    paidOut: paidOut as bigint,
-    jobId: jobId as bigint,
-    launchedAt: Number(launchedAt),
-    cancelledAt: Number(cancelledAt),
-    phase: PoolPhase[Number(phase)] ?? 'funding',
-    refundable: refundable as boolean,
-    holdAmount: holdAmount as bigint,
-  }
-}
-
-export function pledgedBy(ctx: Ctx, pool: Address, who: Address) {
-  return ctx.publicClient.readContract({ address: pool, abi: jobPoolAbi, functionName: 'pledged', args: [who] })
-}

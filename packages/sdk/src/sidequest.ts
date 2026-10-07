@@ -17,7 +17,7 @@ export function deferredCollectTransactions(ctx: Ctx, jobId: bigint): TxRequest[
   ]
 }
 
-/** Per-job terms are chain facts; archived legacy pairs keep their immutable evaluator windows. */
+/** Per-job terms and evaluator windows are chain facts. */
 export async function sidequestState(ctx: Ctx, jobId: bigint) {
   const [job, listing, terms, decision, paused] = await Promise.all([
     getJob(ctx, jobId), getV1Listing(ctx, jobId), termsOf(ctx, jobId), caseOf(ctx, jobId),

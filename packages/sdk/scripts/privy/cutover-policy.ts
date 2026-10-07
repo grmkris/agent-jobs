@@ -1,12 +1,8 @@
-/** Read-only plan for a separate Sidequest policy. Never PATCH the legacy recovery policy. */
+/** Frozen policy comparison used by the retained v1 authority cutover. */
 import { createHash } from 'node:crypto'
-import { readFileSync } from 'node:fs'
 import { isAddress, zeroAddress } from 'viem'
-import { PrivyApi } from './client.ts'
-import { localEnv, required } from './env.ts'
-import { authorityPolicy, config } from './policy.ts'
-import { canonical, writablePolicy } from './update-holding.ts'
-
+import { authorityPolicy } from './policy.ts'
+import { canonical, writablePolicy } from './policy-document.ts'
 type JsonRecord = Record<string, unknown>
 type AuthorityPolicy = ReturnType<typeof authorityPolicy>
 export interface ArchivedPins { holding: string; core: string; relay: string }
@@ -80,33 +76,3 @@ export function sidequestPolicyPlan(live: JsonRecord, desired: AuthorityPolicy, 
   }
 }
 
-export async function planSidequestPolicy() {
-  const archived = JSON.parse(readFileSync(new URL('../../../../contracts/config/archive/pre-sidequest-monad-testnet.json', import.meta.url), 'utf8'))
-  if (archived.chainId !== 10143 || archived.deployment?.main?.kind !== 'hireling-v1' ||
-      config.chainId !== 10143 || config.deployment?.main?.kind !== 'sidequest-v1' || config.sidequest?.reuseCore !== false) {
-    throw new SidequestPolicyPlanError('Expected archived and fresh Monad testnet deployments; refusing plan')
-  }
-  const env = localEnv()
-  const policyId = required(env, 'PRIVY_POLICY_ID')
-  const api = new PrivyApi(required(env, 'PRIVY_APP_ID'), required(env, 'PRIVY_APP_SECRET'))
-  const live = await api.checked('GET', `/policies/${policyId}`)
-  if (live.id !== policyId) throw new SidequestPolicyPlanError('Unexpected policy ID; refusing plan')
-  return {
-    mode: 'read-only',
-    observedAt: new Date().toISOString(),
-    appId: required(env, 'PRIVY_APP_ID'),
-    ...sidequestPolicyPlan(live, authorityPolicy(required(env, 'PRIVY_POLICY_ADMIN_ID')), {
-      holding: archived.deployment.main.holding, core: archived.deployment.core, relay: archived.roles.relay,
-    }),
-  }
-}
-
-if (import.meta.main) {
-  try {
-    if (process.argv.length !== 2) throw new SidequestPolicyPlanError('Read-only planner takes no arguments; no apply mode')
-    console.log(JSON.stringify(await planSidequestPolicy(), null, 2))
-  } catch (error) {
-    console.error(error instanceof SidequestPolicyPlanError ? error.message : 'Sidequest policy plan refused; provider response and credentials suppressed')
-    process.exitCode = 1
-  }
-}

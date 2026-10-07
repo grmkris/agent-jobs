@@ -6,12 +6,12 @@ const CREATOR = '0x1111111111111111111111111111111111111111'
 const APPROVER = '0x2222222222222222222222222222222222222222'
 const WORKER = '0x3333333333333333333333333333333333333333'
 const parties = { creator: CREATOR, approver: APPROVER, worker: WORKER }
-const job = (over: Partial<LifecycleInput>): LifecycleInput => ({ mode: 'hire', status: 'open', deliveryDeadline: NOW + 3600, workerBond: '1000', parties, ...over })
+const job = (over: Partial<LifecycleInput>): LifecycleInput => ({ status: 'open', deliveryDeadline: NOW + 3600, workerBond: '1000', parties, ...over })
 
 describe('v1 final decisions and collection', () => {
   it('advances minute-clock phases at the per-job second, independent of production defaults', () => {
-    const row = { kind: 'sidequest-v1' as const, mode: 'hire', status: 'submitted', creator: CREATOR, approver: APPROVER, worker: WORKER,
-      delivery_deadline: NOW + 3600, selection_deadline: null, worker_bond: '10', submitted_at: NOW, review_window: 120,
+    const row = { kind: 'sidequest-v1' as const, status: 'submitted', creator: CREATOR, approver: APPROVER, worker: WORKER,
+      delivery_deadline: NOW + 3600, worker_bond: '10', submitted_at: NOW, review_window: 120,
       rejected_at: NOW + 60, dispute_window: 120, disputed_at: NOW + 120, arbitration_window: 300 }
     const input = lifecycleFromIndexed(row)
     expect(input).toMatchObject({ reviewEndsAt: NOW + 120, disputeEndsAt: NOW + 180, arbitrationEndsAt: NOW + 420 })
@@ -42,8 +42,8 @@ describe('v1 final decisions and collection', () => {
   })
 
   it('uses the indexed job windows and clears historical deferred flags once settled', () => {
-    const row = { kind: 'sidequest-v1' as const, mode: 'hire', status: 'disputed', creator: CREATOR, approver: APPROVER, worker: WORKER,
-      delivery_deadline: NOW + 100, selection_deadline: null, worker_bond: '1000', outcome: 'RuledForWorker', settlement_outcome: 'None',
+    const row = { kind: 'sidequest-v1' as const, status: 'disputed', creator: CREATOR, approver: APPROVER, worker: WORKER,
+      delivery_deadline: NOW + 100, worker_bond: '1000', outcome: 'RuledForWorker', settlement_outcome: 'None',
       payout_deferred: 1, refund_deferred: 0, submitted_at: NOW - 20, review_window: 3600,
       rejected_at: NOW - 10, dispute_window: 7200, disputed_at: NOW - 5, arbitration_window: 43200 }
     const input = lifecycleFromIndexed(row)
@@ -74,15 +74,9 @@ describe('lifecycle phases', () => {
     ['disputed', { status: 'disputed', arbitrationEndsAt: NOW + 60 }, 'disputed'],
     ['disputed, arbitrator late', { status: 'disputed', arbitrationEndsAt: NOW - 1 }, 'arbitration-lapsed'],
     ['completed', { status: 'completed' }, 'completed'],
-    ['indexer awarded', { status: 'awarded', mode: 'contest' }, 'completed'],
     ['rejected', { status: 'rejected' }, 'rejected'],
     ['cancelled hire', { status: 'cancelled' }, 'cancelled'],
     ['expired hire', { status: 'expired' }, 'expired'],
-    ['open contest', { status: 'open', mode: 'contest', selectionDeadline: NOW + 60 }, 'contest-open'],
-    ['indexer contest past selection', { status: 'open', mode: 'contest', selectionDeadline: NOW - 1 }, 'contest-unawarded'],
-    ['board selection-closed', { status: 'selection-closed', mode: 'contest', selectionDeadline: NOW - 1 }, 'contest-unawarded'],
-    ['board "cancelled" contest', { status: 'cancelled', mode: 'contest' }, 'contest-expired'],
-    ['indexer expired contest', { status: 'expired', mode: 'contest' }, 'contest-expired'],
     ['unknown', { status: 'unknown' }, 'unknown'],
   ]
   for (const [name, over, key] of cases) {
@@ -116,9 +110,6 @@ describe('actions follow the contracts', () => {
   it('the creator selects or cancels an open hire, and cancels a lapsed one', () => {
     expect(actions({ status: 'open' }, CREATOR)).toEqual(['select', 'cancel'])
     expect(actions({ status: 'lapsed' }, CREATOR)).toEqual(['cancel'])
-  })
-  it('the approver awards an open contest', () => {
-    expect(actions({ status: 'open', mode: 'contest', selectionDeadline: NOW + 60 }, APPROVER)).toEqual(['award'])
   })
   it('a paused core or a mismatched listing offers nothing', () => {
     const p = lifecycle(job({ status: 'submitted', timely: true, reviewEndsAt: NOW + 60, paused: true }), APPROVER, NOW)
@@ -177,13 +168,11 @@ describe('quote requests', () => {
 
 describe('adapters', () => {
   it('reads an indexer row', () => {
-    const input = lifecycleFromIndexed({ mode: 'hire', status: 'active', creator: CREATOR, approver: APPROVER, worker: WORKER, delivery_deadline: NOW - 1, selection_deadline: 0, worker_bond: '1' })
+    const input = lifecycleFromIndexed({ status: 'active', creator: CREATOR, approver: APPROVER, worker: WORKER, delivery_deadline: NOW - 1, worker_bond: '1' })
     expect(lifecycle(input, CREATOR, NOW).key).toBe('overdue')
-    expect(input.selectionDeadline).toBeNull()
   })
   it('reads a board task', () => {
-    const input = lifecycleFromTask({
-      mode: 'hire', creator: CREATOR, approver: APPROVER, deliveryDeadline: NOW + 100, selectionDeadline: null, workerBond: '1',
+    const input = lifecycleFromTask({ creator: CREATOR, approver: APPROVER, deliveryDeadline: NOW + 100, workerBond: '1',
       chain: { status: 'submitted', provider: WORKER, timely: true, submittedAt: NOW - 10, reviewEndsAt: NOW + 50, disputeEndsAt: null, arbitrationEndsAt: null, violation: null, listingMatchesOffer: true, paused: false },
     })
     expect(lifecycle(input, APPROVER, NOW).key).toBe('in-review')

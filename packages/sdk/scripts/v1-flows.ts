@@ -35,7 +35,6 @@ const worker = sdk.wallet(network, privateKeyToAccount(env('TESTNET_WORKER_PRIVA
 const relay = sdk.wallet(network, privateKeyToAccount(env('RELAY_PRIVATE_KEY') as Hex), rpc)
 const arbiters = v1FlowArbitrators(config, process.env)
 const arbitrator = sdk.wallet(network, arbiters.v1, rpc)
-const legacyArbitrator = arbiters.legacy === undefined ? undefined : sdk.wallet(network, arbiters.legacy, rpc)
 const explorer = 'https://testnet.monadscan.com/tx/'
 const yieldBeforeChainTime = process.env.V1_FLOW_YIELD === '1'
 const profile = env('V1_FLOW_PROFILE', true) ?? 'default'
@@ -126,8 +125,6 @@ const factoryDecimals = await ctx.publicClient.readContract({ address: ctx.deplo
 const reward = parseUnits(env('V1_FLOW_REWARD', true) ?? '1', rewardDecimals)
 const bond = parseUnits(env('V1_FLOW_BOND', true) ?? '10', factoryDecimals)
 if (reward <= 0n || bond <= 0n) throw new Error('live money verification needs positive reward and bond amounts')
-if (requested.includes('legacy-contest') && state.values['legacy-contest/done'] !== true && state.sends['legacy-contest/publish'] === undefined)
-  await sdk.requireLegacyContestFactory(ctx, creator)
 const hosted = requested.some(name => (sdk.V1_HOSTED_FLOWS as readonly string[]).includes(name))
 const boardUrl = hosted ? env('V1_BOARD_URL')! : ''
 const clients = new Map<string, ReturnType<typeof sdk.boardClient>>()
@@ -146,7 +143,7 @@ const agentId = await setupAgent()
 await setupStake()
 const waiting: string[] = []
 for (const name of requested) {
-  const deps = { ctx, journal, creator, worker, relay, arbitrator, ...(legacyArbitrator === undefined ? {} : { legacyArbitrator }), agentId, token: rewardToken,
+  const deps = { ctx, journal, creator, worker, relay, arbitrator, agentId, token: rewardToken,
     reward, bond, waitUntil, log: (text: string) => console.log(`[${name}] ${text}`) }
   try {
     if ((sdk.V1_CORE_FLOWS as readonly string[]).includes(name)) await sdk.runV1CoreFlow(deps, name as sdk.V1CoreFlow)

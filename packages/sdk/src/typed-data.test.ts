@@ -12,15 +12,9 @@ const rpc = process.env.MONAD_TESTNET_RPC_URL
 const live = rpc === undefined || rpc === '' ? describe.skip : describe
 
 live('typed data matches the deployed contracts (monad-testnet)', () => {
-  // describe.skip still evaluates this callback. Resolve contexts only in tests, and enumerate archived
-  // pairs only when live reads are enabled; the promoted deployment has no current demo pair.
-  const stackNames = rpc ? ['main', ...Object.keys(sdk.deployment('monad-testnet').legacyStacks)] : ['main']
-  const ctxFor = (name: string) => name === 'main'
-    ? context('monad-testnet', 'main', rpc ?? '')
-    : sdk.contextFor('monad-testnet', sdk.deployment('monad-testnet').legacyStacks[name]!, rpc ?? '')
-  for (const stackName of stackNames) {
-    it(`Selection digest equals JobHolding.selectionDigest (${stackName})`, async () => {
-      const ctx = ctxFor(stackName)
+  for (const stackName of ['main']) {
+    it(`Selection digest equals SidequestHolding.selectionDigest (${stackName})`, async () => {
+      const ctx = context('monad-testnet', 'main', rpc ?? '')
       const sel = {
         jobId: 7n,
         worker: '0x00000000000000000000000000000000000000a1',
@@ -38,8 +32,8 @@ live('typed data matches the deployed contracts (monad-testnet)', () => {
       expect(await sdk.selectionDigest(ctx, sel)).toBe(local)
     })
 
-    it(`Ruling digest equals JobsEvaluator.rulingDigest (${stackName})`, async () => {
-      const ctx = ctxFor(stackName)
+    it(`Ruling digest equals SidequestEvaluator.rulingDigest (${stackName})`, async () => {
+      const ctx = context('monad-testnet', 'main', rpc ?? '')
       const r = {
         jobId: 7n,
         forWorker: true,
@@ -63,7 +57,7 @@ live('typed data matches the deployed contracts (monad-testnet)', () => {
     expect(await ctx.publicClient.getChainId()).toBe(10143)
     const listing = await ctx.publicClient.readContract({
       address: ctx.stack.holding,
-      abi: ctx.stack.kind === 'sidequest-v1' ? sdk.sidequestHoldingAbi : sdk.jobHoldingAbi,
+      abi: sdk.sidequestHoldingAbi,
       functionName: 'evaluator',
     })
     expect(listing).toBe(ctx.stack.evaluator)

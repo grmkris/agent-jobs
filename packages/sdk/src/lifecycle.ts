@@ -18,9 +18,7 @@ export type JobStatusWord =
   | 'unknown'
   | 'open'
   | 'lapsed'
-  | 'selection-closed'
   | 'active'
-  | 'awarded'
   | 'submitted'
   | 'rejected-pending'
   | 'disputed'
@@ -30,14 +28,13 @@ export type JobStatusWord =
   | 'expired'
 
 /** How a finished job ended, when the caller knows it (from the job's events); the label falls back without it. */
-export type JobOutcome = 'accepted' | 'silence' | 'awarded' | 'ruled-worker' | 'ruled-creator' | 'arbitration-timeout' | 'missed' | 'rejection-final'
+export type JobOutcome = 'accepted' | 'silence' | 'ruled-worker' | 'ruled-creator' | 'arbitration-timeout' | 'missed' | 'rejection-final'
 
 export interface LifecycleInput {
-  kind?: 'legacy' | 'sidequest-v1' | null
-  mode: 'hire' | 'contest'
+  kind?: 'sidequest-v1' | null
+  mode?: 'hire'
   status: JobStatusWord | (string & {})
   deliveryDeadline: number | null
-  selectionDeadline?: number | null
   /** Whether the final submission landed by the delivery deadline; unknown from the indexer alone. */
   timely?: boolean | null
   reviewEndsAt?: number | null
@@ -74,12 +71,9 @@ export type PhaseKey =
   | 'rejection-final'
   | 'disputed'
   | 'arbitration-lapsed'
-  | 'contest-open'
-  | 'contest-unawarded'
   | 'completed'
   | 'rejected'
   | 'cancelled'
-  | 'contest-expired'
   | 'expired'
   | 'unknown'
   | 'quotes-open'
@@ -89,9 +83,9 @@ export type PhaseKey =
 export type Tone = 'neutral' | 'info' | 'attention' | 'success' | 'danger'
 export type Role = 'creator' | 'approver' | 'worker'
 export type Actor = Role | 'arbitrator' | 'agents' | 'anyone'
-export type JobAction = 'publish' | 'select' | 'cancel' | 'award' | 'approve' | 'reject' | 'pick' | 'settle'
+export type JobAction = 'publish' | 'select' | 'cancel' | 'approve' | 'reject' | 'pick' | 'settle'
 /** The permissionless evaluator or holding call a phase waits for (`settlement_actions` returns it with `settle`). */
-export type Timeout = 'completeAfterSilence' | 'rejectAfterWindow' | 'refundAfterArbitrationTimeout' | 'rejectAfterDeliveryDeadline' | 'expireContest' | 'retryDeferred'
+export type Timeout = 'completeAfterSilence' | 'rejectAfterWindow' | 'refundAfterArbitrationTimeout' | 'rejectAfterDeliveryDeadline' | 'retryDeferred'
 
 /** A sentence as parts, so a surface can render the time as a live countdown; `phaseText` joins it for plain text. */
 export type Segment = string | { time: number }
@@ -195,26 +189,6 @@ function draftOf(input: LifecycleInput, now: number): Draft {
         : ['The job is decided. Collect the remaining settlement, refund or refused payout.'],
       can: { anyone: ['settle'] }, terminal: true,
       ...(input.deferredDecision ? { timeout: 'retryDeferred' as const } : {}),
-    }
-  }
-
-  if (input.mode === 'contest' && (s === 'open' || s === 'selection-closed')) {
-    const sel = input.selectionDeadline ?? null
-    if (s === 'selection-closed' || past(sel)) {
-      return {
-        key: 'contest-unawarded', label: 'Closed · no winner', tone: 'attention', actor: 'anyone', deadline: null,
-        next: ['No entry was awarded by the deadline. Anyone can close it; the prize and bond go back to the creator.'],
-        toActor: ['No entry was awarded in time. Close it to get the prize and your bond back.'],
-        can: { anyone: ['settle'] }, timeout: 'expireContest', beneficiary: 'creator',
-      }
-    }
-    return {
-      key: 'contest-open', label: 'Taking entries', tone: 'info', actor: 'approver', deadline: sel,
-      next: sel === null
-        ? ['Agents enter finished work. An award pays that entry in one transaction and closes the contest.']
-        : ['Agents enter finished work until ', { time: sel }, '. An award pays that entry in one transaction and closes the contest.'],
-      toActor: ['Award the entry you want; one transaction pays it.'],
-      can: { approver: ['award'] },
     }
   }
 
@@ -322,7 +296,7 @@ function draftOf(input: LifecycleInput, now: number): Draft {
   }
 
   // A refused core payout may finish as Rejected/Expired while the worker's recorded payment right stays final.
-  if (input.kind === 'sidequest-v1' && ['completed', 'rejected', 'expired'].includes(s)
+  if (['completed', 'rejected', 'expired'].includes(s)
     && ['accepted', 'silence', 'ruled-worker'].includes(input.outcome ?? '')) {
     return { key: 'completed', label: 'Paid', tone: 'success', actor: null, deadline: null,
       next: ['The work was accepted; the worker payment is settled.'], terminal: true, beneficiary: 'worker' }
@@ -331,13 +305,12 @@ function draftOf(input: LifecycleInput, now: number): Draft {
   const settle: Pick<Draft, 'can' | 'beneficiary'> = input.settlePending ? { can: { anyone: ['settle'] }, beneficiary: 'creator' } : {}
   const pending = input.settlePending ? ' It is still in escrow: anyone can release it.' : ''
 
-  if (s === 'completed' || s === 'awarded') {
+  if (s === 'completed') {
     const how =
-      input.mode === 'contest' || s === 'awarded' || input.outcome === 'awarded' ? 'Its entry won the contest; the prize is paid.'
-      : input.outcome === 'silence' ? 'Accepted when the review window closed without a decision; the reward is paid.'
+      input.outcome === 'silence' ? 'Accepted when the review window closed without a decision; the reward is paid.'
       : input.outcome === 'ruled-worker' ? 'The arbitrator ruled for the agent; the reward is paid.'
       : 'Approved; the reward is paid and the bonds returned.'
-    return { key: 'completed', label: input.mode === 'contest' ? 'Winner paid' : 'Paid', tone: 'success', actor: null, deadline: null, next: [how], terminal: true }
+    return { key: 'completed', label: 'Paid', tone: 'success', actor: null, deadline: null, next: [how], terminal: true }
   }
 
   if (s === 'rejected') {
@@ -349,10 +322,6 @@ function draftOf(input: LifecycleInput, now: number): Draft {
     return { key: 'rejected', label, tone, actor: input.settlePending ? 'anyone' : null, deadline: null, next: [why + pending], terminal: true, ...settle }
   }
 
-  // The board reports an expired contest as "cancelled" (the core rejects a job without a provider); the indexer as "expired".
-  if (input.mode === 'contest' && (s === 'cancelled' || s === 'expired')) {
-    return { key: 'contest-expired', label: 'Ended · no winner', tone: 'neutral', actor: input.settlePending ? 'anyone' : null, deadline: null, next: ['No entry was awarded; the prize went back to the creator.' + pending], terminal: true, ...settle }
-  }
   if (s === 'cancelled') {
     return { key: 'cancelled', label: 'Cancelled', tone: 'neutral', actor: input.settlePending ? 'anyone' : null, deadline: null, next: ['Cancelled before anyone started; the reward and bond went back to the creator.' + pending], terminal: true, ...settle }
   }
@@ -377,9 +346,7 @@ export function lifecycle(input: LifecycleInput, viewer?: string | null, now: nu
     actions = []
   }
   if (input.paused) {
-    warnings.push(input.kind === 'sidequest-v1'
-      ? 'The core is paused. A delivery deadline inside a recorded pause does not burn the worker bond.'
-      : 'Paused by the admin: nothing can be sent, and deadlines keep running.')
+    warnings.push('Paused by the admin. A delivery deadline inside a recorded core pause does not burn the worker bond.')
     if (d.key !== 'collect') actions = []
   }
   if (youAct && d.deadline !== null && d.deadline >= now && d.deadline - now < DEADLINE_MARGIN_SECONDS) {
@@ -444,14 +411,13 @@ export function phaseText(parts: Segment[], time: (t: number) => string = (t) =>
 
 /** A row of the indexer's `jobs` table (Explore's `/data/jobs`), as lifecycle input. */
 export function lifecycleFromIndexed(row: {
-  kind?: 'legacy' | 'sidequest-v1' | null
-  mode: string | null
+  kind?: 'sidequest-v1' | null
+  mode?: string | null
   status: string
   creator: string | null
   approver: string | null
   worker: string | null
   delivery_deadline: number | null
-  selection_deadline: number | null
   worker_bond: string | null
   violation?: string | null
   outcome?: string | null
@@ -468,16 +434,15 @@ export function lifecycleFromIndexed(row: {
   const decided = row.outcome !== undefined && row.outcome !== null && row.outcome !== 'None'
   const terminal = ['completed', 'rejected', 'cancelled', 'expired'].includes(row.status)
   return {
-    kind: row.kind ?? 'legacy',
-    mode: row.mode === 'contest' ? 'contest' : 'hire',
+    kind: row.kind ?? 'sidequest-v1',
+    mode: 'hire',
     status: row.status,
     deliveryDeadline: row.delivery_deadline,
-    selectionDeadline: row.selection_deadline || null,
     violation: (row.violation ?? null) as ViolationName | null,
     workerBond: row.worker_bond,
     outcome: protocolOutcome(row.outcome),
-    deferredDecision: row.kind === 'sidequest-v1' && decided && !terminal && (row.payout_deferred === 1 || row.refund_deferred === 1),
-    collectPending: row.kind === 'sidequest-v1' && terminal && row.settlement_outcome === 'None',
+    deferredDecision: decided && !terminal && (row.payout_deferred === 1 || row.refund_deferred === 1),
+    collectPending: terminal && row.settlement_outcome === 'None',
     reviewEndsAt: row.submitted_at != null && row.review_window != null ? row.submitted_at + row.review_window : null,
     disputeEndsAt: row.rejected_at != null && row.dispute_window != null ? row.rejected_at + row.dispute_window : null,
     arbitrationEndsAt: row.disputed_at != null && row.arbitration_window != null ? row.disputed_at + row.arbitration_window : null,
@@ -487,12 +452,11 @@ export function lifecycleFromIndexed(row: {
 
 /** The board's `get_task` result (its summary and `chain` view), as lifecycle input. */
 export function lifecycleFromTask(task: {
-  kind?: 'legacy' | 'sidequest-v1' | null
-  mode: string
+  kind?: 'sidequest-v1' | null
+  mode?: string
   creator: string
   approver: string
   deliveryDeadline: number
-  selectionDeadline: number | null
   workerBond: string
   chain: {
     status: string
@@ -512,11 +476,10 @@ export function lifecycleFromTask(task: {
 }): LifecycleInput {
   const c = task.chain
   return {
-    kind: task.kind ?? 'legacy',
-    mode: task.mode === 'contest' ? 'contest' : 'hire',
+    kind: task.kind ?? 'sidequest-v1',
+    mode: 'hire',
     status: c.status,
     deliveryDeadline: task.deliveryDeadline,
-    selectionDeadline: task.selectionDeadline,
     timely: c.submittedAt === null ? null : c.timely,
     reviewEndsAt: c.reviewEndsAt,
     disputeEndsAt: c.disputeEndsAt,

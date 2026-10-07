@@ -1,7 +1,7 @@
 import { type Address, type Hex, zeroAddress } from 'viem'
 import { describe, expect, it } from 'vitest'
-import { sidequestEvaluatorAbi, sidequestHoldingAbi, jobHoldingAbi } from './abi/index.ts'
-import { accept, activate, cancel, claimTopUpRefund, createPool, hashText, publish, settleDeferred, type ActivationTerms, type Ctx, type Wallet, V1_GAS } from './actions.ts'
+import { sidequestEvaluatorAbi, sidequestHoldingAbi } from './abi/index.ts'
+import { accept, activate, cancel, claimTopUpRefund, hashText, publish, settleDeferred, type ActivationTerms, type Ctx, type Wallet, V1_GAS } from './actions.ts'
 import { deployment } from './deployment.ts'
 import type { Selection } from './typed-data.ts'
 
@@ -17,7 +17,7 @@ const policyHash = hashText('offer')
 const selection: Selection = { jobId: 7n, worker, agentId: 1n, termsHash: policyHash, activateBy: 1_900_000_000, nonce: 1n }
 const txHash = `0x${'ab'.repeat(32)}` as Hex
 
-function fixture(kind: 'legacy' | 'sidequest-v1' = 'sidequest-v1', over: Partial<ActivationTerms> = {}, available = 20n) {
+function fixture(kind: 'sidequest-v1' = 'sidequest-v1', over: Partial<ActivationTerms> = {}, available = 20n) {
   const events: string[] = []
   const signed: Array<{ message: Record<string, unknown> }> = []
   const simulated: Array<Record<string, unknown>> = []
@@ -85,19 +85,9 @@ describe('kind-aware activation', () => {
     expect(poor.sent).toHaveLength(0)
   })
 
-  it('legacy activation approves that pair\'s factory and signs the gross reward', async () => {
-    const f = fixture('legacy')
-    await activate(f.ctx, f.wallet, selection, '0x11')
-    expect(f.signed[0]?.message.amount).toBe(101n)
-    expect(f.reads.find(r => r.functionName === 'allowance')?.address).toBe(oldFactory)
-    expect(f.sent[0]?.address).toBe(oldFactory)
-    expect(f.sent[1]?.abi).toBe(jobHoldingAbi)
-    expect(f.events).not.toContain('quoteActivation')
-  })
-
   it('requires an explicit nonzero arbitrator before any publish approval', async () => {
     const f = fixture()
-    const input = { ...terms, mode: 'hire' as const, manifestHash: policyHash, termsHash: policyHash }
+    const input = { ...terms, manifestHash: policyHash, termsHash: policyHash }
     await expect(publish(f.ctx, f.wallet, { ...input, arbitrator: zeroAddress })).rejects.toThrow('explicit arbitrator')
     const { arbitrator: _arbitrator, ...missing } = input
     await expect(publish(f.ctx, f.wallet, missing)).rejects.toThrow('explicit arbitrator')
@@ -123,12 +113,4 @@ describe('v1 payout limits and recovery ordering', () => {
     expect(f.events).toEqual(['simulate:retryDeferred', 'send:retryDeferred', 'receipt', 'simulate:settle', 'send:settle', 'receipt'])
     expect(f.sent.map(r => r.gas)).toEqual([300_000n, 1_000_000n])
   })
-})
-
-it('refuses a v1 pool before any legacy read or approval', async () => {
-  const f = fixture()
-  await expect(createPool(f.ctx, f.wallet, { salt: policyHash, goal: 101n, pledgeDeadline: 1_900_000_000, curator: creator,
-    publish: { mode: 'hire', token: oldFactory, workerBond: 0n, deliveryDeadline: terms.deliveryDeadline, manifestHash: policyHash, termsHash: policyHash } })).rejects.toThrow('not supported')
-  expect(f.reads).toEqual([])
-  expect(f.sent).toEqual([])
 })
