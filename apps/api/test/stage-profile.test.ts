@@ -28,7 +28,13 @@ test('flipping the prod profile selects mainnet contracts, plain RPC, and the ar
   const p = validateStageProfile({ ...stageProfile('prod'), network: 'monad-mainnet', chainId: 143 }, 'prod')
   const config: DeploymentConfig = { ...structuredClone(testnet), network: 'monad-mainnet', chainId: 143 } as unknown as DeploymentConfig
   if (config.deployment?.sidequest) delete config.deployment.sidequest.clocks
-  expect(deploymentFromConfig(p.network, config).chainId).toBe(143)
+  // Mainnet is not deployed yet: use distinct fixture addresses to prove profile
+  // resolution selects the supplied mainnet deployment rather than testnet pins.
+  config.deployment!.main!.holding = '0x1111111111111111111111111111111111111111'
+  const resolved = deploymentFromConfig(p.network, config)
+  expect(resolved.chainId).toBe(143)
+  expect(resolved.stacks.main!.holding).toBe(config.deployment!.main!.holding)
+  expect(resolved.stacks.main!.holding).not.toBe(testnet.deployment.main.holding)
   expect(rpcUrlForNetwork({ SIDEQUEST_STAGE: 'prod', MONAD_RPC_URL: 'https://rpc.example/mainnet' })).toBe('https://rpc.example/mainnet')
   vi.stubEnv('SIDEQUEST_STAGE', 'prod')
   vi.stubEnv('SIDEQUEST_PROD_ARTIFACT', '')
