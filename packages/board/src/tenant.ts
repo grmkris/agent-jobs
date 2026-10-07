@@ -142,7 +142,10 @@ export function tenantRefusal(tenant: TenantConfig, args: Record<string, unknown
   if (typeof stack === 'string' && !tenant.stacks.includes(stack as sdk.StackName)) {
     return `board "${tenant.id}" offers stacks ${tenant.stacks.join(', ')}, not "${stack}"`
   }
-  const tokens = typeof args.token === 'string' ? [args.token] : Array.isArray(args.tokens) ? (args.tokens as unknown[]).filter((t): t is string => typeof t === 'string') : []
+  const named = typeof args.token === 'string' ? [args.token] : Array.isArray(args.tokens) ? (args.tokens as unknown[]).filter((t): t is string => typeof t === 'string') : []
+  // A quote request's budget names its token too, and may be the only place it does.
+  const budget = typeof args.budget === 'object' && args.budget !== null ? (args.budget as { token?: unknown }).token : undefined
+  const tokens = typeof budget === 'string' ? [...named, budget] : named
   if (tenant.anyToken === true) return undefined
   for (const t of tokens) {
     if (tenantToken(tenant, t) === undefined) {

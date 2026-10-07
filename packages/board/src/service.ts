@@ -1441,6 +1441,8 @@ export class Board {
       arbitrator?: string
       /** The deliverable forms accepted (ADR-0006); the picked hire inherits them. */
       deliverable?: DeliverableSpec
+      /** A public maximum price in one token; the request then accepts only that token and refuses quotes above it. */
+      budget?: { token: string; max: string }
       idempotencyKey?: string
     },
   ) {
@@ -1450,8 +1452,15 @@ export class Board {
     const tags = input.tags === undefined ? [] : normalizeTags(input.tags)
     const stack = input.stack ?? 'main'
     const ctx = this.#ctx(stack)
-    if (input.tokens.length === 0) throw new BoardError('invalid', 'name at least one accepted token')
-    const tokens = await Promise.all(input.tokens.map((t) => this.#resolveToken(ctx, t)))
+    const budget = input.budget === undefined ? undefined : await this.#requestBudget(ctx, input.budget)
+    if (budget !== undefined && input.tokens.length > 0) {
+      const named = await Promise.all(input.tokens.map((t) => this.#resolveToken(ctx, t)))
+      if (named.length !== 1 || !eq(named[0]!, budget.token)) {
+        throw new BoardError('invalid', 'a request with a budget accepts only its budget token: omit tokens or pass [budget.token]')
+      }
+    }
+    if (budget === undefined && input.tokens.length === 0) throw new BoardError('invalid', 'name at least one accepted token')
+    const tokens = budget !== undefined ? [budget.token] : await Promise.all(input.tokens.map((t) => this.#resolveToken(ctx, t)))
     const now = this.#now()
     if (input.quoteDeadline <= now || input.quoteDeadline >= input.deliveryDeadline) {
       throw new BoardError('invalid', 'the quote deadline must be in the future and before the delivery deadline')
@@ -1467,6 +1476,7 @@ export class Board {
       acceptanceCriteria: input.acceptanceCriteria,
       ...(tags.length === 0 ? {} : { tags }),
       tokens,
+      ...(budget === undefined ? {} : { budget: { token: budget.token, max: budget.max.toString() } }),
       creatorBond: input.creatorBond,
       workerBond: input.workerBond,
       deliveryDeadline: input.deliveryDeadline,
@@ -1502,6 +1512,23 @@ export class Board {
   #withRequestDeadlines(prepared: QuotePreparation): QuotePreparation & { deliveryDeadline: number; quoteDeadline: number } {
     const request = JSON.parse(this.#quoteRequest(prepared.requestId).request_json) as { deliveryDeadline: number; quoteDeadline: number }
     return { ...prepared, deliveryDeadline: request.deliveryDeadline, quoteDeadline: request.quoteDeadline }
+  }
+
+  /** A request's budget as named: a token this stack can pay in and a positive maximum in its units. */
+  async #requestBudget(ctx: sdk.Ctx, input: { token: string; max: string }): Promise<{ token: Address; max: bigint }> {
+    if (typeof input !== 'object' || input === null || typeof input.token !== 'string' || typeof input.max !== 'string') {
+      throw new BoardError('invalid', 'budget is {token, max}')
+    }
+    const token = await this.#resolveToken(ctx, input.token)
+    const decimals = await ctx.publicClient.readContract({ address: token, abi: sdk.factoryTokenAbi, functionName: 'decimals' })
+    let max: bigint
+    try {
+      max = parseUnits(input.max, decimals)
+    } catch {
+      throw new BoardError('invalid', 'budget.max must be a decimal number')
+    }
+    if (max <= 0n) throw new BoardError('invalid', 'budget.max must be positive')
+    return { token, max }
   }
 
   #quoteRequest(requestId: string): QuoteRequestRow {
@@ -1553,7 +1580,7 @@ export class Board {
     if (req.task_id !== null) throw new BoardError('conflict', 'a quote was already picked')
     if (this.#now() >= req.quote_deadline) throw new BoardError('conflict', 'the quote deadline has passed')
     const ctx = this.#ctx(req.stack)
-    const request = JSON.parse(req.request_json) as { tokens: Address[] }
+    const request = JSON.parse(req.request_json) as { tokens: Address[]; budget?: { token: Address; max: string } }
     const token = await this.#resolveToken(ctx, input.token)
     if (!request.tokens.some((t) => eq(t, token))) throw new BoardError('invalid', 'that token is not accepted by this request')
     const agentWallet = await sdk.agentWallet(ctx, BigInt(input.agentId)).catch(() => zeroAddress)
@@ -1566,6 +1593,9 @@ export class Board {
       throw new BoardError('invalid', 'amount must be a decimal number')
     }
     if (amount <= 0n) throw new BoardError('invalid', 'the amount must be positive')
+    if (request.budget !== undefined && amount > BigInt(request.budget.max)) {
+      throw new BoardError('invalid', `this request's budget is at most ${formatUnits(BigInt(request.budget.max), decimals)}; quote at or below it`)
+    }
     let expectedCosts: { token: Address; amount: string; note: string } | undefined
     if (input.expectedCosts !== undefined) {
       const costToken = await this.#advanceToken(ctx, input.expectedCosts.token)
@@ -1664,6 +1694,10 @@ export class Board {
     const [q] = this.#sql.all<QuoteRow>('SELECT * FROM quotes WHERE id = ? AND request_id = ?', input.quoteId, req.id)
     if (q === undefined) throw new BoardError('not-found', 'no such quote')
     const ctx = this.#ctx(req.stack)
+    const { budget } = JSON.parse(req.request_json) as { budget?: { token: Address; max: string } }
+    if (budget !== undefined && (!eq(budget.token, q.token as Address) || BigInt(q.amount) > BigInt(budget.max))) {
+      throw new BoardError('conflict', 'that quote is above the request budget')
+    }
     const r = JSON.parse(req.request_json) as {
       title: string; brief: string; acceptanceCriteria: string[]; creatorBond: string; workerBond: string
       deliveryDeadline: number; approver: Address; requiredChecks: string[]; deliverable?: DeliverableSpec

@@ -149,6 +149,8 @@ export interface QuoteRequest {
   acceptanceCriteria: string[]
   tags?: readonly JobTag[]
   tokens: string[]
+  /** A public maximum price: `max` in the token's base units. A request with a budget accepts only its token. */
+  budget?: { token: string; max: string }
   creatorBond: string
   workerBond: string
   deliveryDeadline: number

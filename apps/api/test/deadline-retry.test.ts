@@ -36,7 +36,7 @@ function fixture() {
   const token = base.deployment.rewardTokens[0]!
   const offer = { title: 'Offer', brief: 'Brief', acceptanceCriteria: ['works'], creatorBond: '0', workerBond: '0',
     windows: { reviewSeconds: 120, disputeSeconds: 120, arbitrationSeconds: 300 }, arbitrator: '0x4444444444444444444444444444444444444444' }
-  return { board, run, token, offer }
+  return { board, run, token, offer, db }
 }
 
 const later = () => { vi.setSystemTime((T + 3600) * 1000); boardNow = T + 3600 }
@@ -104,4 +104,30 @@ it('invalid tag inputs fail as validation errors before any preparation is persi
     await expect(f.run('create_task', { ...f.offer, tags, token: f.token, reward: '1', mode: 'hire', deliveryDeadline: '3d' })).rejects.toMatchObject({ code: 'invalid' })
   }
   expect(f.board.taskIndex({})).toEqual([])
+})
+
+it('a public budget caps quotes: only its token, nothing above max, and the pick checks again', async () => {
+  const f = fixture()
+  const plain = await f.run('request_quotes', { ...f.offer, tokens: [f.token], deliveryDeadline: '3d', quoteDeadline: '1d' })
+  expect(f.board.listQuoteRequests({}).find(r => r.requestId === plain.requestId)).not.toHaveProperty('budget')
+  const other = f.offer.arbitrator
+  await expect(f.run('request_quotes', { ...f.offer, tokens: [f.token, other], budget: { token: f.token, max: '10' }, deliveryDeadline: '3d', quoteDeadline: '1d' }))
+    .rejects.toMatchObject({ code: 'invalid', message: expect.stringContaining('only its budget token') })
+  await expect(f.run('request_quotes', { ...f.offer, budget: { token: f.token, max: '0' }, deliveryDeadline: '3d', quoteDeadline: '1d' }))
+    .rejects.toMatchObject({ code: 'invalid', message: expect.stringContaining('positive') })
+  await expect(f.run('request_quotes', { ...f.offer, deliveryDeadline: '3d', quoteDeadline: '1d' }))
+    .rejects.toMatchObject({ code: 'invalid', message: expect.stringContaining('at least one accepted token') })
+  const capped = await f.run('request_quotes', { ...f.offer, budget: { token: f.token, max: '10' }, deliveryDeadline: '3d', quoteDeadline: '1d' })
+  expect(f.board.listQuoteRequests({}).find(r => r.requestId === capped.requestId)).toMatchObject({ tokens: [f.token], budget: { token: f.token, max: '10' } })
+  const requestId = capped.requestId as string
+  await expect(f.board.submitQuote({ address: worker }, { requestId, agentId: '7', token: f.token, amount: '11' }))
+    .rejects.toMatchObject({ code: 'invalid', message: expect.stringContaining('at most 10') })
+  const quote = await f.board.submitQuote({ address: worker }, { requestId, agentId: '7', token: f.token, amount: '10' })
+  // A quote above the budget can only exist if it bypassed submit_quote; the pick refuses it before freezing anything.
+  f.db.prepare('UPDATE quotes SET amount = ? WHERE id = ?').run('11', quote.quoteId)
+  await expect(f.run('pick_quote', { requestId, quoteId: quote.quoteId })).rejects.toMatchObject({ code: 'conflict' })
+  expect(f.board.taskIndex({})).toEqual([])
+  f.db.prepare('UPDATE quotes SET amount = ? WHERE id = ?').run('10', quote.quoteId)
+  const picked = await f.run('pick_quote', { requestId, quoteId: quote.quoteId })
+  expect(JSON.parse(picked.manifest as string)).toMatchObject({ reward: '10' })
 })

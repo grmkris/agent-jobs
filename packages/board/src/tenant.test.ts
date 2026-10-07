@@ -57,6 +57,9 @@ describe('tenant', () => {
     expect(tenantRefusal(t, { stack: 'demo' })).toMatch(/stacks main/)
     expect(tenantRefusal(t, { token: 'mEUR' })).toMatch(/pays in mUSD/)
     expect(tenantRefusal(t, { tokens: ['mUSD', 'mEUR'] })).toMatch(/pays in mUSD/)
+    // A quote request's budget may be the only place it names its token.
+    expect(tenantRefusal(t, { budget: { token: 'mEUR', max: '5' } })).toMatch(/pays in mUSD/)
+    expect(tenantRefusal(t, { budget: { token: 'mUSD', max: '5' } })).toBeUndefined()
     expect(tenantRefusal(t, { stack: 'main', token: tokens[0]!.address })).toBeUndefined()
     expect(tenantDefaults(t, { title: 'x' })).toEqual({ title: 'x', stack: 'main', approver: owner })
     expect(tenantDefaults(t, { stack: 'main', approver: '0x0000000000000000000000000000000000000001' }).approver).toBe('0x0000000000000000000000000000000000000001')

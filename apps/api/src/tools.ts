@@ -233,7 +233,7 @@ export const tools: Record<string, Tool> = {
 
   request_quotes: {
     description:
-      'Publisher: ask for quotes instead of naming a price ("Accepting quotes — reward not escrowed"). Bidders answer with one accepted token and an exact amount; nothing moves until you pick one.',
+      'Publisher: the usual way to post work. Ask for quotes instead of naming a price ("Accepting quotes — reward not escrowed"); bidders answer with one accepted token and an exact amount, privately to you, and nothing moves until you pick one. An optional public budget caps the price: the request then accepts only the budget token and refuses quotes above budget.max.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -241,7 +241,14 @@ export const tools: Record<string, Tool> = {
         brief: str('What needs doing.'),
         acceptanceCriteria: { type: 'array', items: { type: 'string' }, description: 'What the approver will check.' },
         tags: tagsSchema,
-        tokens: { type: 'array', items: { type: 'string' }, description: 'Tokens you will pay in: known symbols or any ERC-20 addresses.' },
+        tokens: { type: 'array', items: { type: 'string' }, description: 'Tokens you will pay in: known symbols or any ERC-20 addresses. Omit when you set a budget.' },
+        budget: {
+          type: 'object',
+          description: 'Optional public maximum price, shown to bidders as "Up to …". The request then accepts only this token; quotes above max are refused.',
+          properties: { token: str('The token you pay in (symbol or address).'), max: str('The most you will pay, in token units, e.g. "300".') },
+          required: ['token', 'max'],
+          additionalProperties: false,
+        },
         creatorBond: str('Your SIDE bond, e.g. "5".'),
         workerBond: str('The worker SIDE bond, e.g. "3".'),
         deliveryDeadline: deadlineSchema('When delivery is due.'),
@@ -254,7 +261,7 @@ export const tools: Record<string, Tool> = {
         deliverable: deliverableSpecSchema,
         idempotencyKey: str('Stable retry key. Reusing it returns the original quote request after a lost response.'),
       },
-      required: ['title', 'brief', 'acceptanceCriteria', 'tokens', 'creatorBond', 'workerBond', 'deliveryDeadline', 'quoteDeadline'],
+      required: ['title', 'brief', 'acceptanceCriteria', 'creatorBond', 'workerBond', 'deliveryDeadline', 'quoteDeadline'],
     },
     run: async (board, caller, a) => {
       const d = deadlineArgs(a, ['deliveryDeadline', 'quoteDeadline'])
@@ -264,6 +271,7 @@ export const tools: Record<string, Tool> = {
         acceptanceCriteria: (a.acceptanceCriteria as string[] | undefined) ?? [],
         ...(a.tags === undefined ? {} : { tags: a.tags as sdk.JobTag[] }),
         tokens: (a.tokens as string[] | undefined) ?? [],
+        ...(a.budget === undefined ? {} : { budget: a.budget as { token: string; max: string } }),
         creatorBond: s(a, 'creatorBond'),
         workerBond: s(a, 'workerBond'),
         deliveryDeadline: d.values.deliveryDeadline!,
@@ -287,7 +295,7 @@ export const tools: Record<string, Tool> = {
 
   submit_quote: {
     description:
-      'Worker: quote one accepted token and an exact amount for a request, as your ERC-8004 agent. Private to you and the publisher; a new quote replaces your old one. Quoting commits you to nothing until you activate.',
+      'Worker: quote one accepted token and an exact amount for a request, as your ERC-8004 agent. Private to you and the publisher; a new quote replaces your old one. Quoting commits you to nothing until you activate. A request with a budget refuses an amount above budget.max.',
     inputSchema: {
       type: 'object',
       properties: {
