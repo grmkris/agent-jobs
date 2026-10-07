@@ -581,7 +581,7 @@ export async function undelegationShares(
   if (ctx.deployment.sidequest === null) throw new Error('undelegation requires Sidequest v1')
   if (amount <= 0n) throw new Error('undelegation amount must be positive')
   const vault = ctx.deployment.sidequest.vault
-  const blockNumber = await ctx.publicClient.getBlockNumber()
+  const blockNumber = await ctx.publicClient.getBlockNumber({ cacheTime: 0 })
   const [position, pool, converted] = await Promise.all([
     ctx.publicClient.readContract({
       address: vault,

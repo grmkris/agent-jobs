@@ -89,7 +89,7 @@ function vaultOf(ctx: Ctx) {
 
 export async function getBacking(ctx: Ctx, account: Address, options: StakeReadOptions = {}) {
   const h = vaultOf(ctx)
-  const blockNumber = options.blockNumber ?? (await ctx.publicClient.getBlockNumber())
+  const blockNumber = options.blockNumber ?? (await ctx.publicClient.getBlockNumber({ cacheTime: 0 }))
   const [pool, schedule] = await Promise.all([
     ctx.publicClient.readContract({
       address: h.vault,
@@ -110,7 +110,7 @@ export async function getBacking(ctx: Ctx, account: Address, options: StakeReadO
 
 export async function getPosition(ctx: Ctx, account: Address, delegator: Address, options: StakeReadOptions = {}) {
   const h = vaultOf(ctx)
-  const blockNumber = options.blockNumber ?? (await ctx.publicClient.getBlockNumber())
+  const blockNumber = options.blockNumber ?? (await ctx.publicClient.getBlockNumber({ cacheTime: 0 }))
   const [pool, position] = await Promise.all([
     ctx.publicClient.readContract({
       address: h.vault,
@@ -139,7 +139,7 @@ export interface DelegationReadOptions extends StakeReadOptions {
 /** Event-backed discovery. Values come from the vault at one block; exited/retired positions remain discoverable. */
 export async function listDelegations(ctx: Ctx, delegator: Address, options: DelegationReadOptions = {}) {
   const h = vaultOf(ctx)
-  const blockNumber = options.blockNumber ?? (await ctx.publicClient.getBlockNumber())
+  const blockNumber = options.blockNumber ?? (await ctx.publicClient.getBlockNumber({ cacheTime: 0 }))
   const events = [
     getAbiItem({ abi: stakeVaultAbi, name: 'Delegated' }),
     getAbiItem({ abi: stakeVaultAbi, name: 'PoolReset' }),

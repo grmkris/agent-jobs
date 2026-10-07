@@ -52,22 +52,31 @@ describe('delegated backing and position arithmetic', () => {
 })
 
 // A single fixed block prevents a slash between the position and price reads from changing the approved share intent.
+// That block is the uncached head: viem caches getBlockNumber, and a read right after a write must not see stale state.
 describe('amount-to-share exit preparation', () => {
-  it('pins every read, rounds partial exits down, and includes the remainder for a full exit', async () => {
+  it('pins every read to the uncached head, rounds partial exits down, and includes the remainder for a full exit', async () => {
     const { undelegationShares } = await import('./actions.ts')
+    const { getBacking, getPosition } = await import('./staking.ts')
     const { deployment } = await import('./deployment.ts')
     const d = deployment('monad-testnet')
     const account = d.relay
     const blocks: unknown[] = []
+    const heads: unknown[] = []
     const ctx = {
       deployment: d,
       stack: d.stacks.main!,
       publicClient: {
-        getBlockNumber: async () => 100n,
+        getBlockNumber: async (options?: { cacheTime?: number }) => {
+          heads.push(options?.cacheTime)
+          return 100n
+        },
         readContract: async (request: { functionName: string; blockNumber: bigint; args: readonly unknown[] }) => {
           blocks.push(request.blockNumber)
-          if (request.functionName === 'positionOf') return { shares: 5n, queuedShares: 0n }
-          if (request.functionName === 'poolOf') return { assets: 6n, shares: 10n }
+          if (request.functionName === 'positionOf')
+            return { shares: 5n, queuedShares: 0n, unlockAt: 9, generation: 1n }
+          if (request.functionName === 'poolOf')
+            return { assets: 6n, reserved: 0n, shares: 10n, queuedShares: 0n, generation: 1n }
+          if (request.functionName === 'schedule') return { thresholds: [0n], bps: [100] }
           return (BigInt(request.args[1] as bigint) * 10n) / 6n
         },
       },
@@ -76,6 +85,9 @@ describe('amount-to-share exit preparation', () => {
     expect(await undelegationShares(ctx, account, account, 3n)).toBe(5n)
     await expect(undelegationShares(ctx, account, account, 4n)).rejects.toThrow('owned position')
     await expect(undelegationShares(ctx, account, account, 0n)).rejects.toThrow('positive')
+    await getPosition(ctx, account, account)
+    await getBacking(ctx, account)
     expect(blocks.every((block) => block === 100n)).toBe(true)
+    expect(heads.every((cacheTime) => cacheTime === 0)).toBe(true)
   })
 })
