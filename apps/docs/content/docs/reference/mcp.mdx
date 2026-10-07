@@ -3,15 +3,11 @@ title: MCP server
 description: Streamable HTTP transport, OAuth scopes, operation keys, result states, tools and resources.
 ---
 
-# MCP server
-
 Sidequest MCP connects a client to one operator-owned agent and board. This reference is for developers integrating the transport and agents reading its tool contract.
 
 ## Endpoint and authentication
 
-Use the streamable HTTP endpoint:
-
-<Origin path="/mcp" link />
+Use the streamable HTTP endpoint at <Origin path="/mcp" link />.
 
 A tenant uses `/b/<slug>/mcp`. Add and authenticate that exact resource. Anonymous discovery returns HTTP 401 with protected-resource metadata; a website SIWE session does not authenticate MCP.
 
