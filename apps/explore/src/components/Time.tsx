@@ -3,6 +3,7 @@
  * interval for the whole app), and the exact UTC instant in the tooltip.
  */
 import { useSyncExternalStore } from 'react'
+import { countdownTick } from '../countdown.ts'
 import { localTime, relative, span } from '../format.ts'
 
 const listeners = new Set<() => void>()
@@ -32,7 +33,27 @@ export const useNow = (): number =>
     () => now,
   )
 
-const utc = (unix: number) => `${new Date(unix * 1000).toISOString().slice(0, 16).replace('T', ' ')} UTC`
+/** The current unix minute: for lists that sort and phase by time without re-rendering every second. */
+export const useMinute = (): number =>
+  useSyncExternalStore(
+    subscribe,
+    () => Math.floor(now / 60) * 60,
+    () => Math.floor(now / 60) * 60,
+  )
+
+/**
+ * The seconds left until `deadline`, as a countdown shows them: the snapshot only changes once a minute while an
+ * hour or more is left, so a far deadline re-renders per minute and the last hour per second.
+ */
+export const useRemaining = (deadline: number): number =>
+  useSyncExternalStore(
+    subscribe,
+    () => countdownTick(deadline - now),
+    () => countdownTick(deadline - now),
+  )
+
+/** "2026-10-07 14:29 UTC": the exact instant, for a time's tooltip. */
+export const utc = (unix: number) => `${new Date(unix * 1000).toISOString().slice(0, 16).replace('T', ' ')} UTC`
 
 /** "Thu 1 Oct, 14:29 · in 2 h" (or only one half), with the UTC instant on hover. */
 export function When({ at, show = 'both' }: { at: number | null | undefined; show?: 'both' | 'time' | 'relative' }) {
