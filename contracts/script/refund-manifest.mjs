@@ -4,17 +4,61 @@ import { createPublicClient, http, erc20Abi } from 'viem'
 import { KRIS, address, checksum, makeManifest, oldVaultAbi, positionCandidates } from './refund-model.mjs'
 
 export const PUBLIC_RPC = 'https://testnet-rpc.monad.xyz'
-export async function readLogs(from, through, addresses, client, pageSize = 1000) {
+/** Monad's public RPC refuses eth_getLogs over more than 100 blocks (-32614) and more than 25 requests a second. */
+const RPC_REQUESTS_PER_SECOND = 20
+const RATE_LIMITED = /limited to \d+\/sec|rate limit|too many requests|\b429\b/i
+/** The client methods a manifest run calls; each is one RPC request. */
+const PACED = new Set(['getChainId', 'getBlock', 'getLogs', 'readContract'])
+
+/** Spaces every call of a client so one manifest run stays under the public RPC's request rate. */
+export function paced(client, perSecond = RPC_REQUESTS_PER_SECOND) {
+  let next = 0
+  const slot = async () => {
+    const now = Date.now()
+    const at = Math.max(now, next)
+    next = at + 1000 / perSecond
+    if (at > now) await new Promise(done => setTimeout(done, at - now))
+  }
+  return new Proxy(client, {
+    get(target, key) {
+      const value = target[key]
+      if (!PACED.has(key)) return value
+      // The limit is per caller IP, so other local users (a fork rehearsal's anvil) can still trip it: back off and retry.
+      return async (...args) => {
+        for (let attempt = 0; ; attempt++) {
+          await slot()
+          try {
+            return await value.apply(target, args)
+          } catch (error) {
+            if (attempt >= 5 || !RATE_LIMITED.test(String(error?.details ?? error?.shortMessage ?? error?.message))) throw error
+            await new Promise(done => setTimeout(done, 1000 * (attempt + 1)))
+          }
+        }
+      }
+    },
+  })
+}
+
+export const LOG_PAGE_BLOCKS = 100
+const LOG_PAGES_IN_FLIGHT = 8
+
+/** One log as the model reads it, refused unless it is complete, from a watched address and inside its own page. */
+function logRow(log, [next, end], addresses) {
+  if (log.removed || log.blockNumber === null || log.logIndex === null || !log.transactionHash || log.blockNumber < BigInt(next) || log.blockNumber > BigInt(end)
+    || !addresses.some(a => address(a) === address(log.address))) throw new Error('refund: RPC returned a foreign or incomplete log')
+  return { address: log.address, block_number: Number(log.blockNumber), log_index: log.logIndex, transaction_hash: log.transactionHash,
+    topic0: log.topics[0] ?? null, topic1: log.topics[1] ?? null, topic2: log.topics[2] ?? null, topic3: log.topics[3] ?? null, data: log.data }
+}
+
+export async function readLogs(from, through, addresses, client, pageSize = LOG_PAGE_BLOCKS) {
+  const pages = []
+  for (let next = from; next <= through; next += pageSize) pages.push([next, Math.min(next + pageSize - 1, through)])
   const logs = []
-  for (let next = from; next <= through; next += pageSize) {
-    const end = Math.min(next + pageSize - 1, through)
-    const page = await client.getLogs({ address: addresses, fromBlock: BigInt(next), toBlock: BigInt(end) })
-    for (const log of page) {
-      if (log.removed || log.blockNumber === null || log.logIndex === null || !log.transactionHash || log.blockNumber < BigInt(next) || log.blockNumber > BigInt(end)
-        || !addresses.some(a => address(a) === address(log.address))) throw new Error('refund: RPC returned a foreign or incomplete log')
-      logs.push({ address: log.address, block_number: Number(log.blockNumber), log_index: log.logIndex, transaction_hash: log.transactionHash,
-        topic0: log.topics[0] ?? null, topic1: log.topics[1] ?? null, topic2: log.topics[2] ?? null, topic3: log.topics[3] ?? null, data: log.data })
-    }
+  // A few pages in flight at once, then appended in block order; every log is still checked against its own page.
+  for (let i = 0; i < pages.length; i += LOG_PAGES_IN_FLIGHT) {
+    const batch = pages.slice(i, i + LOG_PAGES_IN_FLIGHT)
+    const results = await Promise.all(batch.map(([next, end]) => client.getLogs({ address: addresses, fromBlock: BigInt(next), toBlock: BigInt(end) })))
+    for (const [index, page] of results.entries()) logs.push(...page.map(log => logRow(log, batch[index], addresses)))
   }
   return logs
 }
@@ -23,7 +67,7 @@ export async function readLogs(from, through, addresses, client, pageSize = 1000
 export async function captureSnapshot(config, block, rpc = PUBLIC_RPC, dependencies = {}) {
   const h = config.deployment?.sidequest
   if (config.chainId !== 10143 || config.network !== 'monad-testnet' || !Number.isSafeInteger(h?.block) || !Number.isSafeInteger(block) || block < h.block) throw new Error('refund: requires an archived testnet deployment and explicit snapshot block')
-  const client = dependencies.client ?? createPublicClient({ transport: http(rpc, { timeout: 20_000, retryCount: 2 }) })
+  const client = dependencies.client ?? paced(createPublicClient({ transport: http(rpc, { timeout: 20_000, retryCount: 2 }) }))
   if (await client.getChainId() !== 10143) throw new Error('refund: RPC must be chain 10143')
   const head = await client.getBlock({ blockTag: 'finalized' })
   if (BigInt(block) > head.number) throw new Error('refund: snapshot block is not finalized')

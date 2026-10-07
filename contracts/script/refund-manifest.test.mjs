@@ -1,6 +1,6 @@
 import { test } from 'bun:test'
 import assert from 'node:assert/strict'
-import { captureSnapshot, parseManifestArgs, readLogs } from './refund-manifest.mjs'
+import { captureSnapshot, paced, parseManifestArgs, readLogs } from './refund-manifest.mjs'
 import { address, KRIS, makeManifest } from './refund-model.mjs'
 import { snapshotFixture, addr, hash } from './test-fixtures/refund-snapshot.mjs'
 
@@ -63,4 +63,28 @@ test('public log pagination covers the inclusive snapshot boundary and refuses f
   await readLogs(100, 110, [addr('a')], client, 5)
   assert.deepEqual(ranges, [[100n, 104n], [105n, 109n], [110n, 110n]])
   await assert.rejects(readLogs(100, 110, [addr('a')], { getLogs: async () => [{ blockNumber: 100n, logIndex: 0, transactionHash: hash('1'), address: addr('b') }] }), /foreign/u)
+})
+
+test('default pages fit the public 100-block eth_getLogs limit and keep block order across pages in flight', async () => {
+  const client = {
+    getLogs: async ({ fromBlock, toBlock }) => {
+      if (toBlock - fromBlock + 1n > 100n) throw new Error('eth_getLogs is limited to a 100 range')
+      // Later pages answer first, so ordering must not depend on completion order.
+      await new Promise(done => setTimeout(done, Number(2000n - fromBlock) / 100))
+      return [{ blockNumber: fromBlock, logIndex: 0, transactionHash: hash(String(fromBlock)), address: addr('a'), topics: [] }]
+    },
+  }
+  const logs = await readLogs(1000, 1999, [addr('a')], client)
+  assert.deepEqual(logs.map(log => log.block_number), Array.from({ length: 10 }, (_, i) => 1000 + i * 100))
+})
+
+test('the paced client retries a rate-limited read and passes every other failure through', async () => {
+  let calls = 0
+  const client = paced({
+    getChainId: async () => { if (++calls === 1) throw new Error('requests limited to 25/sec'); return 10143 },
+    getBlock: async () => { throw new Error('header not found') },
+  }, 1000)
+  assert.equal(await client.getChainId(), 10143)
+  assert.equal(calls, 2)
+  await assert.rejects(client.getBlock({ blockNumber: 1n }), /header not found/u)
 })
