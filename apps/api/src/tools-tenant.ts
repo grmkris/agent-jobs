@@ -35,7 +35,7 @@ const strs = (description: string) => ({ type: 'array', items: { type: 'string' 
 
 const boardProperties = {
   name: str('Display name (1–80 characters).'),
-  stacks: strs('Stacks the board offers (main, demo, fast on testnet); default: every deployed stack.'),
+  stacks: strs('Stacks the board offers (main); default: every deployed stack.'),
   defaultStack: str('The stack a new offer uses when the publisher names none; default: the first of `stacks`.'),
   rewardTokens: strs('Reward tokens the board offers: known symbols or any ERC-20 addresses; default: every known token.'),
   deliverableDefault: { type: 'object', description: 'What a new offer accepts when the publisher does not say (ADR-0006): {accepts: [...], target?}.' },
@@ -135,7 +135,7 @@ export const tenantTools: Record<string, TenantTool> = {
 }
 
 /** Board tools whose arguments a tenant shapes: the board's defaults filled in, stacks and tokens outside it refused. */
-export const PUBLISH_TOOLS: ReadonlySet<string> = new Set(['create_task', 'request_quotes', 'create_pool'])
+export const PUBLISH_TOOLS: ReadonlySet<string> = new Set(['create_task', 'request_quotes', ])
 
 export function tenantArgs(tenant: TenantConfig, tool: string, args: Record<string, unknown>): Record<string, unknown> {
   if (!PUBLISH_TOOLS.has(tool)) return args

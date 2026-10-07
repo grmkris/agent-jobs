@@ -1,7 +1,6 @@
 import { DatabaseSync } from 'node:sqlite'
 import { fromNodeSqlite, migrate } from '@sidequest/indexer'
 import * as sdk from '@sidequest/sdk'
-import historicalConfig from '../../../packages/sdk/src/fixtures/legacy-deployment.json' with { type: 'json' }
 import { afterEach, expect, it } from 'vitest'
 import { jobsOfBoard, jobsWithBoards, jobWithBoard, migrateRegistry, recordOffer } from '../src/registry.ts'
 
@@ -13,9 +12,8 @@ async function fixture() {
   const db = new DatabaseSync(':memory:'); databases.push(db)
   const sql = fromNodeSqlite(db)
   await migrate(sql); await migrateRegistry(sql)
-  const deployment = sdk.deploymentFromConfig('monad-testnet', historicalConfig)
-  const legacy = Object.values(deployment.legacyStacks)[0]!
-  for (const [jobId, holding] of [['62', retired], ['80', deployment.stacks.main!.holding], ['1', legacy.holding], ['81', null]] as const) {
+  const deployment = sdk.deployment('monad-testnet')
+  for (const [jobId, holding] of [['62', retired], ['80', deployment.stacks.main!.holding], ['81', null]] as const) {
     db.prepare("INSERT INTO jobs (chain_id,job_id,stack,status,policy_hash,updated_block) VALUES (?,?,'main','submitted',?,1)").run(deployment.chainId, jobId, `policy-${jobId}`)
     if (holding !== null) db.prepare('INSERT INTO events (chain_id,contract,block,log_index,tx_hash,job_id,name,args_json) VALUES (?,?,1,?,?,?,\'Published\',\'{}\')')
       .run(deployment.chainId, holding.toUpperCase(), Number(jobId), `publish-${jobId}`, jobId)
@@ -25,12 +23,12 @@ async function fixture() {
   return { db, sql, deployment }
 }
 
-it('discovery uses the original Holding, keeps configured legacy jobs and filters before the limit', async () => {
+it('discovery uses the original Holding, keeps the current v1 jobs and filters before the limit', async () => {
   const f = await fixture()
-  expect((await jobsWithBoards(f.sql, f.deployment)).map(job => job.job_id)).toEqual(['80', '1'])
+  expect((await jobsWithBoards(f.sql, f.deployment)).map(job => job.job_id)).toEqual(['80'])
   expect((await jobsOfBoard(f.sql, f.deployment, 'public', 1)).map(job => job.job_id)).toEqual(['80'])
   expect(await jobsOfBoard(f.sql, f.deployment, 'another')).toEqual([])
-  expect(f.db.prepare('SELECT COUNT(*) AS n FROM jobs').get()).toEqual({ n: 4 })
+  expect(f.db.prepare('SELECT COUNT(*) AS n FROM jobs').get()).toEqual({ n: 3 })
 })
 
 it('direct archived reads explicitly refuse actions and preserve the old job, evidence and timeline', async () => {

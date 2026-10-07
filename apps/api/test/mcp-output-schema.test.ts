@@ -51,7 +51,7 @@ beforeAll(async () => {
   const offer = { title: 'Schema fixture hire', brief: 'Brief', acceptanceCriteria: ['works'], creatorBond: '0', workerBond: '0', deliveryDeadline: now + 86_400,
     windows: { reviewSeconds: 120, disputeSeconds: 120, arbitrationSeconds: 300 }, arbitrator: '0x4444444444444444444444444444444444444444' }
   const token = context.deployment.rewardTokens[0]!
-  const task = await run('create_task', { ...offer, token, reward: '1', mode: 'hire' }) as { taskId: string }
+  const task = await run('create_task', { ...offer, token, reward: '1' }) as { taskId: string }
   const request = await run('request_quotes', { ...offer, tokens: [token], quoteDeadline: now + 3_600 }) as { requestId: string }
   for (const [name, args] of [
     ['list_tasks', { role: 'creator' }], ['get_task', { taskId: task.taskId }],

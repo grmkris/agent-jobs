@@ -54,7 +54,7 @@ it('a request_quotes retry under a moved clock echoes the saved deadlines, not i
 
 it('a create_task retry under a moved clock returns the original terms and their deadlines', async () => {
   const f = fixture()
-  const args = { ...f.offer, token: f.token, reward: '1', mode: 'hire', deliveryDeadline: '3d', idempotencyKey: 'ct',
+  const args = { ...f.offer, token: f.token, reward: '1', deliveryDeadline: '3d', idempotencyKey: 'ct',
     executionBudget: { kind: 'advance', token: f.token, cap: '1', expiresAt: '2d' } }
   const first = await f.run('create_task', args)
   expect(first.deadlines).toEqual({ deliveryDeadline: T + 3 * 86_400, budgetExpiresAt: T + 2 * 86_400 })
@@ -79,15 +79,15 @@ it('pick_quote freezes a relative or ISO budget expiry as integer seconds the de
 
 it('the board refuses a budget expiry that is not integer seconds, whatever the caller', async () => {
   const f = fixture()
-  await expect(f.board.createTask({ address: creator }, { ...f.offer, token: f.token, reward: '1', mode: 'hire', deliveryDeadline: T + 86_400,
+  await expect(f.board.createTask({ address: creator }, { ...f.offer, token: f.token, reward: '1', deliveryDeadline: T + 86_400,
     executionBudget: { kind: 'advance', token: f.token, cap: '1', expiresAt: '3d' as never } })).rejects.toMatchObject({ code: 'invalid', message: expect.stringContaining('expiresAt') })
 })
 
 it('tags are frozen through API creation and quote picking; quote privacy follows the exact creator', async () => {
   const f = fixture()
-  const created = await f.run('create_task', { ...f.offer, tags: ['research', 'coding'], token: f.token, reward: '1', mode: 'hire', deliveryDeadline: '3d' })
+  const created = await f.run('create_task', { ...f.offer, tags: ['research', 'coding'], token: f.token, reward: '1', deliveryDeadline: '3d' })
   expect(JSON.parse(created.manifest as string).tags).toEqual(['coding', 'research'])
-  const untagged = await f.run('create_task', { ...f.offer, tags: [], token: f.token, reward: '1', mode: 'hire', deliveryDeadline: '3d' })
+  const untagged = await f.run('create_task', { ...f.offer, tags: [], token: f.token, reward: '1', deliveryDeadline: '3d' })
   expect(JSON.parse(untagged.manifest as string)).not.toHaveProperty('tags')
   const request = await f.run('request_quotes', { ...f.offer, tags: ['writing', 'design'], tokens: [f.token], deliveryDeadline: '3d', quoteDeadline: '1d' })
   expect((await f.board.listQuoteRequests({}))[0]).toMatchObject({ tags: ['design', 'writing'] })
@@ -103,7 +103,7 @@ it('tags are frozen through API creation and quote picking; quote privacy follow
 it('invalid tag inputs fail as validation errors before any preparation is persisted', async () => {
   const f = fixture()
   for (const tags of [['unknown'], ['coding', 'design', 'writing', 'research'], 'coding']) {
-    await expect(f.run('create_task', { ...f.offer, tags, token: f.token, reward: '1', mode: 'hire', deliveryDeadline: '3d' })).rejects.toMatchObject({ code: 'invalid' })
+    await expect(f.run('create_task', { ...f.offer, tags, token: f.token, reward: '1', deliveryDeadline: '3d' })).rejects.toMatchObject({ code: 'invalid' })
   }
   expect(f.board.taskIndex({})).toEqual([])
 })

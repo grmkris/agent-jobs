@@ -21,7 +21,7 @@ function termsView(value: unknown) {
   const v = row(value)
   return { title: v.title, brief: v.brief, acceptanceCriteria: v.acceptanceCriteria, rewardAsset: v.token, reward: v.reward,
     creatorBond: v.creatorBond, workerBond: v.workerBond, creator: v.creator, approver: v.approver, arbitrator: v.arbitrator,
-    deliveryDeadline: v.deliveryDeadline, selectionDeadline: v.selectionDeadline, windows: safe(v.windows), deliverable: safe(v.deliverable),
+    deliveryDeadline: v.deliveryDeadline, windows: safe(v.windows), deliverable: safe(v.deliverable),
     executionBudget: safe(v.executionBudget) }
 }
 
@@ -40,8 +40,7 @@ export function safe(value: unknown): unknown {
 function taskView(v: Row) {
   return { taskId: v.taskId, title: v.title, rewardAsset: v.token, reward: v.reward, amountUnit: 'base units',
     creator: v.creator, worker: row(v.chain).provider, approver: v.approver, arbitrator: v.arbitrator,
-    creatorBond: v.creatorBond, workerBond: v.workerBond, windows: safe(v.windows), deliveryDeadline: v.deliveryDeadline,
-    selectionDeadline: v.selectionDeadline, termsHash: v.termsHash, chain: safe(v.chain), nextAction: safe(v.nextAction),
+    creatorBond: v.creatorBond, workerBond: v.workerBond, windows: safe(v.windows), deliveryDeadline: v.deliveryDeadline, termsHash: v.termsHash, chain: safe(v.chain), nextAction: safe(v.nextAction),
     funding: safe(v.funding), operationStatus: v.operationStatus, quotesCount: v.quotesCount, you: safe(v.you),
     terms: termsView(v.terms), deliverables: safe(v.deliverables), onchainSubmission: safe(v.onchainSubmission) }
 }

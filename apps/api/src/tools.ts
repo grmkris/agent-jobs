@@ -103,7 +103,7 @@ export const tools: Record<string, Tool> = {
         paused: await board.paused().catch(() => null),
         chainId: d.chainId,
         explorer: ctx.network === 'monad-testnet' ? 'https://testnet.monadscan.com' : 'https://monadscan.com',
-        contracts: { core: d.core, factory: d.factory, stacks: d.stacks, legacyStacks: d.legacyStacks, identity: d.identity, reputation: d.reputation, delegator: d.delegation.delegator, delegationManager: d.delegation.manager, ...(d.testnetFaucet === null ? {} : { testnetFaucet: d.testnetFaucet }) },
+        contracts: { core: d.core, factory: d.factory, stacks: d.stacks, identity: d.identity, reputation: d.reputation, delegator: d.delegation.delegator, delegationManager: d.delegation.manager, ...(d.testnetFaucet === null ? {} : { testnetFaucet: d.testnetFaucet }) },
         /** Tokens the apps list first. A reward may be any ERC-20, by address, on a stack marked `openTokens` (ADR-0010). */
         rewardTokens: d.rewardTokens,
         /** Where a worker pays x402 endpoints from its own wallet (after drawing an advance, say). */
@@ -176,7 +176,7 @@ export const tools: Record<string, Tool> = {
 
   create_task: {
     description:
-      'Publisher: the hosted executor freezes a hire, redeems the authorized allowance and publishes atomically. The reward is escrowed only when the chain confirms; invited hires continue to select_worker. Contests are legacy only. The hosted result is confirmed|rejected|approval|pending|reverted|dropped; approval carries approveUrl for the operator. Reuse the same operationKey and identical arguments after an uncertain response.',
+      'Publisher: the hosted executor freezes a hire, redeems the authorized allowance and publishes atomically. The reward is escrowed only when the chain confirms; invited hires continue to select_worker. The hosted result is confirmed|rejected|approval|pending|reverted|dropped; approval carries approveUrl for the operator. Reuse the same operationKey and identical arguments after an uncertain response.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -187,24 +187,22 @@ export const tools: Record<string, Tool> = {
         token: str('Reward token: a known symbol (testnet: mUSD or mEUR) or any ERC-20 address (on a stack with openTokens in protocol_info).'),
         reward: str('Reward in token units, e.g. "25".'),
         creatorBond: str('Your SIDE bond, e.g. "5".'),
-        workerBond: str('The worker SIDE bond, e.g. "3" ("0" for a contest).'),
+        workerBond: str('The worker SIDE bond, e.g. "3".'),
         deliveryDeadline: deadlineSchema('When delivery is due.'),
-        mode: { type: 'string', enum: ['hire', 'contest'] },
         requiredChecks: { type: 'array', items: { type: 'string' }, description: 'GitHub check names evidence must cover.' },
-        selectionDeadline: deadlineSchema('Contest only: before the delivery deadline.'),
         approver: str('Optional: who judges the work (default you).'),
         windows: { type: 'object', properties: { reviewSeconds: num('Review window in seconds.'), disputeSeconds: num('Dispute window in seconds.'), arbitrationSeconds: num('Arbitration window in seconds.') }, required: ['reviewSeconds', 'disputeSeconds', 'arbitrationSeconds'], additionalProperties: false },
         arbitrator: str('V1: named arbitrator address; omitted uses the deployed default resolved into this offer.'),
         invite: { type: 'object', properties: { agentId: str('V1: ERC-8004 agent id to invite directly.') }, required: ['agentId'], additionalProperties: false },
-        stack: { type: 'string', enum: ['main', 'demo', 'fast'], description: 'Testnet: "demo" uses minute-long windows.' },
+        stack: { type: 'string', enum: ['main'], description: 'The current v1 pair.' },
         executionBudget: budgetSchema('Advance: any ERC-20 address, or a reward token symbol (required here).'),
         deliverable: deliverableSpecSchema,
         idempotencyKey: str('Stable retry key. Reusing it returns the original preparation after a lost response.'),
       },
-      required: ['title', 'brief', 'acceptanceCriteria', 'token', 'reward', 'creatorBond', 'workerBond', 'deliveryDeadline', 'mode'],
+      required: ['title', 'brief', 'acceptanceCriteria', 'token', 'reward', 'creatorBond', 'workerBond', 'deliveryDeadline'],
     },
     run: async (board, caller, a) => {
-      const d = deadlineArgs(a, ['deliveryDeadline', 'selectionDeadline'])
+      const d = deadlineArgs(a, ['deliveryDeadline'])
       const { budget, relative } = budgetArg(a)
       return echoDeadlines(await board.createTask(caller, {
         title: s(a, 'title'),
@@ -216,8 +214,6 @@ export const tools: Record<string, Tool> = {
         creatorBond: s(a, 'creatorBond'),
         workerBond: s(a, 'workerBond'),
         deliveryDeadline: d.values.deliveryDeadline!,
-        mode: s(a, 'mode') as 'hire' | 'contest',
-        ...(d.values.selectionDeadline === undefined ? {} : { selectionDeadline: d.values.selectionDeadline }),
         ...(a.approver === undefined ? {} : { approver: s(a, 'approver') }),
         ...(a.windows === undefined ? {} : { windows: a.windows as { reviewSeconds: number; disputeSeconds: number; arbitrationSeconds: number } }),
         ...(a.arbitrator === undefined ? {} : { arbitrator: s(a, 'arbitrator') }),
@@ -257,7 +253,7 @@ export const tools: Record<string, Tool> = {
         approver: str('Optional: who judges the work (default you).'),
         windows: { type: 'object', properties: { reviewSeconds: num('Review window in seconds.'), disputeSeconds: num('Dispute window in seconds.'), arbitrationSeconds: num('Arbitration window in seconds.') }, required: ['reviewSeconds', 'disputeSeconds', 'arbitrationSeconds'], additionalProperties: false },
         arbitrator: str('V1: named arbitrator; omitted freezes the deployed default into the request.'),
-        stack: { type: 'string', enum: ['main', 'demo', 'fast'], description: 'Testnet: "demo" uses minute-long windows.' },
+        stack: { type: 'string', enum: ['main'], description: 'The current v1 pair.' },
         deliverable: deliverableSpecSchema,
         idempotencyKey: str('Stable retry key. Reusing it returns the original quote request after a lost response.'),
       },
@@ -456,82 +452,6 @@ export const tools: Record<string, Tool> = {
     run: (board, caller) => board.taskIndex(caller),
   },
 
-  create_pool: {
-    description:
-      'Crowdfund one offer (ADR-0007): freeze it with a JobPool as creator and get the transactions that clone the pool. You are the curator unless you name one: approver of the work, signer of its selection, the one who cancels. Pledgers call pledge; anyone launches once the goal is reached; whatever comes back is refunded pro rata.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        title: str('Short title.'),
-        brief: str('What needs doing.'),
-        acceptanceCriteria: { type: 'array', items: { type: 'string' }, description: 'What the curator will check.' },
-        token: str('Reward token: a known symbol or any ERC-20 address (one the board offers).'),
-        goal: str('The goal in token units, e.g. "300": the reward once launched.'),
-        workerBond: str('The worker SIDE bond, e.g. "1" ("0" for a contest).'),
-        pledgeDeadline: num('Unix seconds; pledging closes here, a full pool may still launch for a day after.'),
-        deliveryDeadline: num('Unix seconds; at least a day past the pledge deadline.'),
-        mode: { type: 'string', enum: ['hire', 'contest'] },
-        selectionDeadline: num('Contest only; past the pledge deadline plus a day.'),
-        curator: str('Defaults to you.'),
-        stack: { type: 'string', enum: ['main', 'demo', 'fast'] },
-        deliverable: deliverableSchema,
-      },
-      required: ['title', 'brief', 'acceptanceCriteria', 'token', 'goal', 'workerBond', 'pledgeDeadline', 'deliveryDeadline', 'mode'],
-    },
-    run: (board, caller, a) =>
-      board.createPool(caller, {
-        title: s(a, 'title'),
-        brief: s(a, 'brief'),
-        acceptanceCriteria: a.acceptanceCriteria as string[],
-        token: s(a, 'token'),
-        goal: s(a, 'goal'),
-        workerBond: s(a, 'workerBond'),
-        pledgeDeadline: n(a, 'pledgeDeadline'),
-        deliveryDeadline: n(a, 'deliveryDeadline'),
-        mode: s(a, 'mode') as 'hire' | 'contest',
-        ...(a.selectionDeadline === undefined ? {} : { selectionDeadline: n(a, 'selectionDeadline') }),
-        ...(a.curator === undefined ? {} : { curator: s(a, 'curator') }),
-        ...(a.stack === undefined ? {} : { stack: s(a, 'stack') as sdk.StackName }),
-        ...(a.deliverable === undefined ? {} : { deliverable: a.deliverable as DeliverableSpec }),
-      }),
-  },
-
-  pledge: {
-    description: 'Pledger: the approval and pledge transactions for a pool (capped to what its goal still needs).',
-    inputSchema: { type: 'object', properties: { poolId: str('The pool id.'), amount: str('In the token’s units, e.g. "120".') }, required: ['poolId', 'amount'] },
-    run: (board, caller, a) => board.pledge(caller, { poolId: s(a, 'poolId'), amount: s(a, 'amount') }),
-  },
-
-  launch_pool: {
-    description: 'Anyone, once the goal is reached: the launch transaction; the pool publishes the offer. Report its hash with report_transaction (taskId = poolId).',
-    inputSchema: { type: 'object', properties: { poolId: str('The pool id.') }, required: ['poolId'] },
-    run: (board, caller, a) => board.launchPool(caller, { poolId: s(a, 'poolId') }),
-  },
-
-  pool_refund: {
-    description: 'Pledger: the refund transaction (your pro-rata share of what came back to the pool), and the hold-reclaim transaction anyone may send once the pool is over.',
-    inputSchema: { type: 'object', properties: { poolId: str('The pool id.') }, required: ['poolId'] },
-    run: (board, caller, a) => board.poolRefund(caller, { poolId: s(a, 'poolId') }),
-  },
-
-  list_pools: {
-    description: 'Every pool on this board with its phase, pledged total and job (chain-read). No sign-in needed.',
-    inputSchema: { type: 'object', properties: { limit: num('Default 50.') } },
-    run: (board, caller, a) => board.listPools(caller, a.limit === undefined ? {} : { limit: n(a, 'limit') }),
-  },
-
-  get_pool: {
-    description: 'One pool by id. No sign-in needed.',
-    inputSchema: { type: 'object', properties: { poolId: str('The pool id.') }, required: ['poolId'] },
-    run: (board, caller, a) => board.getPool(caller, { poolId: s(a, 'poolId') }),
-  },
-
-  pledged_by: {
-    description: 'What a wallet (default: yours) pledged to a pool, from the chain.',
-    inputSchema: { type: 'object', properties: { poolId: str('The pool id.'), address: str('Defaults to the signed-in wallet.') }, required: ['poolId'] },
-    run: (board, caller, a) => board.pledgedBy(caller, { poolId: s(a, 'poolId'), ...(a.address === undefined ? {} : { address: s(a, 'address') }) }),
-  },
-
   report_transaction: {
     description: 'After sending any returned transaction: report taskId for job actions or operationId for stake/unstake/withdraw actions; the board matches the exact on-chain event.',
     inputSchema: {
@@ -585,7 +505,7 @@ export const tools: Record<string, Tool> = {
   },
 
   cancel_task: {
-    description: 'Creator: the hosted executor cancels and settles an open hire nobody has activated, returning the reward and releasing the creator bond. Contests cannot be cancelled. The hosted result is confirmed|rejected|approval|pending|reverted|dropped; approval carries approveUrl for the operator. Reuse the same operationKey and identical arguments after an uncertain response.',
+    description: 'Creator: the hosted executor cancels and settles an open hire nobody has activated, returning the reward and releasing the creator bond. The hosted result is confirmed|rejected|approval|pending|reverted|dropped; approval carries approveUrl for the operator. Reuse the same operationKey and identical arguments after an uncertain response.',
     inputSchema: { type: 'object', properties: taskId, required: ['taskId'] },
     run: (board, caller, a) => board.cancelTask(caller, { taskId: s(a, 'taskId') }),
   },
@@ -652,10 +572,10 @@ export const tools: Record<string, Tool> = {
 
   submit_work: {
     description:
-      "Worker: your final deliverable and the submit transaction. Pass `deliverable` in a form the offer accepts (get_task → deliverable.accepts), hosted wherever you like; the board checks it once and returns the result. Legacy: repo, branch, sha (git). One final submission per agreement.",
+      "Worker: your final deliverable and the submit transaction. Pass `deliverable` in a form the offer accepts (get_task → deliverable.accepts), hosted wherever you like; the board checks it once and returns the result. Git fields repo, branch, sha are also accepted. One final submission per agreement.",
     inputSchema: {
       type: 'object',
-      properties: { ...taskId, deliverable: deliverableSchema, repo: str('Legacy git: repository URL.'), branch: str('Legacy git: branch.'), sha: str('Legacy git: full commit SHA.') },
+      properties: { ...taskId, deliverable: deliverableSchema, repo: str('Git: repository URL.'), branch: str('Git: branch.'), sha: str('Git: full commit SHA.') },
       required: ['taskId'],
     },
     run: (board, caller, a) =>
@@ -686,79 +606,17 @@ export const tools: Record<string, Tool> = {
     run: (board, caller, a) => board.addStatement(caller, { taskId: s(a, 'taskId'), text: s(a, 'text') }),
   },
 
-  prepare_entry: {
-    description:
-      'Contest entrant: register a finished candidate (`deliverable` in a form the offer accepts, or legacy repo/branch/sha) and get the two authorisations to sign once. If the approver awards it you are paid with no further action.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        ...taskId,
-        agentId: str('Your ERC-8004 agent id.'),
-        deliverable: deliverableSchema,
-        repo: str('Legacy git: repository URL.'),
-        branch: str('Legacy git: branch.'),
-        sha: str('Legacy git: full commit SHA.'),
-      },
-      required: ['taskId', 'agentId'],
-    },
-    run: (board, caller, a) =>
-      board.prepareEntry(caller, {
-        taskId: s(a, 'taskId'),
-        agentId: s(a, 'agentId'),
-        ...(a.deliverable === undefined ? { repo: s(a, 'repo'), branch: s(a, 'branch'), sha: s(a, 'sha') } : { deliverable: a.deliverable }),
-      }),
-  },
-
-  submit_entry: {
-    description: 'Contest entrant: the two signatures from prepare_entry. Your entry is complete.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        ...taskId,
-        candidateId: str('From prepare_entry.'),
-        budgetSignature: str('Signature over the SetBudgetAuthorization.'),
-        submitSignature: str('Signature over the SubmitAuthorization.'),
-      },
-      required: ['taskId', 'candidateId', 'budgetSignature', 'submitSignature'],
-    },
-    run: (board, caller, a) =>
-      board.submitEntry(caller, {
-        taskId: s(a, 'taskId'),
-        candidateId: s(a, 'candidateId'),
-        budgetSignature: s(a, 'budgetSignature'),
-        submitSignature: s(a, 'submitSignature'),
-      }),
-  },
-
-  list_candidates: {
-    description: 'Contest: complete entries (approver and creator see all; an entrant sees its own).',
-    inputSchema: { type: 'object', properties: taskId, required: ['taskId'] },
-    run: (board, caller, a) => board.listCandidates(caller, { taskId: s(a, 'taskId') }),
-  },
-
-  award: {
-    description:
-      'Contest approver: buy one entry. One transaction pays it and closes the contest; if it fails, the contest stays open.',
-    inputSchema: {
-      type: 'object',
-      properties: { ...taskId, candidateId: str('From list_candidates.') },
-      required: ['taskId', 'candidateId'],
-    },
-    run: (board, caller, a) => board.awardCandidate(caller, { taskId: s(a, 'taskId'), candidateId: s(a, 'candidateId') }),
-  },
-
   request_evidence: {
     description:
-      'Anyone signed in: the attester reads the GitHub check runs of a deliverable’s exact SHA (a contest candidate, or the hire’s deliverable), signs evidence bound to this offer, and attaches it on-chain. Advisory: it moves no money.',
+      'Anyone signed in: the attester reads the GitHub check runs of a deliverable’s exact SHA, signs evidence bound to this offer, and attaches it on-chain. Advisory: it moves no money.',
     inputSchema: {
       type: 'object',
-      properties: { ...taskId, candidateId: str('Contest: which candidate; omit for a hire.') },
+      properties: taskId,
       required: ['taskId'],
     },
     run: (board, caller, a) =>
       board.requestEvidence(caller, {
         taskId: s(a, 'taskId'),
-        ...(a.candidateId === undefined ? {} : { candidateId: s(a, 'candidateId') }),
       }),
   },
 
@@ -930,7 +788,7 @@ export const tools: Record<string, Tool> = {
     run: (board, caller, a) => board.feeQuote(caller, { taskId: s(a, 'taskId'), worker: s(a, 'worker') }),
   },
   collect_actions: {
-    description: 'Read what this wallet can settle or claim across every board and legacy/v1 pair. Returns CollectAction[] with unsigned transactions and canonical amounts; an unavailable or stale index errors.',
+    description: 'Read what this wallet can settle or claim across every board and the configured v1 pair. Returns CollectAction[] with unsigned transactions and canonical amounts; an unavailable or stale index errors.',
     inputSchema: { type: 'object', properties: { wallet: str('Wallet address.') }, required: ['wallet'] },
     run: (board, caller, a) => board.collectActions(caller, { wallet: s(a, 'wallet') }),
   },

@@ -90,7 +90,7 @@ test.skipIf(!rpcSet)('website SIWE prepares an offer and serves its manifest, bu
     const token = login.result.session
     const created = yield* postJson(`${apiUrl}/api/create_task`, {
       title: 'stack test', brief: 'nothing is published', acceptanceCriteria: [], token: 'mUSD', reward: '1', creatorBond: '0', workerBond: '0',
-      deliveryDeadline: Math.floor(Date.now() / 1000) + 3600, mode: 'hire', stack: 'main',
+      deliveryDeadline: Math.floor(Date.now() / 1000) + 3600, stack: 'main',
     }, { authorization: `Bearer ${token}` })
     const body = (yield* created.json) as { ok: boolean; result: { termsHash: string; transactions: unknown[] } }
     expect(body.ok).toBe(true)

@@ -13,14 +13,14 @@ const Stack = Alchemy.Stack('E38LocalRecoveryDrill', { providers: Cloudflare.pro
 }))
 const stack = beforeAll(deploy(Stack))
 
-test('disposable local workerd D1 restores and rebuilds real indexed chain facts without deleting hosted rows', Effect.gen(function* () {
+test('disposable local workerd D1 restores and rebuilds synthetic v1 indexed facts without deleting hosted rows', Effect.gen(function* () {
   const { url } = yield* stack
   const response = yield* HttpClient.get(url as string)
   const result = (yield* response.json) as { ok: boolean; runtime: string; events: number; protocolEvents: number; jobs: number; restored: boolean; rebuilt: boolean; hostedRowsRetained: boolean }
   expect(result.runtime).toBe('Cloudflare-Workers')
   expect(result.ok).toBe(true)
-  expect(result.events).toBe(185)
-  expect(result.protocolEvents).toBe(23)
-  expect(result.jobs).toBe(14)
+  expect(result.events).toBe(24)
+  expect(result.protocolEvents).toBe(0)
+  expect(result.jobs).toBe(3)
   expect(result.restored && result.rebuilt && result.hostedRowsRetained).toBe(true)
 }))

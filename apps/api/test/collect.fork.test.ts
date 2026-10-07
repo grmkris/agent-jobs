@@ -1,4 +1,4 @@
-/** Board tools + SQLite index + real local Monad v1/legacy contracts. No remote sends. */
+/** Board tools + SQLite index + real local Monad v1 contracts. No remote sends. */
 import { DatabaseSync } from 'node:sqlite'
 import * as sdk from '@sidequest/sdk'
 import { Board, fromNodeSqlite as boardSql } from '@sidequest/board'
@@ -47,7 +47,7 @@ fork('B4 wallet tools and all-pair Collect on a real local Monad fork', () => {
     }
     const now = Number((await ctx.publicClient.getBlock()).timestamp)
     boardNow = now
-    const created = await board.createTask(actor(f.creator), { title: 'Collect fork', brief: 'Real contracts', acceptanceCriteria: ['finished'], token, reward: '1', creatorBond: '10', workerBond: '10', deliveryDeadline: now + 3600, mode: 'hire', windows: { reviewSeconds: 3600, disputeSeconds: 3600, arbitrationSeconds: 43200 }, invite: { agentId: agentId.toString() } })
+    const created = await board.createTask(actor(f.creator), { title: 'Collect fork', brief: 'Real contracts', acceptanceCriteria: ['finished'], token, reward: '1', creatorBond: '10', workerBond: '10', deliveryDeadline: now + 3600, windows: { reviewSeconds: 3600, disputeSeconds: 3600, arbitrationSeconds: 43200 }, invite: { agentId: agentId.toString() } })
     const hashes = await sdk.sendAll(f.creator, ctx.publicClient, created.transactions)
     const task = await board.reportTransaction(actor(f.creator), { taskId: created.taskId, txHash: hashes.at(-1)! })
     const selected = await board.selectWorker(actor(f.creator), { taskId: created.taskId, applicationId: created.applicationId! })
@@ -128,21 +128,6 @@ fork('B4 wallet tools and all-pair Collect on a real local Monad fork', () => {
     expect(refund.amount).toBe(parseEther('0.4').toString()); expect(refund.transactions[0]!.gas).toBe('450000')
     await sdk.sendAll(f.contributor, ctx.publicClient, refund.transactions); await indexNow()
     expect((await board.collectActions({}, { wallet: f.contributor.account.address })).some(a => a.kind === 'claimTopUpRefund')).toBe(false)
-  }, 180_000)
-  it('discovers and settles a legacy contest after its pair leaves current stacks', async () => {
-    const holding = await f.deploy('JobHolding', [ctx.deployment.core, ctx.stack.factory, ctx.deployment.identity, 0n, 0n])
-    const evaluator = await f.deploy('JobsEvaluator', [ctx.deployment.core, holding, ctx.deployment.reputation, f.admin.account.address, 120, 120, 300, 120])
-    await f.send(holding, sdk.jobHoldingAbi, 'setEvaluator', [evaluator]); await f.send(ctx.deployment.core, sdk.coreAbi, 'setHookWhitelist', [holding, true])
-    const stack: sdk.Stack = { kind: 'legacy', factory: ctx.stack.factory, holding, evaluator, openTokens: true }
-    ctx = { ...ctx, deployment: { ...ctx.deployment, legacyStacks: { ...ctx.deployment.legacyStacks, 'local-legacy': stack } } }; board = boot()
-    const legacy = { ...ctx, stack }, now = Number((await ctx.publicClient.getBlock()).timestamp)
-    const { jobId } = await sdk.publish(legacy, f.creator, { mode: 'contest', token: stack.factory, reward: parseEther('1'), creatorBond: 0n, workerBond: 0n,
-      deliveryDeadline: now + 200, selectionDeadline: now + 100, manifestHash: sdk.hashText('legacy'), termsHash: sdk.hashText('legacy collect') })
-    await f.rpc('evm_setNextBlockTimestamp', [now + 101]); await f.rpc('evm_mine'); await indexNow()
-    const action = (await board.collectActions({}, { wallet: f.creator.account.address })).find(a => a.jobId === jobId.toString())!
-    expect(action.transactions.map(t => decodeFunctionData({ abi: sdk.jobHoldingAbi, data: t.data }).functionName)).toEqual(['expireContest','settle'])
-    await sdk.sendAll(f.creator, ctx.publicClient, action.transactions); await indexNow()
-    expect((await board.collectActions({}, { wallet: f.creator.account.address })).some(a => a.jobId === jobId.toString())).toBe(false)
   }, 180_000)
   it.each(['elapsed-rejection', 'deferred-refund'])('a contributor alone recovers %s, then discovers its exact top-up refund', async path => {
     const x = await listed()

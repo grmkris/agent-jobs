@@ -67,10 +67,9 @@ export function echoDeadlines<T>(result: T, relative: boolean, saved: (result: T
 /** The deadlines inside a prepared offer's canonical manifest. */
 export function manifestDeadlines(result: { manifest?: unknown }): Record<string, number | undefined> {
   if (typeof result.manifest !== 'string') return {}
-  const terms = JSON.parse(result.manifest) as { deliveryDeadline?: number; selectionDeadline?: number | null; executionBudget?: { expiresAt?: number } }
+  const terms = JSON.parse(result.manifest) as { deliveryDeadline?: number; executionBudget?: { expiresAt?: number } }
   return {
     deliveryDeadline: terms.deliveryDeadline,
-    selectionDeadline: terms.selectionDeadline ?? undefined,
     budgetExpiresAt: terms.executionBudget?.expiresAt,
   }
 }

@@ -37,7 +37,7 @@ describe('deadlineArgs and echoDeadlines', () => {
   })
 
   it('echoes what the board saved, and only for a relative call', () => {
-    const saved = { taskId: 't1', manifest: JSON.stringify({ deliveryDeadline: 10, selectionDeadline: null, executionBudget: { expiresAt: 5 } }) }
+    const saved = { taskId: 't1', manifest: JSON.stringify({ deliveryDeadline: 10, executionBudget: { expiresAt: 5 } }) }
     expect(echoDeadlines(saved, true, manifestDeadlines)).toEqual({ ...saved, deadlines: { deliveryDeadline: 10, budgetExpiresAt: 5 } })
     expect(echoDeadlines(saved, false, manifestDeadlines)).toBe(saved)
   })

@@ -21,7 +21,7 @@ test('real local Durable Object rejects forged caller, board, network, and polic
   const attempts = [
     { tool: 'create_task', args: {}, env },
     { tool: 'create_task', args: { caller: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' }, caller: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', env },
-    { tool: 'create_pool', args: {}, env: { ...env, admission: { enabled: false } } },
+    { tool: 'request_quotes', args: {}, env: { ...env, admission: { enabled: false } } },
     { tool: 'create_task', args: {}, env: { ...env, boardId: 'other' } },
     { tool: 'create_task', args: {}, env: { ...env, network: 'monad-testnet' } },
     { tool: 'upgrade_account', args: {}, env },

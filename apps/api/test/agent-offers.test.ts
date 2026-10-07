@@ -83,7 +83,7 @@ test.skipIf(!forkEnabled)('an approval-completed hire has public terms before es
         verifyToolSigning: request => board.verifyAgentSigning(request.caller, request) })
       const input = { agentId: 'publication-fixture', boardId: 'original-board', operationKey: 'approval-hire', tool: 'create_task', args: {
         title: 'Approved publication fixture', brief: 'Fork proof only', acceptanceCriteria: [], token, reward: '1', creatorBond: '0', workerBond: '0',
-        deliveryDeadline: now + 86400, mode: 'hire', invite: { agentId: workerId.toString() }, windows: { reviewSeconds: 3600, disputeSeconds: 3600, arbitrationSeconds: 43200 },
+        deliveryDeadline: now + 86400, invite: { agentId: workerId.toString() }, windows: { reviewSeconds: 3600, disputeSeconds: 3600, arbitrationSeconds: 43200 },
       } }
       const approval = await boot(false).execute(input)
       expect(approval.status).toBe('approval')
