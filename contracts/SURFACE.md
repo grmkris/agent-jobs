@@ -13,7 +13,8 @@ This document describes the only supported protocol surface. The v1 deployment i
   evidence and feedback without allowing a classifier to move money.
 - `StakeVault` tracks delegated SIDE shares and reservations. `reserve` requires an admitted Holding; `release` and `slash` consume only the caller's own reservations; unstaking uses a seven-day cooldown and Holding admission uses its timelock.
 - `Factory` is SIDE v2: a fixed one-billion supply, ERC-20 permit support, and burn with no mint or admin hook.
-- `FeeSchedule` quotes the worker fee and sends earned fees to the treasury after a three-day notice.
+- `FeeSchedule` supplies the worker's fee rate and treasury address; schedule changes have a three-day notice.
+  `SidequestHolding` pays the treasury only when the worker earns the reward.
 - `TeamVesting` releases the fixed team allocation after its configured cliff and duration.
 - `EpochDistributor` and `MiningReserve` distribute posted Merkle roots into stake. Mining is a funded, permissionless
   claim path and makes no promise of earnings.
@@ -102,7 +103,7 @@ claim. `resizeRoot` cannot reduce below claimed amounts. A valid posted proof is
 stakes through `vault.delegateFor(account, account, amount)`. The tree contains one aggregated leaf per account/epoch.
 Production epoch zero is 72 hours; later epochs last seven days. See `test/sidequest/Mining.t.sol`.
 
-`MockPaymentToken` has configurable decimals and open test minting. `BlocklistUSD` and `GasBurnerUSD` have six decimals;
+`MockPaymentToken` has six decimals and open test minting. `BlocklistUSD` and `GasBurnerUSD` also have six decimals;
 their owner can block transfers or consume gas at a recipient to exercise deferred/owed behavior. `TestnetFaucet.drip`
 transfers funded SIDE and mints each payment token at most once per recipient per day. Anyone can request a drip for
 another address; only its owner adjusts amounts or withdraws funds. Test tokens have no value. Tests are
