@@ -66,7 +66,7 @@ contract StakeVaultDelegationTest is StakeVaultFixture {
         IStakeVault.Position memory p = vault.positionOf(account, alice);
         assertEq(p.shares, 120);
         assertEq(p.queuedShares, 40);
-        assertEq(p.unlockAt, t0 + 7 days);
+        assertEq(p.unlockAt, t0 + 14 days);
         assertEq(vault.stakeOf(account), 80);
     }
 
@@ -135,7 +135,7 @@ contract StakeVaultDelegationTest is StakeVaultFixture {
         vault.slash(account, 1);
         _queue(alice, account, 1);
         _queue(bob, account, 2);
-        vm.warp(t0 + 7 days);
+        vm.warp(t0 + 14 days);
         assertEq(_withdraw(alice, account), 0);
         assertEq(_withdraw(bob, account), 2, "last shares take the remainder");
         assertEq(vault.poolOf(account).assets, 0);
@@ -166,7 +166,7 @@ contract StakeVaultDelegationTest is StakeVaultFixture {
         vm.warp(t0 + 1 days);
         vm.prank(alice);
         vm.expectEmit(address(vault));
-        emit IStakeVault.UndelegateRequested(account, alice, 20, 16, 30, uint48(t0 + 8 days));
+        emit IStakeVault.UndelegateRequested(account, alice, 20, 16, 30, uint48(t0 + 15 days));
         vault.requestUndelegate(account, 20);
         assertEq(vault.stakeOf(account), 56);
     }
@@ -192,7 +192,7 @@ contract StakeVaultDelegationTest is StakeVaultFixture {
         _queue(alice, account, 30);
         vm.prank(holding);
         vault.slash(account, 20);
-        vm.warp(t0 + 7 days);
+        vm.warp(t0 + 14 days);
         vm.prank(alice);
         vm.expectEmit(address(vault));
         emit IStakeVault.Withdrawn(account, alice, 30, 24);
@@ -206,7 +206,7 @@ contract StakeVaultDelegationTest is StakeVaultFixture {
         _delegate(bob, account, 60);
         _reserve(holding, account, 60);
         _queue(alice, account, 40);
-        vm.warp(t0 + 7 days);
+        vm.warp(t0 + 14 days);
         assertEq(_withdraw(alice, account), 40);
         assertEq(vault.poolOf(account).assets, 60);
         assertEq(vault.reservedOf(account), 60);
@@ -222,7 +222,7 @@ contract StakeVaultDelegationTest is StakeVaultFixture {
         vault.slash(account, 20);
         assertEq(_value(account, alice), 32);
         assertEq(_value(account, bob), 48);
-        vm.warp(t0 + 7 days);
+        vm.warp(t0 + 14 days);
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(IStakeVault.StillBonded.selector, 48, 60));
         vault.withdraw(account);
@@ -412,7 +412,7 @@ contract StakeVaultDelegationTest is StakeVaultFixture {
         uint256 bobShares = vault.positionOf(account, bob).shares;
         _queue(alice, account, aliceShares);
         if (bobShares > 0) _queue(bob, account, bobShares);
-        vm.warp(t0 + 7 days);
+        vm.warp(t0 + 14 days);
         uint256 returned = _withdraw(alice, account);
         if (bobShares > 0) returned += _withdraw(bob, account);
         assertEq(returned + slashed, first + second + later, "last exit consumes every remaining asset");

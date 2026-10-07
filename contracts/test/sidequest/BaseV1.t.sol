@@ -25,9 +25,9 @@ import {MockReputation} from "../mocks/MockReputation.sol";
 ///      vault bootstrapped with the Holding, the default fee schedule, the evaluator with the attester as verifier.
 ///      Creator and worker stake SIDE; bonds are reservations. Helpers walk a job through the lifecycle.
 abstract contract BaseV1 is Test {
-    uint32 internal constant REVIEW = 3 days;
-    uint32 internal constant DISPUTE = 3 days;
-    uint32 internal constant ARBITRATION = 7 days;
+    uint32 internal constant REVIEW = 1 days;
+    uint32 internal constant DISPUTE = 1 days;
+    uint32 internal constant ARBITRATION = 3 days;
     uint48 internal constant MARGIN = 1 days;
     uint256 internal constant REWARD = 100e6;
     uint256 internal constant CREATOR_BOND = 20e18;

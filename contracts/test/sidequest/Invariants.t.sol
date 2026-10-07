@@ -19,14 +19,15 @@ import {BaseV1} from "./BaseV1.t.sol";
 ///      the `owed` fallback), top-ups, stake moves and direct core calls. Every action may revert; a reverted action
 ///      leaves no trace, so the handler keeps no ghost state that a revert could desynchronise.
 contract SidequestHandler is Test {
-    uint32 internal constant REVIEW = 3 days;
-    uint32 internal constant DISPUTE = 3 days;
-    uint32 internal constant ARBITRATION = 7 days;
+    uint32 internal constant REVIEW = 1 days;
+    uint32 internal constant DISPUTE = 1 days;
+    uint32 internal constant ARBITRATION = 3 days;
     uint48 internal constant MARGIN = 1 days;
     uint256 internal constant AGENT_ID = 42;
 
     BaseV1Env internal env;
     uint256[] public jobs;
+    bool public bondOutlastedExit;
 
     constructor(BaseV1Env env_) {
         env = env_;
@@ -240,10 +241,18 @@ contract SidequestHandler is Test {
         blk.setBlocked(env.worker(), !blk.blocked(env.worker()));
     }
 
-    function requestUnstake(uint96 amount) external {
+    function requestUnstake(uint96 amount, bool creatorSide) external {
         StakeVault vault = env.vault();
-        vm.prank(env.worker());
-        vault.requestUndelegate(env.worker(), bound(amount, 1, 1_000_000e18));
+        address account = creatorSide ? env.creator() : env.worker();
+        vm.prank(account);
+        vault.requestUndelegate(account, bound(amount, 1, 1_000_000e18));
+        uint48 unlockAt = vault.positionOf(account, account).unlockAt;
+        for (uint256 i; i < jobs.length; ++i) {
+            ISidequestHolding.Listing memory l = env.holding().getListing(jobs[i]);
+            bool open = creatorSide ? l.creatorBond != 0 && !l.creatorBondSettled
+                : l.workerBond != 0 && l.workerBondReserved && !l.workerBondSettled;
+            if (open && l.expiredAt > unlockAt) bondOutlastedExit = true;
+        }
     }
 
     function withdrawStake() external {
@@ -335,6 +344,10 @@ contract SidequestInvariantsTest is Test {
     }
 
     /// @dev Vault conservation, and no reservation outlives its bond.
+    function invariant_bondsReservedBeforeExitExpireByUnlock() public view {
+        assertFalse(handler.bondOutlastedExit(), "every pre-exit bond expires by unlockAt");
+    }
+
     function invariant_vaultBooks() public view {
         StakeVault vault = env.vault();
         Factory factory = env.factory();

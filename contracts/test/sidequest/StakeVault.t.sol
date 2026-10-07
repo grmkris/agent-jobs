@@ -168,16 +168,16 @@ contract StakeVaultTest is StakeVaultFixture {
         uint256 amount = position.queuedShares;
         uint48 unlockAt = position.unlockAt;
         assertEq(amount, 40e18);
-        assertEq(unlockAt, t0 + 7 days);
+        assertEq(unlockAt, t0 + 14 days);
         assertEq(vault.stakeOf(alice), 60e18, "cooldown no longer counts for the tier");
         _assertConserved();
 
-        vm.warp(t0 + 7 days - 1);
+        vm.warp(t0 + 14 days - 1);
         vm.prank(alice);
-        vm.expectRevert(abi.encodeWithSelector(IStakeVault.UndelegateLocked.selector, uint48(t0 + 7 days)));
+        vm.expectRevert(abi.encodeWithSelector(IStakeVault.UndelegateLocked.selector, uint48(t0 + 14 days)));
         vault.withdraw(alice);
 
-        vm.warp(t0 + 7 days);
+        vm.warp(t0 + 14 days);
         uint256 before = token.balanceOf(alice);
         vm.prank(alice);
         vault.withdraw(alice);
@@ -201,7 +201,7 @@ contract StakeVaultTest is StakeVaultFixture {
         uint256 amount = position.queuedShares;
         uint48 unlockAt = position.unlockAt;
         assertEq(amount, 20e18);
-        assertEq(unlockAt, t0 + 13 days);
+        assertEq(unlockAt, t0 + 20 days);
     }
 
     function test_unstake_cancelRestoresStake() public {
@@ -227,7 +227,7 @@ contract StakeVaultTest is StakeVaultFixture {
         vault.requestUndelegate(alice, 40e18);
         assertEq(vault.stakeOf(alice), 60e18);
         assertEq(vault.availableOf(alice), 0);
-        vm.warp(t0 + 7 days);
+        vm.warp(t0 + 14 days);
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(IStakeVault.StillBonded.selector, 60e18, 70e18));
         vault.withdraw(alice);
@@ -328,7 +328,7 @@ contract StakeVaultTest is StakeVaultFixture {
     function _authorize(address h) internal {
         vm.prank(safe);
         vault.proposeHolding(h);
-        vm.warp(vm.getBlockTimestamp() + 8 days);
+        vm.warp(vm.getBlockTimestamp() + 15 days);
         vault.acceptHolding();
     }
 
@@ -337,13 +337,13 @@ contract StakeVaultTest is StakeVaultFixture {
         vault.proposeHolding(holding2);
         (address pending, uint48 eta) = vault.pendingHolding();
         assertEq(pending, holding2);
-        assertEq(eta, t0 + 8 days);
+        assertEq(eta, t0 + 15 days);
 
-        vm.warp(t0 + 8 days - 1);
-        vm.expectRevert(abi.encodeWithSelector(IStakeVault.HoldingTimelocked.selector, uint48(t0 + 8 days)));
+        vm.warp(t0 + 15 days - 1);
+        vm.expectRevert(abi.encodeWithSelector(IStakeVault.HoldingTimelocked.selector, uint48(t0 + 15 days)));
         vault.acceptHolding();
 
-        vm.warp(t0 + 8 days);
+        vm.warp(t0 + 15 days);
         vm.prank(bob);
         vault.acceptHolding();
         assertTrue(vault.isHolding(holding2));
@@ -360,7 +360,7 @@ contract StakeVaultTest is StakeVaultFixture {
         vault.proposeHolding(holding2);
         vm.prank(alice);
         vault.requestUndelegate(alice, 100e18);
-        vm.warp(t0 + 7 days);
+        vm.warp(t0 + 14 days);
         vm.prank(alice);
         vault.withdraw(alice);
         vm.expectRevert();
@@ -430,7 +430,7 @@ contract StakeVaultTest is StakeVaultFixture {
     function test_bootstrap_stakingClosedUntilBootstrapThenBootstrapWorks() public {
         StakeVault fresh = new StakeVault(token, SidequestClocks.production());
         token.approve(address(fresh), type(uint256).max);
-        // Nobody can stake 1 wei ahead of the bootstrap to force the 8-day path.
+        // Nobody can stake 1 wei ahead of the bootstrap to force the 15-day path.
         vm.expectRevert(IStakeVault.NotBootstrapped.selector);
         fresh.delegate(address(this), 1);
         vm.expectRevert(IStakeVault.NotBootstrapped.selector);
@@ -456,7 +456,7 @@ contract StakeVaultTest is StakeVaultFixture {
     function test_bootstrap_acceptedHoldingAlsoOpensStakingAndClosesBootstrap() public {
         StakeVault fresh = new StakeVault(token, SidequestClocks.production());
         fresh.proposeHolding(holding);
-        vm.warp(t0 + 8 days);
+        vm.warp(t0 + 15 days);
         fresh.acceptHolding();
         assertTrue(fresh.bootstrapped());
         token.approve(address(fresh), 1);
@@ -515,7 +515,7 @@ contract StakeVaultTest is StakeVaultFixture {
         vm.prank(alice);
         vault.setHoldingDenied(holding2, true);
         assertTrue(vault.holdingDenied(alice, holding2));
-        vm.warp(vm.getBlockTimestamp() + 8 days);
+        vm.warp(vm.getBlockTimestamp() + 15 days);
         vault.acceptHolding();
         vm.prank(holding);
         vault.release(alice, 60e18);
@@ -546,7 +546,7 @@ contract StakeVaultTest is StakeVaultFixture {
         assertEq(vault.PROPOSAL_GRACE(), 7 days);
         vm.prank(safe);
         vault.proposeHolding(holding2);
-        vm.warp(vm.getBlockTimestamp() + 8 days + 7 days + 1);
+        vm.warp(vm.getBlockTimestamp() + 15 days + 7 days + 1);
         vm.expectRevert(IStakeVault.HoldingProposalExpired.selector);
         vault.acceptHolding();
     }
@@ -555,7 +555,7 @@ contract StakeVaultTest is StakeVaultFixture {
     function test_holding_revokeDropsAPendingProposalForTheSameHolding() public {
         vm.prank(safe);
         vault.proposeHolding(holding2);
-        vm.warp(vm.getBlockTimestamp() + 8 days);
+        vm.warp(vm.getBlockTimestamp() + 15 days);
         vault.acceptHolding();
         vm.prank(safe);
         vault.revokeHolding(holding2);
@@ -577,7 +577,7 @@ contract StakeVaultTest is StakeVaultFixture {
         // Bootstrap is closed while a proposal is pending.
         vm.expectRevert(IStakeVault.BootstrapClosed.selector);
         v.bootstrapHolding(holding2);
-        vm.warp(vm.getBlockTimestamp() + 8 days);
+        vm.warp(vm.getBlockTimestamp() + 15 days);
         v.acceptHolding();
         v.proposeHolding(holding);
         v.revokeHolding(holding2);
@@ -597,7 +597,7 @@ contract StakeVaultTest is StakeVaultFixture {
         v.acceptOwnership();
         (address pending,) = v.pendingHolding();
         assertEq(pending, address(0));
-        vm.warp(vm.getBlockTimestamp() + 8 days);
+        vm.warp(vm.getBlockTimestamp() + 15 days);
         vm.expectRevert(IStakeVault.NoHoldingProposed.selector);
         v.acceptHolding();
     }

@@ -120,7 +120,7 @@ interface IStakeVault {
     ///         Refused for a Holding the account has denied.
     function reserve(address account, uint256 amount) external;
 
-    /// @notice The caller vetoes (or re-allows) `holding` taking new bonds from its stake (C9 ACL-1). The 8-day delay
+    /// @notice The caller vetoes (or re-allows) `holding` taking new bonds from its stake (C9 ACL-1). The 15-day delay
     ///         lets free stake leave before a new Holding goes live; this protects stake that is still bonded when
     ///         the Holding arrives and is released later, and mining rewards claimed for the caller. Existing
     ///         reservations still release and slash.
@@ -202,10 +202,10 @@ interface IStakeVault {
     ///         and `bootstrapHolding` is closed.
     function bootstrapped() external view returns (bool);
 
-    /// @notice The delegation exit cooldown (7 days in production; deployment clocks on testnet).
+    /// @notice The delegation exit cooldown (14 days in production; deployment clocks on testnet).
     function UNSTAKE_DELAY() external view returns (uint48);
 
-    /// @notice The delay before a proposed Holding can be accepted (8 days).
+    /// @notice The delay before a proposed Holding can be accepted (15 days).
     function HOLDING_DELAY() external view returns (uint48);
 
     /// @notice How long after its eta a Holding proposal can still be accepted (7 days).

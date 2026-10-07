@@ -127,6 +127,10 @@ contract SidequestHolding is ISidequestHolding, EIP712, Ownable2Step, Reentrancy
         uint256 minExpiry =
             uint256(p.deliveryDeadline) + p.reviewWindow + p.disputeWindow + p.arbitrationWindow + margin;
         if (p.expiredAt < minExpiry) revert ExpiryTooShort(p.expiredAt, minExpiry);
+        if (p.creatorBond != 0) {
+            uint256 latest = block.timestamp + vault.UNSTAKE_DELAY();
+            if (p.expiredAt > latest) revert BondOutlastsUnbonding(p.expiredAt, latest);
+        }
         address approver = p.approver == address(0) ? msg.sender : p.approver;
         address arbitrator = p.arbitrator == address(0) ? defaultArbitrator : p.arbitrator;
         if (arbitrator == msg.sender || arbitrator == approver) revert ArbitratorConflict();
@@ -218,6 +222,10 @@ contract SidequestHolding is ISidequestHolding, EIP712, Ownable2Step, Reentrancy
         if (identity.getAgentWallet(sel.agentId) != msg.sender) revert NotAgentWallet();
         // Holding keeps the fee and funds `net`; a core that charges on top would cut the worker twice (C9 ACL-5).
         if (core.platformFeeBP() != 0 || core.evaluatorFeeBP() != 0) revert CoreChargesFees();
+        if (l.workerBond != 0) {
+            uint256 latest = block.timestamp + vault.UNSTAKE_DELAY();
+            if (l.expiredAt > latest) revert BondOutlastsUnbonding(l.expiredAt, latest);
+        }
 
         (uint16 feeBps, uint256 fee, uint256 net) = _quote(l.reward, msg.sender);
         selectionNonceUsed[creator][sel.nonce] = true;

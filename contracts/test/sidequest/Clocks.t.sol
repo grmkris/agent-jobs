@@ -193,11 +193,13 @@ contract ClocksTest is BaseV1 {
 
 contract FastClocksTest is BaseV1 {
     function clocks() internal pure override returns (SidequestClocks.Config memory) {
-        return SidequestClocks.Config(120, 120, 300, 600, 900, 300, 1800, 1800, 3600);
+        return SidequestClocks.Config(120, 120, 300, 259200, 262800, 300, 1800, 1800, 3600);
     }
 
     function test_fastWindowsPublishAtMinimums_belowEachRefuses() public {
         ISidequestHolding.PublishParams memory p = params();
+        p.deliveryDeadline = uint48(block.timestamp + 1 days);
+        p.expiredAt = p.deliveryDeadline + 120 + 120 + 300 + MARGIN;
         p.reviewWindow = 120;
         p.disputeWindow = 120;
         p.arbitrationWindow = 300;
@@ -236,19 +238,19 @@ contract FastClocksTest is BaseV1 {
         vault.proposeHolding(newHolding);
         vm.prank(worker);
         vault.requestUndelegate(worker, 100e18);
-        vm.warp(t0 + 599);
+        vm.warp(t0 + 259199);
         vm.prank(worker);
-        vm.expectRevert(abi.encodeWithSelector(IStakeVault.UndelegateLocked.selector, uint48(t0 + 600)));
+        vm.expectRevert(abi.encodeWithSelector(IStakeVault.UndelegateLocked.selector, uint48(t0 + 259200)));
         vault.withdraw(worker);
-        vm.warp(t0 + 600);
+        vm.warp(t0 + 259200);
         uint256 before = factory.balanceOf(worker);
         vm.prank(worker);
         vault.withdraw(worker);
         assertEq(factory.balanceOf(worker) - before, 100e18);
-        vm.warp(t0 + 899);
-        vm.expectRevert(abi.encodeWithSelector(IStakeVault.HoldingTimelocked.selector, uint48(t0 + 900)));
+        vm.warp(t0 + 262799);
+        vm.expectRevert(abi.encodeWithSelector(IStakeVault.HoldingTimelocked.selector, uint48(t0 + 262800)));
         vault.acceptHolding();
-        vm.warp(t0 + 900);
+        vm.warp(t0 + 262800);
         vault.acceptHolding();
         assertTrue(vault.isHolding(newHolding));
     }
@@ -281,12 +283,12 @@ contract FastClocksTest is BaseV1 {
         uint256 t0 = vm.getBlockTimestamp();
         vm.prank(deployer);
         vault.proposeHolding(stranger);
-        vm.warp(t0 + 900 + 1800);
+        vm.warp(t0 + 262800 + 1800);
         vault.acceptHolding();
         assertTrue(vault.isHolding(stranger));
         vm.prank(deployer);
         vault.proposeHolding(relayer);
-        vm.warp(t0 + 2 * (900 + 1800) + 1);
+        vm.warp(t0 + 2 * (262800 + 1800) + 1);
         vm.expectRevert(IStakeVault.HoldingProposalExpired.selector);
         vault.acceptHolding();
     }

@@ -27,7 +27,7 @@ contract ClockConfigTest is Test {
         SidequestRecipe.Config memory c = this.loadExternal();
         assertEq(
             keccak256(abi.encode(c.clocks)),
-            keccak256(abi.encode(SidequestClocks.Config(120, 120, 300, 600, 900, 300, 1800, 1800, 3600)))
+            keccak256(abi.encode(SidequestClocks.Config(120, 120, 300, 259200, 262800, 300, 1800, 1800, 3600)))
         );
         vm.removeFile(path);
     }
@@ -69,7 +69,7 @@ contract ClockConfigTest is Test {
         );
         this.loadExternal();
         vm.writeJson(
-            '{"minReviewWindow":3600,"minDisputeWindow":3600,"minArbitrationWindow":43200,"unstakeDelay":604800,"holdingDelay":691200,"feeDelay":259200,"proposalGrace":604800,"epochZeroDuration":259200,"epochDuration":604800}',
+            '{"minReviewWindow":3600,"minDisputeWindow":3600,"minArbitrationWindow":43200,"unstakeDelay":1209600,"holdingDelay":1296000,"feeDelay":259200,"proposalGrace":604800,"epochZeroDuration":259200,"epochDuration":604800}',
             path,
             ".sidequest.clocks"
         );

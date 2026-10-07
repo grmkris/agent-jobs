@@ -426,7 +426,7 @@ contract RecipeTest is Test {
     }
 
     function test_output_testnetShape_recordsFreshCoreAndPair() public {
-        c.clocks = SidequestClocks.Config(120, 120, 300, 600, 900, 300, 1800, 1800, 3600);
+        c.clocks = SidequestClocks.Config(120, 120, 300, 259200, 262800, 300, 1800, 1800, 3600);
         driver.configure(c);
         SidequestRecipe.Deployed memory d = _runWithThirdPartyBetweenSteps();
         string memory shipped = vm.readFile(string.concat(vm.projectRoot(), "/config/monad-testnet.json"));
@@ -511,7 +511,7 @@ contract RecipeTest is Test {
 
     /// @dev Each changed input must refuse before writing. A copied input would silently pass all nine cases.
     function test_output_eachInputClockMismatch_preservesConfig() public {
-        c.clocks = SidequestClocks.Config(120, 120, 300, 600, 900, 300, 1800, 1800, 3600);
+        c.clocks = SidequestClocks.Config(120, 120, 300, 259200, 262800, 300, 1800, 1800, 3600);
         driver.configure(c);
         SidequestRecipe.Deployed memory d = _runWithThirdPartyBetweenSteps();
         string memory shipped = vm.readFile(SidequestRecipe.path(vm, "monad-testnet"));
@@ -549,7 +549,7 @@ contract RecipeTest is Test {
     }
 
     function test_output_mainnetShape_refusesFastClocksEvenWhenInputMatches() public {
-        c.clocks = SidequestClocks.Config(120, 120, 300, 600, 900, 300, 1800, 1800, 3600);
+        c.clocks = SidequestClocks.Config(120, 120, 300, 259200, 262800, 300, 1800, 1800, 3600);
         driver.configure(c);
         SidequestRecipe.Deployed memory d = _runWithThirdPartyBetweenSteps();
         string memory path = _mainnetTemp("clock-mainnet-fast");
@@ -954,7 +954,7 @@ contract RecipeTest is Test {
         this.isPromotedExternal(vm.readFile(path), d);
         vm.writeFile(path, once);
         vm.writeJson(
-            '{"minReviewWindow":3600,"minDisputeWindow":3600,"minArbitrationWindow":43200,"unstakeDelay":604800,"holdingDelay":691200,"feeDelay":259200,"proposalGrace":604800,"epochZeroDuration":259200,"epochDuration":604801}',
+            '{"minReviewWindow":3600,"minDisputeWindow":3600,"minArbitrationWindow":43200,"unstakeDelay":1209600,"holdingDelay":1296000,"feeDelay":259200,"proposalGrace":604800,"epochZeroDuration":259200,"epochDuration":604801}',
             path,
             ".sidequest.clocks"
         );

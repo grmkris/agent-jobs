@@ -58,6 +58,8 @@ contract SidequestHoldingTest is BaseV1 {
         // Exactly at the bounds is fine.
         ISidequestHolding.PublishParams memory ok = params();
         (ok.reviewWindow, ok.disputeWindow, ok.arbitrationWindow) = (1 hours, 14 days, 12 hours);
+        ok.creatorBond = 0;
+        ok.workerBond = 0;
         ok.expiredAt = ok.deliveryDeadline + 1 hours + 14 days + 12 hours + MARGIN;
         publishWith(ok);
     }

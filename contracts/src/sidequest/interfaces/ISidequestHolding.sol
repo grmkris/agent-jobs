@@ -37,6 +37,8 @@ import {IFeeSchedule} from "./IFeeSchedule.sol";
 ///
 ///         The implementation is `Ownable2Step` (owner: the Safe); the ownership functions come from OpenZeppelin.
 interface ISidequestHolding {
+    /// @dev A bonded listing cannot outlive the unstaking cooldown that protects its backers.
+    error BondOutlastsUnbonding(uint256 expiredAt, uint256 latest);
     // ---------------------------------------------------------------------------------------------
     // Types
     // ---------------------------------------------------------------------------------------------

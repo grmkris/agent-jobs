@@ -1632,6 +1632,22 @@ export const sidequestHoldingAbi = [
   },
   {
     "type": "error",
+    "name": "BondOutlastsUnbonding",
+    "inputs": [
+      {
+        "name": "expiredAt",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "latest",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "CoreChargesFees",
     "inputs": []
   },
