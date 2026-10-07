@@ -2,7 +2,7 @@ import * as sdk from '@sidequest/sdk'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 import { type PublicClient } from 'viem'
 import { describe, expect, it, vi } from 'vitest'
-import { arbiterAccounts, sendFundedCancellation } from './runtime.ts'
+import { arbiterAccounts, boardUrls, sendFundedCancellation } from './runtime.ts'
 
 const oldKey = generatePrivateKey(), v1Key = generatePrivateKey()
 const v1 = privateKeyToAccount(v1Key)
@@ -45,4 +45,10 @@ describe('funded cancellation sender', () => {
     await expect(sendFundedCancellation(f.wallet, f.reads, { ...tx, chainId: 10143 })).rejects.toThrow('chain/value refused')
     expect(f.send).not.toHaveBeenCalled()
   })
+})
+
+it('BOARD_URLS accepts both stage origins while retaining the single-board fallback', () => {
+  expect(boardUrls({ BOARD_URLS: ' https://dev.sidequest.exchange,https://sidequest.exchange,https://sidequest.exchange ' })).toEqual(['https://dev.sidequest.exchange', 'https://sidequest.exchange'])
+  expect(boardUrls({ BOARD_URL: 'https://sidequest.exchange' })).toEqual(['https://sidequest.exchange'])
+  expect(() => boardUrls({})).toThrow('BOARD_URL')
 })

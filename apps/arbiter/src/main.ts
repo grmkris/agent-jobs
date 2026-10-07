@@ -14,7 +14,7 @@ import { hostname } from 'node:os'
 import { ARBITER_PROMPT_VERSION, proposeRuling } from '@sidequest/board'
 import * as sdk from '@sidequest/sdk'
 import { arbitrateOnce } from './arbiter.ts'
-import { arbiterAccounts, cancellationSender } from './runtime.ts'
+import { arbiterAccounts, boardUrls, cancellationSender } from './runtime.ts'
 
 const env = (name: string, fallback?: string): string => {
   const v = process.env[name] ?? fallback
@@ -29,7 +29,7 @@ const endpoint = { baseUrl: env('ARBITER_MODEL_BASE_URL'), model: env('ARBITER_M
 const runner = env('ARBITER_RUNNER', `arbiter@${hostname()}`)
 const interval = Number(env('ARBITER_INTERVAL_SECONDS', '60'))
 const log = (m: string) => console.log(`[arbiter ${new Date().toISOString().slice(11, 19)}] ${m}`)
-const clients = accounts.map(account => ({ account, board: sdk.boardClient(env('BOARD_URL')) }))
+const clients = boardUrls(process.env).flatMap(url => accounts.map(account => ({ account, board: sdk.boardClient(url) })))
 
 async function pass({ account, board }: (typeof clients)[number]) {
   await board.signIn(account)
@@ -44,7 +44,7 @@ async function pass({ account, board }: (typeof clients)[number]) {
     model: endpoint.model,
     promptVersion: ARBITER_PROMPT_VERSION,
     sendCancellation: async (transaction: sdk.TxRequest) => {
-      const rpcUrl = env(network === 'monad-mainnet' ? 'SIDEQUEST_PROD_MONAD_RPC_URL' : 'MONAD_TESTNET_RPC_URL')
+      const rpcUrl = env('MONAD_RPC_URL', network === 'monad-testnet' ? process.env.MONAD_TESTNET_RPC_URL : undefined)
       await cancellationSender(network, account, rpcUrl)(transaction)
     },
   })

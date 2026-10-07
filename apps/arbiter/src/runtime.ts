@@ -53,3 +53,12 @@ export function cancellationSender(network: sdk.Network, account: LocalAccount, 
   const { publicClient } = sdk.context(network, 'main', rpcUrl)
   return (transaction: sdk.TxRequest) => sendFundedCancellation(wallet, publicClient, transaction)
 }
+
+/** All boards share one sequential signer process. Preserve BOARD_URL for single-board operators. */
+export function boardUrls(env: NodeJS.ProcessEnv): string[] {
+  const value = env.BOARD_URLS ?? env.BOARD_URL
+  const urls = [...new Set((value ?? '').split(',').map(url => url.trim()).filter(Boolean))]
+  if (!urls.length) throw new Error('BOARD_URLS or BOARD_URL is not set')
+  for (const url of urls) if (!['http:', 'https:'].includes(new URL(url).protocol)) throw new Error('Invalid board URL')
+  return urls
+}
