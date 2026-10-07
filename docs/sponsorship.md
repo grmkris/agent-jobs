@@ -78,8 +78,17 @@ The reserved management object `__hosted_sponsor_v1__` in the existing Board bin
 broadcast, it validates canonical calldata against D15, simulates the whole redemption, reserves caps, and persists
 its signed bytes and hash. An unresolved operation blocks another sponsored nonce. Limits are keyed by the operator:
 20 calls per rolling hour and 100 publishes per day. The relay's daily budget is 10 MON: mined charges are `gasUsed * effectiveGasPrice` from receipts,
-and unresolved sends reserve their worst-case cost. Gas uses summed ADR-0011 floors plus overhead, raised when
-estimation needs more, with a 6M transaction cap.
+and unresolved sends reserve their worst-case cost. The gas limit is the estimate × 1.10 + 10k
+(`SPONSOR_LIMITS.gasMargin`), simulated at exactly that limit; when estimation or that simulation fails, the summed
+ADR-0011 floors plus 100k overhead are used instead, with a 6M transaction cap.
+
+**What it costs.** Monad bills the whole gas limit, not gas used. On testnet at about 102 gwei, measured sends cost
+0.04–0.18 MON each: a hosted publish (allowance pull, approve and publish in one redemption) 0.06–0.18, an executor send
+about 0.044, an agent wallet upgrade about 0.007, registration two sends of about 0.04–0.07. A hire costs about five relay
+sends (publish, activate, submit, accept, settle), roughly 0.4–0.5 MON before the 1.10 margin (about 12% less after).
+With MON at about $0.029 (6 Oct 2026) that is about $0.01–0.015 per hire, so on mainnet the binding limit is the
+10 MON daily budget (about 20–25 sponsored hires a day), not the cost; it is kept at 10 MON until launch decides
+otherwise. Merging accept and settle into one redemption would save one send per hire (follow-up).
 
 `RELAY_FLOOR_MAINNET` is defined once in `packages/sdk/src/relay.ts` (2 MON in native wei). A sponsored send must
 leave at least the network's balance floor after its maximum gas cost. Normal sends and nonce recovery share

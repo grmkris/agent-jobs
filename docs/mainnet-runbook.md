@@ -146,7 +146,7 @@ DeploySidequest refuses either mistake before it sends anything (LAUNCH-AUDIT-FI
 | admin (deployer) | `0x675269d710692d4d0d7166da11B76463577aad73` | 6.5 MON | deploy + Safe, 5.4 on hand at the max fee, plus a retry |
 | liquidity holder (`sidequest.allocation.liquidity`) | from the config | 1 MON + 305 USDC | the seed (3M SIDE and $300 at $0.0001), plus the 5 USDC repair cap, which comes back unless spent |
 | Safe owner that sends | from the Safe | 0.5 MON | SafeAccept, and each epoch's fund + setRoot |
-| relay | `roles.relay` (a fresh R2 key) | 3 MON | must stay **above `RELAY_FLOOR_MAINNET` = 2 MON** (`packages/sdk/src/relay.ts`): the launch gate and each sponsored send check it |
+| relay | `roles.relay` (a fresh R2 key) | 3 MON | must stay **above `RELAY_FLOOR_MAINNET` = 2 MON** (`packages/sdk/src/relay.ts`): the launch gate and each sponsored send check it. 3 MON leaves about 1 MON above the floor, about two sponsored hires (0.4–0.5 MON each, [sponsorship.md](sponsorship.md)); decide the launch funding and the 10 MON daily budget before opening writes |
 | attester | `roles.attester` (a fresh R2 key) | 1 MON | attaches evidence |
 | arbitrator | `roles.arbitrator` (a fresh R2 key) | 0.11 | signs rulings, which the relay sends. It also sends `cancelRuling` itself, to burn a recorded ruling's nonce (arbiter `cancel_ruling`). Bounded reserve: 10 cancellations at 51,848 gas (estimated on a Monad-pricing fork) × 203 gwei = 0.105 MON. Refill when below 0.05; no other use |
 
