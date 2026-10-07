@@ -5,7 +5,7 @@ import { stageProfile } from '../../infra/stage.ts'
 import { loadEnv, testnetOperation } from './transaction.mjs'
 
 const env = loadEnv()
-const infra = stageProfile(env.SIDEQUEST_STAGE ?? 'dev')
+const infra = stageProfile(env.SIDEQUEST_STAGE ?? 'dev') ?? stageProfile('dev')
 if (infra.network !== 'monad-testnet') throw new Error('testnet-only')
 const client = createPublicClient({ transport: http(env.MONAD_RPC_URL) })
 const address = role => privateKeyToAccount(env[`${role}_PRIVATE_KEY`]).address

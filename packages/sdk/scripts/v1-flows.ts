@@ -38,7 +38,8 @@ async function main() {
 const selected = stageProfile(stageName) ?? stageProfile('dev')!
 if (selected.network !== 'monad-testnet') throw new Error('v1 flow runner is testnet only')
 sdk.setRelayOverride(selected.relay)
-const rpc = env('MONAD_RPC_URL', true) ?? env('MONAD_TESTNET_RPC_URL')!
+const localEnv = stageFlag === -1 && (stageEnv.SIDEQUEST_STAGE === undefined || stageEnv.SIDEQUEST_STAGE === 'local' || stageEnv.NODE_ENV === 'test')
+const rpc = env('MONAD_RPC_URL', true) ?? env(localEnv ? 'MONAD_TESTNET_RPC_URL' : 'MONAD_RPC_URL')!
 const network = 'monad-testnet' as const
 const ctx = sdk.context(network, 'main', rpc)
 if (ctx.deployment.chainId !== 10143 || ctx.stack.kind !== 'sidequest-v1' || ctx.deployment.sidequest === null)

@@ -4,7 +4,11 @@ import { parseEnv } from 'node:util'
 import { createPublicClient, createWalletClient, http, keccak256 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 
-export const loadEnv = () => ({ ...process.env, ...(process.env.SIDEQUEST_STAGE === 'local' || process.env.SIDEQUEST_STAGE === undefined ? parseEnv(readFileSync(resolve('.env.local'), 'utf8')) : {}) })
+export const loadEnv = () => {
+  const local = process.env.SIDEQUEST_STAGE === 'local' || process.env.SIDEQUEST_STAGE === undefined
+  const env = { ...process.env, ...(local ? parseEnv(readFileSync(resolve('.env.local'), 'utf8')) : {}) }
+  return { ...env, MONAD_RPC_URL: env.MONAD_RPC_URL || (local ? env.MONAD_TESTNET_RPC_URL : undefined) }
+}
 const json = value => JSON.stringify(value, (_key, item) => typeof item === 'bigint' ? item.toString() : item, 2) + '\n'
 
 /** Persist signed bytes before broadcasting. An interrupted operation reconciles its original hash;
