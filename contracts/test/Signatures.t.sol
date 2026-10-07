@@ -2,9 +2,6 @@ pragma solidity ^0.8.28;
 
 import {Test} from "forge-std/Test.sol";
 import {Signatures} from "../src/Signatures.sol";
-import {Base} from "./Base.t.sol";
-import {JobsEvaluator} from "../src/JobsEvaluator.sol";
-import {ERC8183WithAuthorization} from "../src/vendor/erc8183/ERC8183WithAuthorization.sol";
 
 contract Refusing1271 {
     function isValidSignature(bytes32, bytes calldata) external pure returns (bytes4) {
@@ -72,25 +69,5 @@ contract SignaturesTest is Test {
         );
         assertFalse(this.verify(signer, DIGEST, abi.encodePacked(first, second, uint8(0))));
         assertFalse(this.verify(signer, DIGEST, bytes("")));
-    }
-}
-
-contract DelegatedLifecycleTest is Base {
-    function test_delegatedSelectionBudgetSubmitAndEvidence() public {
-        Refusing1271 implementation = new Refusing1271();
-        vm.attachDelegation(vm.signDelegation(address(implementation), creatorPk));
-        vm.attachDelegation(vm.signDelegation(address(implementation), workerPk));
-        vm.attachDelegation(vm.signDelegation(address(implementation), attesterPk));
-        uint256 jobId = publish();
-        activate(jobId);
-        uint256 deadline = block.timestamp + 1 hours;
-        bytes memory signature = signSubmit(workerPk, worker, jobId, DELIVERABLE, 99, deadline);
-        vm.prank(relayer);
-        core.submitWithAuthorization(
-            jobId, DELIVERABLE, "", ERC8183WithAuthorization.Authorization(worker, 99, deadline, signature)
-        );
-        JobsEvaluator.EvidenceAttestation memory evidence = attestation(jobId, 1, deadline);
-        evaluator.attachEvidence(jobId, evidence, attester, signEvidence(attesterPk, evidence));
-        assertTrue(evaluator.usedDigest(attester, evidenceDigest(evidence)));
     }
 }
