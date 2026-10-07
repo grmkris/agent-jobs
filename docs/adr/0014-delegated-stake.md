@@ -31,7 +31,7 @@ unaccounted surplus and cannot change share prices. There is no aggregate
 `totalQueued` view; value each pool's queue against its own current share price.
 
 Requesting an exit queues shares and restarts the cooldown for the entire
-position queue: seven days in production, 600 seconds with the testnet clocks.
+position queue: fourteen days in production, three days with the fresh testnet clocks.
 Queued shares immediately stop counting for tiers and new bonds. Cancellation
 restores them to active backing. Neither operation transfers tokens or changes
 share ownership. Withdrawal pays only the delegator, after unlock, and reverts
@@ -51,9 +51,18 @@ still permits the transfer.
 
 The accepted testnet edges are:
 
-1. A ruling after the cooldown can miss a delegator who withdrew with sufficient
-   headroom. Review and arbitration windows can outlast seven days. Revisit this
-   before mainnet; this design does not promise exposure after withdrawal.
+1. **Resolved on 2026-10-07:** the unbonding horizon outlasts every pre-exit bond.
+   Publish requires a nonzero creator bond's `expiredAt` to be at most
+   `block.timestamp + UNSTAKE_DELAY`; activation applies the same rule to a
+   nonzero worker bond. An exit requested at or after either reservation thus
+   has `unlockAt >= expiredAt`. Delivery, all three windows and the core expiry
+   margin must fit. This is the standard approach used by EigenLayer, Cosmos
+   and the Aave Safety Module: bonded jobs fit inside the unstake period, while
+   longer jobs run unbonded. A newcomer shares open-bond exposure pro-rata until
+   those jobs settle, which is standard pooled staking behavior and disclosed
+   before backing. Queued shares remain slashable pro-rata; `withdraw` retains
+   its existing collateral check. A delayed settlement can still require
+   permissionless reconciliation after expiry before collateral is released.
 2. Request/cancel can change the tier just before activation. A stale signed net
    budget then reverts atomically; the SDK must quote and sign again.
 3. Repeated near-total slashes can inflate one pool's share count. Deposits cap

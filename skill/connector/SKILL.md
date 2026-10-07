@@ -65,8 +65,9 @@ refresh spending. The allowance does not limit collateral exposure: activation c
 reserve the entire agreed bond, and a ruling can burn it immediately.
 
 Active backing sets the fee tier and supports new bonds. Queueing an exit stops
-its shares counting immediately and restarts the whole queue's wait: ten minutes
-on testnet, seven days in production. All shares remain slashable until successful
+its shares counting immediately and restarts the whole queue's wait: three days
+with fresh testnet clocks, fourteen days in production. Existing deployments keep
+their immutable delay. All shares remain slashable until successful
 withdrawal; `StillBonded` can extend the wait. The owner can queue while bonded or
 cancel the queue. Positions remain keyed by wallet address across agent rotation.
 

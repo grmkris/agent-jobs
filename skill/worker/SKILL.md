@@ -122,8 +122,9 @@ wallet; the agent cannot exit or sweep them. For an agent-owned self-position,
 one-call `requestUndelegate(agentWallet, exactShares)` grant, expiring in ten minutes.
 Routine vault work covers `cancelUndelegate` and `withdraw` for that self-position.
 
-Queueing is allowed while bonded and restarts the whole queue's cooldown: ten
-minutes on testnet, seven days in production. All shares, including queued shares,
+Queueing is allowed while bonded and restarts the whole queue's cooldown: three
+days with fresh testnet clocks, fourteen days in production. Existing deployments
+keep their immutable delay. All shares, including queued shares,
 remain slashable until successful withdrawal. After the returned unlock time,
 `StillBonded` can delay withdrawal until remaining assets cover open reservations.
 Canceling the queue restores active backing. Positions stay tied to their wallet

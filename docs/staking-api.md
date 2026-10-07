@@ -56,7 +56,7 @@ exactShares)`, one call and a 600-second expiry. Routine grants cover only
 
 Queueing is allowed while a bond is open. Queued shares stop counting for fee tiers
 and new bonds immediately, but remain slashable until withdrawal. A new request
-restarts the whole queue's cooldown: 600 seconds on testnet and seven days in
+restarts the whole queue's cooldown: three days with the fresh testnet clocks and fourteen days in
 production. `StillBonded` can extend the wait until remaining assets cover open
 reservations. Mining claims create an account-owned self-position through
 `delegateFor(account, account, amount)`.

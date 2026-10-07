@@ -35,8 +35,9 @@ keeps ownership of that position; the operator signs `delegate(agentWallet, amou
 from wallet[0]. Backing is total SIDE behind the account; a position is one
 owner's shares. All positions share bond losses pro-rata, including queued shares.
 Queued shares stop counting toward the fee tier and new bonds immediately, but
-remain slashable until successful withdrawal. Leaving starts a ten-minute testnet
-wait (seven days in production), and open bonds can delay withdrawal further.
+remain slashable until successful withdrawal. Leaving starts a three-day wait with
+fresh testnet clocks (fourteen days in production); existing deployments keep their
+immutable delay. Open bonds can delay withdrawal further.
 
 ## Publish within the allowance
 

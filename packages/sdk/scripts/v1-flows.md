@@ -22,9 +22,9 @@ no open worker bonds, no queued worker shares, and no existing creator/relay pos
 `delegate` needs enough liquid creator SIDE to reach the worker's next fee tier and reserves more than
 the worker's own position can cover. Each case exits its outside positions after the deployed cooldown,
 so the following `fees` case still begins below the second tier. `undelegate-pending-slash` keeps a second
-job active across the first ruling, checks `StillBonded` on both sides of the slash, then releases that bond
-and verifies the actual post-slash withdrawal event and token transfer. Its delivery deadlines include
-the deployed cooldown, while submission and dispute happen after the wait.
+job active across the first ruling, checks `UndelegateLocked` on both sides of the slash, then releases that bond
+and verifies the actual post-slash withdrawal event and token transfer after cooldown. Both jobs' expiries fit
+within the deployed unstake horizon; submission, dispute and settlement happen before that wait.
 
 Every signed transaction, including setup/approvals, is saved before broadcast in
 `packages/sdk/scripts/.v1-flows/<V1_FLOW_PROFILE>/journal.json` (profile defaults to `default`). It contains signed authority, so it is ignored by git and
@@ -37,7 +37,8 @@ so the runner remains below the two-flow and 15-rps limits.
 
 New core and hosted offers use the Holding's deployed minimum review/dispute/arbitration windows. Clock waits
 resume from the job's frozen terms, the vault's `unlockAt`, or the proposal's on-chain ETA. Testnet constructor
-clocks may be minutes; the production 12-hour arbitration and 7-day cooldown are not runner constants. An existing
+clocks are configurable; the fresh testnet cooldown is three days and production uses fourteen days. The production
+12-hour arbitration minimum is not a runner constant. An existing
 journal keeps its original terms and signed bytes through a code update; a redeployment requires a new profile.
 
 | Live matrix row                                          | Case(s)                                                                                                                                                   |
@@ -66,8 +67,8 @@ The G1c candidate adds `delegate`, `slash-pro-rata` and `undelegate-pending-slas
 bringing the default board-free rehearsal to 23 v1 cases. Use `--list` to
 confirm the runner candidate is adopted before starting them. Outside delegators
 retain their positions; a slash reduces self and outside positions pro-rata,
-including queued shares. The pending-slash case proves `StillBonded` refusal and
-then withdrawal of the post-slash value after release. These cases and local fork
+including queued shares. The pending-slash case proves cooldown refusal while bonds remain open and
+then withdrawal of the post-slash value after release and unlock. These cases and local fork
 results are not live G1c evidence.
 
 Hosted cases require `V1_BOARD_URL` pointing to this testnet deployment. Each wallet signs in with SIWE.
@@ -91,8 +92,9 @@ before job windows and delegated cooldowns can expire it. `admin-pause` uses ato
 MultiSendCallOnly pause/notePause and unpause/notePause pairs (the Safe needs the core admin role).
 
 Long cases print their chain-time wait and resume from the saved journal after interruption. Start the
-12-hour arbitration row in time for G3; start the testnet vault's 600-second cooldown immediately after G1
-(production uses seven days). A queued position remains slashable until withdrawal and may be delayed by
+12-hour arbitration row in time for G3; start the vault cooldown immediately after G1
+(fresh testnet clocks use three days; production uses fourteen days; retained deployments keep their immutable delay).
+A queued position remains slashable until withdrawal and may be delayed by
 `StillBonded` while a bond is reserved. Use at most two
 isolated wallet sets when running long cases in parallel. Mining waits for B8/B8b and a published/funded root;
 Telegram waits for the real bot and wallet links. Missing dependencies error rather than count as evidence.

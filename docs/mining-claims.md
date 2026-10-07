@@ -32,7 +32,7 @@ position behind that agent stays operator-owned. Positions do not follow an
 ERC-8004 wallet rotation.
 
 The self-position can queue an exit even while bonded. Adding shares to the queue
-restarts its whole cooldown (600 seconds on testnet, seven days in production).
+restarts its whole cooldown (three days with the fresh testnet clocks, fourteen days in production).
 Queued shares stop counting for the tier and new bonds but remain slashable until
 successful withdrawal. `StillBonded` may extend the wait past unlock. A managed
 agent's exact exit requires operator approval before a one-call

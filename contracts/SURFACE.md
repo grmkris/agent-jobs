@@ -11,7 +11,7 @@ This document describes the only supported protocol surface. The v1 deployment i
 - `SidequestEvaluator` is the per-offer evaluator. The approver accepts or rejects, an arbitrator rules during the
   frozen appeal window, and permissionless timeouts settle silence, missed delivery, and arbitration expiry. It records
   evidence and feedback without allowing a classifier to move money.
-- `StakeVault` tracks delegated SIDE shares and reservations. `reserve` requires an admitted Holding; `release` and `slash` consume only the caller's own reservations; unstaking uses a seven-day cooldown and Holding admission uses its timelock.
+- `StakeVault` tracks delegated SIDE shares and reservations. `reserve` requires an admitted Holding; `release` and `slash` consume only the caller's own reservations; unstaking uses a fourteen-day production cooldown and Holding admission uses its timelock.
 - `Factory` is SIDE v2: a fixed one-billion supply, ERC-20 permit support, and burn with no mint or admin hook.
 - `FeeSchedule` supplies the worker's fee rate and treasury address; schedule changes have a three-day notice.
   `SidequestHolding` pays the treasury only when the worker earns the reward.
@@ -85,8 +85,8 @@ and reserve funding. The core admin can pause, upgrade, and withdraw escrow whil
 
 `delegate`, `delegateWithPermit`, and `delegateFor` mint a delegator's shares backing an account. Only the share owner
 can request or cancel undelegation and withdraw after cooldown; queued shares remain exposed to pending reservations.
-Slashing burns SIDE and changes every position's asset value pro rata. Admission has an eight-day notice, free exit has
-a seven-day cooldown, and callers can deny a Holding new reservations for their own account. Revocation preserves
+Slashing burns SIDE and changes every position's asset value pro rata. Admission has a fifteen-day notice, free exit has
+a fourteen-day production cooldown, and callers can deny a Holding new reservations for their own account. Revocation preserves
 settlement of existing reservations. See `test/sidequest/StakeVaultDelegation.t.sol`, `StakeVaultLedger.t.sol`,
 `StakeVaultInvariants.t.sol`, and `Invariants.t.sol`.
 
@@ -112,7 +112,7 @@ another address; only its owner adjusts amounts or withdraws funds. Test tokens 
 ## Clock configuration and evidence
 
 Production minimum review/dispute windows are one hour and arbitration is twelve hours; all three maxima are fourteen
-days. Other production clocks are seven-day unstaking, eight-day Holding admission, three-day fee notice, seven-day
+days. Other production clocks are fourteen-day unstaking, fifteen-day Holding admission, three-day fee notice, seven-day
 proposal grace, a three-day first epoch, and seven-day later epochs. Testnet may use the bounded faster tuple from its
 config. `SidequestClocks` validates the whole tuple; no setter changes these immutable values. `ClockConfig.t.sol` and
 `Clocks.t.sol` cover bounds and timing.

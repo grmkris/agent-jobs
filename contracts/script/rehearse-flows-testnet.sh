@@ -135,7 +135,9 @@ if [[ -n "${HOLD:-}" ]]; then # HOLD=<file>: pause here, fork up and config prom
   while [[ -e "$HOLD" ]]; do sleep 2; done
 fi
 
-# 3. The runner, one case per process, isolated from every .env file and real key. It and the SDK import
+# 3. Bonded flows fit the configured three-day horizon. undelegate-pending-slash proves the queue stays
+# slashable before unlock; the remaining job settles before the full cooldown withdrawal.
+# The runner, one case per process, isolated from every .env file and real key. It and the SDK import
 # ../../../contracts/config/monad-testnet.json, so they run from a mirror where that path is the scratch config.
 mkdir -p "$MIRROR/packages/sdk" "$MIRROR/contracts/config"
 cp -r "$REPO/packages/sdk/src" "$MIRROR/packages/sdk/src"

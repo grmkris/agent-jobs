@@ -46,7 +46,7 @@ pays that owner. Self-backing is `delegate(self, amount)`.
 
 Active backing determines fee tiers and new bond capacity. Queueing is allowed
 while bonded, removes those shares from active backing immediately and restarts
-the whole queue's cooldown: ten minutes on testnet, seven days in production.
+the whole queue's cooldown: three days with the fresh testnet clocks, fourteen days in production.
 All shares remain slashable until successful withdrawal. `StillBonded` can extend
 the wait if the remaining assets cannot cover open reservations.
 

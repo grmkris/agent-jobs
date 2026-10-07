@@ -30,7 +30,7 @@ meantime. See the ADR-0013 amendment.
 
 Active backing sets the tier and supports new bonds. Queueing is allowed while
 bonded, stops the queued shares counting immediately and restarts the whole
-queue's cooldown (600 seconds on testnet, seven days in production). All shares
+queue's cooldown (three days with the fresh testnet clocks, fourteen days in production). All shares
 remain slashable until successful withdrawal. After unlock, `StillBonded` prevents
 withdrawal if remaining pool assets cannot cover reservations. Canceling restores
 active backing. Wallet rotation does not move either owner's positions.

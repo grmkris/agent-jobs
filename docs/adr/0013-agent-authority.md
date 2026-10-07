@@ -48,7 +48,7 @@ approval freezes the exact account and shares before the routine signer signs
 its one-off grant; the executor checks them again before relay submission.
 
 Active backing sets the fee tier and new bond capacity. Queueing may happen while
-bonded and restarts the whole queue's cooldown: 600 seconds on testnet, seven days
+bonded and restarts the whole queue's cooldown: three days with the fresh testnet clocks, fourteen days
 in production. Queued shares stop counting immediately, but all shares remain
 slashable until successful withdrawal. `StillBonded` can delay withdrawal beyond
 unlock until remaining assets cover reservations. Positions stay keyed by wallet

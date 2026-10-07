@@ -29,7 +29,9 @@ Source, unit tests and local Monad fork rehearsals establish implemented behavio
 - Review/dispute windows (1 h–14 d), arbitration (12 h–14 d), and the arbitrator are fixed per v1 offer.
   Publish resolves the default arbitrator into an explicit address. The worker verifies those terms before activation.
 - Bonds are reservations of available SIDE v2 stake in `StakeVault`, for both creator and worker. Release
-  unlocks stake; slash burns the reservation with `Factory.burn`. Unstaking free stake starts a seven-day cooldown.
+  unlocks stake; slash burns the reservation with `Factory.burn`. Unstaking starts a fourteen-day production cooldown.
+  A nonzero creator bond at publish or worker bond at activation requires expiry within that cooldown from reservation,
+  including delivery, all windows and the core margin; longer jobs run unbonded.
 - Slashable: funded no-show, poor work against published criteria, falsified evidence. A rejection penalty
   needs an undisputed window or a ruling; missing delivery can settle permissionlessly after its deadline.
   Silence and arbitrator inactivity never burn. A v1 deadline inside a recorded core pause excuses the no-show burn;
@@ -60,8 +62,7 @@ Source, unit tests and local Monad fork rehearsals establish implemented behavio
 - SIDE v2 is fixed at 1 billion, with no mint/admin hook. Mining counts paid treasury fees in signed priced
   tokens, aggregates one leaf per account/epoch, and claims stake directly into the vault. A posted root and valid
   proof are required; the computation is not a promise of earnings.
-- The owner Safe controls v1 fees (three-day notice), Holding admission (eight-day notice, instant revoke),
+- The owner Safe controls v1 fees (three-day notice), Holding admission (fifteen-day notice, instant revoke),
   verifier/arbitrator configuration and mining roots/funding. The core admin can still pause, upgrade and withdraw
   escrow while paused. Disclose those powers; do not describe the protocol as trustless.
 - Never put secrets in notes, commits, branch names, logs or artifacts.
-

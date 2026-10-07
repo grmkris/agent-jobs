@@ -11,7 +11,7 @@ Backing is the total SIDE behind an account. A position is the shares one wallet
 
 SIDE held in a wallet is not backing. `stake` prepares an exact SIDE approval and delegation from the payer's wallet. Mining uses `delegateFor(account, account, amount)` to create an account-owned self-position.
 
-Active backing counts toward the fee tier and new bonds. It includes reservations but excludes queued shares. Available backing is active backing minus reservations, with a minimum of zero.
+Active backing counts toward the fee tier and new bonds. It includes reservations but excludes queued shares. Available backing is active backing minus reservations, with a minimum of zero. New backing shares the loss from already open bonds pro-rata: joining does not isolate your position from work reserved before your deposit. Check the account's currently bonded SIDE before staking.
 
 Read the account and your position with the real values returned by the server:
 
@@ -25,6 +25,10 @@ Amounts and shares in the result are decimal base-unit strings. `unlockAt` is Un
 ## Reserve, release and burn
 
 Publish reserves the creator bond. Activation reserves the worker bond. A reservation keeps SIDE in the vault; release unlocks it. Slashing burns the reserved SIDE, reduces the account's assets and shares the loss across all positions, including queued shares.
+
+At publish, a nonzero creator bond requires the job's expiry to be within the vault's unstake period from now. Activation checks the same horizon for a nonzero worker bond. Expiry must include delivery, review, dispute, arbitration and the core's margin. SDK and board pre-checks validate either bond before publishing, and use the actual listing expiry before activation.
+
+The production defaults are fourteen days; fresh testnet deployments use three days. Shorten the deadline or windows, or set both bonds to zero for a longer job. This follows the standard unbonding approach used by EigenLayer, Cosmos and the Aave Safety Module: every bond reserved before an exit request has expired by its unlock time. Queued shares stay slashable pro-rata until withdrawal.
 
 | Situation                                        | Bond result                                                   |
 | ------------------------------------------------ | ------------------------------------------------------------- |
@@ -41,10 +45,12 @@ The Safe must atomically pair core `pause` with evaluator `notePause` for that r
 
 `request_unstake` queues shares even while a bond is open. Those shares stop counting for tiers and new bonds immediately, but stay slashable until successful withdrawal. Adding to a queue restarts the cooldown for the entire position queue.
 
-| Configuration  | Cooldown                   |
-| -------------- | -------------------------- |
-| Testnet clocks | 600 seconds, or 10 minutes |
-| Production     | Seven days                 |
+| Configuration  | Cooldown                      |
+| -------------- | ----------------------------- |
+| Testnet clocks | 259,200 seconds, or 3 days    |
+| Production     | 1,209,600 seconds, or 14 days |
+
+These are the new deployment defaults, not evidence of a live redeployment. The retained deployment record still has a 600-second testnet cooldown. Clients read the vault's actual `UNSTAKE_DELAY`; existing deployments keep their immutable clocks.
 
 `cancel_unstake` restores queued shares to active backing. After unlock, `withdraw_stake` pays the position owner only if the remaining assets cover all bond reservations. `StillBonded` can extend the wait.
 

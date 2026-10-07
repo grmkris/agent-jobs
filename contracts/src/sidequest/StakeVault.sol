@@ -14,7 +14,7 @@ import {SidequestClocks} from "./SidequestClocks.sol";
 /// @notice Delegated SIDE backing and every Sidequest bond (ADR-0014; the full contract is in `IStakeVault`). A bond is a
 ///         reservation of stake: no token moves when a bond is posted, a slash burns the reserved SIDE, and a Holding
 ///         can only ever release or slash what it reserved itself. Holdings are authorized behind an immutable timelock
-///         longer than the immutable unstake cooldown (production: 8 days > 7 days), and revoked instantly; a revoked Holding still settles its live jobs.
+///         longer than the immutable unstake cooldown (production: 15 days > 14 days), and revoked instantly; a revoked Holding still settles its live jobs.
 ///
 ///         This contract holds everyone's stake. Its only external calls are to the immutable SIDE token, which has
 ///         no hooks, and every state-changing entry point is non-reentrant anyway.
@@ -197,7 +197,7 @@ contract StakeVault is IStakeVault, Ownable2Step, ReentrancyGuardTransient {
     }
 
     /// @dev Staking is closed until this (or `acceptHolding`) runs, so nobody can stake first and force the launch onto
-    ///      the 8-day path; `totalAssets == 0` is kept as a second guard.
+    ///      the timelocked admission path; `totalAssets == 0` is kept as a second guard.
     function bootstrapHolding(address holding) external onlyOwner {
         if (bootstrapped || totalAssets != 0 || _pendingHolding != address(0)) revert BootstrapClosed();
         if (holding == address(0)) revert ZeroAddress();

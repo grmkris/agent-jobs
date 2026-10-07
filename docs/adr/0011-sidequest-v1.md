@@ -122,9 +122,9 @@ reservations and outcome recording are handled by the v1 evaluator and vault.
 
 Every owner is the Safe (`Ownable2Step`; the deployer hands over at the end of the recipe and the Safe accepts; a
 pending proposal is dropped when ownership changes). The Safe's powers: the fee schedule (3-day timelock, 7-day
-execution window), Holding authorization on the vault (8-day timelock, 7-day acceptance window, instant revoke), mining
+execution window), Holding authorization on the vault (15-day timelock, 7-day acceptance window, instant revoke), mining
 funding, roots and root totals, the evaluator's verifier set, and the default arbitrator for new listings. None of
-these moves escrowed rewards. Only a newly authorized Holding could touch stake, after 8 days' notice, and never stake
+these moves escrowed rewards. Only a newly authorized Holding could touch stake, after 15 days' notice (updated by ADR-0014's unbonding horizon), and never stake
 whose account has denied it. On mainnet the Safe also holds the core's admin roles, which are broader: pause,
 `emergencyWithdraw` while paused, the fee setters, the hook whitelist and the UUPS upgrade. Those can move escrow, and
 an upgrade could misreport a job's state to the evaluator and so burn an honest bond; they are disclosed as such and
@@ -173,7 +173,7 @@ testnet and mainnet forks under these limits; the live `eth_estimateGas` in B11 
 Holding, evaluator; wiring; `bootstrapHolding`; distributor, reserve, the 500M; handover), every parameter from the
 `sidequest` config block and no predicted address: the deployer receives the mining allocation at genesis and forwards
 it once the reserve exists. Staking stays closed until the bootstrap (C3-001), so nobody can force the launch onto the
-8-day path. A reused core must charge zero fees, since Holding keeps the fee itself. The deploy has two steps (review
+timelocked admission path. A reused core must charge zero fees, since Holding keeps the fee itself. The deploy has two steps (review
 C8-001): `DeploySidequest.s.sol` broadcasts and writes only a gitignored candidate, because forge runs it before anything
 is sent; `PromoteSidequest.s.sol` then proves the candidate on-chain (`SidequestVerify`: code, wiring, bootstrap, the
 untouched reserve, one genesis, owners and core roles) and against forge's receipts, and only then writes `.deployment`
