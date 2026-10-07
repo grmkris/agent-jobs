@@ -32,7 +32,9 @@
     "mining:test": "bun test scripts/mining",
     "db:generate": "node scripts/db-generate.mjs",
     "testnet:v1:flows": "bun packages/sdk/scripts/v1-flows.ts",
-    "live:deployed": "bun packages/sdk/scripts/live/deployed/acceptance.ts"
+    "live:deployed": "bun packages/sdk/scripts/live/deployed/acceptance.ts",
+    "migrations:check": "bun scripts/migrations-lock.ts check",
+    "migrations:record": "bun scripts/migrations-lock.ts record"
   },
   "devDependencies": {
     "@effect/platform-node": "catalog:",
