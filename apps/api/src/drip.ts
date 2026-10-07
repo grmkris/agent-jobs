@@ -11,9 +11,9 @@ import { type Address, type Hex, formatEther, parseEther } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { dripFinish, dripReserve, dripState } from './registry.ts'
 
-export const DRIP_MON = '0.05'
+const DRIP_MON = '0.05'
 /** Below this the relay keeps what it has for rulings and evidence. */
-export const RELAY_FLOOR_MON = '0.2'
+const RELAY_FLOOR_MON = '0.2'
 
 export interface DripDeps {
   readonly sql: AsyncSql

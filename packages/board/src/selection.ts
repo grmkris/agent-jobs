@@ -18,7 +18,7 @@ export interface SelectionChainState {
   listingMatchesOffer: boolean | null
 }
 
-export type CreatorSelectionState = 'signed' | 'expired' | 'invalid' | 'unavailable'
+type CreatorSelectionState = 'signed' | 'expired' | 'invalid' | 'unavailable'
 
 export interface CreatorSelection {
   state: CreatorSelectionState

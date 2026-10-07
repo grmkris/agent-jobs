@@ -9,7 +9,7 @@ import type { Ctx, Wallet } from '../src/actions.ts'
 import { deployment } from '../src/deployment.ts'
 import { localTestPort } from './fork-port.ts'
 
-export const hasAnvil = (() => { try { execFileSync('anvil', ['--version'], { stdio: 'ignore' }); return true } catch { return false } })()
+const hasAnvil = (() => { try { execFileSync('anvil', ['--version'], { stdio: 'ignore' }); return true } catch { return false } })()
 export const forkEnabled = !!process.env.MONAD_TESTNET_RPC_URL && hasAnvil
 
 function timeout(name: string, fallback: number) {

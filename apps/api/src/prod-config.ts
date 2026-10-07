@@ -3,7 +3,7 @@ import { decodeFunctionResult, encodeFunctionData, parseAbi, parseEther } from '
 import { prodSecretSources } from '@sidequest/board/runtime'
 export { prodSecretSources, runtimeSecret } from '@sidequest/board/runtime'
 
-export interface ProdStack {
+interface ProdStack {
   // JSON artifacts are validated at runtime below; keep this broad enough for
   // inferred JSON fixtures while the accepted values remain fail-closed.
   kind?: string | undefined
@@ -13,7 +13,7 @@ export interface ProdStack {
   openTokens?: boolean | undefined
 }
 
-export interface ProdSidequest {
+interface ProdSidequest {
   block: number | null
   safe?: string | null | undefined
   /** Artifact only (LAUNCH-AUDIT-003): the reviewed Safe owners and threshold that D16 reads back live. */
@@ -296,7 +296,7 @@ export function validateAdmissionMode(artifact: Pick<ProdArtifact, 'admission'>,
 // ---- PROD-GATE-006: Explore's launch flag, pinned ----
 
 /** What an Explore build serves at `/release.json` (its vite config writes it from `release.ts`). */
-export interface ExploreRelease {
+interface ExploreRelease {
   network: string
   mainnetLive: boolean
   writesOpen: boolean

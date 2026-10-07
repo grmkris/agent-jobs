@@ -1,6 +1,5 @@
 export type AlertKind = 'uptime' | 'indexer_lag' | 'failed_publish' | 'stuck_escrow' | 'admin_event'
 export type AlertSeverity = 'warning' | 'critical'
-export const ownerTarget = '@mymanbot_bot'
 export const myagentOwnerMcp = 'https://myagent-prod.kristjan-grm11775.workers.dev/mcp'
 
 export interface OwnerAlert {

@@ -22,7 +22,7 @@ export interface ApprovedAgentAction {
   unstakeHash?: Hex
 }
 
-export function publishedReward(ctx: sdk.GrantContext, call: GrantCall): { token: Address; reward: bigint } | undefined {
+function publishedReward(ctx: sdk.GrantContext, call: GrantCall): { token: Address; reward: bigint } | undefined {
   if (!same(call.to, ctx.stack.holding)) return undefined
   try {
     const decoded = decodeFunctionData({ abi: sdk.sidequestHoldingAbi, data: call.data as Hex })

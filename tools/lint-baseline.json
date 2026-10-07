@@ -34,8 +34,7 @@
   "apps/api/src/alerts.ts": {
     "anti-slop(no-unknown-returns)": 1,
     "anti-slop(require-safety-comment-for-type-assertion)": 2,
-    "complexity(complexity)": 1,
-    "knip(exports)": 1
+    "complexity(complexity)": 1
   },
   "apps/api/src/board.ts": {
     "anti-slop(no-chained-type-assertions)": 1,
@@ -50,9 +49,6 @@
   "apps/api/src/collect-index.ts": {
     "anti-slop(require-safety-comment-for-type-assertion)": 1,
     "typescript(no-unnecessary-type-conversion)": 1
-  },
-  "apps/api/src/cors.ts": {
-    "knip(exports)": 2
   },
   "apps/api/src/deadlines.ts": {
     "anti-slop(no-runtime-typeof)": 6,
@@ -81,12 +77,10 @@
     "typescript(no-base-to-string)": 1
   },
   "apps/api/src/drip.ts": {
-    "anti-slop(require-safety-comment-for-type-assertion)": 1,
-    "knip(exports)": 2
+    "anti-slop(require-safety-comment-for-type-assertion)": 1
   },
   "apps/api/src/faucet.ts": {
-    "anti-slop(require-safety-comment-for-type-assertion)": 2,
-    "knip(exports)": 2
+    "anti-slop(require-safety-comment-for-type-assertion)": 2
   },
   "apps/api/src/feed-agent.ts": {
     "anti-slop(no-runtime-typeof)": 1,
@@ -125,7 +119,6 @@
     "anti-slop(require-safety-comment-for-type-assertion)": 18,
     "complexity(complexity)": 1,
     "eslint(max-lines-per-function)": 1,
-    "knip(exports)": 1,
     "typescript(no-unnecessary-type-conversion)": 1
   },
   "apps/api/src/mining.ts": {
@@ -155,13 +148,11 @@
     "anti-slop(require-safety-comment-for-type-assertion)": 5,
     "complexity(complexity)": 2,
     "eslint(max-lines-per-function)": 1,
-    "knip(types)": 3,
     "typescript(no-unnecessary-boolean-literal-compare)": 2,
     "typescript(no-unnecessary-type-assertion)": 3
   },
   "apps/api/src/registry.ts": {
-    "anti-slop(require-safety-comment-for-type-assertion)": 1,
-    "knip(exports)": 1
+    "anti-slop(require-safety-comment-for-type-assertion)": 1
   },
   "apps/api/src/routes/staking.ts": {
     "anti-slop-effect(prefer-effect-match)": 1,
@@ -170,16 +161,13 @@
   "apps/api/src/tools-telegram.ts": {
     "anti-slop(no-runtime-typeof)": 1,
     "anti-slop(no-unknown-returns)": 1,
-    "knip(types)": 1,
     "typescript(no-base-to-string)": 2
   },
   "apps/api/src/tools-tenant.ts": {
     "anti-slop(no-chained-type-assertions)": 1,
     "anti-slop(no-runtime-typeof)": 2,
     "anti-slop(no-unknown-returns)": 1,
-    "anti-slop(require-safety-comment-for-type-assertion)": 3,
-    "knip(exports)": 1,
-    "knip(types)": 1
+    "anti-slop(require-safety-comment-for-type-assertion)": 3
   },
   "apps/api/src/tools.ts": {
     "anti-slop(no-chained-type-assertions)": 1,
@@ -1115,9 +1103,7 @@
     "typescript(no-unnecessary-type-parameters)": 1
   },
   "infra/stage.ts": {
-    "anti-slop(require-safety-comment-for-type-assertion)": 1,
-    "knip(exports)": 1,
-    "knip(types)": 1
+    "anti-slop(require-safety-comment-for-type-assertion)": 1
   },
   "packages/board/src/admission.ts": {
     "anti-slop(no-runtime-typeof)": 2,
@@ -1131,8 +1117,7 @@
   "packages/board/src/agent-call-mapper.ts": {
     "anti-slop(require-safety-comment-for-type-assertion)": 4,
     "complexity(complexity)": 2,
-    "eslint(max-params)": 2,
-    "knip(exports)": 1
+    "eslint(max-params)": 2
   },
   "packages/board/src/agent-directory.test.ts": {
     "anti-slop(no-chained-type-assertions)": 1,
@@ -1272,8 +1257,7 @@
   "packages/board/src/grant-calls.ts": {
     "anti-slop(no-runtime-typeof)": 3,
     "anti-slop(require-safety-comment-for-type-assertion)": 4,
-    "complexity(complexity)": 2,
-    "knip(exports)": 1
+    "complexity(complexity)": 2
   },
   "packages/board/src/grants.ts": {
     "anti-slop(no-runtime-typeof)": 2,
@@ -1355,9 +1339,6 @@
     "anti-slop(no-module-mocking)": 1,
     "anti-slop(require-safety-comment-for-type-assertion)": 8
   },
-  "packages/board/src/selection.ts": {
-    "knip(types)": 1
-  },
   "packages/board/src/service.ts": {
     "anti-slop(no-runtime-typeof)": 18,
     "anti-slop(require-safety-comment-for-type-assertion)": 63,
@@ -1384,14 +1365,10 @@
     "typescript(no-unnecessary-type-assertion)": 1
   },
   "packages/board/src/sidequest.ts": {
-    "complexity(complexity)": 1,
-    "knip(exports)": 2
+    "complexity(complexity)": 1
   },
   "packages/board/src/sponsor-grants.fork.test.ts": {
     "anti-slop(require-safety-comment-for-type-assertion)": 2
-  },
-  "packages/board/src/sponsor-policy.ts": {
-    "knip(exports)": 1
   },
   "packages/board/src/sponsor-recovery.ts": {
     "anti-slop(require-safety-comment-for-type-assertion)": 10,
@@ -1966,8 +1943,7 @@
   },
   "packages/sdk/test/sidequest-fixture.ts": {
     "anti-slop(require-safety-comment-for-type-assertion)": 7,
-    "complexity(complexity)": 1,
-    "knip(exports)": 1
+    "complexity(complexity)": 1
   },
   "scripts/check-files.ts": {
     "eslint(no-shadow)": 1

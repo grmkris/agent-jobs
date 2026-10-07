@@ -3,8 +3,8 @@
  * `/b/<slug>/api/*`, `/b/<slug>/mcp` and `/data/*` from the browser. Explore proxies same-origin and needs none of
  * this; a disallowed origin gets no allow-origin header and the browser refuses the reply.
  */
-export const CORS_HEADERS = 'authorization, content-type, mcp-session-id, x-privy-token'
-export const CORS_METHODS = 'GET, POST, OPTIONS'
+const CORS_HEADERS = 'authorization, content-type, mcp-session-id, x-privy-token'
+const CORS_METHODS = 'GET, POST, OPTIONS'
 
 /** The headers to add to a reply for a request from `origin`, when the board allows it; empty otherwise. */
 export function corsHeaders(origin: string | undefined, allowed: boolean): Record<string, string> {

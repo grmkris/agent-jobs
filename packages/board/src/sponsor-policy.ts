@@ -1,7 +1,7 @@
 import { RELAY_FLOOR_MAINNET, type Network } from '@sidequest/sdk'
 
 /** Current funding policy keeps 2 MON on either chain, including G1's testnet relay. */
-export const SPONSOR_RELAY_FLOORS: Readonly<Record<Network, bigint>> = {
+const SPONSOR_RELAY_FLOORS: Readonly<Record<Network, bigint>> = {
   'monad-mainnet': RELAY_FLOOR_MAINNET,
   'monad-testnet': 2n * 10n ** 18n,
 }

@@ -56,14 +56,14 @@ export async function publishSidequest(ctx: sdk.Ctx, terms: OfferTerms, hash: He
   return out
 }
 
-export function acceptedActivationTerms(terms: OfferTerms): sdk.ActivationTerms {
+function acceptedActivationTerms(terms: OfferTerms): sdk.ActivationTerms {
   if (terms.arbitrator === undefined) throw new Error('v1 offer has no frozen arbitrator')
   return { creator: terms.creator, approver: terms.approver, token: terms.token, reward: terms.reward,
     creatorBond: terms.creatorBond, workerBond: terms.workerBond, arbitrator: terms.arbitrator, deliveryDeadline: terms.deliveryDeadline,
     reviewWindow: terms.windows.reviewSeconds, disputeWindow: terms.windows.disputeSeconds, arbitrationWindow: terms.windows.arbitrationSeconds }
 }
 
-export function matchesSidequest(terms: OfferTerms, hash: Hex, listing: Awaited<ReturnType<typeof sdk.getV1Listing>>): boolean {
+function matchesSidequest(terms: OfferTerms, hash: Hex, listing: Awaited<ReturnType<typeof sdk.getV1Listing>>): boolean {
   try { sdk.assertActivationTerms(listing, acceptedActivationTerms(terms)) } catch { return false }
   return listingMatches(terms, hash, listing)
 }

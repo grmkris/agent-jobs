@@ -53,7 +53,7 @@ export function checkGrantCall(ctx: sdk.GrantContext, spec: sdk.GrantSpec, call:
  * A permission redeemed by its agent (ADR-0015): exactly the stored, signed operator → agent delegation, one execution
  * inside its terms. The caller has already required the redemption to be the batch's only call.
  */
-export function checkPermissionRedemption(ctx: sdk.GrantContext, operator: Address, agent: Address,
+function checkPermissionRedemption(ctx: sdk.GrantContext, operator: Address, agent: Address,
   nested: { readonly grant: sdk.Delegation; readonly execution: sdk.Execution }, stored: { readonly spec: sdk.GrantSpec; readonly grant: sdk.Delegation }): void {
   const spec = stored.spec
   if (spec.kind !== 'permission' || !same(spec.delegator, operator) || !same(spec.agent, agent)

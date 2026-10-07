@@ -1,6 +1,5 @@
 import { agentFailureReply } from '@sidequest/board'
 import type { OAuthGrant } from './oauth.ts'
-import { OAUTH_SCOPES } from './oauth-validation.ts'
 import { permittedTool, requiredToolScope, toolAnnotations } from './mcp-policy.ts'
 import { ROLE_GUIDES, connectorInstructions, renderSkill } from './mcp-instructions.ts'
 import type { McpEvents } from './mcp-events.ts'
@@ -192,4 +191,3 @@ export async function mcpRoute(input: {
   return json({ jsonrpc: '2.0', id: id ?? null, error: { code: -32601, message: `method not found: ${methodName}` } }, 200)
 }
 
-export { OAUTH_SCOPES }

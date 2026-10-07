@@ -4,7 +4,7 @@ import type { AsyncSql } from '@sidequest/indexer'
 import type { Network } from '@sidequest/sdk'
 import { TelegramError, telegramLinkConfirm, telegramLinkPrepare, telegramStatus, telegramUnlink } from './telegram.ts'
 
-export interface TelegramToolDeps {
+interface TelegramToolDeps {
   sql: AsyncSql
   network: Network
   configured: boolean

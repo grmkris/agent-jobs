@@ -15,9 +15,9 @@ import { type DripDeps, type DripOutcome, dripOnce } from './drip.ts'
 import { dripFinish, dripReserve, dripState } from './registry.ts'
 
 /** A wallet holding at least this much MON sends the claim itself. */
-export const SELF_PAY_MON = '0.02'
+const SELF_PAY_MON = '0.02'
 /** The relay pays for claims only above this; below it the MON is kept for sponsorship (its floor is 2 MON). */
-export const RELAY_RESERVE_MON = '2.5'
+const RELAY_RESERVE_MON = '2.5'
 const DRIP_GAS = 300_000n
 
 export type FaucetOutcome =

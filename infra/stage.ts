@@ -1,7 +1,6 @@
 import dev from './dev.json' with { type: 'json' }
 import prod from './prod.json' with { type: 'json' }
 
-export type DeployStage = 'local' | 'dev' | 'prod'
 export interface StageProfile {
   product: string
   stage: 'dev' | 'prod'
@@ -35,6 +34,3 @@ export function stageProfile(stage: string | undefined = process.env.SIDEQUEST_S
   throw new Error(`Unknown Sidequest stage: ${stage}`)
 }
 
-export function selectedNetwork(stage: string | undefined = process.env.SIDEQUEST_STAGE): StageProfile['network'] | undefined {
-  return stageProfile(stage)?.network
-}

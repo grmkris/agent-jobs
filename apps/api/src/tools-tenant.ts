@@ -17,7 +17,7 @@ import type * as sdk from '@sidequest/sdk'
 import type { Address } from 'viem'
 import { createBoard, getBoard, listBoards, updateBoard } from './registry.ts'
 
-export interface TenantToolDeps {
+interface TenantToolDeps {
   readonly sql: AsyncSql
   readonly deployment: sdk.Deployment
   readonly resolveToken: (address: Address) => Promise<TenantToken>
@@ -135,7 +135,7 @@ export const tenantTools: Record<string, TenantTool> = {
 }
 
 /** Board tools whose arguments a tenant shapes: the board's defaults filled in, stacks and tokens outside it refused. */
-export const PUBLISH_TOOLS: ReadonlySet<string> = new Set(['create_task', 'request_quotes', ])
+const PUBLISH_TOOLS: ReadonlySet<string> = new Set(['create_task', 'request_quotes', ])
 
 export function tenantArgs(tenant: TenantConfig, tool: string, args: Record<string, unknown>): Record<string, unknown> {
   if (!PUBLISH_TOOLS.has(tool)) return args

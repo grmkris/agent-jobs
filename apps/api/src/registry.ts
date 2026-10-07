@@ -20,7 +20,7 @@ import {
 } from '@sidequest/indexer'
 import type { Deployment } from '@sidequest/sdk'
 
-export const REGISTRY_SCHEMA: readonly string[] = [
+const REGISTRY_SCHEMA: readonly string[] = [
   `CREATE TABLE IF NOT EXISTS boards (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
