@@ -241,6 +241,9 @@ const configFor = (infra: StageFile): { readonly attester: string } => {
 }
 export interface PlanRow { readonly fqn: string; readonly action: string; readonly bindings: readonly { readonly action: string }[] }
 interface Snapshot { readonly summary: PlanCounts; readonly resources: readonly PlanRow[]; readonly actions: readonly { readonly action: string }[]; readonly drifted?: number; readonly deferredAdoption?: readonly string[] }
+// The Alchemy CLI requires a regular file for --env-file; the stage env reaches it as the process environment instead,
+// and BUN_OPTIONS=--no-env-file stops Bun auto-loading a checkout's .env/.env.local into the deploy.
+const EMPTY_ENV = resolve(ROOT, 'scripts/ci/empty.env')
 const runAlchemy = (action: 'plan' | 'drift', stage: Stage, env: Record<string, string>, adoptMove = false): Snapshot => {
   const child = spawnSync('bun', ['--no-env-file', resolve(ROOT, 'scripts/ci/alchemy.ts'), action, stage, ...(adoptMove ? ['--adopt-move'] : [])], { cwd: ROOT, env, stdio: 'pipe', encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 })
   if (child.status !== 0) fail('programmatic Alchemy inspection failed (provider details withheld)')
@@ -298,7 +301,7 @@ async function main(): Promise<void> {
   if (action === 'drift') {
     if (!remoteState) fail(`drift refused: no remote state for Sidequest/${stage}`)
     // The noninteractive CLI does not fail on drift; require the programmatic verdict too.
-    const cli = spawnSync('bunx', ['--no-install', 'alchemy', 'drift', '--stage', stage, '--profile', 'default', '--env-file', '/dev/null'], { cwd: ROOT, env, stdio: 'pipe', maxBuffer: 32 * 1024 * 1024 })
+    const cli = spawnSync('bunx', ['--no-install', 'alchemy', 'drift', '--stage', stage, '--profile', 'default', '--env-file', EMPTY_ENV], { cwd: ROOT, env: { ...env, BUN_OPTIONS: '--no-env-file' }, stdio: 'pipe', maxBuffer: 32 * 1024 * 1024 })
     if (cli.status !== 0) fail('alchemy drift failed (provider output withheld)')
     const snapshot = runAlchemy('drift', stage, env)
     if (snapshot.drifted === undefined) fail('invalid drift verdict')
@@ -315,7 +318,7 @@ async function main(): Promise<void> {
   if (action === 'plan') return
   // Capture provider output: it can contain credential-bearing request details.
   await checkStateStore(infra.cloudflare.accountId)
-  const deploy = spawnSync('bunx', ['--no-install', 'alchemy', 'deploy', '--stage', stage, '--profile', 'default', '--env-file', '/dev/null', '--yes', ...(adoptMove ? ['--adopt'] : [])], { cwd: ROOT, env, stdio: 'pipe', maxBuffer: 32 * 1024 * 1024 })
+  const deploy = spawnSync('bunx', ['--no-install', 'alchemy', 'deploy', '--stage', stage, '--profile', 'default', '--env-file', EMPTY_ENV, '--yes', ...(adoptMove ? ['--adopt'] : [])], { cwd: ROOT, env: { ...env, BUN_OPTIONS: '--no-env-file' }, stdio: 'pipe', maxBuffer: 32 * 1024 * 1024 })
   if (deploy.status !== 0) fail('alchemy deploy failed (provider output withheld)')
   const after = runAlchemy('plan', stage, env)
   assertNoop(after)
