@@ -1,6 +1,6 @@
 /** Discovery comes from a checked index; every claim and amount below is re-read from the chain. */
 import * as sdk from '@sidequest/sdk'
-import { type Address, encodeFunctionData, zeroAddress } from 'viem'
+import { type Address, encodeFunctionData } from 'viem'
 import { holdingAbi, settleSidequest, transaction } from './sidequest.ts'
 import { miningProof, type MiningSource } from './mining.ts'
 
@@ -22,31 +22,6 @@ export interface CollectAction {
 }
 const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase()
 
-async function legacySettlement(ctx: sdk.Ctx, jobId: bigint, now: number): Promise<sdk.TxRequest[]> {
-  const [job, listing, paused, rejectedAt, disputedAt, review, dispute, arbitration] = await Promise.all([
-    sdk.getJob(ctx, jobId), sdk.getListing(ctx, jobId), ctx.publicClient.readContract({ address: ctx.deployment.core, abi: sdk.coreAbi, functionName: 'paused' }),
-    ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: sdk.jobsEvaluatorAbi, functionName: 'rejectedAt', args: [jobId] }),
-    ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: sdk.jobsEvaluatorAbi, functionName: 'disputedAt', args: [jobId] }),
-    ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: sdk.jobsEvaluatorAbi, functionName: 'reviewWindow' }),
-    ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: sdk.jobsEvaluatorAbi, functionName: 'disputeWindow' }),
-    ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: sdk.jobsEvaluatorAbi, functionName: 'arbitrationWindow' }),
-  ])
-  const settle = transaction(ctx, 'Settle the legacy reward and bonds', ctx.stack.holding, encodeFunctionData({ abi: sdk.jobHoldingAbi, functionName: 'settle', args: [jobId] }), sdk.V1_GAS.settle)
-  const terminal = ['Completed', 'Rejected', 'Expired'].includes(job.statusName)
-  if (terminal) {
-    const rewardHere = ['Rejected', 'Expired'].includes(job.statusName)
-    return (!listing.creatorBondSettled || listing.workerBondPosted && !listing.workerBondSettled || rewardHere && !listing.rewardSettled) ? [settle] : []
-  }
-  if (paused) return []
-  if (listing.mode === 1 && listing.worker === zeroAddress && now > listing.selectionDeadline) return [transaction(ctx, 'Expire the unawarded legacy contest', ctx.stack.holding, encodeFunctionData({ abi: sdk.jobHoldingAbi, functionName: 'expireContest', args: [jobId] })), settle]
-  let fn: 'completeAfterSilence' | 'rejectAfterWindow' | 'refundAfterArbitrationTimeout' | 'rejectAfterDeliveryDeadline' | undefined
-  if (disputedAt > 0 && now > disputedAt + arbitration) fn = 'refundAfterArbitrationTimeout'
-  else if (rejectedAt > 0 && disputedAt === 0 && now > rejectedAt + dispute) fn = 'rejectAfterWindow'
-  else if (job.statusName === 'Submitted' && rejectedAt === 0 && job.submittedAt <= listing.deliveryDeadline && now > job.submittedAt + review) fn = 'completeAfterSilence'
-  else if ((job.statusName === 'Funded' || job.statusName === 'Submitted' && job.submittedAt > listing.deliveryDeadline) && now > listing.deliveryDeadline) fn = 'rejectAfterDeliveryDeadline'
-  return fn === undefined ? [] : [transaction(ctx, 'Finalize the elapsed legacy window', ctx.stack.evaluator, encodeFunctionData({ abi: sdk.jobsEvaluatorAbi, functionName: fn, args: [jobId] })), ...(fn === 'completeAfterSilence' ? [] : [settle])]
-}
-
 export async function collectActions(base: sdk.Ctx, wallet: Address, snapshot: CollectSnapshot, mining?: MiningSource): Promise<CollectAction[]> {
   const block = await base.publicClient.getBlock()
   const now = Number(block.timestamp)
@@ -66,11 +41,10 @@ export async function collectActions(base: sdk.Ctx, wallet: Address, snapshot: C
     const [job, listing] = await Promise.all([sdk.getJob(ctx, jobId), sdk.getListing(ctx, jobId)])
     if (!same(job.client, ctx.stack.holding)) throw new Error('the collect index does not match the canonical job Holding')
     if (ctx.stack.openTokens) addToken(ctx, listing.token)
-    const contribution = ctx.stack.kind === 'sidequest-v1'
-      ? await ctx.publicClient.readContract({ address: ctx.stack.holding, abi: sdk.sidequestHoldingAbi, functionName: 'topUpOf', args: [jobId, wallet] }) : 0n
+    const contribution = await ctx.publicClient.readContract({ address: ctx.stack.holding, abi: sdk.sidequestHoldingAbi, functionName: 'topUpOf', args: [jobId, wallet] })
     const party = [listing.creator, listing.approver, listing.worker].some(a => same(a, wallet))
     if (party || contribution > 0n) {
-      const transactions = ctx.stack.kind === 'sidequest-v1' ? await settleSidequest(ctx, jobId, undefined, now) : await legacySettlement(ctx, jobId, now)
+      const transactions = await settleSidequest(ctx, jobId, undefined, now)
       if (transactions.length > 0) out.push({ kind: 'settle', jobId: candidate.jobId, description: 'Finalize and settle this job under its agreed outcome.', transactions })
       else if (['Open', 'Funded', 'Submitted'].includes(job.statusName) && now >= job.expiredAt) {
         // The core's own claim cutoff and pending-claim restrictions remain authoritative.
@@ -84,7 +58,7 @@ export async function collectActions(base: sdk.Ctx, wallet: Address, snapshot: C
           ] })
       }
     }
-    if (ctx.stack.kind === 'sidequest-v1') {
+    {
       const v1 = await sdk.getV1Listing(ctx, jobId)
       if (v1.outcome === 2 && contribution > 0n) out.push({ kind: 'claimTopUpRefund', jobId: candidate.jobId, token: listing.token, amount: contribution.toString(), description: 'Collect your contribution to this refunded job.', transactions: [sdk.topUpRefundTransaction(ctx, jobId, wallet)] })
     }

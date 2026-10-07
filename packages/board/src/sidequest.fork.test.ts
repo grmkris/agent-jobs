@@ -29,8 +29,7 @@ fork('Sidequest board on a local Monad fork', () => {
   afterAll(() => { db?.close(); f?.close() })
 
   const offer = () => ({ title: 'Board fork hire', brief: 'Real local bytecode', acceptanceCriteria: ['finished'], token: f.ctx.stack.factory,
-    reward: '0.000000000000000101', creatorBond: '10', workerBond: '10', deliveryDeadline: now + 3600,
-    mode: 'hire' as const, windows, invite: { agentId: agentId.toString() } })
+    reward: '0.000000000000000101', creatorBond: '10', workerBond: '10', deliveryDeadline: now + 3600, windows, invite: { agentId: agentId.toString() } })
   async function listed() {
     const created = await board.createTask({ address: f.creator.account.address }, offer())
     expect(created.applicationId).toBeDefined()
@@ -63,7 +62,7 @@ fork('Sidequest board on a local Monad fork', () => {
   it.each(['arbitrary caller', 'drain recovery'])('refuses a copied-hash publication reported through %s, then binds and activates the creator’s job', async (path) => {
     const created = await board.createTask({ address: f.creator.account.address }, offer())
     await sdk.delegate(f.ctx, f.contributor, parseEther('10'))
-    const spoof = await sdk.publish(f.ctx, f.contributor, { mode: 'hire', token: f.ctx.stack.factory, reward: 101n,
+    const spoof = await sdk.publish(f.ctx, f.contributor, { token: f.ctx.stack.factory, reward: 101n,
       creatorBond: parseEther('10'), workerBond: parseEther('10'), deliveryDeadline: now + 3600,
       reviewWindow: windows.reviewSeconds, disputeWindow: windows.disputeSeconds, arbitrationWindow: windows.arbitrationSeconds,
       arbitrator: f.arbitrator.account.address, manifestHash: created.termsHash, termsHash: created.termsHash })
@@ -114,7 +113,6 @@ fork('Sidequest board on a local Monad fork', () => {
   }, 180_000)
 
   it('direct hire freezes windows/arbitrator and signs the current net; a changed fee quote requires a new signature', async () => {
-    await expect(board.createTask({ address: f.creator.account.address }, { ...offer(), mode: 'contest' })).rejects.toThrow('hires only')
     await expect(board.createTask({ address: f.creator.account.address }, { ...offer(), windows: { ...windows, reviewSeconds: 3599 } })).rejects.toThrow('1 hour')
     await expect(board.createTask({ address: f.creator.account.address }, { ...offer(), arbitrator: f.creator.account.address })).rejects.toThrow('distinct')
     const x = await listed()
@@ -201,7 +199,7 @@ fork('Sidequest board on a local Monad fork', () => {
 
   it('refuses activation when a creator reuses the terms label with a different on-chain bond', async () => {
     const created = await board.createTask({ address: f.creator.account.address }, offer())
-    await sdk.publish(f.ctx, f.creator, { mode: 'hire', token: f.ctx.stack.factory, reward: 101n, creatorBond: parseEther('10'), workerBond: parseEther('50'),
+    await sdk.publish(f.ctx, f.creator, { token: f.ctx.stack.factory, reward: 101n, creatorBond: parseEther('10'), workerBond: parseEther('50'),
       deliveryDeadline: now + 3600, reviewWindow: 3600, disputeWindow: 7200, arbitrationWindow: 43200,
       arbitrator: f.arbitrator.account.address, manifestHash: created.termsHash, termsHash: created.termsHash })
     const seen = await board.getTask({}, { taskId: created.taskId })
@@ -210,53 +208,4 @@ fork('Sidequest board on a local Monad fork', () => {
     await board.submitSelection({ address: f.creator.account.address }, { taskId: created.taskId, nonce: sel.nonce, signature: await sdk.signTypedDataJson(f.creator, sel.sign.typedData) })
     await expect(board.prepareActivation({ address: f.worker.account.address }, { taskId: created.taskId })).rejects.toThrow('does not match')
   }, 120_000)
-
-  it('keeps the legacy pause, disputes and contest settlement after demo leaves current stacks', async () => {
-    const holding = await f.deploy('JobHolding', [f.ctx.deployment.core, f.ctx.stack.factory, f.ctx.deployment.identity, 0n, 0n])
-    const evaluator = await f.deploy('JobsEvaluator', [f.ctx.deployment.core, holding, f.ctx.deployment.reputation, f.admin.account.address, 120, 120, 300, 120])
-    await f.send(holding, sdk.jobHoldingAbi, 'setEvaluator', [evaluator])
-    await f.send(f.ctx.deployment.core, sdk.coreAbi, 'setHookWhitelist', [holding, true])
-    const legacyStack: sdk.Stack = { kind: 'legacy', factory: f.ctx.stack.factory, holding, evaluator, openTokens: true }
-    const legacyCtx = { ...f.ctx, stack: legacyStack }
-    const config = { network: 'monad-testnet' as const, domain: 'fork.test', uri: 'https://fork.test', manifestBaseUrl: 'https://fork.test/offers', now: () => now }
-    const sql = fromNodeSqlite(db)
-    const before = new Board(sql, { ...config, contexts: { main: f.ctx, demo: legacyCtx } })
-    const { invite: _invite, windows: _windows, ...legacyOffer } = offer()
-    const created = await before.createTask({ address: f.creator.account.address }, { ...legacyOffer, stack: 'demo', creatorBond: '0', workerBond: '0' })
-    await sdk.sendAll(f.creator, f.ctx.publicClient, created.transactions)
-    await before.getTask({}, { taskId: created.taskId })
-    const app = await before.apply({ address: f.worker.account.address }, { taskId: created.taskId, agentId: agentId.toString() })
-    const sel = await before.selectWorker({ address: f.creator.account.address }, { taskId: created.taskId, applicationId: app.applicationId })
-    await before.submitSelection({ address: f.creator.account.address }, { taskId: created.taskId, nonce: sel.nonce, signature: await sdk.signTypedDataJson(f.creator, sel.sign.typedData) })
-    const current = { ...f.ctx, deployment: { ...f.ctx.deployment, legacyStacks: { ...f.ctx.deployment.legacyStacks, 'demo-local': legacyStack } } }
-    const boot = () => new Board(sql, { ...config, contexts: { main: current } })
-    await f.send(f.ctx.deployment.core, sdk.coreAbi, 'pause')
-    await expect(boot().prepareActivation({ address: f.worker.account.address }, { taskId: created.taskId })).rejects.toThrow('paused')
-    await f.send(f.ctx.deployment.core, sdk.coreAbi, 'unpause')
-    const migrated = boot()
-    const prep = await migrated.prepareActivation({ address: f.worker.account.address }, { taskId: created.taskId })
-    const act = await migrated.buildActivation({ address: f.worker.account.address }, { taskId: created.taskId, budgetSignature: await sdk.signTypedDataJson(f.worker, prep.sign.typedData) })
-    await sdk.sendAll(f.worker, f.ctx.publicClient, act.transactions)
-    const task = await migrated.getTask({}, { taskId: created.taskId })
-    await sdk.submit(legacyCtx, f.worker, BigInt(task.jobId!), sdk.hashText('legacy delivery'))
-    await sdk.sendAll(f.creator, f.ctx.publicClient, (await migrated.rejectWork({ address: f.creator.account.address }, { taskId: created.taskId, violation: 'None', reason: 'Legacy rejection.' })).transactions)
-    await sdk.sendAll(f.worker, f.ctx.publicClient, (await migrated.disputeRejection({ address: f.worker.account.address }, { taskId: created.taskId })).transactions)
-    expect(await migrated.listDisputes({ address: f.admin.account.address })).toEqual([expect.objectContaining({ taskId: created.taskId, kind: 'legacy', arbitrator: f.admin.account.address })])
-    const { bundleHash } = await migrated.getDisputeBundle({ address: f.admin.account.address }, { taskId: created.taskId })
-    const ruled = await migrated.prepareRuling({ address: f.admin.account.address }, { taskId: created.taskId, forWorker: true, slashLoser: false, reason: 'The legacy worker met the published criteria.', bundleHash, runner: 'legacy-fork' })
-    const result = await migrated.submitRuling({ address: f.admin.account.address }, { taskId: created.taskId, signature: await sdk.signTypedDataJson(f.admin, ruled.sign.typedData) })
-    if (!('transactions' in result)) throw new Error('Expected a legacy signed ruling')
-    await sdk.sendAll(f.contributor, f.ctx.publicClient, result.transactions!)
-    expect(await migrated.listDisputes({ address: f.admin.account.address })).toEqual([])
-
-    const contest = await before.createTask({ address: f.creator.account.address }, { ...legacyOffer, stack: 'demo', mode: 'contest', creatorBond: '0', workerBond: '0', selectionDeadline: now + 100, deliveryDeadline: now + 200 })
-    await sdk.sendAll(f.creator, f.ctx.publicClient, contest.transactions)
-    await migrated.getTask({}, { taskId: contest.taskId })
-    now += 101
-    await f.rpc('evm_setNextBlockTimestamp', [now])
-    await f.rpc('evm_mine')
-    const settle = await migrated.settlementActions({}, { taskId: contest.taskId })
-    expect(settle.transactions.map(t => decodeFunctionData({ abi: sdk.jobHoldingAbi, data: t.data }).functionName)).toEqual(['expireContest', 'settle'])
-    await sdk.sendAll(f.contributor, f.ctx.publicClient, settle.transactions)
-  }, 240_000)
 })

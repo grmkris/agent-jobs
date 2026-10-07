@@ -63,7 +63,7 @@ export function failureFromReply(reply: { code: string; message: string; reason?
 
 /** The custom errors our contracts declare: the only revert names a reply may carry. */
 const KNOWN_REVERTS: ReadonlySet<string> = new Set(
-  [sdk.jobHoldingAbi, sdk.jobsEvaluatorAbi, sdk.coreAbi, erc20Abi, sdk.faucetTokenAbi, sdk.jobPoolAbi, sdk.jobPoolFactoryAbi, sdk.sidequestHoldingAbi,
+  [sdk.coreAbi, erc20Abi, sdk.sidequestHoldingAbi,
     sdk.sidequestEvaluatorAbi, sdk.stakeVaultAbi, sdk.feeScheduleAbi, sdk.factoryV2Abi, sdk.miningReserveAbi, sdk.epochDistributorAbi]
     .flatMap(abi => (abi as readonly { type: string; name?: string }[]).filter(item => item.type === 'error' && item.name !== undefined).map(item => item.name!)),
 )

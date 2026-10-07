@@ -5,28 +5,25 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Board } from './service.ts'
 import { fromNodeSqlite } from './store.ts'
 import { canonicalJson, termsHash, type OfferTerms } from './terms.ts'
-import legacyConfig from '../../sdk/src/fixtures/legacy-deployment.json' with { type: 'json' }
 
 vi.mock('@sidequest/sdk', async (original) => ({
-  ...(await original<typeof sdk>()), getJob: vi.fn(), getListing: vi.fn(), agentWallet: vi.fn(),
+  ...(await original<typeof sdk>()), getJob: vi.fn(), getListing: vi.fn(), sidequestState: vi.fn(), agentWallet: vi.fn(),
 }))
 
 const creator = '0x1111111111111111111111111111111111111111' as const
-const poolCreator = '0x4444444444444444444444444444444444444444' as const
 const worker = '0x2222222222222222222222222222222222222222' as const
 const curator = '0x3333333333333333333333333333333333333333' as const
 const databases: DatabaseSync[] = []
 afterEach(() => { databases.splice(0).forEach((database) => database.close()); vi.clearAllMocks() })
 
-function fixture(pool = false) {
-  // Persisted v2 terms and pool selections belong to a legacy pair after main is promoted.
-  const historical = sdk.deploymentFromConfig('monad-testnet', legacyConfig)
+function fixture() {
+  // Use the current v1 pair for selections.
+  const historical = sdk.deployment('monad-testnet')
   const base = { ...sdk.contextFor('monad-testnet', historical.stacks.main!, 'http://127.0.0.1:1'), deployment: historical }
   const verify = vi.fn(async () => true)
-  const read = vi.fn(async ({ functionName }: { functionName: string }): Promise<boolean | number> => {
+  const read = vi.fn(async ({ functionName }: { functionName: string }) => {
     if (functionName === 'selectionNonceUsed' || functionName === 'paused') return false
-    if (functionName === 'violationOf') return 0
-    return 0
+    throw new Error(`unexpected read ${functionName}`)
   })
   const ctx = { ...base, publicClient: { ...base.publicClient, verifyTypedData: verify, readContract: read } } as unknown as sdk.Ctx
   const database = new DatabaseSync(':memory:')
@@ -38,16 +35,25 @@ function fixture(pool = false) {
   const terms: OfferTerms = {
     v: 2, taskId: 'selection-fixture', projectId: null, policyVersion: null, mode: 'hire', title: 'Selection fixture', brief: 'Test only', acceptanceCriteria: [],
     deployment: { chainId: base.deployment.chainId, core: base.deployment.core, holding: base.stack.holding, evaluator: base.stack.evaluator, identity: base.deployment.identity },
-    creator: pool ? poolCreator : creator, approver: creator, token: base.deployment.rewardTokens[0]!, reward: 5n, creatorBond: 0n, workerBond: 0n,
-    deliveryDeadline: 1_200, selectionDeadline: null, windows: { reviewSeconds: 100, disputeSeconds: 100, arbitrationSeconds: 100 }, eligibility: null, evidencePolicy: null, quote: null, salt: sdk.EMPTY_HASH,
+    creator, approver: creator, arbitrator: base.deployment.arbitrator, token: base.deployment.rewardTokens[0]!, reward: 5n, creatorBond: 0n, workerBond: 0n,
+    deliveryDeadline: 1_200, windows: { reviewSeconds: 100, disputeSeconds: 100, arbitrationSeconds: 100 }, eligibility: null, evidencePolicy: null, quote: null, salt: sdk.EMPTY_HASH,
   }
   const hash = termsHash(terms)
-  sql.run('INSERT INTO tasks (id, creator, stack, terms_json, terms_hash, job_id, from_block, created_at, pool_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', terms.taskId, terms.creator, 'main', canonicalJson(terms), hash, '61', 0, 0, pool ? 'pool-1' : null)
-  if (pool) sql.run('INSERT INTO pools (id, task_id, factory, salt, pool, curator, token, goal, pledge_deadline, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', 'pool-1', terms.taskId, creator, sdk.EMPTY_HASH, poolCreator, curator, terms.token, '5', 900, 0)
+  sql.run('INSERT INTO tasks (id, creator, stack, terms_json, terms_hash, job_id, from_block, created_at, pool_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', terms.taskId, terms.creator, 'main', canonicalJson(terms), hash, '61', 0, 0, null)
   sql.run('INSERT INTO applications (id, task_id, worker, agent_id, note, created_at) VALUES (?, ?, ?, ?, ?, ?)', 'app-1', terms.taskId, worker, '7001', 'Test only', 0)
   sql.run('INSERT INTO selections (task_id, nonce, application_id, worker, agent_id, activate_by, signature, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', terms.taskId, '1', 'app-1', worker, '7001', 1_100, '0x1234', 10)
   vi.mocked(sdk.getJob).mockResolvedValue({ statusName: 'Open', provider: zeroAddress, submittedAt: 0 } as unknown as Awaited<ReturnType<typeof sdk.getJob>>)
-  vi.mocked(sdk.getListing).mockResolvedValue({ creator: terms.creator, approver: creator, token: terms.token, reward: terms.reward, creatorBond: 0n, workerBond: 0n, deliveryDeadline: terms.deliveryDeadline, selectionDeadline: 0, mode: 0, policyHash: hash } as unknown as Awaited<ReturnType<typeof sdk.getListing>>)
+  const listing = { creator, approver: creator, arbitrator: terms.arbitrator, token: terms.token, reward: terms.reward,
+    creatorBond: 0n, workerBond: 0n, deliveryDeadline: terms.deliveryDeadline, policyHash: hash,
+    reviewWindow: terms.windows.reviewSeconds, disputeWindow: terms.windows.disputeSeconds, arbitrationWindow: terms.windows.arbitrationSeconds,
+    feeBps: 0, fee: 0n, bonus: 0n }
+  vi.mocked(sdk.getListing).mockResolvedValue(listing as unknown as Awaited<ReturnType<typeof sdk.getListing>>)
+  vi.mocked(sdk.sidequestState).mockResolvedValue({
+    job: { statusName: 'Open', provider: zeroAddress, submittedAt: 0 }, listing,
+    terms: { deliveryDeadline: terms.deliveryDeadline, funded: 0n }, decision: { outcome: 0, rejectedAt: 0, disputedAt: 0, violation: 0 },
+    outcome: 'None', status: 'open', paused: false, deferredDecision: false, collectPending: false,
+    reviewEndsAt: null, disputeEndsAt: null, arbitrationEndsAt: null,
+  } as unknown as Awaited<ReturnType<typeof sdk.sidequestState>>)
   vi.mocked(sdk.agentWallet).mockResolvedValue(worker)
   const get = (address?: Address) => board.getTask(address === undefined ? {} : { address }, { taskId: terms.taskId })
   return { get, boot, sql, terms, read, verify, setNow: (value: number) => { now = value } }
@@ -76,12 +82,6 @@ describe('get_task creator selection authorization and persistence', () => {
     expect(context.read.mock.calls.some(([call]) => call.functionName === 'selectionNonceUsed')).toBe(false)
   })
 
-  it('allows only the recorded pool curator in addition to its creator', async () => {
-    const context = fixture(true)
-    expect((await context.get(curator)).selection?.[0]?.state).toBe('signed')
-    expect((await context.get(curator)).you).toContain('creator')
-  })
-
   it('expires a persisted selection strictly after its cutoff', async () => {
     const context = fixture()
     context.setNow(1_101)
@@ -91,7 +91,7 @@ describe('get_task creator selection authorization and persistence', () => {
 
   it('rejects a revoked nonce, rotated wallet, and invalid current creator signature', async () => {
     const context = fixture()
-    context.read.mockImplementation(async ({ functionName }) => functionName === 'selectionNonceUsed' ? true : 0)
+    context.read.mockImplementation(async ({ functionName }) => functionName === 'selectionNonceUsed')
     expect((await context.get(creator)).selection?.[0]?.state).toBe('invalid')
     context.read.mockImplementation(async () => false)
     vi.mocked(sdk.agentWallet).mockResolvedValue(curator)

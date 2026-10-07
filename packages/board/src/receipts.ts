@@ -76,17 +76,14 @@ export async function confirmedOperationIds(ctx: sdk.Ctx, jobId: bigint, receipt
       case 'Rejected': mark('reject', a.approver, [['reasonHash', a.reasonHash], ['violation', a.violation]]); break
       case 'Disputed': mark('dispute', a.worker); break
       case 'Ruled': {
-        const actor = a.arbitrator ?? await ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: sdk.jobsEvaluatorAbi, functionName: 'arbitrator' })
+        const actor = a.arbitrator
         mark('rule', actor, [['reasonHash', a.reasonHash], ['forWorker', a.forWorker], ['slashLoser', a.slashLoser]]); break
       }
       case 'Cancelled': {
         listing ??= await sdk.getListing(ctx, jobId)
         mark('cancel', listing.creator); break
       }
-      case 'Awarded': {
-        listing ??= await sdk.getListing(ctx, jobId)
-        mark('award', listing.approver, [['worker', a.worker], ['agentId', a.agentId], ['deliverableHash', a.deliverable]]); break
-      }
+
     }
   }
   return [...confirmed]

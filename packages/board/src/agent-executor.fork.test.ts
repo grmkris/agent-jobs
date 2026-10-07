@@ -70,7 +70,7 @@ suite('agent executor through real contracts', () => {
     prepareTool: tool, verifyToolSigning: request => board.verifyAgentSigning(request.caller, request) })
 
   const offer = (reward = '10', title = 'Executor fixture hire') => ({ title, brief: 'Public fork proof', acceptanceCriteria: ['finished'], token,
-    reward, creatorBond: '0', workerBond: '0', deliveryDeadline: now + 86400, mode: 'hire' as const,
+    reward, creatorBond: '0', workerBond: '0', deliveryDeadline: now + 86400,
     windows: { reviewSeconds: 3600, disputeSeconds: 3600, arbitrationSeconds: 43200 }, invite: { agentId: workerId.toString() } })
 
   async function confirm(wallet: sdk.Wallet, spec: sdk.GrantSpec): Promise<Hex> {

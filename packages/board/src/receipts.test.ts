@@ -40,25 +40,13 @@ it('same-reason rejections confirm only their exact violation, with complete pre
   const none = { ...op('reject', wallet, { reasonHash, violation: 'None' }), id: 'none' }, quality = { ...op('reject', wallet, { reasonHash, violation: 'Quality' }), id: 'quality' }
   expect(await confirmedOperationIds(ctx, 1n, receipt([log]), [none, quality, op('reject', wallet, { reasonHash }), op('reject', mallory, { reasonHash, violation: 'Quality' })])).toEqual(['quality'])
 })
-it('rulings match both decision flags and the canonical v1 or legacy arbitrator', async () => {
+it('rulings match both decision flags and the canonical v1 arbitrator', async () => {
   const reasonHash = sdk.hashText('decision')
   const fields = encodeAbiParameters([{ type: 'bool' }, { type: 'bool' }, { type: 'bytes32' }], [true, false, reasonHash])
   const log = { address: ctx.stack.evaluator, topics: encodeEventTopics({ abi: sdk.sidequestEvaluatorAbi, eventName: 'Ruled', args: { jobId: 1n, arbitrator: wallet } }), data: fields }
   const right = op('rule', wallet, { reasonHash, forWorker: true, slashLoser: false })
   const wrong = [op('rule', wallet, { reasonHash, forWorker: false, slashLoser: false }), op('rule', wallet, { reasonHash, forWorker: true, slashLoser: true }), op('rule', wallet, { reasonHash }), op('rule', mallory, { reasonHash, forWorker: true, slashLoser: false })]
   expect(await confirmedOperationIds(ctx, 1n, receipt([log]), [right, ...wrong])).toEqual([right.id])
-  const legacy = { ...ctx, stack: { ...ctx.stack, kind: 'legacy' as const }, publicClient: { ...ctx.publicClient, readContract: vi.fn(async () => wallet) } } as unknown as sdk.Ctx
-  const old = { ...log, topics: encodeEventTopics({ abi: sdk.jobsEvaluatorAbi, eventName: 'Ruled', args: { jobId: 1n } }) }
-  expect(await confirmedOperationIds(legacy, 1n, receipt([old]), [right, ...wrong])).toEqual([right.id])
-})
-it('a legacy award confirms its exact worker, agent and deliverable, leaving other candidates prepared', async () => {
-  const legacy = { ...ctx, stack: { ...ctx.stack, kind: 'legacy' as const } }
-  const deliverableHash = sdk.hashText('candidate B')
-  const log = { address: ctx.stack.holding, topics: encodeEventTopics({ abi: sdk.jobHoldingAbi, eventName: 'Awarded', args: { jobId: 1n, worker: mallory } }),
-    data: encodeAbiParameters([{ type: 'uint256' }, { type: 'bytes32' }], [2n, deliverableHash]) }
-  const b = { ...op('award', wallet, { candidateId: 'B', worker: mallory, agentId: '2', deliverableHash }), id: 'B' }
-  const a = { ...op('award', wallet, { candidateId: 'A', worker: wallet, agentId: '1', deliverableHash: sdk.hashText('candidate A') }), id: 'A' }
-  expect(await confirmedOperationIds(legacy, 1n, receipt([log]), [a, b, op('award', wallet, { candidateId: 'old' })])).toEqual(['B'])
 })
 it('the core submission event confirms only the recorded deliverable, regardless of reporter/sender', async () => {
   const deliverable = sdk.hashText('delivery')

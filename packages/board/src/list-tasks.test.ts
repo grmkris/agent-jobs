@@ -23,10 +23,10 @@ function fixture() {
   const board = new Board(sql, { network: 'monad-testnet', contexts: { main: ctx }, domain: 'list.test', uri: 'https://list.test', manifestBaseUrl: 'https://list.test/offers', now: () => 1000 })
   const add = (taskId: string, creator: `0x${string}`, approver: `0x${string}`, createdAt: number) => {
     const terms: OfferTerms = {
-      v: 2, taskId, projectId: null, policyVersion: null, mode: 'hire', title: taskId, brief: 'Listed', acceptanceCriteria: [],
+      v: 2, mode: 'hire', taskId, projectId: null, policyVersion: null, title: taskId, brief: 'Listed', acceptanceCriteria: [],
       deployment: { chainId: ctx.deployment.chainId, core: ctx.deployment.core, holding: ctx.stack.holding, evaluator: ctx.stack.evaluator, identity: ctx.deployment.identity },
       creator, approver, token: ctx.deployment.rewardTokens[0]!, reward: 5n, creatorBond: 0n, workerBond: 0n,
-      deliveryDeadline: 2000, selectionDeadline: null, windows: { reviewSeconds: 120, disputeSeconds: 120, arbitrationSeconds: 300 }, eligibility: null, evidencePolicy: null, quote: null, salt: sdk.EMPTY_HASH,
+      deliveryDeadline: 2000, windows: { reviewSeconds: 120, disputeSeconds: 120, arbitrationSeconds: 300 }, eligibility: null, evidencePolicy: null, quote: null, salt: sdk.EMPTY_HASH,
     }
     sql.run('INSERT INTO tasks (id,creator,stack,terms_json,terms_hash,job_id,from_block,created_at) VALUES (?,?,?,?,?,?,?,?)', taskId, creator, 'main', canonicalJson(terms), termsHash(terms), null, 0, createdAt)
   }

@@ -40,7 +40,7 @@ fork('sponsorship against the real Monad Delegation Framework', () => {
     expect((await enable(f.worker)).status).toBe('live')
     expect((await enable(f.creator)).status).toBe('live')
     const created = await board.createTask(caller(f.creator), { title: 'Sponsored hire', brief: 'Fork test', acceptanceCriteria: ['finished'], token: f.ctx.stack.factory,
-      reward: '1', creatorBond: '10', workerBond: '10', deliveryDeadline: now + 3600, mode: 'hire',
+      reward: '1', creatorBond: '10', workerBond: '10', deliveryDeadline: now + 3600,
       windows: { reviewSeconds: 3600, disputeSeconds: 3600, arbitrationSeconds: 43200 }, invite: { agentId: agentId.toString() }, deliverable: { accepts: ['onchain'] } })
     const hashes = await sdk.sendAll(f.creator, f.ctx.publicClient, created.transactions)
     const task = await board.reportTransaction(caller(f.creator), { taskId: created.taskId, txHash: hashes.at(-1)! })
@@ -101,7 +101,7 @@ fork('sponsorship against the real Monad Delegation Framework', () => {
 
   it('reports a sponsored cancel/settle batch by its canonical creator, regardless of the reporter or relay', async () => {
     const created = await board.createTask(caller(f.creator), { title: 'Cancel sponsored hire', brief: 'Fork test', acceptanceCriteria: ['finished'], token: f.ctx.stack.factory,
-      reward: '1', creatorBond: '10', workerBond: '10', deliveryDeadline: now + 3600, mode: 'hire', windows: { reviewSeconds: 3600, disputeSeconds: 3600, arbitrationSeconds: 43200 } })
+      reward: '1', creatorBond: '10', workerBond: '10', deliveryDeadline: now + 3600, windows: { reviewSeconds: 3600, disputeSeconds: 3600, arbitrationSeconds: 43200 } })
     const hashes = await sdk.sendAll(f.creator, f.ctx.publicClient, created.transactions)
     await board.reportTransaction(caller(f.contributor), { taskId: created.taskId, txHash: hashes.at(-1)! })
     const cancel = await board.cancelTask(caller(f.creator), { taskId: created.taskId })

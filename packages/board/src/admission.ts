@@ -1,6 +1,6 @@
 export const readOnlyHostedTools = new Set([
   'protocol_info', 'whoami', 'list_tasks', 'get_task', 'list_quote_requests', 'list_quotes', 'get_budget', 'task_index',
-  'list_pools', 'get_pool', 'pledged_by', 'list_applications', 'list_candidates', 'list_disputes',
+  'list_applications', 'list_disputes',
   'get_dispute_bundle', 'settlement_actions', 'list_boards', 'get_board', 'auth_challenge', 'auth_login',
   'list_directory', 'get_directory_agent',
   'telegram_status',
@@ -10,17 +10,14 @@ export const readOnlyHostedTools = new Set([
 
 export const drainHostedTools = new Set([
   'submit_work', 'report_transaction', 'approve_work', 'reject_work', 'dispute', 'add_statement',
-  'request_evidence', 'arbiter_lease', 'prepare_ruling', 'submit_ruling', 'cancel_ruling', 'revoke_budget', 'cancel_task', 'pool_refund', 'sponsor_revoke', 'report_operation',
+  'request_evidence', 'arbiter_lease', 'prepare_ruling', 'submit_ruling', 'cancel_ruling', 'revoke_budget', 'cancel_task', 'sponsor_revoke', 'report_operation',
 ])
 
 export const recoveryHostedTools = new Set([
   'submit_work', 'report_transaction', 'approve_work', 'reject_work', 'dispute', 'add_statement',
-  'request_evidence', 'arbiter_lease', 'prepare_ruling', 'submit_ruling', 'cancel_ruling', 'revoke_budget', 'cancel_task', 'pool_refund', 'sponsor_revoke', 'report_operation',
+  'request_evidence', 'arbiter_lease', 'prepare_ruling', 'submit_ruling', 'cancel_ruling', 'revoke_budget', 'cancel_task', 'sponsor_revoke', 'report_operation',
 ])
 
-export const disabledP0HostedTools = new Set([
-  'create_pool', 'pledge', 'launch_pool',
-])
 
 /**
  * Every tool which can reach the hosted board.  Production admission is open, but an
@@ -30,12 +27,11 @@ export const disabledP0HostedTools = new Set([
 export const hostedToolNames = new Set([
   ...readOnlyHostedTools,
   ...drainHostedTools,
-  ...disabledP0HostedTools,
   'auth_challenge', 'auth_login', 'whoami', 'create_task', 'request_quotes', 'submit_quote', 'pick_quote',
   'spend_budget', 'spend_budget_call', 'upgrade_account', 'budget_grant_prepare', 'budget_grant_confirm', 'get_budget',
   'revoke_budget', 'report_transaction', 'list_applications', 'select_worker', 'submit_selection', 'publish_transactions',
   'cancel_task', 'approve_work', 'reject_work', 'apply', 'prepare_activation', 'build_activation', 'submit_work',
-  'dispute', 'add_statement', 'prepare_entry', 'submit_entry', 'award', 'request_evidence', 'arbiter_lease',
+  'dispute', 'add_statement', 'request_evidence', 'arbiter_lease',
   'prepare_ruling', 'submit_ruling', 'cancel_ruling', 'settlement_actions', 'list_boards', 'get_board', 'create_board', 'update_board',
   'prepare_agent_profile', 'prepare_directory_enrollment', 'enroll_directory', 'prepare_heartbeat', 'post_heartbeat',
   'prepare_service_ad', 'publish_service_ad', 'prepare_revoke_service_ad', 'revoke_service_ad',
@@ -59,7 +55,6 @@ export function admissionFailure(admission: HostedAdmission, network: string, _b
   if (network !== 'monad-mainnet' || readOnlyHostedTools.has(tool)) return undefined
   if (!hostedToolNames.has(tool)) return 'unknown hosted tool'
   if (admission.drain && !drainHostedTools.has(tool)) return 'production hosted writes are in drain mode'
-  if (disabledP0HostedTools.has(tool)) return 'hosted pools are disabled in production'
   if (recoveryHostedTools.has(tool) && caller !== undefined) return undefined
   if (admission.drain && drainHostedTools.has(tool)) return 'production recovery requires an authenticated wallet'
   if (admission.drain) return 'production hosted writes are in drain mode'
