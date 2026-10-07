@@ -15,12 +15,15 @@ const FIELD =
 
 /** A titled block: a quiet header above a surface, and an optional footnote below it. */
 export function Section({
+  id,
   title,
   note,
   children,
   className,
   action,
 }: {
+  /** An anchor other pages link to (`/account#backing`). */
+  id?: string
   title?: ReactNode
   note?: ReactNode
   children: ReactNode
@@ -28,7 +31,7 @@ export function Section({
   action?: ReactNode
 }) {
   return (
-    <section className={cn('grid min-w-0 content-start gap-2', className)}>
+    <section id={id} className={cn('grid min-w-0 scroll-mt-20 content-start gap-2', className)}>
       {(title !== undefined || action !== undefined) && (
         <div className="flex min-h-6 items-center justify-between gap-3 px-1">
           {title !== undefined && <h2 className="text-ui font-medium text-muted-foreground">{title}</h2>}

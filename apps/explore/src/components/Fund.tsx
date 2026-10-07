@@ -4,28 +4,15 @@ import { Details, Address, CopyButton, Section, textLinkClass } from './kit.tsx'
 import { TestnetFaucet } from './TestnetFaucet.tsx'
 import { BuyButtons } from './Buy.tsx'
 import * as sdk from '@sidequest/sdk'
-import { useState, useSyncExternalStore } from 'react'
+import { Fragment, useState } from 'react'
 import { zeroAddress } from 'viem'
 import { useBalance, useReadContracts } from 'wagmi'
-import { formatNumber, rewardTokenList, subscribeTokens, tokenInfo, tokenRegistryVersion } from '../format.ts'
-import { useTokenList } from '../useTokens.ts'
+import { formatNumber, tokenInfo } from '../format.ts'
+import { approxUsd } from '../usd.ts'
+import { type BalanceRow, useWalletBalances, useWalletTokens } from '../wallet-balances.ts'
 import { TokenIcon } from './token/TokenIcon.tsx'
 import { TokenAmount } from './token/TokenAmount.tsx'
 import { chain, deployment, explorer, isMainnet } from '../wallet.ts'
-
-/** Configured and board-known wallet tokens, kept in address order and deduplicated without guessing by symbol. */
-function useWalletTokens() {
-  useSyncExternalStore(subscribeTokens, tokenRegistryVersion, tokenRegistryVersion)
-  const tokens = [...new Set([
-    deployment.factory,
-    ...deployment.rewardTokens,
-    ...(deployment.market === null ? [] : [deployment.market.quote]),
-    ...(deployment.x402 === null ? [] : [deployment.x402.usdc]),
-    ...rewardTokenList().map(([address]) => address),
-  ].filter((address) => address !== zeroAddress).map((address) => address.toLowerCase() as `0x${string}`))]
-  useTokenList(tokens)
-  return tokens
-}
 
 /**
  * The signed-in Privy wallet's balances and how to fund it: people send MON (gas) and the reward/bond tokens to this
@@ -121,48 +108,35 @@ function FundPanel({ address, onClose }: { address: `0x${string}`; onClose: () =
   )
 }
 
-/** The wallet as a section of Me: the full address to fund, live balances, and where testnet tokens come from. */
+const WHAT: Record<BalanceRow['role'], string> = { bond: 'For deposits at risk', pay: 'Paid in', gas: 'Gas' }
+const shown = (row: { status: BalanceRow['status'] }) => (row.status === 'value' ? undefined : row.status === 'loading' ? '…' : 'Unavailable')
+
+/** An amount and, when it has a price, its dollar estimate beneath. */
+function Amount({ token, value, decimals, text, usd }: { token: string | null; value: bigint | undefined; decimals: number; text: string | undefined; usd: number | undefined }) {
+  return (
+    <span className="grid min-w-0 max-w-[60%] justify-items-end gap-0.5 text-right">
+      {token === null ? (
+        <span className="inline-flex items-center gap-1.5 tabular-nums text-foreground">
+          <TokenIcon token={zeroAddress} />
+          {text ?? formatNumber(value!, decimals)}
+        </span>
+      ) : (
+        <TokenAmount value={value} token={token} static text={text} className="min-w-0 font-medium whitespace-normal [overflow-wrap:anywhere]" />
+      )}
+      {usd !== undefined && <span className="text-xs tabular-nums text-muted-foreground">{approxUsd(usd)}</span>}
+    </span>
+  )
+}
+
+/**
+ * The wallet as a section of Account: the full address to fund, live balances with dollar estimates (`usd.ts`), SIDE
+ * staked behind agents once the index answers, and where testnet tokens come from.
+ */
 export function WalletCard({ address }: { address: `0x${string}` }) {
-  const mon = useBalance({ address, chainId: chain.id, query: { refetchInterval: 10_000 } })
-  const tokens = useWalletTokens()
-  const balances = useReadContracts({
-    contracts: tokens.map(
-      (t) => ({ address: t, abi: sdk.factoryTokenAbi, functionName: 'balanceOf', args: [address], chainId: chain.id }) as const,
-    ),
-    query: { refetchInterval: 10_000 },
-  })
-  const rows: Array<{
-    symbol: string
-    what: string
-    token: string | null
-    value: bigint | undefined
-    status: 'loading' | 'unavailable' | 'value'
-    decimals: number
-  }> = [
-    {
-      symbol: chain.nativeCurrency.symbol,
-      what: 'Gas',
-      token: null,
-      value: mon.isError ? undefined : mon.data?.value,
-      status: !mon.isError && mon.data !== undefined ? 'value' : mon.isPending ? 'loading' : 'unavailable',
-      decimals: 18,
-    },
-    ...tokens.map((t, i): (typeof rows)[number] => {
-      const read = balances.data?.[i]
-      const v = !balances.isError && read?.status === 'success' ? read.result as bigint : undefined
-      const info = t.toLowerCase() === deployment.factory.toLowerCase() ? { symbol: 'SIDE', decimals: 18 } : tokenInfo(t)
-      return {
-        symbol: info.symbol,
-        what: t.toLowerCase() === deployment.factory.toLowerCase() ? 'For deposits at risk' : 'Paid in',
-        token: t,
-        value: v,
-        status: v !== undefined ? 'value' : balances.isPending ? 'loading' : 'unavailable',
-        decimals: info.decimals,
-      }
-    }),
-  ]
+  const { rows, staked, totalUsd } = useWalletBalances(address)
   return (
     <Section
+      id="wallet"
       title="Wallet"
       note={
         isMainnet ? (
@@ -189,28 +163,37 @@ export function WalletCard({ address }: { address: `0x${string}` }) {
         </a>
       </div>
       <ItemGroup>
-        {rows.map(({ symbol, what, token, value, status, decimals }) => (
-          <Item key={token ?? symbol}>
-            <ItemContent className="min-w-0 flex-1 [overflow-wrap:anywhere]">
-              {symbol}
-              <ItemDescription className="block text-xs text-muted-foreground">{what}</ItemDescription>
-            </ItemContent>
-            {token === null ? (
-              <span className="inline-flex items-center gap-1.5 tabular-nums text-foreground">
-                <TokenIcon token={zeroAddress} />
-                {status === 'value' ? formatNumber(value!, decimals) : status === 'loading' ? '…' : 'Unavailable'}
-              </span>
-            ) : (
-              <TokenAmount
-                value={value}
-                token={token}
-                static
-                text={status === 'value' ? undefined : status === 'loading' ? '…' : 'Unavailable'}
-                className="min-w-0 max-w-[60%] text-right font-medium whitespace-normal [overflow-wrap:anywhere]"
-              />
+        {rows.map((row) => (
+          <Fragment key={row.token ?? row.symbol}>
+            <Item>
+              <ItemContent className="min-w-0 flex-1 [overflow-wrap:anywhere]">
+                {row.symbol}
+                <ItemDescription className="block text-xs text-muted-foreground">{WHAT[row.role]}</ItemDescription>
+              </ItemContent>
+              <Amount token={row.token} value={row.value} decimals={row.decimals} text={shown(row)} usd={row.usd} />
+            </Item>
+            {row.role === 'bond' && staked.value !== undefined && (
+              <Item>
+                <ItemContent className="min-w-0 flex-1">
+                  SIDE staked
+                  <ItemDescription className="block text-xs text-muted-foreground">Backing agents, unstaking included</ItemDescription>
+                </ItemContent>
+                <Amount token={deployment.factory} value={staked.value} decimals={18} text={undefined} usd={staked.usd} />
+              </Item>
             )}
-          </Item>
+          </Fragment>
         ))}
+        {totalUsd !== undefined && (
+          <Item>
+            <ItemContent className="min-w-0 flex-1">
+              Priced total
+              <ItemDescription className="block text-xs text-muted-foreground">
+                {isMainnet ? 'Tokens without a price are left out' : 'Test value · testnet tokens have no real value'}
+              </ItemDescription>
+            </ItemContent>
+            <span className="font-medium tabular-nums">{approxUsd(totalUsd)}</span>
+          </Item>
+        )}
       </ItemGroup>
       <TestnetFaucet address={address} />
       <BuyButtons address={address} />

@@ -62,7 +62,7 @@ export function AccountPage() {
 
       <TelegramSection />
 
-      <Section title="My backing positions">
+      <Section id="backing" title="My backing positions">
         {writesOpen ? <BackingManager owner={auth.address} scope={{ kind: 'account' }} /> : <LaunchNotice />}
       </Section>
 

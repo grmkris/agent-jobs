@@ -141,10 +141,11 @@ export function useIndexedBacking(account: Address, wallet?: Address) {
   });
 }
 
-export function useDelegations(contracts: SidequestContracts, delegator: Address) {
+export function useDelegations(contracts: SidequestContracts, delegator: Address, enabled = true) {
   return useQuery({
     queryKey: ["delegations", contracts.vault, delegator.toLowerCase()],
     queryFn: () => readDelegations(contracts, delegator),
+    enabled,
     refetchInterval: 15_000,
     retry: false,
   });
