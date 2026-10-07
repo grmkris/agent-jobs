@@ -19,6 +19,9 @@ function fixture(failBounds: boolean) {
     if (functionName === 'paused') return false
     if (functionName === 'decimals') return 0
     if (functionName === 'symbol') return 'mUSD'
+    if (functionName === 'margin') return 120
+    if (functionName === 'UNSTAKE_DELAY') return 259200
+    if (functionName === 'allowance') return 0n
     if (failBounds && functionName.startsWith('MIN_')) {
       throw Object.assign(
         new Error(
@@ -32,11 +35,16 @@ function fixture(failBounds: boolean) {
     if (functionName.startsWith('MAX_')) return sdk.MAX_SIDEQUEST_WINDOW
     throw new Error(`unexpected chain read: ${functionName}`)
   })
-  const client = { ...base.publicClient, readContract: read, getBlockNumber: vi.fn(async () => 100n) }
+  // SAFETY: the horizon reads only timestamp; the partial block deliberately omits unused RPC fields.
+  const getBlock = vi
+    .fn<sdk.Ctx['publicClient']['getBlock']>()
+    .mockResolvedValue({ timestamp: 1000n } as Awaited<ReturnType<sdk.Ctx['publicClient']['getBlock']>>)
+  const client = { ...base.publicClient, readContract: read, getBlockNumber: vi.fn(async () => 100n), getBlock }
   const ctx = { ...base, stack: { ...base.stack, kind: 'sidequest-v1' }, publicClient: client } as unknown as sdk.Ctx
   const db = new DatabaseSync(':memory:')
   databases.push(db)
-  const board = new Board(fromNodeSqlite(db), {
+  const sql = fromNodeSqlite(db)
+  const board = new Board(sql, {
     network: 'monad-testnet',
     contexts: { main: ctx },
     domain: 'offer.test',
@@ -56,7 +64,7 @@ function fixture(failBounds: boolean) {
     windows: { reviewSeconds: 120, disputeSeconds: 120, arbitrationSeconds: 300 },
     arbitrator: '0x4444444444444444444444444444444444444444',
   }
-  return { board, input, read }
+  return { board, input, read, sql }
 }
 
 it('create_task and request_quotes pass a failed bounds read to the boundary, not as a trusted refusal', async () => {
@@ -85,4 +93,40 @@ it('a local validation failure is still an invalid refusal with its own text', a
       { ...f.input, windows: { reviewSeconds: 1, disputeSeconds: 120, arbitrationSeconds: 300 } },
     ),
   ).rejects.toMatchObject({ code: 'invalid', message: expect.stringContaining('window') })
+})
+
+it.each([
+  { creatorBond: '1', workerBond: '0' },
+  { creatorBond: '0', workerBond: '1' },
+])('create_task refuses a long bonded expiry before persistence for $creatorBond/$workerBond', async (bonds) => {
+  const f = fixture(false)
+  await expect(
+    f.board.createTask({ address: creator }, { ...f.input, ...bonds, deliveryDeadline: 1000 + 259200 - 540 - 120 + 1 }),
+  ).rejects.toMatchObject({
+    code: 'invalid',
+    message:
+      'A job with a bond must end within 3 days (the unstake period). Shorten the deadline or windows, or set the bond to 0.',
+  })
+  expect(f.sql.all('SELECT * FROM tasks')).toHaveLength(0)
+  expect(f.sql.all('SELECT * FROM operations')).toHaveLength(0)
+  expect(f.read.mock.calls.some(([call]) => call.functionName === 'allowance' || call.functionName === 'symbol')).toBe(
+    false,
+  )
+})
+
+it('create_task accepts a worker-only bond exactly at the horizon including every window and margin', async () => {
+  const f = fixture(false)
+  const prepared = await f.board.createTask(
+    { address: creator },
+    { ...f.input, workerBond: '1', deliveryDeadline: 1000 + 259200 - 540 - 120 },
+  )
+  expect(prepared.transactions).toHaveLength(2)
+  expect(f.sql.all('SELECT * FROM tasks')).toHaveLength(1)
+})
+
+it('create_task permits a long zero-bond job without reading the unstake clock', async () => {
+  const f = fixture(false)
+  await f.board.createTask({ address: creator }, { ...f.input, deliveryDeadline: 1000 + 90 * 86400 })
+  expect(f.sql.all('SELECT * FROM tasks')).toHaveLength(1)
+  expect(f.read.mock.calls.some(([call]) => call.functionName === 'UNSTAKE_DELAY')).toBe(false)
 })

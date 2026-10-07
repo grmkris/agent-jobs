@@ -16,7 +16,7 @@ import { deployment } from '../wallet.ts'
 export const factoryValue = (value: bigint) => `${formatNumber(value, 18)} SIDE`
 
 export const DELEGATION_RISK =
-  'If the agent is slashed for bad work, everyone backing it loses the same share. Your SIDE stays at risk until you withdraw. Leaving starts a 10-minute wait on testnet (7 days on mainnet); if the agent still has open jobs secured against its backing, withdrawal waits until they settle.'
+  'If the agent is slashed for bad work, everyone backing it loses the same share. Your SIDE stays at risk until you withdraw. Leaving starts the configured unstake period (3 days on the fresh testnet clocks; 14 days in production); open jobs secured against the backing remain slashable during that period.'
 
 export function DelegationPositions({
   positions,

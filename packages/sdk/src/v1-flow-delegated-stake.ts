@@ -109,8 +109,7 @@ export async function runDelegatedStakeFlow(d: V1FlowDeps, flow: DelegatedStakeF
   const workerBond = flow === 'delegate' ? prepared.positions.worker.activeValue + d.bond : d.bond
   if (flow === 'delegate' && workerBond <= prepared.positions.worker.activeValue)
     throw new Error('delegate must require backing the worker does not own')
-  const deliverySeconds = flow === 'undelegate-pending-slash' ? input.delay + 6 * 3600 : 6 * 3600
-  const job = await actions.publish(ctx, { workerBond, deliverySeconds })
+  const job = await actions.publish(ctx, { workerBond })
   const net = await actions.activate(job)
   await j.once(`${scope}/activation-verified`, async () => {
     const receipt = actions.receipts.get('activate')!
@@ -143,7 +142,7 @@ export async function runDelegatedStakeFlow(d: V1FlowDeps, flow: DelegatedStakeF
   let guardedJob: Awaited<ReturnType<typeof guard.publish>> | undefined
   let guardedNet = 0n
   if (flow === 'undelegate-pending-slash') {
-    guardedJob = await guard.publish(ctx, { workerBond: guardBond, deliverySeconds })
+    guardedJob = await guard.publish(ctx, { workerBond: guardBond })
     guardedNet = await guard.activate(guardedJob)
   }
 
@@ -165,13 +164,15 @@ export async function runDelegatedStakeFlow(d: V1FlowDeps, flow: DelegatedStakeF
       })
       exact('whole owned position is queued', position.queuedShares, shares)
       exact('queued position retains every share', position.shares, shares)
+      const requestedAt = Number((await ctx.publicClient.getBlock({ blockNumber: receipt.blockNumber })).timestamp)
+      exact('the queue uses the deployed unstake clock', position.unlockAt, requestedAt + input.delay)
       return position
     })
   }
 
-  async function stillBonded(label: string) {
+  async function cooldownLocked(label: string) {
     return j.once(`${scope}/${label}`, async () => {
-      let blocked: { remaining: bigint; reserved: bigint } | undefined
+      let blocked: { unlockAt: number; reserved: bigint } | undefined
       try {
         await ctx.publicClient.simulateContract({
           account: creator.account,
@@ -183,11 +184,11 @@ export async function runDelegatedStakeFlow(d: V1FlowDeps, flow: DelegatedStakeF
       } catch (error) {
         const cause =
           error instanceof BaseError ? error.walk((e) => e instanceof ContractFunctionRevertedError) : undefined
-        if (!(cause instanceof ContractFunctionRevertedError) || cause.data?.errorName !== 'StillBonded')
-          throw new Error('withdraw must refuse with StillBonded after the cooldown', { cause: error })
-        const args = cause.data.args as readonly [bigint, bigint]
-        if (args[0] >= args[1]) throw new Error('StillBonded did not retain a real reservation', { cause: error })
-        blocked = { remaining: args[0], reserved: args[1] }
+        if (!(cause instanceof ContractFunctionRevertedError) || cause.data?.errorName !== 'UndelegateLocked')
+          throw new Error('withdraw must refuse with UndelegateLocked before the cooldown ends', { cause: error })
+        const args = cause.data.args as readonly [number]
+        const before = await snapshot()
+        blocked = { unlockAt: args[0], reserved: before.pool.reserved }
       }
       if (blocked === undefined) throw new Error('queued backing escaped its open bonds')
       return blocked
@@ -196,8 +197,9 @@ export async function runDelegatedStakeFlow(d: V1FlowDeps, flow: DelegatedStakeF
 
   if (flow === 'undelegate-pending-slash') {
     const queued = await queue('creator')
-    await d.waitUntil(flow, queued.unlockAt)
-    await stillBonded('blocked-before-slash')
+    const listing = await sdk.getV1Listing(ctx, job.jobId)
+    if (listing.expiredAt > queued.unlockAt) throw new Error('a pre-exit bond outlasts its unlock time')
+    await cooldownLocked('blocked-before-slash')
   }
 
   await actions.submit(job.jobId)
@@ -298,7 +300,7 @@ export async function runDelegatedStakeFlow(d: V1FlowDeps, flow: DelegatedStakeF
   await verifyJob(actions, job, flow === 'delegate' ? net : 0n, flow !== 'delegate')
 
   if (guardedJob !== undefined) {
-    await stillBonded('blocked-after-slash')
+    await cooldownLocked('blocked-after-slash')
     await guard.submit(guardedJob.jobId)
     await guard.call(
       'accept',

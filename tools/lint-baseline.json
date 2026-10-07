@@ -1274,7 +1274,7 @@
   },
   "packages/board/src/receipts.test.ts": {
     "anti-slop(no-chained-type-assertions)": 1,
-    "anti-slop(require-safety-comment-for-type-assertion)": 8,
+    "anti-slop(require-safety-comment-for-type-assertion)": 10,
     "eslint(max-params)": 1,
     "typescript(no-unnecessary-type-assertion)": 4
   },

@@ -475,6 +475,7 @@ function Stake({
             text={text}
             wallet={reads.data?.wallet}
             active={selected.data?.position?.activeValue}
+            reserved={selected.data?.backing?.reserved}
             cooldown={reads.data?.cooldown}
             disabled={disabled}
             busy={busy}

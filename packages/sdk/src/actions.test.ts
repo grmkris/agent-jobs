@@ -47,7 +47,11 @@ const selection: Selection = {
 }
 const txHash = `0x${'ab'.repeat(32)}` as Hex
 
-function fixture(kind: 'sidequest-v1' = 'sidequest-v1', over: Partial<ActivationTerms> = {}, available = 20n) {
+function fixture(
+  kind: 'sidequest-v1' = 'sidequest-v1',
+  over: Partial<ActivationTerms> & { expiredAt?: number } = {},
+  available = 20n,
+) {
   const events: string[] = []
   const signed: Array<{ message: Record<string, unknown> }> = []
   const simulated: Array<Record<string, unknown>> = []
@@ -57,13 +61,35 @@ function fixture(kind: 'sidequest-v1' = 'sidequest-v1', over: Partial<Activation
     deployment: { ...deployment('monad-testnet'), sidequest: { factory: oldFactory, vault: holding } },
     stack: { kind, factory: oldFactory, holding, evaluator, openTokens: true },
     publicClient: {
+      getBlock: async () => ({ timestamp: BigInt(terms.deliveryDeadline - 3600) }),
       readContract: async (r: Record<string, unknown>) => {
         reads.push(r)
         const name = String(r.functionName)
         events.push(name)
         switch (name) {
+          case 'UNSTAKE_DELAY':
+            return 1209600
+          case 'margin':
+            return 86400
+          case 'MIN_REVIEW_WINDOW':
+          case 'MIN_DISPUTE_WINDOW':
+            return 3600
+          case 'MIN_ARBITRATION_WINDOW':
+            return 43200
+          case 'MAX_REVIEW_WINDOW':
+          case 'MAX_DISPUTE_WINDOW':
+          case 'MAX_ARBITRATION_WINDOW':
+            return 1209600
           case 'getListing':
-            return { ...terms, ...over, policyHash, mode: 0, workerBondPosted: false, workerBondReserved: false }
+            return {
+              ...terms,
+              expiredAt: terms.deliveryDeadline + 54000,
+              ...over,
+              policyHash,
+              mode: 0,
+              workerBondPosted: false,
+              workerBondReserved: false,
+            }
           case 'quoteActivation':
             return [3000, 31n, 70n]
           case 'stakeOf':
@@ -167,6 +193,39 @@ describe('kind-aware activation', () => {
     await expect(publish(f.ctx, f.wallet, missing)).rejects.toThrow('explicit arbitrator')
     expect(f.reads).toHaveLength(0)
     expect(f.sent).toHaveLength(0)
+  })
+
+  it.each([
+    { creatorBond: 1n, workerBond: 0n },
+    { creatorBond: 0n, workerBond: 1n },
+  ])('refuses a long publish with bonds $creatorBond/$workerBond before approvals', async (bonds) => {
+    const f = fixture()
+    await expect(
+      publish(f.ctx, f.wallet, {
+        ...terms,
+        ...bonds,
+        deliveryDeadline: terms.deliveryDeadline + 1209600,
+        manifestHash: policyHash,
+        termsHash: policyHash,
+      }),
+    ).rejects.toThrow('A job with a bond must end within 14 days')
+    expect(f.signed).toHaveLength(0)
+    expect(f.sent).toHaveLength(0)
+    expect(f.reads.some((r) => r.functionName === 'allowance')).toBe(false)
+  })
+
+  it('checks the actual listing expiry before activation signing, including an extra expiry margin', async () => {
+    const f = fixture('sidequest-v1', { expiredAt: terms.deliveryDeadline - 3600 + 1209601 })
+    await expect(activate(f.ctx, f.wallet, selection, '0x11', terms)).rejects.toThrow('14 days')
+    expect(f.signed).toHaveLength(0)
+    expect(f.sent).toHaveLength(0)
+  })
+
+  it('activates a worker bond exactly at the horizon', async () => {
+    const f = fixture('sidequest-v1', { expiredAt: terms.deliveryDeadline - 3600 + 1209600 })
+    await activate(f.ctx, f.wallet, selection, '0x11', terms)
+    expect(f.signed).toHaveLength(1)
+    expect(f.sent).toHaveLength(1)
   })
 })
 

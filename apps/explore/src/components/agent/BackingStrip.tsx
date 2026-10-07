@@ -63,6 +63,10 @@ export function BackingStrip({
         <div className="grid gap-3 rounded-xl bg-card p-4 ring-1 ring-foreground/10">
           <div className="flex flex-wrap items-end gap-x-8 gap-y-3">
             <Figure value={<TokenAmount value={snapshot.backing.assets} token={factory} />} label="total backing" />
+            <Figure
+              value={<TokenAmount value={snapshot.backing.reserved} token={factory} />}
+              label="currently bonded"
+            />
             <Figure value={snapshot.delegatorCount} label={snapshot.delegatorCount === 1 ? 'backer' : 'backers'} />
             <Figure value={percent(snapshot.backing.tier.feeBps)} label="worker fee" />
             <Button variant="secondary" onClick={onBack} className="ml-auto max-sm:w-full">

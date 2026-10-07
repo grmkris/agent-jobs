@@ -3,6 +3,7 @@ import { erc20Abi } from 'viem'
 import * as sdk from '@sidequest/sdk'
 import { type Address, type Hex, encodeFunctionData, formatEther, getAddress, zeroAddress } from 'viem'
 import { AgentFailure } from './agent-failure.ts'
+import { BoardError } from './board-error.ts'
 import { type EvaluatorWindows, type OfferTerms, listingMatches } from './terms.ts'
 
 export const holdingAbi = (_ctx: sdk.Ctx) => sdk.sidequestHoldingAbi
@@ -71,13 +72,14 @@ export async function requireBacking(
 export async function publishSidequest(ctx: sdk.Ctx, terms: OfferTerms, hash: Hex): Promise<sdk.TxRequest[]> {
   if (terms.arbitrator === undefined || terms.arbitrator.toLowerCase() === zeroAddress)
     throw new Error('v1 publish needs an explicit arbitrator')
-  await requireBacking(ctx, terms.creator, terms.creatorBond, 'creator')
   const windows = {
     reviewWindow: terms.windows.reviewSeconds,
     disputeWindow: terms.windows.disputeSeconds,
     arbitrationWindow: terms.windows.arbitrationSeconds,
   }
   const expiredAt = await sdk.minExpiry(ctx, terms.deliveryDeadline, windows)
+  await requireBondHorizon(ctx, expiredAt, terms.creatorBond, terms.workerBond)
+  await requireBacking(ctx, terms.creator, terms.creatorBond, 'creator')
   const allowance = await ctx.publicClient.readContract({
     address: terms.token,
     abi: erc20Abi,
@@ -123,6 +125,34 @@ export async function publishSidequest(ctx: sdk.Ctx, terms: OfferTerms, hash: He
   return out
 }
 
+/** Preserve RPC failures as unavailable; only the trusted horizon refusal is caller-facing. */
+export async function requireBondHorizon(
+  ctx: sdk.Ctx,
+  expiredAt: number,
+  creatorBond: bigint,
+  workerBond = 0n,
+): Promise<void> {
+  try {
+    await sdk.requireBondHorizon(ctx, expiredAt, creatorBond, workerBond)
+  } catch (error) {
+    if (error instanceof sdk.BondHorizonError) throw new BoardError('invalid', error.message)
+    throw error
+  }
+}
+
+export async function requireOfferHorizon(
+  ctx: sdk.Ctx,
+  terms: Pick<OfferTerms, 'deliveryDeadline' | 'windows' | 'creatorBond' | 'workerBond'>,
+): Promise<void> {
+  if (terms.creatorBond === 0n && terms.workerBond === 0n) return
+  const expiredAt = await sdk.minExpiry(ctx, terms.deliveryDeadline, {
+    reviewWindow: terms.windows.reviewSeconds,
+    disputeWindow: terms.windows.disputeSeconds,
+    arbitrationWindow: terms.windows.arbitrationSeconds,
+  })
+  await requireBondHorizon(ctx, expiredAt, terms.creatorBond, terms.workerBond)
+}
+
 function acceptedActivationTerms(terms: OfferTerms): sdk.ActivationTerms {
   if (terms.arbitrator === undefined) throw new Error('v1 offer has no frozen arbitrator')
   return {
@@ -154,7 +184,9 @@ function matchesSidequest(
 }
 
 export async function activationQuote(ctx: sdk.Ctx, jobId: bigint, worker: Address, terms: OfferTerms) {
-  sdk.assertActivationTerms(await sdk.getV1Listing(ctx, jobId), acceptedActivationTerms(terms))
+  const listing = await sdk.getV1Listing(ctx, jobId)
+  sdk.assertActivationTerms(listing, acceptedActivationTerms(terms))
+  await requireBondHorizon(ctx, listing.expiredAt, 0n, listing.workerBond)
   await requireBacking(ctx, worker, terms.workerBond, 'worker')
   const [feeBps, fee, net] = await sdk.quoteActivation(ctx, jobId, worker)
   return { feeBps, fee, net }

@@ -60,6 +60,8 @@ export function v1FlowActions(d: V1FlowDeps, flow: V1CoreFlow, scope: string) {
         arbitrator: d.arbitrator.account.address,
       }
     })
+    if (j.state.sends[`${scope}/publish`] === undefined)
+      await sdk.requireBondHorizon(pair, p.expiredAt, p.creatorBond, p.workerBond)
     await approve('approve-reward', creator, p.token, pair.stack.holding, p.reward)
     const request = p
     const abi = sdk.sidequestHoldingAbi
@@ -97,6 +99,8 @@ export function v1FlowActions(d: V1FlowDeps, flow: V1CoreFlow, scope: string) {
     // Requote an unsigned attempt. A saved send resumes its exact bytes and original authorization.
     let data: typeof selectionData & { auth: sdk.Authorization; net: bigint }
     if (j.state.sends[`${scope}/activate`] === undefined) {
+      const listing = await sdk.getV1Listing(pair, x.jobId)
+      await sdk.requireBondHorizon(pair, listing.expiredAt, 0n, listing.workerBond)
       const net = (await sdk.quoteActivation(pair, x.jobId, worker.account.address))[2]
       const auth = await sdk.signBudget(pair, worker, {
         jobId: x.jobId,

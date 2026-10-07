@@ -15,6 +15,7 @@ export function DelegationForm({
   text,
   wallet,
   active,
+  reserved,
   cooldown,
   disabled,
   busy,
@@ -29,6 +30,7 @@ export function DelegationForm({
   text: string
   wallet: bigint | undefined
   active: bigint | undefined
+  reserved: bigint | undefined
   cooldown: number | undefined
   disabled: boolean
   busy: boolean
@@ -101,6 +103,13 @@ export function DelegationForm({
             ? 'Review the exact amount, then confirm the backing in your wallet. Your wallet pays the gas in MON.'
             : `Leaving starts ${cooldown === undefined ? 'the vault cooldown' : `a ${duration(cooldown)} cooldown`} for all your queued shares, including any already leaving. Deposits at risk do not prevent requesting to leave; they may delay withdrawal.`}
         </p>
+        {mode === 'add' && reserved !== undefined && (
+          <p className="text-sm text-muted-foreground">
+            Currently bonded behind this account:{' '}
+            <span className="font-medium text-foreground">{factoryValue(reserved)}</span>. New backing shares open-bond
+            exposure pro-rata until those jobs settle.
+          </p>
+        )}
         {invalid && (
           <Alert variant="destructive">
             <AlertDescription>Enter a positive SIDE amount with up to 18 decimal places.</AlertDescription>

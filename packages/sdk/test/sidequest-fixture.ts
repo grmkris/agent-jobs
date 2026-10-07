@@ -15,7 +15,8 @@ import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 import { monadTestnet } from 'viem/chains'
 import { coreAbi, factoryV2Abi, sidequestHoldingAbi, stakeVaultAbi } from '../src/abi/index.ts'
 import type { Ctx, Wallet } from '../src/actions.ts'
-import { deployment } from '../src/deployment.ts'
+import { clocksFromConfig, deployment } from '../src/deployment.ts'
+import testnetConfig from '../../../contracts/config/monad-testnet.json'
 import { localTestPort } from './fork-port.ts'
 
 const hasAnvil = (() => {
@@ -167,18 +168,8 @@ export async function startSidequestFork() {
       }),
     ])
     const factory = await deploy('Factory', ['Factory', 'SIDE', [admin.account.address], [parseEther('1000000000')]])
-    // Existing fork assertions retain production clocks; G1b's fast tuple is covered by the recipe fork.
-    const clocks = {
-      minReviewWindow: 3600,
-      minDisputeWindow: 3600,
-      minArbitrationWindow: 43200,
-      unstakeDelay: 604800,
-      holdingDelay: 691200,
-      feeDelay: 259200,
-      proposalGrace: 604800,
-      epochZeroDuration: 259200,
-      epochDuration: 604800,
-    }
+    // Fresh fixtures use the recipe's clocks, including the three-day bond horizon.
+    const clocks = clocksFromConfig(testnetConfig.sidequest.clocks, testnetConfig.chainId)
     const feeSchedule = await deploy('FeeSchedule', [
       {
         thresholds: [0n, parseEther('10000'), parseEther('100000'), parseEther('1000000')],
@@ -226,6 +217,7 @@ export async function startSidequestFork() {
           miningReserve,
           teamVesting,
           t0,
+          clocks,
         },
       },
     }

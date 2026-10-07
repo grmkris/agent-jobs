@@ -32,7 +32,7 @@ import {
   testnetFaucetAbi,
 } from './abi/index.ts'
 import type { Deployment, Stack } from './deployment.ts'
-import { readWindowBounds, validateOfferWindows } from './clocks.ts'
+import { requireBondHorizon, readWindowBounds, validateOfferWindows } from './clocks.ts'
 import {
   type Authorization,
   type Ruling,
@@ -240,6 +240,7 @@ export async function publish(ctx: Ctx, wallet: Wallet, p: PublishInput) {
     p.deliveryDeadline,
     windows as { reviewWindow: number; disputeWindow: number; arbitrationWindow: number },
   )
+  await requireBondHorizon(ctx, expiry, p.creatorBond, p.workerBond)
   await requireStake(ctx, wallet.account.address, p.creatorBond)
   await ensureAllowance(ctx, wallet, p.token, ctx.stack.holding, p.reward)
   const receipt = await write(ctx, wallet, ctx.stack.holding, sidequestHoldingAbi, 'publish', [
@@ -369,6 +370,7 @@ export async function activate(ctx: Ctx, worker: Wallet, sel: Selection, creator
   const listing = await getListing(ctx, sel.jobId)
   if (expected === undefined) throw new Error('v1 activation needs the accepted offer terms')
   assertActivationTerms(listing, expected)
+  await requireBondHorizon(ctx, listing.expiredAt, 0n, listing.workerBond)
   if (listing.policyHash.toLowerCase() !== sel.termsHash.toLowerCase())
     throw new Error('Listing policy hash does not match Selection')
   await requireStake(ctx, worker.account.address, listing.workerBond)

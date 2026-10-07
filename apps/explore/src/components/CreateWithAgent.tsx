@@ -10,6 +10,7 @@ import { CopyButton, textLinkClass } from './kit.tsx'
 import { SignIn } from './SignIn.tsx'
 import { Button } from './ui/button.tsx'
 import { useAuth } from './Wallet.tsx'
+import { BondHorizonNotice } from './BondHorizonNotice.tsx'
 
 export type CreationContext = 'quotes' | 'hire' | 'again' | 'pick'
 
@@ -45,6 +46,7 @@ function creationPrompt({
     `The publisher must be my agent #${publisher.agent_id}, wallet ${publisher.address}. Verify whoami matches that publisher and has hire access; stop if it does not.`,
     intent,
     'Ask me for any missing brief, acceptance criteria, reward/token and deadlines. Choose up to three relevant tags: coding, design, writing, research, on-chain, other. Respect this board’s policy and the frozen review/dispute/arbitration terms.',
+    'If either bond is nonzero, check that the delivery deadline plus review, dispute, arbitration and the expiry margin fits within the deployed vault UNSTAKE_DELAY from now. Shorten the deadline or windows, or set both bonds to 0 for a longer job.',
     'Read this publisher’s allowance and backing. Prepare the operation using the existing publisher tools and obtain the required wallet authorization or operator approval. Treat the job as funded only after its publish receipt confirms on-chain.',
     'Persist the original operation key and exact arguments before a money-moving call. If an outcome is uncertain, reconcile that same operation and chain receipt before retrying; never create another job as a retry.',
   ].join('\n\n')
@@ -125,6 +127,7 @@ export function CreateWithAgent({
               Choose the publisher, then paste the instruction into your coding client. Your client runs the work and
               asks for the required approval.
             </p>
+            <BondHorizonNotice bonded={open} />
             {auth.signedIn && managed.isFetching && (
               <p role="status" className="text-muted-foreground">
                 Checking your publishers…

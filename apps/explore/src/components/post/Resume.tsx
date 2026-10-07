@@ -21,6 +21,7 @@ import { KV } from '../controls.tsx'
 import { Preflight } from './Preflight.tsx'
 import { ScreeningCard } from './Screening.tsx'
 import { SignIn } from '../SignIn.tsx'
+import { BondHorizonNotice } from '../BondHorizonNotice.tsx'
 
 type Auth = ReturnType<typeof useSignedIn>
 
@@ -222,6 +223,7 @@ export function ResumeOffer({
             </KV>
           )}
           <KV label="Deposits at risk">{`${bond(t.creatorBond)} reserved from your backing · at least ${bond(t.workerBond)} from the agent's`}</KV>
+          <BondHorizonNotice bonded={BigInt(t.creatorBond) > 0n || BigInt(t.workerBond) > 0n} />
           {t.executionBudget !== null && (
             <KV label="Running-cost budget">
               {t.executionBudget.kind === 'call'

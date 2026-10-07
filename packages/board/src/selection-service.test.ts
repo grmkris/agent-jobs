@@ -23,7 +23,7 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-function fixture() {
+function fixture(workerBond = 0n, expiredAt = 260200) {
   // Use the current v1 pair for selections.
   const historical = sdk.deployment('monad-testnet')
   const base = {
@@ -31,13 +31,27 @@ function fixture() {
     deployment: historical,
   }
   const verify = vi.fn(async () => true)
-  const read = vi.fn(async ({ functionName }: { functionName: string }) => {
-    if (functionName === 'selectionNonceUsed' || functionName === 'paused') return false
-    throw new Error(`unexpected read ${functionName}`)
-  })
+  const read = vi.fn(
+    async ({
+      functionName,
+    }: {
+      functionName: string
+    }): Promise<boolean | number | bigint | (number | bigint)[] | typeof listing> => {
+      if (functionName === 'selectionNonceUsed' || functionName === 'paused') return false
+      if (functionName === 'UNSTAKE_DELAY') return 259200
+      if (functionName === 'getListing') return listing
+      if (functionName === 'availableOf') return 100n
+      if (functionName === 'quoteActivation') return [3000, 2n, 3n]
+      throw new Error(`unexpected read ${functionName}`)
+    },
+  )
+  // SAFETY: the guard only needs the mined block's timestamp; unused RPC fields are omitted.
+  const getBlock = vi
+    .fn<sdk.Ctx['publicClient']['getBlock']>()
+    .mockResolvedValue({ timestamp: 1000n } as Awaited<ReturnType<sdk.Ctx['publicClient']['getBlock']>>)
   const ctx = {
     ...base,
-    publicClient: { ...base.publicClient, verifyTypedData: verify, readContract: read },
+    publicClient: { ...base.publicClient, verifyTypedData: verify, readContract: read, getBlock },
   } as unknown as sdk.Ctx
   const database = new DatabaseSync(':memory:')
   databases.push(database)
@@ -75,7 +89,7 @@ function fixture() {
     token: base.deployment.rewardTokens[0]!,
     reward: 5n,
     creatorBond: 0n,
-    workerBond: 0n,
+    workerBond,
     deliveryDeadline: 1_200,
     windows: { reviewSeconds: 100, disputeSeconds: 100, arbitrationSeconds: 100 },
     eligibility: null,
@@ -128,7 +142,8 @@ function fixture() {
     token: terms.token,
     reward: terms.reward,
     creatorBond: 0n,
-    workerBond: 0n,
+    workerBond,
+    expiredAt,
     deliveryDeadline: terms.deliveryDeadline,
     policyHash: hash,
     reviewWindow: terms.windows.reviewSeconds,
@@ -231,4 +246,25 @@ describe('get_task creator selection authorization and persistence', () => {
     context.verify.mockRejectedValue(new Error('RPC down'))
     expect((await context.get(creator)).selection?.[0]?.state).toBe('unavailable')
   })
+})
+
+it('select_worker and prepare_activation refuse the actual bonded listing horizon before saving authorization', async () => {
+  const f = fixture(1n, 260201),
+    board = f.boot()
+  await expect(
+    board.selectWorker({ address: creator }, { taskId: f.terms.taskId, applicationId: 'app-1' }),
+  ).rejects.toThrow('3 days')
+  expect(f.sql.all('SELECT * FROM selections')).toHaveLength(1)
+  await expect(board.prepareActivation({ address: worker }, { taskId: f.terms.taskId })).rejects.toThrow('3 days')
+  expect(f.sql.all('SELECT * FROM activation_preps')).toHaveLength(0)
+})
+
+it('select_worker and prepare_activation allow the exact horizon', async () => {
+  const f = fixture(1n),
+    board = f.boot()
+  expect(
+    await board.selectWorker({ address: creator }, { taskId: f.terms.taskId, applicationId: 'app-1' }),
+  ).toHaveProperty('sign')
+  expect(await board.prepareActivation({ address: worker }, { taskId: f.terms.taskId })).toHaveProperty('sign')
+  expect(f.sql.all('SELECT * FROM activation_preps')).toHaveLength(1)
 })

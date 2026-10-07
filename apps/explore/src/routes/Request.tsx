@@ -42,6 +42,7 @@ import { writesOpen } from '../wallet.ts'
 import { useAgents } from '../agent-summary.ts'
 import { useManagedAgents } from '../managed.ts'
 import { CreateWithAgent } from '../components/CreateWithAgent.tsx'
+import { BondHorizonNotice } from '../components/BondHorizonNotice.tsx'
 
 type Auth = ReturnType<typeof useSignedIn>
 /** What `list_quote_requests` carries beyond the shared type: the request as frozen (checks, deliverable spec). */
@@ -367,6 +368,7 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
               <KV label="Deposits at risk">
                 {r.creatorBond} SIDE from the requester · {r.workerBond} from the agent
               </KV>
+              <BondHorizonNotice bonded={Number(r.creatorBond) > 0 || Number(r.workerBond) > 0} />
               <KV label="Deliver as">{(r.deliverable?.accepts ?? ['git']).map((k) => KIND_LABEL[k]).join(', ')}</KV>
               {(r.requiredChecks ?? []).length > 0 && (
                 <KV label="Required GitHub check">
@@ -530,6 +532,7 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
         busy={busy}
         disabled={picking?.expectedCosts != null && budgetOn && cap.trim() === ''}
       >
+        {r !== undefined && <BondHorizonNotice bonded={Number(r.creatorBond) > 0 || Number(r.workerBond) > 0} />}
         {picking !== null &&
           (picking.expectedCosts !== null ? (
             <div className="grid gap-3 rounded-xl bg-muted p-4">

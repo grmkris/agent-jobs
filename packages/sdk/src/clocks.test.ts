@@ -2,6 +2,10 @@ import { describe, expect, it, vi } from 'vitest'
 import { type Address } from 'viem'
 import type { Ctx } from './actions.ts'
 import {
+  bondHorizonMessage,
+  requireBondHorizon,
+  readUnstakeDelay,
+  validateBondHorizon,
   configuredClocks,
   minimumOfferWindows,
   readSidequestClocks,
@@ -16,8 +20,8 @@ const FAST = {
   minReviewWindow: 120,
   minDisputeWindow: 120,
   minArbitrationWindow: 300,
-  unstakeDelay: 600,
-  holdingDelay: 900,
+  unstakeDelay: 259200,
+  holdingDelay: 262800,
   feeDelay: 300,
   proposalGrace: 1800,
   epochZeroDuration: 1800,
@@ -162,5 +166,52 @@ describe('deploy-time clocks', () => {
     expect(standardOfferWindows({ ...bounds, review: { min: 100000, max: MAX_SIDEQUEST_WINDOW } }).reviewSeconds).toBe(
       100000,
     )
+  })
+})
+
+describe('bond horizon', () => {
+  it.each([259200, 1209600])(
+    'accepts the exact %s-second horizon, refuses either bond past it and permits long unbonded jobs',
+    (delay) => {
+      expect(() => validateBondHorizon(1000 + delay, 1000, delay, 1n, 1n)).not.toThrow()
+      for (const [creatorBond, workerBond] of [
+        [1n, 0n],
+        [0n, 1n],
+      ])
+        expect(() => validateBondHorizon(1001 + delay, 1000, delay, creatorBond!, workerBond!)).toThrow(
+          bondHorizonMessage(delay),
+        )
+      expect(() => validateBondHorizon(1000 + 100 * delay, 1000, delay, 0n, 0n)).not.toThrow()
+      expect(bondHorizonMessage(delay)).toContain(delay === 1209600 ? '14 days' : '3 days')
+    },
+  )
+
+  it('uses the chain timestamp and actual vault delay while skipping clock reads for zero bonds', async () => {
+    const f = fixture()
+    // SAFETY: horizon checks use only the block timestamp; the fixture retains all other client and context fields.
+    const getBlock = vi
+      .fn<Ctx['publicClient']['getBlock']>()
+      .mockResolvedValue({ timestamp: 1000n } as Awaited<ReturnType<Ctx['publicClient']['getBlock']>>)
+    // SAFETY: the preflight queries the mined latest block only, for which the mock provides the timestamp.
+    const ctx = { ...f.ctx, publicClient: { ...f.ctx.publicClient, getBlock } } as Ctx
+    await requireBondHorizon(ctx, 1000 + FAST.unstakeDelay, 1n)
+    await expect(requireBondHorizon(ctx, 1001 + FAST.unstakeDelay, 0n, 1n)).rejects.toThrow('3 days')
+    expect(f.readContract).toHaveBeenCalledWith(
+      expect.objectContaining({ address: ctx.deployment.sidequest!.vault, functionName: 'UNSTAKE_DELAY' }),
+    )
+    expect(f.readContract).toHaveBeenCalledTimes(1)
+    const unbonded = fixture()
+    await requireBondHorizon(unbonded.ctx, Number.MAX_SAFE_INTEGER, 0n, 0n)
+    expect(unbonded.readContract).not.toHaveBeenCalled()
+  })
+
+  it('fails closed on clock reads and retries an invalid or unavailable delay', async () => {
+    const f = fixture()
+    f.readContract.mockRejectedValueOnce(new Error('RPC unavailable'))
+    await expect(readUnstakeDelay(f.ctx)).rejects.toThrow('RPC unavailable')
+    f.values.UNSTAKE_DELAY = 0
+    await expect(readUnstakeDelay(f.ctx)).rejects.toThrow('Invalid deployed unstake delay')
+    f.values.UNSTAKE_DELAY = FAST.unstakeDelay
+    expect(await readUnstakeDelay(f.ctx)).toBe(FAST.unstakeDelay)
   })
 })

@@ -885,7 +885,8 @@ export class Board {
       // A cached unsigned publication names the original Holding. Revalidate its frozen pair before returning it;
       // promotion may have retired that Holding since the cache was written. Keep the cache intact and never rebuild
       // the offer against the new main pair.
-      this.#task(saved.taskId)
+      const task = this.#task(saved.taskId)
+      if (task.job_id === null) await sidequest.requireOfferHorizon(this.#taskCtx(task), parseTerms(task.terms_json))
       return saved
     }
     const tags = input.tags === undefined ? [] : normalizeTags(input.tags)
@@ -949,6 +950,7 @@ export class Board {
       throw invalidTerms(e)
     }
     const hash = termsHash(terms)
+    await sidequest.requireOfferHorizon(ctx, terms)
     const manifest = canonicalJson(terms)
     let invited: { worker: Address; agentId: string } | undefined
     if (input.invite !== undefined) {
@@ -1322,6 +1324,8 @@ export class Board {
       throw new BoardError('invalid', 'activateBy must precede the delivery deadline')
     const ctx = this.#taskCtx(task)
     const nonce = randomUint(16)
+    const listing = await sdk.getV1Listing(ctx, BigInt(task.job_id))
+    await sidequest.requireBondHorizon(ctx, listing.expiredAt, 0n, listing.workerBond)
     this.#sql.run(
       'INSERT INTO selections (task_id, nonce, application_id, worker, agent_id, activate_by, signature, created_at) VALUES (?, ?, ?, ?, ?, ?, NULL, ?)',
       task.id,
@@ -2268,6 +2272,7 @@ export class Board {
     const ctx = this.#taskCtx(task)
     const terms = parseTerms(task.terms_json)
     const budgetNonce = randomUint(9)
+    const feeQuote = await sidequest.activationQuote(ctx, this.#jobId(task), me, terms)
     const budgetDeadline = this.#now() + 3600
     this.#sql.run(
       'INSERT INTO activation_preps (task_id, worker, nonce, budget_nonce, budget_deadline) VALUES (?, ?, ?, ?, ?) ON CONFLICT (task_id, worker) DO UPDATE SET nonce = excluded.nonce, budget_nonce = excluded.budget_nonce, budget_deadline = excluded.budget_deadline',
@@ -2277,7 +2282,6 @@ export class Board {
       budgetNonce.toString(),
       budgetDeadline,
     )
-    const feeQuote = await sidequest.activationQuote(ctx, this.#jobId(task), me, terms)
     return {
       selection: this.#selection(task, sel),
       activateBy: sel.activate_by,

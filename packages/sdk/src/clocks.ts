@@ -128,12 +128,12 @@ export function readSidequestClocks(ctx: Ctx): Promise<SidequestClocks> {
         minReviewWindow: bounds.review.min,
         minDisputeWindow: bounds.dispute.min,
         minArbitrationWindow: bounds.arbitration.min,
-        unstakeDelay: Number(unstakeDelay),
-        holdingDelay: Number(holdingDelay),
-        feeDelay: Number(feeDelay),
-        proposalGrace: Number(vaultGrace),
-        epochZeroDuration: Number(epochZeroDuration),
-        epochDuration: Number(epochDuration),
+        unstakeDelay,
+        holdingDelay,
+        feeDelay,
+        proposalGrace: vaultGrace,
+        epochZeroDuration,
+        epochDuration,
       },
       ctx.deployment.chainId,
     )
@@ -141,6 +141,56 @@ export function readSidequestClocks(ctx: Ctx): Promise<SidequestClocks> {
   clocksCache.set(ctx, pending)
   void pending.catch(() => clocksCache.delete(ctx))
   return pending
+}
+
+const unstakeDelayCache = new WeakMap<Ctx, Promise<number>>()
+/** Read the vault's immutable exit delay for preflight checks. */
+export function readUnstakeDelay(ctx: Ctx): Promise<number> {
+  const h = ctx.deployment.sidequest
+  if (ctx.stack.kind !== 'sidequest-v1' || h === null)
+    return Promise.reject(new Error('Unstake delay requires sidequest-v1'))
+  const saved = unstakeDelayCache.get(ctx)
+  if (saved !== undefined) return saved
+  const pending = ctx.publicClient
+    .readContract({ address: h.vault, abi: stakeVaultAbi, functionName: 'UNSTAKE_DELAY' })
+    .then((value) => {
+      const delay = value
+      if (!Number.isSafeInteger(delay) || delay < 60) throw new Error('Invalid deployed unstake delay')
+      return delay
+    })
+  unstakeDelayCache.set(ctx, pending)
+  void pending.catch(() => unstakeDelayCache.delete(ctx))
+  return pending
+}
+
+export function bondHorizonMessage(delay: number): string {
+  const days = delay / 86400
+  const label = Number.isInteger(days) ? `${days} day${days === 1 ? '' : 's'}` : `${delay} seconds`
+  return `A job with a bond must end within ${label} (the unstake period). Shorten the deadline or windows, or set the bond to 0.`
+}
+
+export class BondHorizonError extends Error {}
+
+export function validateBondHorizon(
+  expiredAt: number,
+  now: number,
+  delay: number,
+  creatorBond: bigint,
+  workerBond: bigint,
+): void {
+  if ((creatorBond === 0n && workerBond === 0n) || expiredAt <= now + delay) return
+  throw new BondHorizonError(bondHorizonMessage(delay))
+}
+
+export async function requireBondHorizon(
+  ctx: Ctx,
+  expiredAt: number,
+  creatorBond: bigint,
+  workerBond = 0n,
+): Promise<void> {
+  if (creatorBond === 0n && workerBond === 0n) return
+  const [delay, block] = await Promise.all([readUnstakeDelay(ctx), ctx.publicClient.getBlock()])
+  validateBondHorizon(expiredAt, Number(block.timestamp), delay, creatorBond, workerBond)
 }
 
 export const minimumOfferWindows = (bounds: WindowBounds): OfferWindows => ({

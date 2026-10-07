@@ -94,6 +94,11 @@ fork('live matrix runner against real v1 bytecode', () => {
             expect(residual >= -1n && residual <= 1n).toBe(true)
           }
           if (flow === 'undelegate-pending-slash') {
+            // SAFETY: the runner persisted the canonical offer and queue before the withdrawal receipt crash.
+            const offer = durable.values[`${flow}/offer`] as { expiredAt: number }
+            // SAFETY: this queue is read from the successful request receipt's block.
+            const queued = durable.values[`${flow}/queue-creator`] as { unlockAt: number }
+            expect(offer.expiredAt).toBeLessThanOrEqual(queued.unlockAt)
             expect(proof.after.positions.creator!.queuedShares).toBeGreaterThan(0n)
             expect(proof.after.pool.reserved).toBeGreaterThan(0n)
             expect(durable.values[`${flow}/blocked-before-slash`]).toMatchObject({
@@ -174,15 +179,15 @@ fork('live matrix runner against real v1 bytecode', () => {
       await runV1CoreFlow({ ...deps, journal: boot() }, 'hire')
       await runV1CoreFlow({ ...deps, journal: boot() }, 'ruling-creator-slash')
       const timeoutId = durable.values['arbitration-timeout/jobId'] as bigint
-      const disputedAt = Number(
-        await f.ctx.publicClient.readContract({
-          address: f.ctx.stack.evaluator,
-          abi: (await import('./abi/index.ts')).sidequestEvaluatorAbi,
-          functionName: 'disputedAt',
-          args: [timeoutId],
-        }),
-      )
-      await f.rpc('evm_setNextBlockTimestamp', [disputedAt + 43201])
+      const disputedAt = await f.ctx.publicClient.readContract({
+        address: f.ctx.stack.evaluator,
+        abi: (await import('./abi/index.ts')).sidequestEvaluatorAbi,
+        functionName: 'disputedAt',
+        args: [timeoutId],
+      })
+      // SAFETY: the paused flow persisted its deployed-clock offer before starting arbitration.
+      const timeoutOffer = durable.values['arbitration-timeout/offer'] as { arbitrationWindow: number }
+      await f.rpc('evm_setNextBlockTimestamp', [disputedAt + timeoutOffer.arbitrationWindow + 1])
       await f.rpc('evm_mine')
       interrupt = true
       await expect(runV1CoreFlow({ ...deps, journal: boot() }, 'arbitration-timeout')).rejects.toThrow(
