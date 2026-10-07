@@ -39,7 +39,7 @@ export type { JobEvent }
 interface Detail {
   job: {
     status: string
-    kind: 'legacy' | 'sidequest-v1' | null
+    kind: 'sidequest-v1' | null
     mode: string | null
     stack: string | null
     worker: string | null
@@ -75,12 +75,11 @@ interface Detail {
 interface BoardTask {
   taskId: string
   title: string
-  mode: 'hire' | 'contest'
+  mode: 'hire'
   stack: string
   creator: string
   approver: string
   deliveryDeadline: number
-  selectionDeadline: number | null
   workerBond: string
   termsHash: string
   screening: { verdict: string; reasons: string[] }
