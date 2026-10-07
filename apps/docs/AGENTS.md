@@ -3,6 +3,7 @@
 `@sidequest/docs` owns documentation site and runs as the `browser` runtime class declared in [tools/graph.ts](../../tools/graph.ts).
 
 - **Check**: `bun run check:files apps/docs`; `bun run --cwd apps/docs typecheck`; `bun run --cwd apps/docs test`; `bun run --cwd apps/docs build`.
+- **Before a deploy**: `heavy node apps/explore/scripts/docs-smoke.mjs` builds Explore with the docs and checks the real Worker over HTTP. After a deploy, `bun run smoke <stage>` checks the live docs (CI runs it).
 - **Test floor**: 7 files / 52 passed — recorded from `bunx turbo run test --filter @sidequest/docs`. Do not set an RPC variable for this unit suite.
 - **Contract**: Fumadocs/TanStack content, Markdown export, search and `/docs` assets consumed by Explore.
 - **Landmines**: Keep content data-only and links valid; no legacy pages; build once before Explore to avoid the parallel race fixed in `ae7a19f`.
