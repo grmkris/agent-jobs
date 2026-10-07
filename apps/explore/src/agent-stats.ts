@@ -7,7 +7,7 @@ import type { MoneyTotals } from './routes/Agent.tsx'
 import { tokenMeta } from './format.ts'
 
 /** Below this many settled jobs a percentage says more than the record does: show "2 of 2 paid" instead. */
-export const RATE_AFTER = 3
+const RATE_AFTER = 3
 
 export interface Success {
   /** Jobs that ended: paid, or refunded/rejected/not delivered. Open jobs are not counted. */
@@ -67,7 +67,7 @@ export type NeedsYouItem =
   | { kind: 'revocation' }
 
 /** Below this share of the weekly budget left, the owner hears about it before a hire lands in Approvals. */
-export const LOW_BUDGET = 0.2
+const LOW_BUDGET = 0.2
 
 /**
  * What the owner of an agent should act on, most urgent first: decisions waiting, approved operations that did not

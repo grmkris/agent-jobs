@@ -23,7 +23,7 @@ export function tokenSource(address: string): TokenSource {
 }
 
 /** The icon for an address: a drawn one, a vendored logo's path, or null for the letter disc. */
-export function tokenIcon(address: string): { kind: 'drawn'; Icon: typeof FactoryIcon } | { kind: 'logo'; src: string } | null {
+function tokenIcon(address: string): { kind: 'drawn'; Icon: typeof FactoryIcon } | { kind: 'logo'; src: string } | null {
   const a = address.toLowerCase()
   if (isFactory(a)) return { kind: 'drawn', Icon: FactoryIcon }
   // A listed token's symbol is ours (format.ts TOKENS), so it can pick a drawn icon; an unlisted one's cannot.

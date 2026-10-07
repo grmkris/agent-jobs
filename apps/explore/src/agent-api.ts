@@ -37,7 +37,7 @@ export interface AgentApproval {
   decided_at?: number | null;
 }
 
-export const agentPath = (id: string, action = "") =>
+const agentPath = (id: string, action = "") =>
   `/api/agents/${encodeURIComponent(id)}${action === "" ? "" : `/${action}`}`;
 export const agentStatus = (id: string) => agentEndpoint<AgentStatus>(agentPath(id));
 export const agentAction = <T>(id: string, action: string, body: Record<string, unknown> = {}) =>

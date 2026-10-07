@@ -1,7 +1,6 @@
 /** App-only compositions over the vendored base-nova components. */
 import { Check, ChevronRight, CircleAlert, Copy, ExternalLink } from 'lucide-react'
 import { type ReactNode, type SelectHTMLAttributes, useEffect, useState } from 'react'
-import { amount as formatAmount } from '../format.ts'
 import { explorer } from '../wallet.ts'
 import { selectRadio } from './radio.ts'
 import { cn } from '../lib/cn.ts'
@@ -140,19 +139,6 @@ export function TxLink({ hash, label }: { hash: string | null | undefined; label
       <ExternalLink aria-hidden className="size-3" />
     </a>
   )
-}
-
-/** An amount in a token, with tabular figures. */
-export function Amount({
-  value,
-  token,
-  className,
-}: {
-  value: string | null | undefined
-  token: string | null | undefined
-  className?: string
-}) {
-  return <span className={cn('tabular-nums font-medium whitespace-nowrap', className)}>{formatAmount(value, token)}</span>
 }
 
 /** A link in running text: it keeps the text colour, so the underline is what says "link". */

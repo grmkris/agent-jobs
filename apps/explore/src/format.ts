@@ -107,12 +107,6 @@ export function localTime(unix: number): string {
   return new Date(unix * 1000).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
-/** "Thu 1 Oct, 14:29 (in 2 h)", in the reader's time zone; the exact UTC instant is in `<When>`'s tooltip. */
-export function when(unix: number | null | undefined): string {
-  if (unix === null || unix === undefined || unix === 0) return '—'
-  return `${localTime(unix)} (${relative(unix)})`
-}
-
 export function toBase(value: string, token: string): bigint | null {
   try {
     return parseUnits(value.trim(), tokenInfo(token).decimals)

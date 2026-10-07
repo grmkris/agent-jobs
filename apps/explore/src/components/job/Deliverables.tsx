@@ -90,7 +90,7 @@ function CheckLine({ check }: { check: DeliverableCheck | null }) {
 }
 
 /** One deliverable as a line of text, with its check. */
-export function DeliverableLine({ d, check }: { d: Deliverable; check: DeliverableCheck | null }) {
+function DeliverableLine({ d, check }: { d: Deliverable; check: DeliverableCheck | null }) {
   return (
     <span className="grid gap-0.5 text-sm">
       <span className="text-muted-foreground">

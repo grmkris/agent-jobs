@@ -153,7 +153,7 @@ export function resizeProblem(text: string, root: { total: bigint; claimed: bigi
 }
 
 /** A contract the console may call, with the functions it may call on it as the Safe, and directly (anyone may). */
-export interface AdminTarget {
+interface AdminTarget {
   name: string
   abi: Abi
   safe: readonly string[]
@@ -170,7 +170,7 @@ export interface AdminContext {
 }
 
 /** One contract call inside an admin transaction, decoded from its calldata. */
-export interface InnerCall {
+interface InnerCall {
   contract: string
   to: Address
   functionName: string

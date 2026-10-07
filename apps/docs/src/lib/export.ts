@@ -1,7 +1,7 @@
 import { source } from './source.ts'
 import { pageMarkdown } from './markdown.ts'
 
-export type DocsExportPage = {
+type DocsExportPage = {
   slug: string
   path: string
   title: string

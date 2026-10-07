@@ -23,7 +23,7 @@ export function useWalletTokens(): `0x${string}`[] {
   return tokens
 }
 
-export type BalanceStatus = 'loading' | 'unavailable' | 'value'
+type BalanceStatus = 'loading' | 'unavailable' | 'value'
 
 export interface BalanceRow {
   /** The token, or null for the chain's native coin. */

@@ -8,7 +8,7 @@ import { cn } from '../lib/cn.ts'
 import { startOrigin } from './AgentStartLink.tsx'
 import { CopyButton } from './kit.tsx'
 
-export const postPrompt = (origin: string, boardId: string) =>
+const postPrompt = (origin: string, boardId: string) =>
   boardId === 'public'
     ? `Read ${origin}/start.md and ask for quotes on …`
     : `Read ${origin}/start.md, use the board at ${origin}/b/${boardId}/mcp and ask for quotes on …`

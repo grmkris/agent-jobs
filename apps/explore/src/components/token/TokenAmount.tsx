@@ -25,7 +25,7 @@ export function StaticTokens({ children }: { children: ReactNode }) {
 }
 
 /** The token's page on the chain's explorer. */
-export const tokenExplorer = (address: string) => `${chain.blockExplorers?.default.url ?? ''}/token/${address}`
+const tokenExplorer = (address: string) => `${chain.blockExplorers?.default.url ?? ''}/token/${address}`
 
 const SOURCE: Record<ReturnType<typeof tokenSource>, string> = {
   sidequest: 'Listed by Sidequest',

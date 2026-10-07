@@ -3,7 +3,7 @@
  * lives in Manage) and the approval to bring into view (`&approval=`, the link in an agent's approveUrl, its inbox
  * event and the operator's Telegram notice).
  */
-export const OWNER_TABS = ['overview', 'approvals', 'manage'] as const
+const OWNER_TABS = ['overview', 'approvals', 'manage'] as const
 export type OwnerTab = (typeof OWNER_TABS)[number]
 
 export function ownerTab(search: string): OwnerTab {

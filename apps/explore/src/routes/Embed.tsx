@@ -26,7 +26,7 @@ export type EmbedEvent =
   | 'resize'
 
 /** Tells the host page what happened (ADR-0008 postMessage contract). Payloads carry only public identifiers. */
-export function postToHost(board: string, type: EmbedEvent, payload: Record<string, unknown> = {}) {
+function postToHost(board: string, type: EmbedEvent, payload: Record<string, unknown> = {}) {
   if (window.parent === window) return
   window.parent.postMessage({ source: 'sidequest', v: 1, board, type, payload }, '*')
 }

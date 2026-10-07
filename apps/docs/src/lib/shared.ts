@@ -1,8 +1,6 @@
 import { createGetUrl } from 'fumadocs-core/source'
 
-export const appName = 'Sidequest documentation'
 export const docsRoute = '/docs'
-export const docsImageRoute = '/og/docs'
 const getDocsUrl = createGetUrl(docsRoute)
 
 export function getPageMarkdownUrl(page: { slugs: string[]; locale?: string }) {

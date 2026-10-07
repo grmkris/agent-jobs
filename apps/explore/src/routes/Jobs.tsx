@@ -128,7 +128,7 @@ function rowNote(phase: Phase | null, agentId: string | null | undefined): strin
 }
 
 /** The phase of a list row: a quote request's from its public facts, a job's from chain and board records. */
-export function rowPhase(item: JobListItem, viewer: string | undefined, now: number): Phase | null {
+function rowPhase(item: JobListItem, viewer: string | undefined, now: number): Phase | null {
   const r = item.request
   if (r !== undefined) {
     return listPhase(quoteRequestPhase({ quoteDeadline: r.quoteDeadline, quotes: r.quotesCount ?? 0, picked: r.taskId != null, creator: r.creator }, viewer, now))

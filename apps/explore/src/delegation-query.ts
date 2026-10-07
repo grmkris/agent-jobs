@@ -19,7 +19,7 @@ type Wire<T> = T extends bigint ? string : T extends object ? { [K in keyof T]: 
 type WirePosition = Wire<Position>;
 type WireBacking = Wire<Backing>;
 
-export function parseBacking(backing: WireBacking): Backing {
+function parseBacking(backing: WireBacking): Backing {
   return {
     ...backing,
     blockNumber: BigInt(backing.blockNumber),
@@ -41,7 +41,7 @@ export function parseBacking(backing: WireBacking): Backing {
   };
 }
 
-export function parsePosition(position: WirePosition): Position {
+function parsePosition(position: WirePosition): Position {
   return {
     ...position,
     blockNumber: BigInt(position.blockNumber),
@@ -55,7 +55,7 @@ export function parsePosition(position: WirePosition): Position {
   };
 }
 
-export async function readDelegations(contracts: SidequestContracts, delegator: Address) {
+async function readDelegations(contracts: SidequestContracts, delegator: Address) {
   const snapshot = await data<{
     source: "index+vault";
     blockNumber: string;

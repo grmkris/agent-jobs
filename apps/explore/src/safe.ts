@@ -40,7 +40,7 @@ export const safeAbi = [
  */
 export const MULTI_SEND_CALL_ONLY: Address = '0x9641d764fc13c8B624c04430C7356C1C7C8102e2'
 
-export const multiSendAbi = [
+const multiSendAbi = [
   { type: 'function', name: 'multiSend', stateMutability: 'payable', inputs: [{ name: 'transactions', type: 'bytes' }], outputs: [] },
 ] as const
 
@@ -81,7 +81,7 @@ export function unpackMultiSend(data: Hex): Array<{ operation: number; to: Addre
 export const preValidated = (owner: Address): Hex => concat([pad(owner, { size: 32 }), pad('0x00', { size: 32 }), '0x01'])
 
 /** The Safe's EIP-712 transaction type (v1.3 and v1.4): what an owner's signature over one Safe transaction covers. */
-export const SAFE_TX_TYPES = {
+const SAFE_TX_TYPES = {
   SafeTx: [
     { name: 'to', type: 'address' },
     { name: 'value', type: 'uint256' },

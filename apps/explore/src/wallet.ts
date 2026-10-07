@@ -24,8 +24,6 @@ export const isMainnet = network === 'monad-mainnet'
  * "launching soon" notices send people to try it. Null everywhere else: the networks never link to each other.
  */
 export const testnetLink: string | null = sdk.networkMeta(network).links.testnet ?? null
-export { MAINNET_LIVE }
-
 /** The deploy's chain; testnet with the explorer overridden (the chain's default testnet explorer entry is stale). */
 export const chain: Chain = isMainnet
   ? monad
@@ -82,13 +80,13 @@ let privyProvider: EIP1193Provider | undefined
 export const setPrivyProvider = (p: EIP1193Provider | undefined) => {
   privyProvider = p
 }
-export const privyConnector = injected({ target: { id: 'privy', name: 'Privy', provider: () => closeWrites(privyProvider, writesOpen) } })
+const privyConnector = injected({ target: { id: 'privy', name: 'Privy', provider: () => closeWrites(privyProvider, writesOpen) } })
 /**
  * A browser wallet (`window.ethereum`) for the embedded widget only (`/embed/<board>?wallet=injected`, ADR-0008):
  * a host page that already has a wallet passes it through. Explore's own sign-in stays Privy only; nothing here
  * auto-connects.
  */
-export const injectedConnector = writesOpen
+const injectedConnector = writesOpen
   ? injected()
   : injected({ target: { id: 'injected', name: 'Browser wallet', provider: () => closeWrites((globalThis as { ethereum?: EIP1193Provider }).ethereum, false) } })
 

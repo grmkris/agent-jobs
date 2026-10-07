@@ -10,7 +10,7 @@ import { directoryLiveness, presenceLabel } from '../directory-presence.ts'
 import { AgentOrb } from './agent/AgentOrb.tsx'
 import { chain } from '../wallet.ts'
 
-export function PresenceBadge({ agent }: { agent: DirectoryAgent }) {
+function PresenceBadge({ agent }: { agent: DirectoryAgent }) {
   const now = Date.now() / 1000
   return (
     <span className="inline-flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
@@ -20,7 +20,7 @@ export function PresenceBadge({ agent }: { agent: DirectoryAgent }) {
   )
 }
 
-export function ServiceCard({
+function ServiceCard({
   ad,
   agent,
   compact = false,

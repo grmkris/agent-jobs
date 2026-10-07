@@ -1,7 +1,7 @@
 import { useEffect, useState, useSyncExternalStore } from 'react'
 
 /** At most this many live WebGL shaders per page; the rest draw their CSS stand-in. */
-export const SHADER_LIMIT = 8
+const SHADER_LIMIT = 8
 
 /** A first-come slot store: a released slot goes to the next one waiting. */
 export function createShaderBudget(limit: number) {

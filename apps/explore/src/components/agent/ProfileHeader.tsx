@@ -14,7 +14,7 @@ import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from '../ui/pop
 import { AgentOrb } from './AgentOrb.tsx'
 
 /** The identity is global to the network: board context, owner tabs and anchors are never shared. */
-export const canonicalAgentUrl = (origin: string, id: string) => `${new URL(origin).origin}/agent/${id}`
+const canonicalAgentUrl = (origin: string, id: string) => `${new URL(origin).origin}/agent/${id}`
 
 function ExplorerMenu({ id, wallet }: { id: string; wallet: `0x${string}` | undefined }) {
   const links = [...agentExplorerLinks(id).map((link) => ({ label: `Agent on ${link.name}`, href: link.href })), ...(wallet === undefined ? [] : [{ label: 'Wallet on Monadscan', href: explorer('address', wallet) }])]

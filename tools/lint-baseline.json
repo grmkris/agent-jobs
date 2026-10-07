@@ -388,9 +388,6 @@
   "apps/docs/scripts/verify-output.mjs": {
     "complexity(complexity)": 1
   },
-  "apps/docs/src/components/mdx.tsx": {
-    "knip(duplicates)": 1
-  },
   "apps/docs/src/lib/content-contract.ts": {
     "anti-slop(no-runtime-typeof)": 6,
     "anti-slop(require-safety-comment-for-type-assertion)": 2,
@@ -410,9 +407,6 @@
     "anti-slop(require-safety-comment-for-type-assertion)": 1,
     "complexity(complexity)": 1,
     "typescript(no-unnecessary-type-assertion)": 1
-  },
-  "apps/docs/src/lib/shared.ts": {
-    "knip(exports)": 2
   },
   "apps/docs/src/lib/source.ts": {
     "typescript(no-unnecessary-type-assertion)": 1
@@ -460,11 +454,7 @@
     "anti-slop(no-runtime-typeof)": 12,
     "anti-slop(require-safety-comment-for-type-assertion)": 17,
     "complexity(complexity)": 3,
-    "knip(types)": 2,
     "typescript(no-unnecessary-type-assertion)": 2
-  },
-  "apps/explore/src/agent-api.ts": {
-    "knip(exports)": 1
   },
   "apps/explore/src/agent-grant.ts": {
     "anti-slop(require-safety-comment-for-type-assertion)": 1,
@@ -472,9 +462,6 @@
   },
   "apps/explore/src/agent-name.ts": {
     "anti-slop(no-runtime-typeof)": 1
-  },
-  "apps/explore/src/agent-stats.ts": {
-    "knip(exports)": 2
   },
   "apps/explore/src/api.ts": {
     "anti-slop(require-safety-comment-for-type-assertion)": 3,
@@ -536,8 +523,7 @@
   "apps/explore/src/components/CreateWithAgent.tsx": {
     "anti-slop-effect(prefer-effect-match)": 2,
     "complexity(complexity)": 1,
-    "jsx-a11y(prefer-tag-over-role)": 1,
-    "knip(exports)": 1
+    "jsx-a11y(prefer-tag-over-role)": 1
   },
   "apps/explore/src/components/DelegationForm.tsx": {
     "complexity(complexity)": 1,
@@ -547,9 +533,6 @@
   "apps/explore/src/components/DelegationPositions.tsx": {
     "complexity(complexity)": 1,
     "eslint(max-lines-per-function)": 2
-  },
-  "apps/explore/src/components/DirectoryCards.tsx": {
-    "knip(exports)": 2
   },
   "apps/explore/src/components/Fund.tsx": {
     "anti-slop(require-safety-comment-for-type-assertion)": 1,
@@ -565,9 +548,6 @@
   },
   "apps/explore/src/components/InstallHint.tsx": {
     "anti-slop(require-safety-comment-for-type-assertion)": 1
-  },
-  "apps/explore/src/components/JobsHeader.tsx": {
-    "knip(exports)": 1
   },
   "apps/explore/src/components/LaunchGate.tsx": {
     "jsx-a11y(prefer-tag-over-role)": 2
@@ -589,11 +569,7 @@
   },
   "apps/explore/src/components/Phase.tsx": {
     "anti-slop(no-runtime-typeof)": 1,
-    "knip(exports)": 1,
     "typescript(switch-exhaustiveness-check)": 1
-  },
-  "apps/explore/src/components/PostHint.tsx": {
-    "knip(exports)": 1
   },
   "apps/explore/src/components/Privy.tsx": {
     "anti-slop(require-safety-comment-for-type-assertion)": 5,
@@ -642,9 +618,6 @@
   "apps/explore/src/components/WalletPeek.tsx": {
     "anti-slop-effect(prefer-effect-match)": 1
   },
-  "apps/explore/src/components/agent/AgentChip.tsx": {
-    "knip(exports)": 3
-  },
   "apps/explore/src/components/agent/AgentOrb.tsx": {
     "complexity(complexity)": 1
   },
@@ -691,20 +664,13 @@
   },
   "apps/explore/src/components/agent/ProfileHeader.tsx": {
     "jsx-a11y(click-events-have-key-events)": 1,
-    "jsx-a11y(no-static-element-interactions)": 1,
-    "knip(exports)": 1
+    "jsx-a11y(no-static-element-interactions)": 1
   },
   "apps/explore/src/components/agent/SetupChecklist.tsx": {
     "complexity(complexity)": 1
   },
-  "apps/explore/src/components/agent/shader-budget.ts": {
-    "knip(exports)": 1
-  },
   "apps/explore/src/components/controls.tsx": {
     "anti-slop-effect(prefer-effect-match)": 1
-  },
-  "apps/explore/src/components/job/Deliverables.tsx": {
-    "knip(exports)": 1
   },
   "apps/explore/src/components/job/HireAgain.tsx": {
     "anti-slop(no-runtime-typeof)": 2
@@ -733,8 +699,7 @@
   },
   "apps/explore/src/components/kit.tsx": {
     "anti-slop-effect(prefer-effect-match)": 3,
-    "jsx-a11y(prefer-tag-over-role)": 3,
-    "knip(exports)": 1
+    "jsx-a11y(prefer-tag-over-role)": 3
   },
   "apps/explore/src/components/post/Preflight.tsx": {
     "anti-slop(no-runtime-typeof)": 1,
@@ -749,12 +714,6 @@
     "eslint(max-lines-per-function)": 1,
     "jsx-a11y(control-has-associated-label)": 1,
     "typescript(no-unnecessary-type-assertion)": 1
-  },
-  "apps/explore/src/components/token/TokenAmount.tsx": {
-    "knip(exports)": 1
-  },
-  "apps/explore/src/components/token/TokenIcon.tsx": {
-    "knip(exports)": 1
   },
   "apps/explore/src/components/txJournal.ts": {
     "anti-slop(no-runtime-typeof)": 7,
@@ -774,34 +733,19 @@
   "apps/explore/src/components/ui/button.tsx": {
     "jsx-a11y(aria-role)": 1
   },
-  "apps/explore/src/components/ui/dropdown-menu.tsx": {
-    "knip(files)": 1
-  },
-  "apps/explore/src/components/ui/empty.tsx": {
-    "knip(exports)": 2
-  },
   "apps/explore/src/components/ui/field.tsx": {
-    "jsx-a11y(prefer-tag-over-role)": 1,
-    "knip(exports)": 6
+    "jsx-a11y(prefer-tag-over-role)": 1
   },
   "apps/explore/src/components/ui/item.tsx": {
-    "jsx-a11y(prefer-tag-over-role)": 1,
-    "knip(exports)": 3
+    "jsx-a11y(prefer-tag-over-role)": 1
   },
   "apps/explore/src/components/ui/label.tsx": {
     "jsx-a11y(label-has-associated-control)": 1
   },
-  "apps/explore/src/components/ui/popover.tsx": {
-    "knip(exports)": 2
-  },
   "apps/explore/src/components/ui/spinner.tsx": {
     "jsx-a11y(prefer-tag-over-role)": 1
   },
-  "apps/explore/src/components/ui/tabs.tsx": {
-    "knip(exports)": 1
-  },
   "apps/explore/src/delegation-query.ts": {
-    "knip(exports)": 3,
     "typescript(no-unnecessary-type-conversion)": 1
   },
   "apps/explore/src/design-tokens.test.ts": {
@@ -811,9 +755,6 @@
   },
   "apps/explore/src/directory-query.ts": {
     "anti-slop(require-safety-comment-for-type-assertion)": 1
-  },
-  "apps/explore/src/format.ts": {
-    "knip(exports)": 1
   },
   "apps/explore/src/gas.ts": {
     "anti-slop(require-safety-comment-for-type-assertion)": 2,
@@ -853,15 +794,11 @@
   "apps/explore/src/operator-balances.ts": {
     "anti-slop(require-safety-comment-for-type-assertion)": 1
   },
-  "apps/explore/src/owner-route.ts": {
-    "knip(exports)": 1
-  },
   "apps/explore/src/permission-review.test.ts": {
     "anti-slop(no-runtime-typeof)": 1
   },
   "apps/explore/src/permission-review.ts": {
-    "anti-slop(require-safety-comment-for-type-assertion)": 1,
-    "knip(exports)": 1
+    "anti-slop(require-safety-comment-for-type-assertion)": 1
   },
   "apps/explore/src/prices.test.ts": {
     "anti-slop(no-runtime-typeof)": 2,
@@ -869,9 +806,7 @@
     "anti-slop(require-safety-comment-for-type-assertion)": 2
   },
   "apps/explore/src/prices.ts": {
-    "complexity(complexity)": 1,
-    "knip(exports)": 2,
-    "knip(types)": 1
+    "complexity(complexity)": 1
   },
   "apps/explore/src/routes/Admin.tsx": {
     "anti-slop(no-chained-type-assertions)": 3,
@@ -893,8 +828,6 @@
     "anti-slop(require-safety-comment-for-type-assertion)": 5,
     "anti-slop-effect(prefer-effect-match)": 1,
     "complexity(complexity)": 1,
-    "knip(exports)": 7,
-    "knip(types)": 2,
     "typescript(no-base-to-string)": 1
   },
   "apps/explore/src/routes/AgentNew.tsx": {
@@ -927,7 +860,6 @@
     "complexity(complexity)": 1,
     "eslint(max-lines-per-function)": 1,
     "jsx-a11y(prefer-tag-over-role)": 1,
-    "knip(exports)": 1,
     "typescript(no-deprecated)": 3,
     "typescript(no-misused-promises)": 1
   },
@@ -948,7 +880,6 @@
     "complexity(complexity)": 2,
     "eslint(max-lines-per-function)": 2,
     "jsx-a11y(prefer-tag-over-role)": 2,
-    "knip(exports)": 1,
     "typescript(no-unnecessary-boolean-literal-compare)": 1,
     "typescript(no-unnecessary-type-assertion)": 1,
     "typescript(switch-exhaustiveness-check)": 1
@@ -978,7 +909,6 @@
   "apps/explore/src/safe.ts": {
     "anti-slop(no-runtime-typeof)": 2,
     "anti-slop(require-safety-comment-for-type-assertion)": 1,
-    "knip(exports)": 2,
     "typescript(no-unnecessary-type-assertion)": 1
   },
   "apps/explore/src/sponsor.contract.test.ts": {
@@ -1039,13 +969,11 @@
   },
   "apps/explore/src/wallet-balances.ts": {
     "anti-slop(require-safety-comment-for-type-assertion)": 2,
-    "knip(types)": 1,
     "typescript(no-unnecessary-type-assertion)": 1
   },
   "apps/explore/src/wallet.ts": {
     "anti-slop(no-runtime-typeof)": 4,
-    "anti-slop(require-safety-comment-for-type-assertion)": 3,
-    "knip(exports)": 3
+    "anti-slop(require-safety-comment-for-type-assertion)": 3
   },
   "apps/explore/start-guide.test.ts": {
     "anti-slop(no-runtime-typeof)": 2,

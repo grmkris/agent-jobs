@@ -26,14 +26,14 @@ import { chain, deployment } from '../wallet.ts'
 import type { AgentSummary } from '../agent-summary.ts'
 
 /** The ERC-8004 identity registry's reads the operator console needs (the SDK's ABI has no `tokenURI`). */
-export const identityAbi = [
+const identityAbi = [
   { type: 'function', name: 'ownerOf', stateMutability: 'view', inputs: [{ name: 'agentId', type: 'uint256' }], outputs: [{ type: 'address' }] },
   { type: 'function', name: 'getAgentWallet', stateMutability: 'view', inputs: [{ name: 'agentId', type: 'uint256' }], outputs: [{ type: 'address' }] },
   { type: 'function', name: 'tokenURI', stateMutability: 'view', inputs: [{ name: 'tokenId', type: 'uint256' }], outputs: [{ type: 'string' }] },
 ] as const
 
 /** An agent number as the registry numbers them: digits only, without leading zeros; null for anything else. */
-export function agentNumber(raw: unknown): string | null {
+function agentNumber(raw: unknown): string | null {
   const s = String(raw ?? '').trim()
   if (!/^\d{1,78}$/.test(s) || BigInt(s) > maxUint256) return null
   return BigInt(s).toString()
@@ -43,7 +43,7 @@ export function agentNumber(raw: unknown): string | null {
 // The agent's registration: a data: JSON profile gives a name, description and (inline) picture; a URL gives none.
 // ---------------------------------------------------------------------------------------------------------------
 
-export type AgentProfile =
+type AgentProfile =
   | { kind: 'json'; name: string | null; description: string | null; image: string | null; raw: string }
   | { kind: 'link'; url: string; href: string | null }
 
@@ -54,7 +54,7 @@ const text = (v: unknown, max: number): string | null => (typeof v === 'string' 
  * description, and its image only when that is itself a data: URL (the page's CSP loads no remote images). Anything
  * else is a link: shown, and linked only when it is https.
  */
-export function parseProfile(uri: string | null | undefined): AgentProfile | null {
+function parseProfile(uri: string | null | undefined): AgentProfile | null {
   if (uri === null || uri === undefined || uri.trim() === '') return null
   const u = uri.trim()
   if (/^data:application\/json/i.test(u)) {
@@ -88,7 +88,7 @@ export function parseProfile(uri: string | null | undefined): AgentProfile | nul
 }
 
 /** A revert (the registry says no), as opposed to an RPC that did not answer. */
-export const isRevert = (e: unknown) => e instanceof BaseError && e.walk((x) => x instanceof ContractFunctionRevertedError) !== null
+const isRevert = (e: unknown) => e instanceof BaseError && e.walk((x) => x instanceof ContractFunctionRevertedError) !== null
 
 export interface AgentIdentity {
   loading: boolean
@@ -101,7 +101,7 @@ export interface AgentIdentity {
 }
 
 /** The agent's on-chain identity (ERC-8004): owner, agent wallet and registration, re-read every 10 s when `live`. */
-export function useAgentIdentity(id: string | null, live = false): AgentIdentity {
+function useAgentIdentity(id: string | null, live = false): AgentIdentity {
   const n = id === null ? 0n : BigInt(id)
   const reads = useReadContracts({
     contracts: [
@@ -132,7 +132,7 @@ export function useAgentIdentity(id: string | null, live = false): AgentIdentity
 /** Per token, in base units: reward and bonus (gross), Sidequest's fee on them, and what the worker got (net). */
 export type MoneyTotals = { gross: string; fee: string; net: string }
 
-export interface AgentTime {
+interface AgentTime {
   activeSince: number | null
   lastActive: number | null
   medianTurnaroundSeconds: number | null
@@ -165,7 +165,7 @@ export interface AgentRecord {
  * `/data/agents/<id>`: the agent's record, or null when the number has no record (not registered and no jobs). Fetched
  * directly rather than through `data()`, which folds "not found" and "unavailable" into one error; here they differ.
  */
-export async function fetchAgentRecord(id: string): Promise<AgentRecord | null> {
+async function fetchAgentRecord(id: string): Promise<AgentRecord | null> {
   const res = await fetch(`/data/agents/${encodeURIComponent(id)}`)
   const body = (await res.json()) as (AgentRecord & { ok: true }) | { ok: false; code?: string; message?: string }
   if (body.ok) return body
@@ -173,7 +173,7 @@ export async function fetchAgentRecord(id: string): Promise<AgentRecord | null> 
   throw new Error(body.message ?? 'unavailable')
 }
 
-export const useAgentRecord = (id: string | null, refetchInterval = 30_000) =>
+const useAgentRecord = (id: string | null, refetchInterval = 30_000) =>
   useQuery({ queryKey: ['data-agent', id], queryFn: () => fetchAgentRecord(id as string), enabled: id !== null, refetchInterval })
 
 /** "once", "twice", "3 times". */

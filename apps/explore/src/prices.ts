@@ -5,7 +5,7 @@
  */
 import { type Address, type Hex, getAddress, isAddress, parseUnits } from 'viem'
 
-export const PRICE_LIST_TYPES = {
+const PRICE_LIST_TYPES = {
   PriceList: [
     { name: 'epoch', type: 'uint256' },
     { name: 'tokens', type: 'TokenPrice[]' },
@@ -21,7 +21,7 @@ export const PRICE_LIST_TYPES = {
 /** Below this SIDE price ($0.0001, 18 decimals) the mining tool counts the floor. */
 export const SIDE_PRICE_FLOOR = 10n ** 14n
 
-export interface TokenPrice {
+interface TokenPrice {
   token: Address
   decimals: number
   /** USD per whole token, 18 decimals. */
@@ -42,7 +42,7 @@ export interface PriceDraft {
   tokens: Array<{ token: string; decimals: number | null; usd: string }>
 }
 
-export const priceListDomain = (chainId: number, distributor: string) =>
+const priceListDomain = (chainId: number, distributor: string) =>
   ({ name: 'Sidequest Mining Prices', version: '1', chainId, verifyingContract: getAddress(distributor) }) as const
 
 const usd = (text: string): bigint | null => (/^\d+(\.\d{1,18})?$/.test(text.trim()) ? parseUnits(text.trim(), 18) : null)

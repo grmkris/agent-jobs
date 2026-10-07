@@ -64,7 +64,7 @@ export function expectedPermission(
 }
 
 /** The board reuses a periodic template for ten minutes; anything older, beyond clock skew, is a backdated anchor (VV2-023). */
-export const PREPARED_MAX_AGE_SECONDS = 900;
+const PREPARED_MAX_AGE_SECONDS = 900;
 
 /** A periodic permission's anchor must be fresh both when reviewed and again just before the wallet signs. */
 export function assertFreshAnchor(terms: sdk.PermissionTerms, start: number, now = Math.floor(Date.now() / 1000)) {

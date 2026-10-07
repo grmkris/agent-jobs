@@ -9,7 +9,7 @@ import type { ChainJob, TaskIndexEntry } from '../api.ts'
 import { When } from './Time.tsx'
 
 /** The lifecycle's semantic tone expressed as a badge variant. */
-export function phaseVariant(tone: Phase['tone']) {
+function phaseVariant(tone: Phase['tone']) {
   switch (tone) {
     case 'attention':
       return 'warning'

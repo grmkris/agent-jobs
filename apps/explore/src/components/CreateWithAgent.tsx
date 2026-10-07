@@ -14,7 +14,7 @@ import { useAuth } from './Wallet.tsx'
 export type CreationContext = 'quotes' | 'hire' | 'again' | 'pick'
 
 /** A handoff to the human's coding client. Copying this instruction performs no board or wallet action. */
-export function creationPrompt({ origin, resource, publisher, context, agentId, jobId, requestId }: {
+function creationPrompt({ origin, resource, publisher, context, agentId, jobId, requestId }: {
   origin: string; resource: string; publisher: Pick<ManagedAgent, 'agent_id' | 'address'>
   context: CreationContext; agentId?: string; jobId?: string; requestId?: string
 }): string {

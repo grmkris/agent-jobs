@@ -8,7 +8,7 @@ import { Sheet } from './Sheet.tsx'
 import { PostHint } from './PostHint.tsx'
 
 /** Every hosted board (ADR-0008), shared with the Boards page. */
-export const useBoards = () =>
+const useBoards = () =>
   useQuery({ queryKey: ['boards'], queryFn: () => data<{ boards: BoardInfo[] }>('boards'), refetchInterval: 60_000 })
 
 /**
