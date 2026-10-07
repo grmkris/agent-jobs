@@ -283,6 +283,27 @@
       "outputs": [
         "dist/**"
       ]
+    },
+    "tools#test": {
+      "dependsOn": [
+        "typecheck"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/scripts/migrations-lock.ts",
+        "$TURBO_ROOT$/scripts/check-files.ts",
+        "$TURBO_ROOT$/tsconfig.base.json"
+      ],
+      "outputs": []
+    },
+    "tools#typecheck": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/scripts/migrations-lock.ts",
+        "$TURBO_ROOT$/scripts/check-files.ts",
+        "$TURBO_ROOT$/tsconfig.base.json"
+      ],
+      "outputs": []
     }
   },
   "globalPassThroughEnv": [

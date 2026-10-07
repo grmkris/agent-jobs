@@ -17,3 +17,8 @@ packages/sdk/scripts/.state.json
 packages/sdk/scripts/privy/.local/
 packages/sdk/scripts/live/.local/
 .turbo/
+
+# Local quality-gate reports and tool caches.
+report/
+.jscpd/
+.knip/

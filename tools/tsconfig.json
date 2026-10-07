@@ -1,0 +1,8 @@
+{
+  "extends": "../tsconfig.base.json",
+  // Repository tooling. oxlint loads tools/oxlint/*.ts through Node's type stripping: erasable syntax only, and imports
+  // name the real `.ts` file.
+  "compilerOptions": { "types": ["bun", "node"], "erasableSyntaxOnly": true },
+  "include": ["*.ts", "oxlint/**/*.ts", "test/**/*.ts", "../scripts/check-files.ts", "../scripts/migrations-lock.ts"],
+  "exclude": ["oxlint/anti-slop/**"]
+}

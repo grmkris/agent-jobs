@@ -1,0 +1,54 @@
+{
+  // Unused files, exports and dependencies: `bun run knip`. Every rule is an error.
+  // Entries end in `!` so they count in production mode too.
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "rules": {
+    "binaries": "error",
+    "catalog": "error",
+    "catalogReferences": "error",
+    "cycles": "error",
+    "dependencies": "error",
+    "devDependencies": "error",
+    "duplicates": "error",
+    "enumMembers": "error",
+    "exports": "error",
+    "files": "error",
+    "namespaceMembers": "error",
+    "nsExports": "error",
+    "nsTypes": "error",
+    "optionalPeerDependencies": "error",
+    "types": "error",
+    "unlisted": "error",
+    "unresolved": "error",
+  },
+  "treatConfigHintsAsErrors": true,
+  // Vendored upstream code is maintained as one unit, not pruned by repository gates.
+  "ignore": [
+    // Foundry dependencies and generated outputs are not Sidequest TypeScript sources.
+    "contracts/lib/**", "tools/oxlint/anti-slop/**"
+  ],
+  "workspaces": {
+    ".": {
+      // Operator CLIs, generators, deployment stack and crew CLI run directly rather than through imports.
+      "entry": [
+        "alchemy.run.ts!", "scripts/preflight-prod.ts!", "scripts/ci/*.ts!", "scripts/mining/*.ts!",
+        "scripts/gen-*.mjs!", "scripts/*.mjs!", "scripts/*.ts!", "scripts/sidequest/*.mjs!", "crew/bin/*.ts!"
+      ]
+    },
+    "tools": {
+      // Root scripts load these CLIs; oxlint loads the repository plugins by filename.
+      "entry": ["*.ts!", "oxlint/*.ts!"]
+    },
+    "packages/sdk": {
+      // Developer/operator scripts are invoked directly with Bun.
+      "entry": ["scripts/**/*.ts!"]
+    },
+    // The globs include main.tsx/main.ts, also discovered by Vite and script plugins; avoid redundant literal entries.
+    "apps/explore": { "entry": ["worker.ts!", "src/{main,index}.tsx!"] },
+    "apps/arbiter": { "entry": ["src/{main,index}.ts!"] },
+    "contracts": {
+      // Foundry operator scripts live alongside Solidity; Bun invokes these TypeScript files directly.
+      "entry": ["script/**/*.ts!"]
+    }
+  }
+}

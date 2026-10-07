@@ -9,7 +9,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "check": "bun run typecheck && bun run test && bun test scripts/mining scripts/ci && bun run lint",
+    "check": "bun run graph && bun run migrations:check && bun run dupes && bun run typecheck && bun run lint:gate && bun run test && bun run test:scripts && bun run mining",
     "check:fast": "bun run typecheck && bun run lint",
     "typecheck": "tsc -p scripts/mining/tsconfig.json && tsc -p scripts/ci/tsconfig.json && turbo run typecheck",
     "test": "turbo run test --concurrency=2",
@@ -33,8 +33,19 @@
     "db:generate": "node scripts/db-generate.mjs",
     "testnet:v1:flows": "bun packages/sdk/scripts/v1-flows.ts",
     "live:deployed": "bun packages/sdk/scripts/live/deployed/acceptance.ts",
+    "format": "oxfmt -c oxfmt.config.ts --write",
+    "format:check": "oxfmt -c oxfmt.config.ts --check",
+    "lint:gate": "bun tools/lint-baseline.ts",
+    "lint:report": "bun tools/lint-report.ts",
+    "knip": "knip --no-progress",
+    "dupes": "jscpd",
+    "graph": "bun tools/check-graph.ts",
+    "agents:check": "bun tools/agents-check.ts",
+    "check:files": "bun scripts/check-files.ts",
     "migrations:check": "bun scripts/migrations-lock.ts check",
-    "migrations:record": "bun scripts/migrations-lock.ts record"
+    "migrations:record": "bun scripts/migrations-lock.ts record",
+    "test:scripts": "bun tools/test-scripts.ts && bun test scripts/ci",
+    "mining": "bun test scripts/mining"
   },
   "devDependencies": {
     "@effect/platform-node": "catalog:",
@@ -50,13 +61,20 @@
     "yaml": "catalog:",
     "@effect/platform-bun": "catalog:",
     "turbo": "catalog:",
-    "oxlint": "catalog:"
+    "oxlint": "catalog:",
+    "@types/bun": "catalog:",
+    "oxlint-tsgolint": "catalog:",
+    "oxfmt": "catalog:",
+    "knip": "catalog:",
+    "oxlint-plugin-complexity": "catalog:",
+    "jscpd": "catalog:"
   },
   "workspaces": {
     "packages": [
       "apps/*",
       "packages/*",
-      "contracts"
+      "contracts",
+      "tools"
     ],
     "catalog": {
       "alchemy": "2.0.0-beta.81",
@@ -113,7 +131,14 @@
       "remark-parse": "11.0.0",
       "unified": "11.0.5",
       "@metamask/delegation-core": "3.0.0",
-      "@metamask/delegation-deployments": "2.1.0"
+      "@metamask/delegation-deployments": "2.1.0",
+      "@types/bun": "1.4.2",
+      "@oxlint/plugins": "1.87.0",
+      "oxlint-tsgolint": "7.0.2003",
+      "oxfmt": "0.72.0",
+      "knip": "6.40.0",
+      "oxlint-plugin-complexity": "2.1.8",
+      "jscpd": "5.4.0"
     }
   },
   "overrides": {

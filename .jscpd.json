@@ -1,0 +1,42 @@
+{
+  "path": [
+    "apps",
+    "packages",
+    "scripts",
+    "tools",
+    "crew"
+  ],
+  "format": [
+    "typescript",
+    "tsx",
+    "javascript"
+  ],
+  "minTokens": 70,
+  "minLines": 8,
+  "threshold": 1.5,
+  "reporters": [
+    "console"
+  ],
+  "gitignore": true,
+  "absolute": false,
+  "ignore": [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/.output/**",
+    "**/.alchemy/**",
+    "**/.wxt/**",
+    "**/.react-router/**",
+    "**/routeTree.gen.ts",
+    "**/migrations/**",
+    "**/__snapshots__/**",
+    "tools/oxlint/anti-slop/**",
+    "**/test/**",
+    "**/tests/**",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "contracts/**",
+    "packages/sdk/src/abi/**",
+    "**/generated/**",
+    "**/*.test.mjs"
+  ]
+}

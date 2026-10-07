@@ -1,0 +1,2100 @@
+{
+  ".github/actions/state-store/main.mjs": {
+    "anti-slop(no-runtime-typeof)": 4
+  },
+  "apps/api/src/admission-rate.ts": {
+    "anti-slop(no-chained-type-assertions)": 1,
+    "anti-slop(no-runtime-typeof)": 1,
+    "anti-slop(no-unknown-returns)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 9,
+    "complexity(complexity)": 1
+  },
+  "apps/api/src/agent-management.ts": {
+    "anti-slop(no-runtime-typeof)": 2,
+    "anti-slop(no-unknown-returns)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 5,
+    "complexity(complexity)": 1,
+    "eslint(max-lines-per-function)": 1,
+    "eslint(max-params)": 1,
+    "typescript(no-base-to-string)": 6
+  },
+  "apps/api/src/agent-offers.ts": {
+    "anti-slop(no-runtime-typeof)": 3,
+    "anti-slop(no-unknown-returns)": 1
+  },
+  "apps/api/src/agent-runtime.ts": {
+    "anti-slop(no-runtime-typeof)": 5,
+    "anti-slop(require-safety-comment-for-type-assertion)": 15,
+    "complexity(complexity)": 1,
+    "eslint(max-lines-per-function)": 1,
+    "typescript(no-base-to-string)": 6,
+    "typescript(no-unnecessary-type-assertion)": 1
+  },
+  "apps/api/src/alerts.ts": {
+    "anti-slop(no-unknown-returns)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 2,
+    "complexity(complexity)": 1,
+    "knip(exports)": 1
+  },
+  "apps/api/src/board.ts": {
+    "anti-slop(no-chained-type-assertions)": 1,
+    "anti-slop(no-runtime-typeof)": 1,
+    "anti-slop(no-unknown-returns)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 54,
+    "complexity(complexity)": 1,
+    "eslint(max-lines-per-function)": 1,
+    "eslint(max-params)": 1
+  },
+  "apps/api/src/collect-index.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 1,
+    "typescript(no-unnecessary-type-conversion)": 1
+  },
+  "apps/api/src/cors.ts": {
+    "knip(exports)": 2
+  },
+  "apps/api/src/deadlines.ts": {
+    "anti-slop(no-runtime-typeof)": 6,
+    "anti-slop(require-safety-comment-for-type-assertion)": 1
+  },
+  "apps/api/src/deploy-preflight.ts": {
+    "anti-slop(no-runtime-typeof)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 6,
+    "complexity(complexity)": 1
+  },
+  "apps/api/src/directory-admission.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 1
+  },
+  "apps/api/src/directory-object.ts": {
+    "anti-slop(no-unknown-returns)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 7,
+    "anti-slop-effect(prefer-effect-match)": 1
+  },
+  "apps/api/src/directory-projection.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 2
+  },
+  "apps/api/src/directory.ts": {
+    "anti-slop(no-unknown-returns)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 5,
+    "complexity(complexity)": 1,
+    "typescript(no-base-to-string)": 1
+  },
+  "apps/api/src/drip.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 1,
+    "knip(exports)": 2
+  },
+  "apps/api/src/faucet.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 2,
+    "knip(exports)": 2
+  },
+  "apps/api/src/feed-agent.ts": {
+    "anti-slop(no-runtime-typeof)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 1
+  },
+  "apps/api/src/feed-board.ts": {
+    "anti-slop(no-runtime-typeof)": 2,
+    "anti-slop(require-safety-comment-for-type-assertion)": 1,
+    "complexity(complexity)": 1
+  },
+  "apps/api/src/generated/docs.ts": {
+    "eslint(max-lines)": 1
+  },
+  "apps/api/src/hiring/panel.js": {
+    "anti-slop(no-runtime-typeof)": 4,
+    "complexity(complexity)": 3,
+    "eslint(max-depth)": 1,
+    "knip(files)": 1,
+    "typescript(no-floating-promises)": 1,
+    "typescript(no-misused-promises)": 4
+  },
+  "apps/api/src/hosted-admission.ts": {
+    "eslint(max-params)": 1
+  },
+  "apps/api/src/mcp-hiring.ts": {
+    "anti-slop(no-runtime-typeof)": 3,
+    "anti-slop(no-unknown-returns)": 3,
+    "anti-slop(require-safety-comment-for-type-assertion)": 1,
+    "anti-slop-effect(prefer-effect-match)": 1,
+    "complexity(complexity)": 1,
+    "typescript(no-base-to-string)": 1
+  },
+  "apps/api/src/mcp.ts": {
+    "anti-slop(no-chained-type-assertions)": 1,
+    "anti-slop(no-runtime-typeof)": 17,
+    "anti-slop(no-unknown-returns)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 18,
+    "complexity(complexity)": 1,
+    "eslint(max-lines-per-function)": 1,
+    "knip(exports)": 1,
+    "typescript(no-unnecessary-type-conversion)": 1
+  },
+  "apps/api/src/mining.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 1
+  },
+  "apps/api/src/oauth-validation.ts": {
+    "anti-slop(no-runtime-typeof)": 2,
+    "anti-slop(require-safety-comment-for-type-assertion)": 1
+  },
+  "apps/api/src/oauth.ts": {
+    "anti-slop(no-runtime-typeof)": 10,
+    "anti-slop(require-safety-comment-for-type-assertion)": 5,
+    "complexity(complexity)": 1,
+    "eslint(max-lines-per-function)": 1,
+    "typescript(no-base-to-string)": 1
+  },
+  "apps/api/src/privy-identity.ts": {
+    "anti-slop(no-runtime-typeof)": 2,
+    "anti-slop(require-safety-comment-for-type-assertion)": 6,
+    "complexity(complexity)": 1
+  },
+  "apps/api/src/privy-operator.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 1
+  },
+  "apps/api/src/prod-config.ts": {
+    "anti-slop(no-runtime-typeof)": 12,
+    "anti-slop(require-safety-comment-for-type-assertion)": 5,
+    "complexity(complexity)": 2,
+    "eslint(max-lines-per-function)": 1,
+    "knip(types)": 3,
+    "typescript(no-unnecessary-boolean-literal-compare)": 2,
+    "typescript(no-unnecessary-type-assertion)": 3
+  },
+  "apps/api/src/registry.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 1,
+    "knip(exports)": 1
+  },
+  "apps/api/src/routes/staking.ts": {
+    "anti-slop-effect(prefer-effect-match)": 1,
+    "complexity(complexity)": 1
+  },
+  "apps/api/src/tools-telegram.ts": {
+    "anti-slop(no-runtime-typeof)": 1,
+    "anti-slop(no-unknown-returns)": 1,
+    "knip(types)": 1,
+    "typescript(no-base-to-string)": 2
+  },
+  "apps/api/src/tools-tenant.ts": {
+    "anti-slop(no-chained-type-assertions)": 1,
+    "anti-slop(no-runtime-typeof)": 2,
+    "anti-slop(no-unknown-returns)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 3,
+    "knip(exports)": 1,
+    "knip(types)": 1
+  },
+  "apps/api/src/tools.ts": {
+    "anti-slop(no-chained-type-assertions)": 1,
+    "anti-slop(no-runtime-typeof)": 2,
+    "anti-slop(no-unknown-returns)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 27,
+    "eslint(max-lines)": 1
+  },
+  "apps/api/src/worker.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 16,
+    "complexity(complexity)": 3,
+    "eslint(max-lines-per-function)": 2,
+    "typescript(no-base-to-string)": 3,
+    "typescript(no-unnecessary-type-assertion)": 1
+  },
+  "apps/api/src/x402-demo.ts": {
+    "anti-slop(no-chained-type-assertions)": 1,
+    "anti-slop(no-runtime-typeof)": 8,
+    "anti-slop(require-safety-comment-for-type-assertion)": 2,
+    "complexity(complexity)": 1
+  },
+  "apps/api/test/admission-do.test.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 5
+  },
+  "apps/api/test/admission-worker.ts": {
+    "anti-slop(no-chained-type-assertions)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 3,
+    "typescript(no-unnecessary-type-assertion)": 1
+  },
+  "apps/api/test/agent-approval.test.ts": {
+    "anti-slop(no-chained-type-assertions)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 11,
+    "eslint(max-params)": 1,
+    "typescript(no-unnecessary-type-assertion)": 1
+  },
+  "apps/api/test/agent-data.test.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 2
+  },
+  "apps/api/test/agent-offers-worker.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 4,
+    "typescript(no-unnecessary-type-assertion)": 1,
+    "typescript(restrict-template-expressions)": 1
+  },
+  "apps/api/test/agent-offers.test.ts": {
+    "anti-slop(no-chained-type-assertions)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 6
+  },
+  "apps/api/test/agent-stop-events.test.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 3,
+    "typescript(no-unnecessary-type-assertion)": 3
+  },
+  "apps/api/test/alerts.test.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 2,
+    "typescript(no-base-to-string)": 2,
+    "typescript(no-unnecessary-type-assertion)": 2
+  },
+  "apps/api/test/collect-index.test.ts": {
+    "anti-slop(no-chained-type-assertions)": 2,
+    "anti-slop(require-safety-comment-for-type-assertion)": 4,
+    "typescript(no-unnecessary-type-assertion)": 1
+  },
+  "apps/api/test/collect.fork.test.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 3,
+    "typescript(no-unnecessary-type-assertion)": 5,
+    "typescript(no-unnecessary-type-conversion)": 2
+  },
+  "apps/api/test/deadline-retry.test.ts": {
+    "anti-slop(no-chained-type-assertions)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 14
+  },
+  "apps/api/test/directory-admission.test.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 2
+  },
+  "apps/api/test/directory-do.test.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 6,
+    "typescript(no-unnecessary-type-assertion)": 4
+  },
+  "apps/api/test/directory-worker-handler.ts": {
+    "anti-slop(no-chained-type-assertions)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 3,
+    "typescript(no-unnecessary-type-assertion)": 1
+  },
+  "apps/api/test/directory.test.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 5,
+    "typescript(unbound-method)": 1
+  },
+  "apps/api/test/docs.test.ts": {
+    "anti-slop(no-module-mocking)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 4,
+    "eslint(max-params)": 1
+  },
+  "apps/api/test/faucet.test.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 5,
+    "typescript(no-unnecessary-type-assertion)": 1
+  },
+  "apps/api/test/hiring.test.ts": {
+    "anti-slop(no-runtime-typeof)": 1,
+    "anti-slop(no-unknown-returns)": 2,
+    "anti-slop(require-safety-comment-for-type-assertion)": 4,
+    "anti-slop-effect(prefer-effect-match)": 2
+  },
+  "apps/api/test/launch-gate.test.ts": {
+    "anti-slop(no-chained-type-assertions)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 8,
+    "typescript(no-unnecessary-type-assertion)": 6,
+    "typescript(switch-exhaustiveness-check)": 1
+  },
+  "apps/api/test/listing-tools.test.ts": {
+    "anti-slop-effect(prefer-effect-match)": 1
+  },
+  "apps/api/test/mcp-events.test.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 2
+  },
+  "apps/api/test/mcp-output-schema.test.ts": {
+    "anti-slop(no-chained-type-assertions)": 3,
+    "anti-slop(no-unknown-returns)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 14
+  },
+  "apps/api/test/mcp-protocol.test.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 9
+  },
+  "apps/api/test/mining-worker.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 5,
+    "typescript(no-unnecessary-type-assertion)": 1
+  },
+  "apps/api/test/mining.test.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 2
+  },
+  "apps/api/test/oauth.test.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 15,
+    "typescript(no-unnecessary-type-assertion)": 3
+  },
+  "apps/api/test/privy-identity.test.ts": {
+    "anti-slop-effect(prefer-effect-match)": 1
+  },
+  "apps/api/test/prod-config.test.ts": {
+    "anti-slop(no-chained-type-assertions)": 3,
+    "anti-slop(require-safety-comment-for-type-assertion)": 9,
+    "complexity(complexity)": 1
+  },
+  "apps/api/test/recovery-worker.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 3,
+    "typescript(no-unnecessary-type-assertion)": 3
+  },
+  "apps/api/test/recovery.test.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 2
+  },
+  "apps/api/test/release-pin.test.ts": {
+    "anti-slop(no-chained-type-assertions)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 8,
+    "knip(unresolved)": 1,
+    "typescript(no-base-to-string)": 1
+  },
+  "apps/api/test/stack.test.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 12,
+    "typescript(no-unnecessary-type-parameters)": 1,
+    "typescript(restrict-template-expressions)": 3
+  },
+  "apps/api/test/staking.fork.test.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 2
+  },
+  "apps/api/test/telegram-worker.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 2,
+    "typescript(no-unnecessary-type-assertion)": 1
+  },
+  "apps/api/test/telegram.test.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 2
+  },
+  "apps/api/test/webhooks.test.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 8,
+    "anti-slop-effect(prefer-effect-match)": 1,
+    "complexity(complexity)": 1,
+    "typescript(no-base-to-string)": 5
+  },
+  "apps/api/test/worker-failure.test.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 2
+  },
+  "apps/api/test/x402-demo.test.ts": {
+    "anti-slop(no-chained-type-assertions)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 4,
+    "complexity(complexity)": 1,
+    "typescript(no-base-to-string)": 4
+  },
+  "apps/api/test/x402-tools.test.ts": {
+    "anti-slop(no-chained-type-assertions)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 3
+  },
+  "apps/api/test/x402-worker.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 2
+  },
+  "apps/api/test/x402-workerd.test.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 2
+  },
+  "apps/arbiter/src/arbiter.test.ts": {
+    "anti-slop(no-chained-type-assertions)": 2,
+    "anti-slop(require-safety-comment-for-type-assertion)": 11
+  },
+  "apps/arbiter/src/arbiter.ts": {
+    "anti-slop(no-unknown-returns)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 1,
+    "complexity(complexity)": 1,
+    "typescript(no-explicit-any)": 1
+  },
+  "apps/arbiter/src/main.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 2
+  },
+  "apps/arbiter/src/runtime.test.ts": {
+    "anti-slop(no-chained-type-assertions)": 2,
+    "anti-slop(require-safety-comment-for-type-assertion)": 4
+  },
+  "apps/arbiter/src/runtime.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 1
+  },
+  "apps/docs/package.json": {
+    "knip(devDependencies)": 1
+  },
+  "apps/docs/scripts/verify-output.mjs": {
+    "complexity(complexity)": 1
+  },
+  "apps/docs/site-output.d.mts": {
+    "knip(files)": 1
+  },
+  "apps/docs/src/components/mdx.tsx": {
+    "knip(duplicates)": 1
+  },
+  "apps/docs/src/lib/content-contract.ts": {
+    "anti-slop(no-runtime-typeof)": 6,
+    "anti-slop(require-safety-comment-for-type-assertion)": 2,
+    "anti-slop-effect(prefer-effect-match)": 2,
+    "complexity(complexity)": 2,
+    "typescript(no-unnecessary-type-assertion)": 2
+  },
+  "apps/docs/src/lib/export.ts": {
+    "anti-slop(no-runtime-typeof)": 1,
+    "knip(files)": 1,
+    "typescript(no-unnecessary-boolean-literal-compare)": 1
+  },
+  "apps/docs/src/lib/remark-addresses.ts": {
+    "typescript(no-base-to-string)": 1
+  },
+  "apps/docs/src/lib/remark-origin.ts": {
+    "anti-slop(no-runtime-typeof)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 1,
+    "complexity(complexity)": 1,
+    "typescript(no-unnecessary-type-assertion)": 1
+  },
+  "apps/docs/src/lib/shared.ts": {
+    "knip(exports)": 2
+  },
+  "apps/docs/src/lib/source.ts": {
+    "typescript(no-unnecessary-type-assertion)": 1
+  },
+  "apps/docs/src/routes/llms[.]txt.ts": {
+    "typescript(await-thenable)": 1
+  },
+  "apps/docs/test/addresses.test.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 1
+  },
+  "apps/docs/test/content.test.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 1
+  },
+  "apps/docs/test/llms.test.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 1
+  },
+  "apps/docs/test/remark-origin.test.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 1
+  },
+  "apps/explore/docs-handler.ts": {
+    "complexity(complexity)": 1
+  },
+  "apps/explore/docs-site-plugin.test.ts": {
+    "anti-slop(no-reflect-apply)": 1,
+    "anti-slop(no-runtime-typeof)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 1
+  },
+  "apps/explore/docs-site-plugin.ts": {
+    "complexity(complexity)": 1
+  },
+  "apps/explore/package.json": {
+    "knip(devDependencies)": 4
+  },
+  "apps/explore/public/embed.js": {
+    "knip(files)": 1
+  },
+  "apps/explore/scripts/docs-smoke.mjs": {
+    "complexity(complexity)": 1,
+    "knip(files)": 1,
+    "typescript(no-misused-promises)": 1
+  },
+  "apps/explore/scripts/icons.ts": {
+    "knip(files)": 1
+  },
+  "apps/explore/scripts/tokens.ts": {
+    "anti-slop(no-runtime-typeof)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 4,
+    "knip(files)": 1
+  },
+  "apps/explore/src/admin.test.ts": {
+    "anti-slop(no-chained-type-assertions)": 3,
+    "anti-slop(require-safety-comment-for-type-assertion)": 21,
+    "typescript(no-unnecessary-type-assertion)": 12
+  },
+  "apps/explore/src/admin.ts": {
+    "anti-slop(no-runtime-typeof)": 12,
+    "anti-slop(require-safety-comment-for-type-assertion)": 17,
+    "complexity(complexity)": 3,
+    "knip(types)": 2,
+    "typescript(no-unnecessary-type-assertion)": 2
+  },
+  "apps/explore/src/agent-api.ts": {
+    "knip(exports)": 1
+  },
+  "apps/explore/src/agent-grant.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 1,
+    "typescript(no-unnecessary-type-assertion)": 1
+  },
+  "apps/explore/src/agent-name.ts": {
+    "anti-slop(no-runtime-typeof)": 1
+  },
+  "apps/explore/src/agent-stats.ts": {
+    "knip(exports)": 2
+  },
+  "apps/explore/src/api.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 3,
+    "typescript(no-explicit-any)": 2
+  },
+  "apps/explore/src/approval-view.test.ts": {
+    "anti-slop(no-unknown-returns)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 3,
+    "typescript(no-unnecessary-type-assertion)": 1
+  },
+  "apps/explore/src/approval-view.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 2,
+    "complexity(complexity)": 1,
+    "typescript(no-unnecessary-type-parameters)": 1
+  },
+  "apps/explore/src/collect.test.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 3,
+    "typescript(no-unnecessary-type-assertion)": 2
+  },
+  "apps/explore/src/collect.ts": {
+    "anti-slop(no-runtime-typeof)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 2,
+    "typescript(no-unnecessary-type-assertion)": 1
+  },
+  "apps/explore/src/components/AgentStake.tsx": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 2
+  },
+  "apps/explore/src/components/AllowanceEditor.tsx": {
+    "anti-slop(no-runtime-typeof)": 5,
+    "anti-slop(require-safety-comment-for-type-assertion)": 1,
+    "complexity(complexity)": 1,
+    "eslint(max-lines-per-function)": 1,
+    "typescript(no-deprecated)": 1
+  },
+  "apps/explore/src/components/BackingManager.tsx": {
+    "anti-slop-effect(prefer-effect-match)": 1,
+    "complexity(complexity)": 1,
+    "eslint(max-lines-per-function)": 2,
+    "jsx-a11y(prefer-tag-over-role)": 2,
+    "typescript(no-deprecated)": 1,
+    "typescript(no-unnecessary-boolean-literal-compare)": 1
+  },
+  "apps/explore/src/components/BoardLink.tsx": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 6
+  },
+  "apps/explore/src/components/BudgetPanel.tsx": {
+    "anti-slop-effect(prefer-effect-match)": 2,
+    "complexity(complexity)": 1,
+    "eslint(max-lines-per-function)": 1,
+    "react-hooks(rules-of-hooks)": 1,
+    "typescript(no-deprecated)": 1
+  },
+  "apps/explore/src/components/Buy.tsx": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 1,
+    "complexity(complexity)": 1,
+    "eslint(max-lines-per-function)": 1,
+    "typescript(no-unnecessary-type-assertion)": 1
+  },
+  "apps/explore/src/components/CreateWithAgent.tsx": {
+    "anti-slop-effect(prefer-effect-match)": 2,
+    "complexity(complexity)": 1,
+    "jsx-a11y(prefer-tag-over-role)": 1,
+    "knip(exports)": 1
+  },
+  "apps/explore/src/components/DelegationForm.tsx": {
+    "complexity(complexity)": 1,
+    "eslint(max-lines-per-function)": 1,
+    "jsx-a11y(label-has-associated-control)": 1
+  },
+  "apps/explore/src/components/DelegationPositions.tsx": {
+    "complexity(complexity)": 1,
+    "eslint(max-lines-per-function)": 2
+  },
+  "apps/explore/src/components/DirectoryCards.tsx": {
+    "knip(exports)": 2
+  },
+  "apps/explore/src/components/Fund.tsx": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 1,
+    "anti-slop-effect(prefer-effect-match)": 1,
+    "typescript(no-misused-promises)": 1,
+    "typescript(no-unnecessary-type-assertion)": 1
+  },
+  "apps/explore/src/components/HoldingControls.tsx": {
+    "anti-slop-effect(prefer-effect-match)": 1,
+    "complexity(complexity)": 1,
+    "eslint(max-lines-per-function)": 1,
+    "typescript(no-unnecessary-type-conversion)": 4
+  },
+  "apps/explore/src/components/InstallHint.tsx": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 1
+  },
+  "apps/explore/src/components/JobsHeader.tsx": {
+    "knip(exports)": 1
+  },
+  "apps/explore/src/components/LaunchGate.tsx": {
+    "jsx-a11y(prefer-tag-over-role)": 2
+  },
+  "apps/explore/src/components/OAuthConsent.tsx": {
+    "anti-slop-effect(prefer-effect-match)": 1,
+    "complexity(complexity)": 1,
+    "eslint(max-lines-per-function)": 1
+  },
+  "apps/explore/src/components/OperatorBalances.tsx": {
+    "anti-slop(no-runtime-typeof)": 1
+  },
+  "apps/explore/src/components/OperatorGrant.tsx": {
+    "typescript(no-deprecated)": 1
+  },
+  "apps/explore/src/components/Phase.test.ts": {
+    "anti-slop(no-chained-type-assertions)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 2
+  },
+  "apps/explore/src/components/Phase.tsx": {
+    "anti-slop(no-runtime-typeof)": 1,
+    "knip(exports)": 1,
+    "typescript(switch-exhaustiveness-check)": 1
+  },
+  "apps/explore/src/components/PostHint.tsx": {
+    "knip(exports)": 1
+  },
+  "apps/explore/src/components/Privy.tsx": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 5,
+    "react-hooks(rules-of-hooks)": 3,
+    "typescript(no-deprecated)": 2,
+    "typescript(no-unnecessary-type-assertion)": 1,
+    "typescript(unbound-method)": 1
+  },
+  "apps/explore/src/components/Sheet.tsx": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 1,
+    "eslint(max-lines-per-function)": 1,
+    "jsx-a11y(click-events-have-key-events)": 1,
+    "jsx-a11y(no-noninteractive-element-interactions)": 1,
+    "jsx-a11y(prefer-tag-over-role)": 1
+  },
+  "apps/explore/src/components/Shell.tsx": {
+    "anti-slop-effect(prefer-effect-match)": 1,
+    "eslint(max-lines-per-function)": 1,
+    "jsx-a11y(anchor-has-content)": 1,
+    "typescript(no-unnecessary-type-conversion)": 1
+  },
+  "apps/explore/src/components/SignIn.tsx": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 1,
+    "typescript(no-misused-promises)": 1
+  },
+  "apps/explore/src/components/TestnetFaucet.tsx": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 2,
+    "typescript(no-misused-promises)": 1,
+    "typescript(no-unnecessary-type-assertion)": 1
+  },
+  "apps/explore/src/components/TxSteps.tsx": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 5,
+    "complexity(complexity)": 5,
+    "eslint(max-lines)": 1,
+    "eslint(max-lines-per-function)": 2,
+    "jsx-a11y(prefer-tag-over-role)": 3,
+    "typescript(no-deprecated)": 3,
+    "typescript(no-misused-promises)": 1,
+    "typescript(no-unnecessary-boolean-literal-compare)": 1,
+    "typescript(no-unnecessary-type-assertion)": 2
+  },
+  "apps/explore/src/components/Wallet.tsx": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 2,
+    "typescript(no-deprecated)": 3
+  },
+  "apps/explore/src/components/WalletPeek.tsx": {
+    "anti-slop-effect(prefer-effect-match)": 1
+  },
+  "apps/explore/src/components/agent/AgentChip.tsx": {
+    "knip(exports)": 3
+  },
+  "apps/explore/src/components/agent/AgentOrb.tsx": {
+    "complexity(complexity)": 1
+  },
+  "apps/explore/src/components/agent/Approval.tsx": {
+    "anti-slop(no-unknown-returns)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 2,
+    "eslint(max-lines-per-function)": 1,
+    "typescript(no-deprecated)": 1
+  },
+  "apps/explore/src/components/agent/BackingStrip.tsx": {
+    "complexity(complexity)": 1,
+    "eslint(max-lines-per-function)": 1
+  },
+  "apps/explore/src/components/agent/HeroStats.tsx": {
+    "complexity(complexity)": 1,
+    "jsx-a11y(prefer-tag-over-role)": 1
+  },
+  "apps/explore/src/components/agent/ListingCard.tsx": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 1,
+    "complexity(complexity)": 1,
+    "eslint(max-lines-per-function)": 1
+  },
+  "apps/explore/src/components/agent/ManageCards.tsx": {
+    "anti-slop(no-unknown-returns)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 3,
+    "complexity(complexity)": 1,
+    "jsx-a11y(prefer-tag-over-role)": 1
+  },
+  "apps/explore/src/components/agent/ManagedAgentCard.tsx": {
+    "complexity(complexity)": 1,
+    "eslint(max-lines-per-function)": 1
+  },
+  "apps/explore/src/components/agent/OwnerTabs.tsx": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 2,
+    "complexity(complexity)": 1
+  },
+  "apps/explore/src/components/agent/PermissionApproval.tsx": {
+    "anti-slop(no-unknown-returns)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 1,
+    "anti-slop-effect(prefer-effect-match)": 2,
+    "complexity(complexity)": 1,
+    "eslint(max-lines-per-function)": 1,
+    "typescript(no-deprecated)": 1
+  },
+  "apps/explore/src/components/agent/ProfileHeader.tsx": {
+    "jsx-a11y(click-events-have-key-events)": 1,
+    "jsx-a11y(no-static-element-interactions)": 1,
+    "knip(exports)": 1
+  },
+  "apps/explore/src/components/agent/SetupChecklist.tsx": {
+    "complexity(complexity)": 1
+  },
+  "apps/explore/src/components/agent/shader-budget.ts": {
+    "knip(exports)": 1
+  },
+  "apps/explore/src/components/controls.tsx": {
+    "anti-slop-effect(prefer-effect-match)": 1
+  },
+  "apps/explore/src/components/job/Deliverables.tsx": {
+    "knip(exports)": 1
+  },
+  "apps/explore/src/components/job/HireAgain.tsx": {
+    "anti-slop(no-runtime-typeof)": 2
+  },
+  "apps/explore/src/components/job/JobActions.tsx": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 2,
+    "anti-slop-effect(prefer-effect-match)": 2,
+    "complexity(complexity)": 2,
+    "eslint(max-lines)": 1,
+    "eslint(max-lines-per-function)": 2,
+    "jsx-a11y(prefer-tag-over-role)": 3,
+    "typescript(no-deprecated)": 3,
+    "typescript(switch-exhaustiveness-check)": 1
+  },
+  "apps/explore/src/components/job/Timeline.tsx": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 1,
+    "complexity(complexity)": 1,
+    "eslint(max-lines-per-function)": 1,
+    "typescript(switch-exhaustiveness-check)": 1
+  },
+  "apps/explore/src/components/job/V1Panels.tsx": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 3,
+    "eslint(max-lines-per-function)": 1,
+    "typescript(no-unnecessary-type-assertion)": 2,
+    "typescript(no-unnecessary-type-conversion)": 1
+  },
+  "apps/explore/src/components/kit.tsx": {
+    "anti-slop-effect(prefer-effect-match)": 3,
+    "jsx-a11y(prefer-tag-over-role)": 3,
+    "knip(exports)": 1
+  },
+  "apps/explore/src/components/post/Preflight.tsx": {
+    "anti-slop(no-runtime-typeof)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 2,
+    "complexity(complexity)": 1,
+    "eslint(max-lines-per-function)": 1,
+    "typescript(no-unnecessary-type-assertion)": 1
+  },
+  "apps/explore/src/components/post/Resume.tsx": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 2,
+    "complexity(complexity)": 1,
+    "eslint(max-lines-per-function)": 1,
+    "jsx-a11y(control-has-associated-label)": 1,
+    "typescript(no-unnecessary-type-assertion)": 1
+  },
+  "apps/explore/src/components/token/TokenAmount.tsx": {
+    "knip(exports)": 1
+  },
+  "apps/explore/src/components/token/TokenIcon.tsx": {
+    "knip(exports)": 1
+  },
+  "apps/explore/src/components/txJournal.ts": {
+    "anti-slop(no-runtime-typeof)": 7,
+    "anti-slop(require-safety-comment-for-type-assertion)": 1,
+    "complexity(complexity)": 1
+  },
+  "apps/explore/src/components/txOperation.test.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 2,
+    "typescript(no-unnecessary-type-assertion)": 1
+  },
+  "apps/explore/src/components/txOperation.ts": {
+    "anti-slop(no-runtime-typeof)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 1,
+    "complexity(complexity)": 1,
+    "eslint(max-depth)": 2
+  },
+  "apps/explore/src/components/ui/button.tsx": {
+    "jsx-a11y(aria-role)": 1
+  },
+  "apps/explore/src/components/ui/dropdown-menu.tsx": {
+    "knip(files)": 1
+  },
+  "apps/explore/src/components/ui/empty.tsx": {
+    "knip(exports)": 2
+  },
+  "apps/explore/src/components/ui/field.tsx": {
+    "jsx-a11y(prefer-tag-over-role)": 1,
+    "knip(exports)": 6
+  },
+  "apps/explore/src/components/ui/item.tsx": {
+    "jsx-a11y(prefer-tag-over-role)": 1,
+    "knip(exports)": 3
+  },
+  "apps/explore/src/components/ui/label.tsx": {
+    "jsx-a11y(label-has-associated-control)": 1
+  },
+  "apps/explore/src/components/ui/popover.tsx": {
+    "knip(exports)": 2
+  },
+  "apps/explore/src/components/ui/spinner.tsx": {
+    "jsx-a11y(prefer-tag-over-role)": 1
+  },
+  "apps/explore/src/components/ui/tabs.tsx": {
+    "knip(exports)": 1
+  },
+  "apps/explore/src/delegation-query.ts": {
+    "knip(exports)": 3,
+    "typescript(no-unnecessary-type-conversion)": 1
+  },
+  "apps/explore/src/design-tokens.test.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 5,
+    "boundaries(no-cross-boundary-import)": 1,
+    "typescript(no-unnecessary-type-assertion)": 2
+  },
+  "apps/explore/src/directory-query.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 1
+  },
+  "apps/explore/src/format.ts": {
+    "knip(exports)": 1
+  },
+  "apps/explore/src/gas.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 2,
+    "typescript(no-unnecessary-type-assertion)": 2
+  },
+  "apps/explore/src/job-list.test.ts": {
+    "anti-slop(no-chained-type-assertions)": 2,
+    "anti-slop(require-safety-comment-for-type-assertion)": 7
+  },
+  "apps/explore/src/launch.test.ts": {
+    "anti-slop(no-unknown-returns)": 2,
+    "anti-slop(require-safety-comment-for-type-assertion)": 1
+  },
+  "apps/explore/src/launch.ts": {
+    "anti-slop(no-reflect-get)": 1,
+    "anti-slop(no-runtime-typeof)": 1,
+    "anti-slop(no-unknown-returns)": 2,
+    "anti-slop(require-safety-comment-for-type-assertion)": 1
+  },
+  "apps/explore/src/main.tsx": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 3
+  },
+  "apps/explore/src/managed.test.ts": {
+    "anti-slop(no-chained-type-assertions)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 5,
+    "typescript(no-unnecessary-type-assertion)": 3
+  },
+  "apps/explore/src/managed.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 1,
+    "typescript(no-unnecessary-type-conversion)": 2
+  },
+  "apps/explore/src/onboarding.test.ts": {
+    "anti-slop(no-unknown-returns)": 2,
+    "anti-slop(require-safety-comment-for-type-assertion)": 2,
+    "typescript(no-unnecessary-type-assertion)": 2
+  },
+  "apps/explore/src/operator-balances.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 1
+  },
+  "apps/explore/src/owner-route.ts": {
+    "knip(exports)": 1
+  },
+  "apps/explore/src/permission-review.test.ts": {
+    "anti-slop(no-runtime-typeof)": 1
+  },
+  "apps/explore/src/permission-review.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 1,
+    "knip(exports)": 1
+  },
+  "apps/explore/src/prices.test.ts": {
+    "anti-slop(no-runtime-typeof)": 2,
+    "anti-slop(no-unknown-returns)": 3,
+    "anti-slop(require-safety-comment-for-type-assertion)": 2
+  },
+  "apps/explore/src/prices.ts": {
+    "complexity(complexity)": 1,
+    "knip(exports)": 2,
+    "knip(types)": 1
+  },
+  "apps/explore/src/routes/Admin.tsx": {
+    "anti-slop(no-chained-type-assertions)": 3,
+    "anti-slop(no-runtime-typeof)": 9,
+    "anti-slop(require-safety-comment-for-type-assertion)": 15,
+    "anti-slop-effect(prefer-effect-match)": 1,
+    "complexity(complexity)": 6,
+    "eslint(max-lines)": 1,
+    "eslint(max-lines-per-function)": 6,
+    "jsx-a11y(label-has-associated-control)": 8,
+    "jsx-a11y(prefer-tag-over-role)": 2,
+    "typescript(no-deprecated)": 2,
+    "typescript(no-unnecessary-type-assertion)": 5,
+    "typescript(no-unnecessary-type-conversion)": 11,
+    "typescript(no-unnecessary-type-parameters)": 1
+  },
+  "apps/explore/src/routes/Agent.tsx": {
+    "anti-slop(no-runtime-typeof)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 5,
+    "anti-slop-effect(prefer-effect-match)": 1,
+    "complexity(complexity)": 1,
+    "knip(exports)": 7,
+    "knip(types)": 2,
+    "typescript(no-base-to-string)": 1
+  },
+  "apps/explore/src/routes/AgentNew.tsx": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 3,
+    "complexity(complexity)": 1,
+    "eslint(max-lines-per-function)": 1,
+    "jsx-a11y(label-has-associated-control)": 1,
+    "jsx-a11y(prefer-tag-over-role)": 2,
+    "typescript(no-deprecated)": 1
+  },
+  "apps/explore/src/routes/BoardNew.tsx": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 1,
+    "complexity(complexity)": 1,
+    "eslint(max-lines-per-function)": 1,
+    "jsx-a11y(control-has-associated-label)": 1,
+    "jsx-a11y(prefer-tag-over-role)": 2,
+    "typescript(no-misused-promises)": 1
+  },
+  "apps/explore/src/routes/Boards.tsx": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 1,
+    "typescript(no-unnecessary-type-assertion)": 1
+  },
+  "apps/explore/src/routes/Collect.tsx": {
+    "complexity(complexity)": 1,
+    "eslint(max-lines-per-function)": 1,
+    "jsx-a11y(prefer-tag-over-role)": 1
+  },
+  "apps/explore/src/routes/Embed.tsx": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 3,
+    "complexity(complexity)": 1,
+    "eslint(max-lines-per-function)": 1,
+    "jsx-a11y(prefer-tag-over-role)": 1,
+    "knip(exports)": 1,
+    "typescript(no-deprecated)": 3,
+    "typescript(no-misused-promises)": 1
+  },
+  "apps/explore/src/routes/Home.tsx": {
+    "eslint(max-lines-per-function)": 1
+  },
+  "apps/explore/src/routes/Job.tsx": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 4,
+    "complexity(complexity)": 2,
+    "eslint(max-lines)": 1,
+    "eslint(max-lines-per-function)": 1,
+    "jsx-a11y(prefer-tag-over-role)": 3,
+    "typescript(no-unnecessary-type-assertion)": 2
+  },
+  "apps/explore/src/routes/Jobs.tsx": {
+    "anti-slop(no-unknown-returns)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 6,
+    "complexity(complexity)": 2,
+    "eslint(max-lines-per-function)": 2,
+    "jsx-a11y(prefer-tag-over-role)": 2,
+    "knip(exports)": 1,
+    "typescript(no-unnecessary-boolean-literal-compare)": 1,
+    "typescript(no-unnecessary-type-assertion)": 1,
+    "typescript(switch-exhaustiveness-check)": 1
+  },
+  "apps/explore/src/routes/MyAgents.tsx": {
+    "anti-slop-effect(prefer-effect-match)": 1
+  },
+  "apps/explore/src/routes/Request.tsx": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 5,
+    "complexity(complexity)": 1,
+    "eslint(max-lines)": 1,
+    "eslint(max-lines-per-function)": 1,
+    "typescript(no-unnecessary-type-assertion)": 2
+  },
+  "apps/explore/src/routes/Sponsorship.tsx": {
+    "complexity(complexity)": 1,
+    "eslint(max-lines-per-function)": 1,
+    "jsx-a11y(prefer-tag-over-role)": 1,
+    "typescript(no-deprecated)": 1
+  },
+  "apps/explore/src/routes/Telegram.tsx": {
+    "complexity(complexity)": 1,
+    "eslint(max-lines-per-function)": 1,
+    "jsx-a11y(prefer-tag-over-role)": 2,
+    "typescript(no-deprecated)": 1
+  },
+  "apps/explore/src/safe.ts": {
+    "anti-slop(no-runtime-typeof)": 2,
+    "anti-slop(require-safety-comment-for-type-assertion)": 1,
+    "knip(exports)": 2,
+    "typescript(no-unnecessary-type-assertion)": 1
+  },
+  "apps/explore/src/sponsor.contract.test.ts": {
+    "anti-slop(no-chained-type-assertions)": 1,
+    "anti-slop(no-unknown-returns)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 10,
+    "boundaries(no-cross-boundary-import)": 1,
+    "typescript(no-unnecessary-type-assertion)": 1
+  },
+  "apps/explore/src/sponsor.test.ts": {
+    "anti-slop(no-chained-type-assertions)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 2
+  },
+  "apps/explore/src/sponsor.ts": {
+    "anti-slop(no-runtime-typeof)": 2,
+    "anti-slop(require-safety-comment-for-type-assertion)": 13,
+    "complexity(complexity)": 1,
+    "typescript(no-unnecessary-type-assertion)": 5
+  },
+  "apps/explore/src/telegram.ts": {
+    "anti-slop(no-runtime-typeof)": 2,
+    "anti-slop(require-safety-comment-for-type-assertion)": 1
+  },
+  "apps/explore/src/tokens.generated.test.ts": {
+    "boundaries(no-cross-boundary-import)": 2
+  },
+  "apps/explore/src/tokens.generated.ts": {
+    "eslint(max-lines)": 1
+  },
+  "apps/explore/src/txErrors.ts": {
+    "anti-slop(no-chained-type-assertions)": 1,
+    "anti-slop(no-runtime-typeof)": 4,
+    "anti-slop(require-safety-comment-for-type-assertion)": 12,
+    "typescript(no-unnecessary-type-conversion)": 2
+  },
+  "apps/explore/src/typed-data.ts": {
+    "anti-slop(no-runtime-typeof)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 3
+  },
+  "apps/explore/src/useTokens.ts": {
+    "anti-slop(no-runtime-typeof)": 2,
+    "anti-slop(require-safety-comment-for-type-assertion)": 3
+  },
+  "apps/explore/src/vault-lock.test.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 2,
+    "typescript(unbound-method)": 2
+  },
+  "apps/explore/src/vault-lock.ts": {
+    "anti-slop(no-runtime-typeof)": 4,
+    "anti-slop(require-safety-comment-for-type-assertion)": 3
+  },
+  "apps/explore/src/vault-proof.test.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 2
+  },
+  "apps/explore/src/vault-proof.ts": {
+    "eslint(max-params)": 1,
+    "typescript(no-unnecessary-type-assertion)": 1
+  },
+  "apps/explore/src/wallet-balances.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 2,
+    "knip(types)": 1,
+    "typescript(no-unnecessary-type-assertion)": 1
+  },
+  "apps/explore/src/wallet.ts": {
+    "anti-slop(no-runtime-typeof)": 2,
+    "anti-slop(require-safety-comment-for-type-assertion)": 2,
+    "knip(exports)": 3
+  },
+  "apps/explore/start-guide.test.ts": {
+    "anti-slop(no-runtime-typeof)": 2,
+    "typescript(no-deprecated)": 1
+  },
+  "apps/explore/vite.config.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 2
+  },
+  "apps/explore/worker.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 1
+  },
+  "apps/indexer/src/worker.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 4,
+    "typescript(no-unnecessary-type-assertion)": 3
+  },
+  "contracts/package.json": {
+    "knip(binaries)": 1
+  },
+  "contracts/script/check-keystore-testnet.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 3,
+    "knip(binaries)": 1
+  },
+  "contracts/script/check-launch-testnet.ts": {
+    "anti-slop(no-runtime-typeof)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 5,
+    "complexity(complexity)": 1,
+    "typescript(no-unnecessary-type-assertion)": 5
+  },
+  "contracts/script/epoch0-transactions.test.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 6,
+    "typescript(no-unnecessary-type-assertion)": 10
+  },
+  "contracts/script/epoch0-transactions.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 1,
+    "complexity(complexity)": 1,
+    "eslint(max-params)": 3
+  },
+  "contracts/script/mine-epoch0-testnet.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 4,
+    "complexity(complexity)": 1,
+    "typescript(no-unnecessary-type-assertion)": 1
+  },
+  "contracts/script/testnet-mining-binding.test.ts": {
+    "anti-slop(no-runtime-typeof)": 2
+  },
+  "contracts/script/testnet-mining-options.test.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 2
+  },
+  "contracts/script/testnet-mining-options.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 1
+  },
+  "crew/bin/crew.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 12,
+    "complexity(complexity)": 2,
+    "typescript(no-base-to-string)": 1,
+    "typescript(no-misused-promises)": 1,
+    "typescript(no-unnecessary-type-assertion)": 2,
+    "typescript(no-unnecessary-type-conversion)": 1,
+    "typescript(no-unnecessary-type-parameters)": 1
+  },
+  "packages/board/src/admission.ts": {
+    "anti-slop(no-runtime-typeof)": 2
+  },
+  "packages/board/src/agent-auto-select.test.ts": {
+    "anti-slop(no-chained-type-assertions)": 2,
+    "anti-slop(require-safety-comment-for-type-assertion)": 6,
+    "typescript(unbound-method)": 1
+  },
+  "packages/board/src/agent-call-mapper.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 4,
+    "complexity(complexity)": 2,
+    "eslint(max-params)": 2,
+    "knip(exports)": 1
+  },
+  "packages/board/src/agent-directory.test.ts": {
+    "anti-slop(no-chained-type-assertions)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 2,
+    "typescript(unbound-method)": 1
+  },
+  "packages/board/src/agent-executor.fork.test.ts": {
+    "anti-slop(no-chained-type-assertions)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 20,
+    "complexity(complexity)": 1
+  },
+  "packages/board/src/agent-executor.ts": {
+    "anti-slop(no-runtime-typeof)": 10,
+    "anti-slop(require-safety-comment-for-type-assertion)": 6,
+    "complexity(complexity)": 1
+  },
+  "packages/board/src/agent-failure.ts": {
+    "anti-slop(no-chained-type-assertions)": 1,
+    "anti-slop(no-runtime-typeof)": 12,
+    "anti-slop(require-safety-comment-for-type-assertion)": 8
+  },
+  "packages/board/src/agent-grant-renewal.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 1,
+    "complexity(complexity)": 1,
+    "eslint(max-params)": 1
+  },
+  "packages/board/src/agent-lifecycle.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 11,
+    "complexity(complexity)": 1,
+    "typescript(no-unnecessary-type-assertion)": 1
+  },
+  "packages/board/src/agent-onboarding.fork.test.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 5
+  },
+  "packages/board/src/agent-onboarding.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 2,
+    "complexity(complexity)": 1,
+    "typescript(no-unnecessary-type-arguments)": 1
+  },
+  "packages/board/src/agent-permissions.test.ts": {
+    "anti-slop(no-chained-type-assertions)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 15,
+    "typescript(no-unnecessary-type-assertion)": 1
+  },
+  "packages/board/src/agent-permissions.ts": {
+    "anti-slop(no-runtime-typeof)": 3,
+    "anti-slop(require-safety-comment-for-type-assertion)": 10
+  },
+  "packages/board/src/agent-signing-scope.ts": {
+    "anti-slop(no-runtime-typeof)": 6,
+    "anti-slop(require-safety-comment-for-type-assertion)": 10,
+    "complexity(complexity)": 1
+  },
+  "packages/board/src/agent-signing-store.ts": {
+    "anti-slop(no-unknown-returns)": 1
+  },
+  "packages/board/src/agent-signing.test.ts": {
+    "anti-slop(no-chained-type-assertions)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 2,
+    "anti-slop-effect(prefer-effect-match)": 1,
+    "complexity(complexity)": 1
+  },
+  "packages/board/src/agent-signing.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 5,
+    "typescript(no-deprecated)": 1,
+    "typescript(no-unnecessary-type-arguments)": 3,
+    "typescript(no-unnecessary-type-assertion)": 1
+  },
+  "packages/board/src/agent-x402.test.ts": {
+    "anti-slop(no-chained-type-assertions)": 2,
+    "anti-slop(require-safety-comment-for-type-assertion)": 9,
+    "complexity(complexity)": 1
+  },
+  "packages/board/src/agent-x402.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 3,
+    "typescript(no-unnecessary-type-assertion)": 1
+  },
+  "packages/board/src/agents.ts": {
+    "anti-slop(no-runtime-typeof)": 4,
+    "anti-slop(require-safety-comment-for-type-assertion)": 5,
+    "typescript(no-unnecessary-type-parameters)": 1
+  },
+  "packages/board/src/arbitration.ts": {
+    "anti-slop(no-runtime-typeof)": 5,
+    "anti-slop(no-unknown-returns)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 3
+  },
+  "packages/board/src/archived-preparations.test.ts": {
+    "anti-slop(no-chained-type-assertions)": 2,
+    "anti-slop(require-safety-comment-for-type-assertion)": 5
+  },
+  "packages/board/src/archived-tasks.test.ts": {
+    "anti-slop(no-chained-type-assertions)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 2
+  },
+  "packages/board/src/budget.ts": {
+    "anti-slop(no-chained-type-assertions)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 14,
+    "complexity(complexity)": 1,
+    "eslint(max-params)": 1
+  },
+  "packages/board/src/collect.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 1,
+    "complexity(complexity)": 1
+  },
+  "packages/board/src/deliverable.test.ts": {
+    "anti-slop(no-runtime-typeof)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 3,
+    "typescript(no-base-to-string)": 1,
+    "typescript(no-unnecessary-type-assertion)": 1
+  },
+  "packages/board/src/deliverable.ts": {
+    "anti-slop(no-runtime-typeof)": 3,
+    "anti-slop(require-safety-comment-for-type-assertion)": 4,
+    "complexity(complexity)": 2,
+    "typescript(no-base-to-string)": 2,
+    "typescript(no-unnecessary-type-assertion)": 1,
+    "typescript(no-unnecessary-type-conversion)": 1
+  },
+  "packages/board/src/directory.test.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 1,
+    "anti-slop-effect(prefer-effect-match)": 1
+  },
+  "packages/board/src/directory.ts": {
+    "anti-slop(no-chained-type-assertions)": 2,
+    "anti-slop(no-runtime-typeof)": 9,
+    "anti-slop(require-safety-comment-for-type-assertion)": 19,
+    "complexity(complexity)": 1,
+    "eslint(max-lines-per-function)": 1,
+    "typescript(no-misused-spread)": 1,
+    "typescript(no-unnecessary-type-assertion)": 1
+  },
+  "packages/board/src/github.ts": {
+    "anti-slop(no-runtime-typeof)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 2
+  },
+  "packages/board/src/grant-calls.ts": {
+    "anti-slop(no-runtime-typeof)": 3,
+    "anti-slop(require-safety-comment-for-type-assertion)": 4,
+    "complexity(complexity)": 2,
+    "knip(exports)": 1
+  },
+  "packages/board/src/grants.ts": {
+    "anti-slop(no-runtime-typeof)": 2,
+    "anti-slop(require-safety-comment-for-type-assertion)": 7,
+    "typescript(no-unnecessary-type-assertion)": 1
+  },
+  "packages/board/src/hire-batch.fork.test.ts": {
+    "typescript(no-unnecessary-type-assertion)": 1
+  },
+  "packages/board/src/hire-batch.test.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 1,
+    "typescript(no-unnecessary-type-assertion)": 1
+  },
+  "packages/board/src/hire-batch.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 2,
+    "typescript(no-unnecessary-type-assertion)": 2
+  },
+  "packages/board/src/hosted-creators.test.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 2
+  },
+  "packages/board/src/list-tasks.test.ts": {
+    "anti-slop(no-chained-type-assertions)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 6
+  },
+  "packages/board/src/mining.test.ts": {
+    "anti-slop(no-chained-type-assertions)": 1,
+    "anti-slop(no-unknown-returns)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 6,
+    "typescript(no-unnecessary-type-assertion)": 2
+  },
+  "packages/board/src/mining.ts": {
+    "anti-slop(no-runtime-typeof)": 4,
+    "anti-slop(no-unknown-returns)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 2,
+    "complexity(complexity)": 1,
+    "typescript(no-redundant-type-constituents)": 1
+  },
+  "packages/board/src/model.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 3
+  },
+  "packages/board/src/offer-errors.test.ts": {
+    "anti-slop(no-chained-type-assertions)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 2
+  },
+  "packages/board/src/permission-calls.test.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 3,
+    "typescript(no-unnecessary-type-assertion)": 1
+  },
+  "packages/board/src/publisher-view.ts": {
+    "typescript(switch-exhaustiveness-check)": 1
+  },
+  "packages/board/src/quote-request-cover.test.ts": {
+    "anti-slop(no-chained-type-assertions)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 2
+  },
+  "packages/board/src/receipts.test.ts": {
+    "anti-slop(no-chained-type-assertions)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 10,
+    "eslint(max-params)": 1,
+    "typescript(no-unnecessary-type-assertion)": 4
+  },
+  "packages/board/src/receipts.ts": {
+    "anti-slop(no-chained-type-assertions)": 1,
+    "anti-slop(no-runtime-typeof)": 2,
+    "anti-slop(require-safety-comment-for-type-assertion)": 6,
+    "anti-slop-effect(prefer-effect-match)": 1,
+    "complexity(complexity)": 1,
+    "typescript(no-base-to-string)": 1
+  },
+  "packages/board/src/relay.ts": {
+    "typescript(no-unnecessary-type-arguments)": 1
+  },
+  "packages/board/src/screening.test.ts": {
+    "anti-slop(no-runtime-typeof)": 1
+  },
+  "packages/board/src/selection-service.test.ts": {
+    "anti-slop(no-chained-type-assertions)": 4,
+    "anti-slop(no-module-mocking)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 8
+  },
+  "packages/board/src/selection.ts": {
+    "knip(types)": 1
+  },
+  "packages/board/src/service.ts": {
+    "anti-slop(no-runtime-typeof)": 18,
+    "anti-slop(require-safety-comment-for-type-assertion)": 63,
+    "anti-slop-effect(prefer-effect-match)": 1,
+    "complexity(complexity)": 11,
+    "eslint(max-depth)": 1,
+    "eslint(max-lines)": 1,
+    "eslint(max-lines-per-function)": 3,
+    "typescript(no-unnecessary-type-assertion)": 9,
+    "typescript(no-unnecessary-type-conversion)": 1,
+    "typescript(no-unnecessary-type-parameters)": 1
+  },
+  "packages/board/src/sessions.test.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 1
+  },
+  "packages/board/src/sessions.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 1
+  },
+  "packages/board/src/sidequest-backing.test.ts": {
+    "anti-slop(no-chained-type-assertions)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 2
+  },
+  "packages/board/src/sidequest.fork.test.ts": {
+    "typescript(no-unnecessary-type-assertion)": 1
+  },
+  "packages/board/src/sidequest.ts": {
+    "complexity(complexity)": 1,
+    "knip(exports)": 2
+  },
+  "packages/board/src/sponsor-grants.fork.test.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 2
+  },
+  "packages/board/src/sponsor-policy.ts": {
+    "knip(exports)": 1
+  },
+  "packages/board/src/sponsor-recovery.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 10,
+    "complexity(complexity)": 1,
+    "eslint(max-depth)": 4
+  },
+  "packages/board/src/sponsor.fork.test.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 7
+  },
+  "packages/board/src/sponsor.test.ts": {
+    "anti-slop(no-chained-type-assertions)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 7,
+    "complexity(complexity)": 2,
+    "typescript(no-unnecessary-type-assertion)": 2
+  },
+  "packages/board/src/sponsor.ts": {
+    "anti-slop(no-runtime-typeof)": 5,
+    "anti-slop(require-safety-comment-for-type-assertion)": 7,
+    "anti-slop-effect(prefer-effect-match)": 2,
+    "complexity(complexity)": 2,
+    "typescript(no-unnecessary-type-assertion)": 1
+  },
+  "packages/board/src/staking.ts": {
+    "anti-slop(no-runtime-typeof)": 1
+  },
+  "packages/board/src/store.ts": {
+    "anti-slop(no-unknown-returns)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 2
+  },
+  "packages/board/src/tenant.ts": {
+    "anti-slop(no-runtime-typeof)": 4,
+    "anti-slop(require-safety-comment-for-type-assertion)": 9,
+    "complexity(complexity)": 1
+  },
+  "packages/board/src/terms.ts": {
+    "anti-slop(no-chained-type-assertions)": 1,
+    "anti-slop(no-runtime-typeof)": 2,
+    "anti-slop(require-safety-comment-for-type-assertion)": 16,
+    "complexity(complexity)": 1
+  },
+  "packages/board/src/typed-data.ts": {
+    "anti-slop(no-runtime-typeof)": 1
+  },
+  "packages/board/src/v1-flows.fork.test.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 5
+  },
+  "packages/board/src/v1-tools.ts": {
+    "anti-slop(no-runtime-typeof)": 1,
+    "eslint(max-params)": 1
+  },
+  "packages/board/src/x402.ts": {
+    "anti-slop(no-chained-type-assertions)": 1,
+    "anti-slop(no-runtime-typeof)": 10,
+    "anti-slop(no-unknown-returns)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 6,
+    "complexity(complexity)": 1
+  },
+  "packages/indexer/src/delegations.test.ts": {
+    "typescript(no-unnecessary-type-assertion)": 1
+  },
+  "packages/indexer/src/events.ts": {
+    "anti-slop(no-runtime-typeof)": 4,
+    "anti-slop(require-safety-comment-for-type-assertion)": 10,
+    "typescript(no-base-to-string)": 2,
+    "typescript(no-unnecessary-type-assertion)": 7
+  },
+  "packages/indexer/src/feed.ts": {
+    "anti-slop(no-runtime-typeof)": 6,
+    "anti-slop(require-safety-comment-for-type-assertion)": 3,
+    "complexity(complexity)": 2
+  },
+  "packages/indexer/src/fold.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 33,
+    "complexity(complexity)": 1,
+    "eslint(max-lines-per-function)": 1,
+    "typescript(no-base-to-string)": 4
+  },
+  "packages/indexer/src/indexer.test.ts": {
+    "anti-slop(no-chained-type-assertions)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 2,
+    "typescript(no-unnecessary-type-assertion)": 1,
+    "typescript(unbound-method)": 1
+  },
+  "packages/indexer/src/indexer.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 1,
+    "complexity(complexity)": 1
+  },
+  "packages/indexer/src/mcp-events.ts": {
+    "anti-slop(no-runtime-typeof)": 9,
+    "anti-slop(require-safety-comment-for-type-assertion)": 3,
+    "anti-slop-effect(prefer-effect-match)": 1,
+    "complexity(complexity)": 1,
+    "eslint(max-params)": 1
+  },
+  "packages/indexer/src/read.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 11,
+    "complexity(complexity)": 1
+  },
+  "packages/indexer/src/sidequest.test.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 19,
+    "eslint(max-params)": 1,
+    "typescript(no-unnecessary-type-assertion)": 16,
+    "typescript(unbound-method)": 1
+  },
+  "packages/indexer/src/source.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 2
+  },
+  "packages/indexer/src/store.ts": {
+    "anti-slop(no-unknown-returns)": 2,
+    "anti-slop(require-safety-comment-for-type-assertion)": 1,
+    "typescript(no-unnecessary-type-parameters)": 1
+  },
+  "packages/indexer/src/telegram-notifications.ts": {
+    "anti-slop(no-runtime-typeof)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 1,
+    "complexity(complexity)": 1
+  },
+  "packages/indexer/src/telegram.ts": {
+    "anti-slop(no-runtime-typeof)": 3,
+    "anti-slop(require-safety-comment-for-type-assertion)": 4,
+    "complexity(complexity)": 2,
+    "eslint(max-params)": 2,
+    "typescript(no-unnecessary-type-assertion)": 1
+  },
+  "packages/indexer/src/webhooks.ts": {
+    "anti-slop(no-runtime-typeof)": 7,
+    "anti-slop(no-unknown-returns)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 6,
+    "complexity(complexity)": 3,
+    "eslint(max-params)": 3
+  },
+  "packages/indexer/test/fixtures/v1-logs.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 2,
+    "typescript(no-unnecessary-type-assertion)": 2
+  },
+  "packages/react/src/client.test.ts": {
+    "anti-slop(no-chained-type-assertions)": 1,
+    "anti-slop(no-unknown-returns)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 4,
+    "typescript(no-base-to-string)": 2
+  },
+  "packages/react/src/client.ts": {
+    "anti-slop(no-runtime-typeof)": 1,
+    "anti-slop(no-unknown-returns)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 5,
+    "complexity(complexity)": 1
+  },
+  "packages/react/src/components/TxSteps.tsx": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 1,
+    "typescript(no-misused-promises)": 1
+  },
+  "packages/react/src/hooks.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 1
+  },
+  "packages/react/src/send.test.ts": {
+    "anti-slop(no-unknown-returns)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 3,
+    "typescript(no-unnecessary-type-assertion)": 1
+  },
+  "packages/react/src/send.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 5
+  },
+  "packages/sdk/scripts/live/authority-allowance.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 1,
+    "typescript(no-unnecessary-boolean-literal-compare)": 1
+  },
+  "packages/sdk/scripts/live/authority-chain.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 9,
+    "eslint(max-params)": 1,
+    "typescript(no-unnecessary-type-arguments)": 1
+  },
+  "packages/sdk/scripts/live/authority-cost.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 1
+  },
+  "packages/sdk/scripts/live/authority-gas.ts": {
+    "anti-slop(no-chained-type-assertions)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 6,
+    "complexity(complexity)": 1,
+    "typescript(no-unnecessary-type-assertion)": 1,
+    "typescript(no-unnecessary-type-conversion)": 1
+  },
+  "packages/sdk/scripts/live/authority-grants.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 3,
+    "eslint(max-params)": 3
+  },
+  "packages/sdk/scripts/live/authority-registration.ts": {
+    "anti-slop(no-chained-type-assertions)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 5
+  },
+  "packages/sdk/scripts/live/authority.fork.test.ts": {
+    "anti-slop(no-chained-type-assertions)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 4,
+    "knip(binaries)": 1
+  },
+  "packages/sdk/scripts/live/deployed/acceptance.ts": {
+    "anti-slop(no-runtime-typeof)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 1,
+    "complexity(complexity)": 1,
+    "eslint(max-lines-per-function)": 1
+  },
+  "packages/sdk/scripts/live/deployed/atomic.ts": {
+    "anti-slop(no-runtime-typeof)": 2,
+    "anti-slop(require-safety-comment-for-type-assertion)": 1,
+    "eslint(max-lines-per-function)": 1
+  },
+  "packages/sdk/scripts/live/deployed/browser.ts": {
+    "anti-slop(no-chained-type-assertions)": 8,
+    "anti-slop(no-runtime-typeof)": 3,
+    "anti-slop(no-unknown-returns)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 23,
+    "complexity(complexity)": 1,
+    "eslint(max-lines-per-function)": 1,
+    "typescript(no-redundant-type-constituents)": 1
+  },
+  "packages/sdk/scripts/live/deployed/chain.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 5,
+    "complexity(complexity)": 1,
+    "typescript(no-unnecessary-type-assertion)": 1
+  },
+  "packages/sdk/scripts/live/deployed/clients.ts": {
+    "anti-slop(no-runtime-typeof)": 1
+  },
+  "packages/sdk/scripts/live/deployed/codex.ts": {
+    "anti-slop(no-runtime-typeof)": 3,
+    "anti-slop(require-safety-comment-for-type-assertion)": 2,
+    "complexity(complexity)": 1,
+    "knip(binaries)": 1,
+    "typescript(only-throw-error)": 1
+  },
+  "packages/sdk/scripts/live/deployed/fork.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 1,
+    "complexity(complexity)": 1,
+    "eslint(max-lines-per-function)": 1,
+    "knip(binaries)": 1
+  },
+  "packages/sdk/scripts/live/deployed/limits.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 3,
+    "complexity(complexity)": 1,
+    "eslint(max-lines-per-function)": 2,
+    "typescript(restrict-template-expressions)": 2
+  },
+  "packages/sdk/scripts/live/deployed/onboarding.ts": {
+    "anti-slop(no-chained-type-assertions)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 2,
+    "complexity(complexity)": 1,
+    "eslint(max-lines-per-function)": 1
+  },
+  "packages/sdk/scripts/live/deployed/policy.ts": {
+    "anti-slop(no-chained-type-assertions)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 3,
+    "complexity(complexity)": 1,
+    "eslint(max-lines-per-function)": 1,
+    "typescript(no-unnecessary-type-assertion)": 1
+  },
+  "packages/sdk/scripts/live/deployed/restart.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 1
+  },
+  "packages/sdk/scripts/live/deployed/runtime.ts": {
+    "anti-slop(no-runtime-typeof)": 2,
+    "anti-slop(require-safety-comment-for-type-assertion)": 5
+  },
+  "packages/sdk/scripts/live/deployed/smoke.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 1
+  },
+  "packages/sdk/scripts/live/deployed/state.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 2,
+    "typescript(no-unnecessary-type-parameters)": 2
+  },
+  "packages/sdk/scripts/live/deployed/worker.ts": {
+    "anti-slop(no-runtime-typeof)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 1,
+    "complexity(complexity)": 1,
+    "eslint(max-lines-per-function)": 1
+  },
+  "packages/sdk/scripts/live/prove-agent-executor.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 3,
+    "complexity(complexity)": 1,
+    "eslint(max-lines-per-function)": 1
+  },
+  "packages/sdk/scripts/live/prove-authority.ts": {
+    "anti-slop(no-runtime-typeof)": 6,
+    "anti-slop(require-safety-comment-for-type-assertion)": 9,
+    "complexity(complexity)": 1,
+    "eslint(max-lines-per-function)": 1,
+    "typescript(restrict-template-expressions)": 2
+  },
+  "packages/sdk/scripts/live/prove-sdk.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 2
+  },
+  "packages/sdk/scripts/privy/client.ts": {
+    "anti-slop(no-runtime-typeof)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 2
+  },
+  "packages/sdk/scripts/privy/cutover-policy.ts": {
+    "anti-slop(no-runtime-typeof)": 3,
+    "anti-slop(require-safety-comment-for-type-assertion)": 2
+  },
+  "packages/sdk/scripts/privy/env.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 2
+  },
+  "packages/sdk/scripts/privy/policy-document.ts": {
+    "anti-slop(no-runtime-typeof)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 1
+  },
+  "packages/sdk/scripts/privy/setup.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 6,
+    "typescript(no-unnecessary-type-assertion)": 1
+  },
+  "packages/sdk/scripts/privy/sidequest-cutover.ts": {
+    "anti-slop(no-runtime-typeof)": 2,
+    "anti-slop(require-safety-comment-for-type-assertion)": 3,
+    "complexity(complexity)": 2
+  },
+  "packages/sdk/scripts/privy/update-agent-rules.test.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 2
+  },
+  "packages/sdk/scripts/privy/update-agent-rules.ts": {
+    "anti-slop(no-runtime-typeof)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 2,
+    "typescript(no-unnecessary-type-assertion)": 1
+  },
+  "packages/sdk/scripts/v1-flow-keys.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 1
+  },
+  "packages/sdk/scripts/v1-flows.ts": {
+    "anti-slop(no-chained-type-assertions)": 1,
+    "anti-slop(no-runtime-typeof)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 18,
+    "complexity(complexity)": 1,
+    "eslint(max-lines-per-function)": 1,
+    "typescript(no-explicit-any)": 1,
+    "typescript(no-unnecessary-type-assertion)": 1
+  },
+  "packages/sdk/src/abi/core.ts": {
+    "eslint(max-lines)": 1
+  },
+  "packages/sdk/src/abi/epochDistributor.ts": {
+    "eslint(max-lines)": 1
+  },
+  "packages/sdk/src/abi/factoryV2.ts": {
+    "eslint(max-lines)": 1
+  },
+  "packages/sdk/src/abi/feeSchedule.ts": {
+    "eslint(max-lines)": 1
+  },
+  "packages/sdk/src/abi/miningReserve.ts": {
+    "eslint(max-lines)": 1
+  },
+  "packages/sdk/src/abi/sidequestEvaluator.ts": {
+    "eslint(max-lines)": 1
+  },
+  "packages/sdk/src/abi/sidequestHolding.ts": {
+    "eslint(max-lines)": 1
+  },
+  "packages/sdk/src/abi/stakeVault.ts": {
+    "eslint(max-lines)": 1
+  },
+  "packages/sdk/src/actions.test.ts": {
+    "anti-slop(no-chained-type-assertions)": 2,
+    "anti-slop(require-safety-comment-for-type-assertion)": 11,
+    "typescript(no-unnecessary-type-assertion)": 1,
+    "typescript(restrict-template-expressions)": 2
+  },
+  "packages/sdk/src/actions.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 5,
+    "eslint(max-params)": 1,
+    "typescript(no-unnecessary-type-assertion)": 1,
+    "typescript(no-unnecessary-type-conversion)": 1
+  },
+  "packages/sdk/src/batch.test.ts": {
+    "anti-slop(no-chained-type-assertions)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 14,
+    "typescript(no-unnecessary-type-assertion)": 4
+  },
+  "packages/sdk/src/batch.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 4,
+    "typescript(no-unnecessary-type-assertion)": 2
+  },
+  "packages/sdk/src/board-client.ts": {
+    "anti-slop(no-runtime-typeof)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 5,
+    "typescript(no-explicit-any)": 1
+  },
+  "packages/sdk/src/clocks.test.ts": {
+    "anti-slop(no-chained-type-assertions)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 4
+  },
+  "packages/sdk/src/clocks.ts": {
+    "typescript(no-unnecessary-type-conversion)": 6
+  },
+  "packages/sdk/src/delegation/delegation.test.ts": {
+    "anti-slop(no-chained-type-assertions)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 8
+  },
+  "packages/sdk/src/delegation/grants.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 3,
+    "complexity(complexity)": 2
+  },
+  "packages/sdk/src/delegation/index.ts": {
+    "anti-slop(no-runtime-typeof)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 2,
+    "eslint(max-params)": 1
+  },
+  "packages/sdk/src/delegation/permissions.test.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 7,
+    "typescript(no-unnecessary-type-assertion)": 4
+  },
+  "packages/sdk/src/delegation/permissions.ts": {
+    "anti-slop(no-runtime-typeof)": 9,
+    "anti-slop(require-safety-comment-for-type-assertion)": 11,
+    "anti-slop-effect(prefer-effect-match)": 1,
+    "complexity(complexity)": 3,
+    "typescript(no-unnecessary-type-assertion)": 2
+  },
+  "packages/sdk/src/delegation/recovery.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 1,
+    "eslint(max-params)": 1
+  },
+  "packages/sdk/src/deployment.test.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 2
+  },
+  "packages/sdk/src/deployment.ts": {
+    "anti-slop(no-runtime-typeof)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 31,
+    "complexity(complexity)": 2,
+    "typescript(no-unnecessary-type-assertion)": 2
+  },
+  "packages/sdk/src/directory.test.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 1
+  },
+  "packages/sdk/src/directory.ts": {
+    "anti-slop(no-runtime-typeof)": 5,
+    "anti-slop(require-safety-comment-for-type-assertion)": 1
+  },
+  "packages/sdk/src/docs-site.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 1
+  },
+  "packages/sdk/src/flow-journal.test.ts": {
+    "anti-slop(no-chained-type-assertions)": 3,
+    "anti-slop(require-safety-comment-for-type-assertion)": 8
+  },
+  "packages/sdk/src/flow-journal.ts": {
+    "anti-slop(no-runtime-typeof)": 3,
+    "anti-slop(require-safety-comment-for-type-assertion)": 2,
+    "complexity(complexity)": 1,
+    "eslint(max-params)": 1,
+    "typescript(no-unnecessary-type-arguments)": 1
+  },
+  "packages/sdk/src/flow-persistence.test.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 2,
+    "typescript(restrict-template-expressions)": 1
+  },
+  "packages/sdk/src/job-tags.ts": {
+    "anti-slop(no-runtime-typeof)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 2
+  },
+  "packages/sdk/src/lifecycle.ts": {
+    "anti-slop(no-runtime-typeof)": 4,
+    "anti-slop(require-safety-comment-for-type-assertion)": 5,
+    "anti-slop-effect(prefer-effect-match)": 3,
+    "complexity(complexity)": 3,
+    "eslint(max-lines-per-function)": 1
+  },
+  "packages/sdk/src/market.test.ts": {
+    "anti-slop(no-chained-type-assertions)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 3
+  },
+  "packages/sdk/src/market.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 1,
+    "typescript(no-unnecessary-type-assertion)": 1
+  },
+  "packages/sdk/src/privy-server.ts": {
+    "anti-slop(no-runtime-typeof)": 7,
+    "anti-slop(require-safety-comment-for-type-assertion)": 9,
+    "typescript(no-unnecessary-type-arguments)": 1
+  },
+  "packages/sdk/src/privy.ts": {
+    "anti-slop(no-chained-type-assertions)": 2,
+    "anti-slop(no-runtime-typeof)": 5,
+    "anti-slop(require-safety-comment-for-type-assertion)": 19,
+    "eslint(max-lines-per-function)": 1
+  },
+  "packages/sdk/src/registry.test.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 1
+  },
+  "packages/sdk/src/sidequest-fixture.test.ts": {
+    "anti-slop(no-module-mocking)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 2
+  },
+  "packages/sdk/src/sidequest.ts": {
+    "anti-slop-effect(prefer-effect-match)": 1,
+    "complexity(complexity)": 1
+  },
+  "packages/sdk/src/staking.test.ts": {
+    "anti-slop(no-chained-type-assertions)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 3,
+    "typescript(no-unnecessary-type-conversion)": 1
+  },
+  "packages/sdk/src/transaction-cost.test.ts": {
+    "anti-slop(no-chained-type-assertions)": 17,
+    "anti-slop(require-safety-comment-for-type-assertion)": 36,
+    "typescript(no-unnecessary-type-assertion)": 1
+  },
+  "packages/sdk/src/transaction-cost.ts": {
+    "anti-slop(no-runtime-typeof)": 1,
+    "complexity(complexity)": 1,
+    "typescript(no-unnecessary-type-arguments)": 1
+  },
+  "packages/sdk/src/typed-data.ts": {
+    "anti-slop(no-runtime-typeof)": 1
+  },
+  "packages/sdk/src/v1-admin-flows.test.ts": {
+    "anti-slop(no-chained-type-assertions)": 3,
+    "anti-slop(require-safety-comment-for-type-assertion)": 7,
+    "complexity(complexity)": 1
+  },
+  "packages/sdk/src/v1-admin-flows.ts": {
+    "complexity(complexity)": 1
+  },
+  "packages/sdk/src/v1-flow-actions.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 2,
+    "eslint(max-lines-per-function)": 1,
+    "eslint(max-params)": 1
+  },
+  "packages/sdk/src/v1-flow-delegated-stake.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 4,
+    "complexity(complexity)": 1,
+    "eslint(max-lines-per-function)": 1
+  },
+  "packages/sdk/src/v1-flow-economics.test.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 2,
+    "typescript(no-unnecessary-type-assertion)": 1
+  },
+  "packages/sdk/src/v1-flow-economics.ts": {
+    "anti-slop(no-chained-type-assertions)": 1,
+    "anti-slop(no-runtime-typeof)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 2,
+    "complexity(complexity)": 2
+  },
+  "packages/sdk/src/v1-flow-keys.test.ts": {
+    "anti-slop-effect(prefer-effect-match)": 1
+  },
+  "packages/sdk/src/v1-flows.fork.test.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 6,
+    "typescript(no-unnecessary-type-conversion)": 1
+  },
+  "packages/sdk/src/v1-flows.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 2,
+    "complexity(complexity)": 1,
+    "eslint(max-depth)": 4,
+    "eslint(max-lines-per-function)": 1,
+    "typescript(no-unnecessary-type-conversion)": 3
+  },
+  "packages/sdk/src/v1-hosted-flows.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 1,
+    "anti-slop-effect(prefer-effect-match)": 1,
+    "complexity(complexity)": 1,
+    "eslint(max-lines-per-function)": 1,
+    "typescript(no-explicit-any)": 1
+  },
+  "packages/sdk/test/fork-port.ts": {
+    "anti-slop(no-runtime-typeof)": 1
+  },
+  "packages/sdk/test/sidequest-fixture.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 7,
+    "complexity(complexity)": 1,
+    "knip(binaries)": 1,
+    "knip(exports)": 1
+  },
+  "scripts/check-files.ts": {
+    "eslint(no-shadow)": 1
+  },
+  "scripts/ci/alchemy.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 1
+  },
+  "scripts/ci/release.test.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 4,
+    "sidequest(require-disable-description)": 2,
+    "typescript(await-thenable)": 5,
+    "typescript(no-base-to-string)": 3,
+    "typescript(no-unnecessary-type-assertion)": 1
+  },
+  "scripts/ci/release.ts": {
+    "anti-slop(no-runtime-typeof)": 13,
+    "anti-slop(no-unknown-returns)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 9,
+    "complexity(complexity)": 1,
+    "typescript(no-explicit-any)": 6,
+    "typescript(no-unnecessary-type-assertion)": 1
+  },
+  "scripts/ci/smoke.test.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 2,
+    "typescript(await-thenable)": 2,
+    "typescript(no-base-to-string)": 2
+  },
+  "scripts/ci/smoke.ts": {
+    "anti-slop(no-runtime-typeof)": 3,
+    "anti-slop(require-safety-comment-for-type-assertion)": 3,
+    "complexity(complexity)": 1
+  },
+  "scripts/gen-abi.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 2
+  },
+  "scripts/gen-skills.mjs": {
+    "anti-slop(no-runtime-typeof)": 2
+  },
+  "scripts/mining/chain.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 3,
+    "eslint(max-params)": 1,
+    "typescript(no-unnecessary-type-assertion)": 2
+  },
+  "scripts/mining/compute.ts": {
+    "complexity(complexity)": 1
+  },
+  "scripts/mining/contributors.fork.test.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 4
+  },
+  "scripts/mining/contributors.test.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 2,
+    "typescript(no-unnecessary-type-assertion)": 2
+  },
+  "scripts/mining/epoch.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 5,
+    "complexity(complexity)": 1,
+    "eslint(max-lines-per-function)": 1,
+    "typescript(no-unnecessary-type-assertion)": 3
+  },
+  "scripts/mining/lots.test.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 4,
+    "typescript(no-unnecessary-type-assertion)": 4
+  },
+  "scripts/mining/lots.ts": {
+    "complexity(complexity)": 1
+  },
+  "scripts/mining/mining.test.ts": {
+    "anti-slop(no-chained-type-assertions)": 3,
+    "anti-slop(require-safety-comment-for-type-assertion)": 13,
+    "eslint(max-params)": 1,
+    "typescript(await-thenable)": 3,
+    "typescript(no-unnecessary-type-assertion)": 9
+  },
+  "scripts/mining/pool-chain.ts": {
+    "anti-slop(no-runtime-typeof)": 5,
+    "anti-slop(require-safety-comment-for-type-assertion)": 4,
+    "complexity(complexity)": 1,
+    "typescript(no-unnecessary-type-assertion)": 1
+  },
+  "scripts/mining/pool.test.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 1,
+    "typescript(await-thenable)": 4,
+    "typescript(no-unnecessary-type-assertion)": 1
+  },
+  "scripts/mining/prices.ts": {
+    "anti-slop(no-runtime-typeof)": 4,
+    "anti-slop(require-safety-comment-for-type-assertion)": 3
+  },
+  "scripts/mining/publish-lib.ts": {
+    "anti-slop(no-runtime-typeof)": 6,
+    "anti-slop(require-safety-comment-for-type-assertion)": 9,
+    "complexity(complexity)": 2,
+    "typescript(no-misused-spread)": 1
+  },
+  "scripts/mining/publish.test.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 8,
+    "typescript(await-thenable)": 12,
+    "typescript(no-base-to-string)": 1,
+    "typescript(no-unnecessary-type-assertion)": 11
+  },
+  "scripts/mining/publish.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 1
+  },
+  "scripts/mining/sign-prices.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 4,
+    "knip(binaries)": 1
+  },
+  "scripts/p0-drills.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 5
+  },
+  "scripts/preflight-prod.ts": {
+    "anti-slop(require-safety-comment-for-type-assertion)": 2
+  },
+  "scripts/reality-check.ts": {
+    "anti-slop(no-runtime-typeof)": 4,
+    "anti-slop(require-safety-comment-for-type-assertion)": 4,
+    "complexity(complexity)": 1,
+    "typescript(no-explicit-any)": 2,
+    "typescript(no-unnecessary-type-assertion)": 20
+  },
+  "scripts/sidequest/contracts.mjs": {
+    "knip(binaries)": 1
+  },
+  "scripts/sidequest/transaction.mjs": {
+    "anti-slop(no-runtime-typeof)": 1,
+    "complexity(complexity)": 1
+  }
+}
