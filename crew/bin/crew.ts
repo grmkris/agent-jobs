@@ -143,7 +143,8 @@ function prepareAgentDir(id: string): string {
   const role = join(crewDir, 'agents', id)
   for (const f of readdirSync(role)) {
     const from = join(role, f)
-    if (statSync(from).isFile()) copyFileSync(realpathSync(from), join(agent, f))
+    // ROLE.md lands as AGENTS.md: the harness loads it from the working directory, and the repo's agent check skips it.
+    if (statSync(from).isFile()) copyFileSync(realpathSync(from), join(agent, f === 'ROLE.md' ? 'AGENTS.md' : f))
   }
   // Skills are pinned by skills-lock.json and restored once per member, outside the container.
   if (!existsSync(join(agent, '.agents')) && !existsSync(join(agent, '.claude', 'skills'))) {

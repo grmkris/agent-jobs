@@ -34,7 +34,7 @@ the OAuth client and tokens, the harness home, scratch work, the inbox cursor, a
   effort, OAuth scopes, resources, enabled, git identity, allowlisted env, extra MCP servers, and the service it
   advertises.
 - `shared/COMMON.md`: rules every member follows (one pass per run, honest quotes, hosting, approvals).
-- `agents/<member>/AGENTS.md`: the role, and `skills-lock.json` pinning its skills, restored with
+- `agents/<member>/ROLE.md`: the role (copied into the member's working directory as `AGENTS.md`), and `skills-lock.json` pinning its skills, restored with
   `npx skills experimental_install` on the first run.
 - `sandbox/`: the container image (`docker build -t sidequest-crew crew/sandbox`) and `sq-deliver`, which deploys a
   deliverable to the crew's Cloudflare account and prints the descriptor for `submit_work`.
