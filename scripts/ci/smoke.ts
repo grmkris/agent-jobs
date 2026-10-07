@@ -34,6 +34,69 @@ const body = async (response: Response): Promise<Record<string, unknown>> => {
 /** The indexer's cron runs every minute; a checkpoint older than this means it has stopped. */
 const INDEX_MAX_AGE_SECONDS = 600
 
+/** A docs-check fetch: the stage origin, no redirects, 20 s, and an optional Accept. */
+type DocsGet = (path: string, accept?: string) => Promise<Response>
+
+const startsWith = (response: Response, type: string): boolean =>
+  (response.headers.get('content-type') ?? '').startsWith(type)
+
+/** The prerendered page: the docs marker, Vary: Accept, a nonce policy, every script nonced, its stylesheet served. */
+const checkDocsPage = async (get: DocsGet): Promise<void> => {
+  const page = await get('/docs/quickstart', 'text/html')
+  const html = await page.text()
+  if (page.status !== 200 || !startsWith(page, 'text/html') || !html.includes('content="sidequest-docs"'))
+    throw new Error('docs page missing')
+  if (!/\baccept\b/i.test(page.headers.get('vary') ?? '')) throw new Error('docs Vary: Accept missing')
+  const scriptSrc = /(?:^|;)\s*script-src([^;]*)/.exec(page.headers.get('content-security-policy') ?? '')?.[1] ?? ''
+  if (!scriptSrc.includes("'nonce-") || scriptSrc.includes("'unsafe-inline'"))
+    throw new Error('docs script policy mismatch')
+  const scripts = html.match(/<script\b/g)?.length ?? 0
+  const nonced = html.match(/<script\b[^>]*\snonce="/g)?.length ?? 0
+  if (scripts === 0 || nonced !== scripts) throw new Error(`docs scripts without a nonce: ${scripts - nonced}`)
+  const stylesheet = /<link\b[^>]*rel="stylesheet"[^>]*href="(\/[^"]+)"/.exec(html)?.[1]
+  if (stylesheet === undefined) throw new Error('docs stylesheet missing')
+  const css = await get(stylesheet)
+  await css.body?.cancel()
+  if (css.status !== 200) throw new Error(`docs stylesheet HTTP ${css.status}`)
+}
+
+/** The same URL as Markdown on Accept: text/markdown, byte-identical to its .md twin. */
+const checkDocsMarkdown = async (get: DocsGet): Promise<void> => {
+  const negotiated = await get('/docs/quickstart', 'text/markdown')
+  const twin = await get('/docs/quickstart.md')
+  const [markdown, twinText] = [await negotiated.text(), await twin.text()]
+  const served = negotiated.status === 200 && twin.status === 200 && startsWith(negotiated, 'text/markdown')
+  if (!served || !markdown.startsWith('# ') || markdown !== twinText)
+    throw new Error('docs Markdown negotiation mismatch')
+}
+
+/** The llms.txt index for this origin, the search index, and a real 404 for a missing page. */
+const checkDocsIndexes = async (origin: string, get: DocsGet): Promise<void> => {
+  const llms = await get('/llms.txt')
+  const llmsText = await llms.text()
+  if (llms.status !== 200 || !llmsText.startsWith('# Sidequest') || !llmsText.includes(`${origin}/start.md`))
+    throw new Error('llms.txt mismatch')
+  const search = await get('/docs/search.json')
+  if (search.status !== 200) throw new Error(`docs search HTTP ${search.status}`)
+  await body(search)
+  const missing = await get('/docs/not-a-page', 'text/html')
+  await missing.body?.cancel()
+  if (missing.status !== 404) throw new Error(`docs missing page HTTP ${missing.status}`)
+}
+
+/** The public docs Explore serves from apps/docs. */
+const smokeDocs = async (origin: string, fetcher: typeof fetch): Promise<void> => {
+  const get: DocsGet = (path, accept) =>
+    fetcher(new URL(path, origin), {
+      redirect: 'error',
+      signal: AbortSignal.timeout(20_000),
+      ...(accept === undefined ? {} : { headers: { accept } }),
+    })
+  await checkDocsPage(get)
+  await checkDocsMarkdown(get)
+  await checkDocsIndexes(origin, get)
+}
+
 export const smoke = async (
   stage: Stage,
   fetcher: typeof fetch = fetch,
@@ -96,6 +159,7 @@ export const smoke = async (
     throw new Error('indexer checkpoint missing')
   const age = Math.floor(now() / 1000) - updatedAt
   if (age > INDEX_MAX_AGE_SECONDS) throw new Error(`indexer checkpoint is ${age} s old`)
+  await smokeDocs(infra.origin, fetcher)
   console.log(`ok ${stage} ${infra.origin}`)
 }
 
