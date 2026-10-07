@@ -224,7 +224,7 @@ export const assertPlanSafe = (counts: PlanCounts, firstDeploy: boolean, adoptMo
   for (const value of Object.values(counts)) if (!Number.isSafeInteger(value) || value < 0) fail('invalid plan counts')
   if (counts.replace > 0 || counts.delete > 0 || counts.orphaned > 0) fail(`plan refused: replace=${counts.replace} delete=${counts.delete} orphaned=${counts.orphaned}`)
   if (counts.adopted > 0 && !adoptMove) fail(`plan refused: adopted=${counts.adopted}; pass --adopt-move for the one-time state move`)
-  if (counts.create > 0 && !firstDeploy) fail(`plan refused: create=${counts.create} but remote state already exists`)
+  if (counts.create > 0 && !firstDeploy) fail(`plan refused: create=${counts.create} outside a first deploy`)
 }
 
 const countsLine = (counts: PlanCounts): string => Object.entries(counts).map(([key, value]) => `${key}=${value}`).join(' ')
@@ -240,7 +240,7 @@ const configFor = (infra: StageFile): { readonly attester: string } => {
   return config.roles
 }
 export interface PlanRow { readonly fqn: string; readonly action: string; readonly bindings: readonly { readonly action: string }[] }
-interface Snapshot { readonly summary: PlanCounts; readonly resources: readonly PlanRow[]; readonly actions: readonly { readonly action: string }[]; readonly drifted?: number }
+interface Snapshot { readonly summary: PlanCounts; readonly resources: readonly PlanRow[]; readonly actions: readonly { readonly action: string }[]; readonly drifted?: number; readonly deferredAdoption?: readonly string[] }
 const runAlchemy = (action: 'plan' | 'drift', stage: Stage, env: Record<string, string>, adoptMove = false): Snapshot => {
   const child = spawnSync('bun', ['--no-env-file', resolve(ROOT, 'scripts/ci/alchemy.ts'), action, stage, ...(adoptMove ? ['--adopt-move'] : [])], { cwd: ROOT, env, stdio: 'pipe', encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 })
   if (child.status !== 0) fail('programmatic Alchemy inspection failed (provider details withheld)')
@@ -249,8 +249,13 @@ const runAlchemy = (action: 'plan' | 'drift', stage: Stage, env: Record<string, 
   return JSON.parse(lines[0]!.slice('SIDEQUEST_CI_RESULT='.length)) as Snapshot
 }
 
+/** Creates whose ownership probe Alchemy defers to Apply (props wait on upstream outputs); Apply adopts them when they exist. */
+export const deferredCreates = (snapshot: Snapshot): number =>
+  snapshot.resources.filter((row) => row.action === 'create' && (snapshot.deferredAdoption ?? []).includes(row.fqn)).length
 export const assertSnapshotSafe = (snapshot: Snapshot, firstDeploy: boolean, adoptMove: boolean): void => {
-  assertPlanSafe(snapshot.summary, firstDeploy, adoptMove)
+  // During the one-time dev state move, a deferred-adoption create is an adoption of the existing named resource.
+  const deferred = adoptMove ? deferredCreates(snapshot) : 0
+  assertPlanSafe({ ...snapshot.summary, create: snapshot.summary.create - deferred, adopted: snapshot.summary.adopted + deferred }, firstDeploy, adoptMove)
   if (snapshot.resources.some((row) => row.bindings.some((binding) => binding.action === 'delete'))) fail('plan refused: binding deletion')
   if (snapshot.actions.some((entry) => entry.action === 'delete')) fail('plan refused: action deletion')
 }
@@ -304,7 +309,7 @@ async function main(): Promise<void> {
   const snapshot = runAlchemy('plan', stage, env, adoptMove)
   const counts = snapshot.summary
   assertSnapshotSafe(snapshot, !remoteState && !adoptMove, adoptMove)
-  for (const resource of snapshot.resources) console.log(`${resource.fqn}: ${resource.action}`)
+  for (const resource of snapshot.resources) console.log(`${resource.fqn}: ${resource.action}${(snapshot.deferredAdoption ?? []).includes(resource.fqn) ? ' (ownership probe at apply)' : ''}`)
   const summary = `Sidequest ${action} stage=${stage} commit=${commit} ${countsLine(counts)}`
   console.log(summary); writeSummary(summary)
   if (action === 'plan') return

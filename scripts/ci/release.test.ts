@@ -36,7 +36,7 @@ test('refuses unset required values by name', () => {
 test('plan refusal rules cover destructive and adoption actions', () => {
   expect(() => assertPlanSafe({ ...clean, replace: 1 }, false, false)).toThrow('replace=1')
   expect(() => assertPlanSafe({ ...clean, adopted: 1 }, false, false)).toThrow('--adopt-move')
-  expect(() => assertPlanSafe({ ...clean, create: 1 }, false, false)).toThrow('remote state')
+  expect(() => assertPlanSafe({ ...clean, create: 1 }, false, false)).toThrow('outside a first deploy')
   expect(() => assertPlanSafe({ ...clean, create: 1 }, true, false)).not.toThrow()
   for (const action of ['delete', 'orphaned'] as const) expect(() => assertPlanSafe({ ...clean, [action]: 1 }, true, true)).toThrow('plan refused')
   expect(() => assertPlanSafe({ ...clean, adopted: 1 }, false, true)).not.toThrow()
@@ -120,4 +120,17 @@ test('remote absence needs successful valid inventory, never a failed read', asy
     const readFailure = (async (input) => new URL(String(input)).pathname === '/version' ? Response.json({ version: expectedStateStoreVersion() }) : new Response('unavailable', { status: 503 })) as typeof fetch
     await expect((await checkStateStore('account', file, readFailure)).stackExists('dev')).rejects.toThrow('HTTP 503')
   } finally { rmSync(directory, { recursive: true }) }
+})
+
+test('a deferred-adoption create counts as an adoption only during the dev state move', () => {
+  const summary: PlanCounts = { create: 2, update: 0, adopted: 3, replace: 0, delete: 0, orphaned: 0, noop: 0 }
+  const resources = [
+    { fqn: 'Database', action: 'adopted', bindings: [] },
+    { fqn: 'Api', action: 'create', bindings: [] },
+    { fqn: 'Explore', action: 'create', bindings: [] },
+  ]
+  const snapshot = { summary, resources, actions: [], deferredAdoption: ['Api', 'Explore'] }
+  expect(() => assertSnapshotSafe(snapshot, false, true)).not.toThrow()
+  expect(() => assertSnapshotSafe(snapshot, false, false)).toThrow('--adopt-move')
+  expect(() => assertSnapshotSafe({ ...snapshot, deferredAdoption: ['Api'] }, false, true)).toThrow('create=1')
 })

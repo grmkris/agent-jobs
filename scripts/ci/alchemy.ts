@@ -30,7 +30,10 @@ if ((action !== 'plan' && action !== 'drift') || (stage !== 'dev' && stage !== '
     if (session.stack.name !== 'Sidequest' || session.stack.stage !== stage) return yield* Effect.die('unexpected stack identity')
     if (action === 'plan') {
       const plan = yield* Plan.make(session.stack).pipe(Effect.provide(context))
-      return { summary: Alchemist.Stack.summarize(plan), ...Plan.describePlan(plan) }
+      // A create whose props wait on upstream outputs carries a deferred ownership probe: Apply reads the resource by
+      // name first and adopts it when it exists. Report those so the release guard can tell them from real creates.
+      const deferredAdoption = Object.entries(plan.resources).flatMap(([fqn, node]) => node !== undefined && 'deferredAdoption' in node && node.deferredAdoption !== undefined ? [fqn] : [])
+      return { summary: Alchemist.Stack.summarize(plan), ...Plan.describePlan(plan), deferredAdoption }
     }
     const snapshot = yield* EngineDrift.plan({ name: 'Sidequest', stage }).pipe(Effect.provide(context))
     const drifted = Object.values(snapshot.result.resources).filter((resource) => resource.action !== 'unchanged' && resource.action !== 'skipped')
