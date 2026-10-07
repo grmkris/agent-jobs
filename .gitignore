@@ -16,3 +16,4 @@ packages/sdk/scripts/.state.json
 .sidequest/
 packages/sdk/scripts/privy/.local/
 packages/sdk/scripts/live/.local/
+.turbo/
