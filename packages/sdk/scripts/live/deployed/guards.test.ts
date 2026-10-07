@@ -5,10 +5,20 @@ import {
   budgetRemaining,
   CAP_WEI,
   publicFailure,
+  stageOrigin,
 } from "./guards.ts";
 import { providerConfig, toolResult } from "./codex.ts";
 
 describe("deployed fixture boundaries", () => {
+  it("targets dev by default, prod only by name, and nothing else", () => {
+    expect(stageOrigin(undefined)).toBe("https://dev.sidequest.exchange");
+    expect(stageOrigin("")).toBe("https://dev.sidequest.exchange");
+    expect(stageOrigin("https://sidequest.exchange")).toBe("https://sidequest.exchange");
+    for (const bad of ["https://sidequest.exchange/", "http://sidequest.exchange", "https://evil.example"]) {
+      expect(() => stageOrigin(bad)).toThrow("P8_UNKNOWN_ORIGIN");
+    }
+  });
+
   it("requires the exact complete release marker", () => {
     const sha = "a".repeat(40);
     expect(() => assertReleased(sha, `READY ${sha}\n`)).toThrow();

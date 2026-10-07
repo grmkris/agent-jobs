@@ -2,7 +2,17 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { parseEther } from "viem";
 
-export const ORIGIN = "https://dev.sidequest.exchange";
+/** The stage under test: dev by default, prod while it runs on testnet. The chain checks still refuse any chain but 10143. */
+export const ORIGINS = ["https://dev.sidequest.exchange", "https://sidequest.exchange"] as const;
+export type Origin = (typeof ORIGINS)[number];
+
+export function stageOrigin(value = process.env.P8_ORIGIN): Origin {
+  const origin = value === undefined || value === "" ? ORIGINS[0] : value;
+  if (!(ORIGINS as readonly string[]).includes(origin)) throw new Error("P8_UNKNOWN_ORIGIN");
+  return origin as Origin;
+}
+
+export const ORIGIN = stageOrigin();
 export const CAP_WEI = parseEther("2");
 export const IDS = ["A01f", "A02f", "A03f", "A04f", "A05f", "A06f", "A07f", "A08f"] as const;
 export type CaseId = (typeof IDS)[number];

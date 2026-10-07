@@ -36,7 +36,10 @@ type Evidence = {
   error?: string;
   cleanupError?: string;
 };
-const evidenceDirectory = new URL("../../../../../docs/evidence/agent-first-v2/", import.meta.url);
+const evidenceDirectory = new URL(
+  ORIGIN === "https://sidequest.exchange" ? "../../../../../docs/evidence/sidequest-prod/" : "../../../../../docs/evidence/agent-first-v2/",
+  import.meta.url,
+);
 const scenarios: Record<CaseId, (runtime: Runtime) => Promise<Proof>> = {
   A01f: onboarding,
   A02f: worker,

@@ -30,6 +30,11 @@ export P8_GROK_AGENT_ID=<reviewed registered Grok demo worker ID>
 bun run live:deployed
 ```
 
+`P8_ORIGIN` selects the stage: unset means `https://dev.sidequest.exchange`; `https://sidequest.exchange` runs the
+same cases against prod while it is on testnet and writes evidence to `docs/evidence/sidequest-prod/`. Any other value
+is refused, and every send is still refused off chain 10143, so the harness cannot run against prod after its mainnet
+flip.
+
 Select individual cases with `bun run live:deployed A01f`. Cases depend on the same
 run's A01 agent, A02 job/earnings and A03 signed allowance calldata. Default order
 is A01f, A02f, A03f, A04f, A05f, A07f, A08f, then A06f: revocation ends the client
