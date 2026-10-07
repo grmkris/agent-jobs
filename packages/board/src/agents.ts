@@ -146,6 +146,14 @@ export class AgentStore {
       AND address IS NOT NULL AND last_activity_at IS NOT NULL AND agent_id IN (${ids.map(() => '?').join(',')})`, chainId, registry.toLowerCase(), ...ids)
   }
 
+  /** The active, registered hosted agents acting from these wallets, with their operators. At most 90 addresses. */
+  activeByAddress(chainId: number, registry: Address, addresses: readonly Address[]): Array<{ agent_id: string; address: Address; operator: Address }> {
+    const wallets = [...new Set(addresses.map((a) => a.toLowerCase()))].slice(0, 90)
+    if (wallets.length === 0) return []
+    return this.sql.all(`SELECT agent_id, address, operator FROM agents WHERE chain_id=? AND registry=? AND state='active'
+      AND address IS NOT NULL AND agent_id IS NOT NULL AND address IN (${wallets.map(() => '?').join(',')})`, chainId, registry.toLowerCase(), ...wallets)
+  }
+
   begin(id: string, key: string, boardId: string, tool: string, args: Record<string, unknown>): AgentOperationRow {
     if (!/^[A-Za-z0-9_-]{1,128}$/.test(key)) throw new AgentFailure('invalid', 'Every agent action requires a stable operationKey (1-128 letters, digits, _ or -)', 'operation-key', 'new-key')
     if (this.get(id).state === 'revoked') throw new AgentFailure('forbidden', 'Agent access is revoked', 'agent-revoked', 'none')

@@ -59,6 +59,22 @@ export async function allowanceAvailable(ctx: sdk.Ctx, grants: GrantStore, row: 
   return available
 }
 
+/**
+ * The most one live weekly-budget grant from its operator could still fund for a hosted agent in a token. A hosted
+ * publish draws the whole reward from one such grant (see hireEntries), never from the agent's own wallet.
+ */
+export async function bestAllowanceAvailable(ctx: sdk.Ctx, grants: GrantStore, agent: { address: Address; operator: Address }, token: Address, now: number): Promise<bigint> {
+  let best = 0n
+  for (const row of liveGrants(grants, agent.operator, agent.operator, now)) {
+    if (!same(row.delegate, agent.address)) continue
+    const spec = grants.spec(row.delegation_hash)
+    if (spec.kind !== 'allowance' || !same(spec.delegator, agent.operator) || !same(spec.agent, agent.address) || !same(spec.token, token)) continue
+    const available = await allowanceAvailable(ctx, grants, row)
+    if (available > best) best = available
+  }
+  return best
+}
+
 function liveGrants(grants: GrantStore, wallet: Address, operator: Address, now: number): GrantRow[] {
   return grants.list(wallet).filter(row => row.status === 'live' && row.expires_at > now && same(row.owner, operator))
 }

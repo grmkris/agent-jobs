@@ -11,7 +11,7 @@ import { AgentSigning, type RoutineSigner } from './agent-signing.ts'
 import { AgentExecutor, type AgentPreparedCall, type AgentToolRequest } from './agent-executor.ts'
 import { GrantStore } from './grants.ts'
 import { SponsorDesk } from './sponsor.ts'
-import { mapAgentCalls } from './agent-call-mapper.ts'
+import { bestAllowanceAvailable, mapAgentCalls } from './agent-call-mapper.ts'
 import { ensureAgentGrants } from './agent-grant-renewal.ts'
 import { AgentLifecycle } from './agent-lifecycle.ts'
 import { AgentPermissions } from './agent-permissions.ts'
@@ -105,6 +105,12 @@ suite('agent executor through real contracts', () => {
   }, forkSetupTimeout())
 
   afterAll(() => { db?.close(); boardDb?.close(); fixture?.close() })
+
+  it('reads a weekly grant\'s live headroom from the real period enforcer, for the public budget-covered signal', async () => {
+    const agent = { address: fixture.contributor.account.address, operator: fixture.creator.account.address }
+    expect(await bestAllowanceAvailable(ctx, grants, agent, token, now)).toBe(25_000_000n)
+    expect(await bestAllowanceAvailable(ctx, grants, agent, sdk.deployment('monad-testnet').rewardTokens[1]!, now)).toBe(0n)
+  }, 60_000)
 
   it('executes a zero-balance hire, reports its chain receipt and recovers the same send after reconstruction', async () => {
     const input = { agentId: 'creator-agent', boardId: 'public', operationKey: 'hire-one', tool: 'create_task', args: offer() }

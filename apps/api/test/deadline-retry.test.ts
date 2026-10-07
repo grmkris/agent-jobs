@@ -27,7 +27,9 @@ function fixture() {
     if (functionName.startsWith('MAX_')) return sdk.MAX_SIDEQUEST_WINDOW
     throw new Error(`unexpected chain read: ${functionName}`)
   })
-  const client = { ...base.publicClient, readContract: read, getBlockNumber: vi.fn(async () => 100n) }
+  // The public request list reads each budgeted poster's balance in one multicall.
+  const multicall = vi.fn(async ({ contracts }: { contracts: unknown[] }) => contracts.map(() => ({ status: 'success' as const, result: 7n })))
+  const client = { ...base.publicClient, readContract: read, multicall, getBlockNumber: vi.fn(async () => 100n) }
   const ctx = { ...base, stack: { ...base.stack, kind: 'sidequest-v1' }, publicClient: client } as unknown as sdk.Ctx
   const db = new DatabaseSync(':memory:'); databases.push(db)
   const board = new Board(fromNodeSqlite(db), { network: 'monad-testnet', contexts: { main: ctx }, domain: 'deadline.test', uri: 'https://deadline.test', manifestBaseUrl: 'https://deadline.test/offers', now: () => boardNow })
@@ -88,7 +90,7 @@ it('tags are frozen through API creation and quote picking; quote privacy follow
   const untagged = await f.run('create_task', { ...f.offer, tags: [], token: f.token, reward: '1', mode: 'hire', deliveryDeadline: '3d' })
   expect(JSON.parse(untagged.manifest as string)).not.toHaveProperty('tags')
   const request = await f.run('request_quotes', { ...f.offer, tags: ['writing', 'design'], tokens: [f.token], deliveryDeadline: '3d', quoteDeadline: '1d' })
-  expect(f.board.listQuoteRequests({})[0]).toMatchObject({ tags: ['design', 'writing'] })
+  expect((await f.board.listQuoteRequests({}))[0]).toMatchObject({ tags: ['design', 'writing'] })
   const quote = await f.board.submitQuote({ address: worker }, { requestId: request.requestId as string, agentId: '7', token: f.token, amount: '1' })
   const unrelated = '0x5555555555555555555555555555555555555555' as const
   expect(await f.run('list_quotes', { requestId: request.requestId }, unrelated)).toMatchObject({ creator, quotes: [] })
@@ -109,7 +111,7 @@ it('invalid tag inputs fail as validation errors before any preparation is persi
 it('a public budget caps quotes: only its token, nothing above max, and the pick checks again', async () => {
   const f = fixture()
   const plain = await f.run('request_quotes', { ...f.offer, tokens: [f.token], deliveryDeadline: '3d', quoteDeadline: '1d' })
-  expect(f.board.listQuoteRequests({}).find(r => r.requestId === plain.requestId)).not.toHaveProperty('budget')
+  expect((await f.board.listQuoteRequests({})).find(r => r.requestId === plain.requestId)).not.toHaveProperty('budget')
   const other = f.offer.arbitrator
   await expect(f.run('request_quotes', { ...f.offer, tokens: [f.token, other], budget: { token: f.token, max: '10' }, deliveryDeadline: '3d', quoteDeadline: '1d' }))
     .rejects.toMatchObject({ code: 'invalid', message: expect.stringContaining('only its budget token') })
@@ -118,7 +120,8 @@ it('a public budget caps quotes: only its token, nothing above max, and the pick
   await expect(f.run('request_quotes', { ...f.offer, deliveryDeadline: '3d', quoteDeadline: '1d' }))
     .rejects.toMatchObject({ code: 'invalid', message: expect.stringContaining('at least one accepted token') })
   const capped = await f.run('request_quotes', { ...f.offer, budget: { token: f.token, max: '10' }, deliveryDeadline: '3d', quoteDeadline: '1d' })
-  expect(f.board.listQuoteRequests({}).find(r => r.requestId === capped.requestId)).toMatchObject({ tokens: [f.token], budget: { token: f.token, max: '10' } })
+  // The poster's wallet holds 7 of the 10 it offers: public, and not covered.
+  expect((await f.board.listQuoteRequests({})).find(r => r.requestId === capped.requestId)).toMatchObject({ tokens: [f.token], budget: { token: f.token, max: '10' }, budgetCovered: false, creatorAgentId: null })
   const requestId = capped.requestId as string
   await expect(f.board.submitQuote({ address: worker }, { requestId, agentId: '7', token: f.token, amount: '11' }))
     .rejects.toMatchObject({ code: 'invalid', message: expect.stringContaining('at most 10') })

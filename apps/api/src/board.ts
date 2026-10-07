@@ -1,4 +1,4 @@
-import { ADMISSION_OBJECT_NAME, SPONSOR_OBJECT_NAME, sponsorToolNames, AdmissionRateLimits, admissionFailure, Board as BoardService, BoardError, fromDurableObjectSql, parseHostedAdmission, SessionDesk, type RelayRequest, migrateAgentSchema, retireFleetSchema, AgentStore, agentFailureReply, failureFromReply, type AgentRetry } from '@sidequest/board'
+import { ADMISSION_OBJECT_NAME, SPONSOR_OBJECT_NAME, sponsorToolNames, AdmissionRateLimits, admissionFailure, Board as BoardService, BoardError, fromDurableObjectSql, parseHostedAdmission, SessionDesk, type RelayRequest, migrateAgentSchema, retireFleetSchema, AgentStore, agentFailureReply, failureFromReply, type AgentRetry, hostedCreatorFacts, type HostedCreatorFacts, type HostedCreatorQuery } from '@sidequest/board'
 import { fromD1 } from '@sidequest/indexer'
 import * as sdk from '@sidequest/sdk'
 import * as Cloudflare from 'alchemy/Cloudflare'
@@ -97,6 +97,18 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
           const reply = JSON.parse(await namespace.get(id).relay({ env, request })) as BoardReply
           if (!reply.ok) throw failureFromReply(reply)
           return reply.result as Hex
+        },
+        // Hosted agents live in the reserved object. Its RPC below is not queued, so a hosted agent's own list read
+        // (already inside that object's management queue) cannot deadlock on it.
+        hostedCreators: async query => {
+          const namespace = (runtimeEnv as Record<string, unknown>).Board as { idFromName(name: string): { toString(): string }; get(id: unknown): { hostedCreators(req: { env: BoardCall['env']; query: HostedCreatorQuery }): Promise<string> } }
+          const id = namespace.idFromName(SPONSOR_OBJECT_NAME)
+          if (id.toString() === state.id.toString()) {
+            const sql = fromDurableObjectSql(state.storage.sql.raw, write => state.raw.storage.transactionSync(write))
+            migrateAgentSchema(sql)
+            return hostedCreatorFacts(sql, sdk.context(env.network, 'main', env.rpcUrl), query, Math.floor(Date.now() / 1000))
+          }
+          return JSON.parse(await namespace.get(id).hostedCreators({ env, query })) as HostedCreatorFacts
         },
         ...(key32(env.attesterKey) && key32(env.relayKey)
           ? {
@@ -220,6 +232,16 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
           migrateAgentSchema(sql)
           const config = sdk.deployment(bindings.NETWORK as sdk.Network)
           return toJson(new AgentStore(sql, () => Math.floor(Date.now() / 1000)).lastActivity(config.chainId, config.identity, req.agentIds))
+        }),
+        /** Public quote-request facts about hosted posters: agent IDs and one grant's headroom. No operator, grant or approval data. */
+        hostedCreators: (req: { env: BoardCall['env']; query: HostedCreatorQuery }) => Effect.promise(async () => {
+          const bindings = runtimeEnv as Record<string, unknown>
+          const namespace = bindings.Board as { idFromName(name: string): { toString(): string } }
+          if (namespace.idFromName(SPONSOR_OBJECT_NAME).toString() !== state.id.toString() || req.env.network !== bindings.NETWORK) throw new Error('management object identity mismatch')
+          const sql = fromDurableObjectSql(state.storage.sql.raw, write => state.raw.storage.transactionSync(write))
+          migrateAgentSchema(sql)
+          const query = { addresses: req.query.addresses.filter(a => isAddress(a)).slice(0, 90), allowances: req.query.allowances.filter(a => isAddress(a.address) && isAddress(a.token)).slice(0, 50) }
+          return toJson(await hostedCreatorFacts(sql, sdk.context(req.env.network, 'main', req.env.rpcUrl), query, Math.floor(Date.now() / 1000)))
         }),
         /** Private management storage remains in the existing reserved object. */
         management: (req: { kind: 'migrate' | 'retire' }) => Effect.sync(() => {

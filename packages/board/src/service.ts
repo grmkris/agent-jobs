@@ -18,6 +18,7 @@ import {
   decodeEventLog,
   bytesToHex,
   encodeFunctionData,
+  erc20Abi,
   fromRlp,
   formatUnits,
   getAddress,
@@ -46,6 +47,7 @@ import { publisherFunding, publisherNextAction } from './publisher-view.ts'
 import { assertAgentEnvelope, assertExactAgentTypedData } from './agent-signing-scope.ts'
 import { typedDataJson } from './typed-data.ts'
 import { BoardError } from './board-error.ts'
+import type { HostedCreatorFacts, HostedCreatorQuery } from './hosted-creators.ts'
 import {
   type ApplicationRow,
   type CandidateRow,
@@ -124,6 +126,11 @@ export interface BoardConfig {
   readonly relay?: { readonly account: import('viem').LocalAccount; readonly rpcUrl: string }
   /** Hosted tenants route every relay send to the shared sponsorship object's durable nonce ledger. */
   readonly relaySend?: (request: RelayRequest) => Promise<Hex>
+  /**
+   * Hosted posters, read in the object that keeps hosted agents: the agent ID behind a wallet and what one live
+   * weekly-budget grant can still fund. Absent: no poster is hosted (local and test boards).
+   */
+  readonly hostedCreators?: (query: HostedCreatorQuery) => Promise<HostedCreatorFacts>
   readonly evidence?: {
     readonly attester: import('viem').LocalAccount
     readonly relay: import('viem').LocalAccount
@@ -140,10 +147,24 @@ export interface TaskPreparation {
   manifestUrl: string; manifest: string; transactions: TxRequest[]; applicationId?: string; next: string
 }
 interface QuotePreparation { requestId: string; requestHash: Hex; status: string; next: string }
+/** The public request list's poster reads (balances, hosted grants) give up after this; the field then says null. */
+const POSTER_READ_MS = 4000
+
+/** A read's value, or undefined if it fails or outlasts `ms`: an advisory field never holds up or fails its list. */
+async function settleWithin<T>(read: Promise<T>, ms: number): Promise<T | undefined> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const late = new Promise<undefined>((resolve) => { timer = setTimeout(() => resolve(undefined), ms) })
+  try {
+    return await Promise.race([read.catch(() => undefined), late])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 /** How long a closed or picked quote request stays in the public list's `recent` view. */
 const RECENT_REQUESTS = 7 * 86_400
 
-interface QuoteRequestRead { requestId: string; requestHash: string; taskId: string | null; status: string; createdAt: number; quotesCount: number; [key: string]: unknown }
+interface QuoteRequestRead { requestId: string; requestHash: string; taskId: string | null; status: string; createdAt: number; quotesCount: number; creatorAgentId?: string | null; budgetCovered?: boolean | null; [key: string]: unknown }
 
 /** An EIP-712 message for the caller's wallet: `cast wallet sign --data '<json>'`, or `eth_signTypedData_v4`. */
 export interface SignRequest {
@@ -445,6 +466,10 @@ export class Board {
   }
 
   readonly #pausedCache = new Map<string, { at: number; paused: boolean }>()
+  /** What can fund a budgeted request's pick, per stack:creator:token, for 30 s: the anonymous list stays cheap. */
+  readonly #coverCache = new Map<string, { at: number; funds: bigint }>()
+  /** The hosted agent behind a poster's wallet (null: not hosted), for 5 min; a wallet binding never changes. */
+  readonly #creatorCache = new Map<string, { at: number; agentId: string | null }>()
 
   /** The core's pause flag, read at most every 15 s. While paused every core call reverts, so the board hands out none. */
   async paused(stack: sdk.StackName = 'main'): Promise<boolean> {
@@ -1545,11 +1570,11 @@ export class Board {
    * Explore's single list). A connected creator may page every request it created, including picked/expired rows.
    * Every row carries its board record time and how many bidders quoted; the amounts and the bidders stay private.
    */
-  listQuoteRequests(caller: Caller): QuoteRequestRead[]
-  listQuoteRequests(caller: Caller, input: { mine: true; cursor?: string }): { requests: QuoteRequestRead[]; nextCursor?: string }
-  listQuoteRequests(caller: Caller, input: { mine?: false; recent?: boolean }): QuoteRequestRead[]
-  listQuoteRequests(caller: Caller, input: { mine?: boolean; cursor?: string; recent?: boolean }): QuoteRequestRead[] | { requests: QuoteRequestRead[]; nextCursor?: string }
-  listQuoteRequests(caller: Caller, input: { mine?: boolean; cursor?: string; recent?: boolean } = {}): QuoteRequestRead[] | { requests: QuoteRequestRead[]; nextCursor?: string } {
+  listQuoteRequests(caller: Caller): Promise<QuoteRequestRead[]>
+  listQuoteRequests(caller: Caller, input: { mine: true; cursor?: string }): Promise<{ requests: QuoteRequestRead[]; nextCursor?: string }>
+  listQuoteRequests(caller: Caller, input: { mine?: false; recent?: boolean }): Promise<QuoteRequestRead[]>
+  listQuoteRequests(caller: Caller, input: { mine?: boolean; cursor?: string; recent?: boolean }): Promise<QuoteRequestRead[] | { requests: QuoteRequestRead[]; nextCursor?: string }>
+  async listQuoteRequests(caller: Caller, input: { mine?: boolean; cursor?: string; recent?: boolean } = {}): Promise<QuoteRequestRead[] | { requests: QuoteRequestRead[]; nextCursor?: string }> {
     const now = this.#now()
     if (input.mine !== true) {
       if (input.cursor !== undefined) throw new BoardError('invalid', 'cursor requires mine=true')
@@ -1558,7 +1583,7 @@ export class Board {
         'SELECT * FROM quote_requests WHERE (task_id IS NOT NULL OR quote_deadline <= ?) AND quote_deadline > ? ORDER BY quote_deadline DESC LIMIT 50',
         now, now - RECENT_REQUESTS,
       )
-      return this.#requestReads([...open, ...recent], now)
+      return this.#withPosterFacts(this.#requestReads([...open, ...recent], now), now)
     }
     if (input.recent === true) throw new BoardError('invalid', 'recent applies to the public list; omit it with mine=true')
     const me = this.#requireCaller(caller)
@@ -1596,6 +1621,67 @@ export class Board {
       // One quote per bidder (UNIQUE request_id, worker), so this counts bidders.
       quotesCount: counts.get(r.id) ?? 0,
     }))
+  }
+
+  /**
+   * Public facts about each poster: the hosted agent behind its wallet, and on open budgeted requests whether what can
+   * fund the pick covers the budget. A hosted agent's pick is paid from one weekly-budget grant (stack main only),
+   * anyone else's from their wallet. Nothing is locked; a read that fails says null, never a guess.
+   */
+  async #withPosterFacts(reads: QuoteRequestRead[], now: number): Promise<QuoteRequestRead[]> {
+    type Budgeted = { read: QuoteRequestRead; key: string; stack: string; creator: Address; token: Address; max: bigint }
+    const fresh = <T extends { at: number }>(hit: T | undefined, ttl: number) => hit !== undefined && now - hit.at < ttl ? hit : undefined
+    const creatorOf = (r: QuoteRequestRead) => typeof r.creator === 'string' && isAddress(r.creator) ? getAddress(r.creator) : undefined
+    const budgeted: Budgeted[] = reads.flatMap((read) => {
+      const budget = read.budget as { token: Address; max: string } | undefined
+      const creator = creatorOf(read)
+      if (budget === undefined || creator === undefined || read.taskId !== null || now >= (read.quoteDeadline as number)) return []
+      const stack = read.stack as string, token = getAddress(budget.token)
+      return [{ read, key: `${stack}:${creator.toLowerCase()}:${token.toLowerCase()}`, stack, creator, token, max: BigInt(budget.max) }]
+    })
+    const pending = budgeted.filter((b) => fresh(this.#coverCache.get(b.key), 30) === undefined)
+    const unknown = [...new Set(reads.flatMap((r) => creatorOf(r) ?? []))].filter((c) => fresh(this.#creatorCache.get(c.toLowerCase()), 300) === undefined)
+    let facts: HostedCreatorFacts | undefined = { agents: [], allowances: [] }
+    const ask = { addresses: unknown, allowances: pending.filter((b) => b.stack === 'main').map((b) => ({ address: b.creator, token: b.token })) }
+    if (this.#config.hostedCreators !== undefined && (ask.addresses.length > 0 || ask.allowances.length > 0)) {
+      facts = await settleWithin(this.#config.hostedCreators(ask), POSTER_READ_MS)
+    }
+    if (facts !== undefined) {
+      const wallets = new Set([...ask.addresses, ...ask.allowances.map((a) => a.address)].map((a) => a.toLowerCase()))
+      for (const wallet of wallets) this.#creatorCache.set(wallet, { at: now, agentId: facts.agents.find((a) => eq(a.address, wallet as Address))?.agentId ?? null })
+    }
+    const agentOf = (creator: Address) => fresh(this.#creatorCache.get(creator.toLowerCase()), 300)?.agentId
+    // Hosted posters on main: one grant's headroom. Everyone else, or a hosted poster elsewhere: the wallet balance.
+    const balances = pending.filter((b) => !(b.stack === 'main' && agentOf(b.creator) != null) && agentOf(b.creator) !== undefined)
+    for (const b of pending) {
+      if (b.stack !== 'main' || agentOf(b.creator) == null) continue
+      const grant = facts?.allowances.find((a) => eq(a.address, b.creator) && eq(a.token, b.token))
+      if (facts !== undefined) this.#coverCache.set(b.key, { at: now, funds: grant === undefined ? 0n : BigInt(grant.available) })
+    }
+    for (const stack of new Set(balances.map((b) => b.stack))) {
+      const group = balances.filter((b) => b.stack === stack)
+      const ctx = this.#config.contexts[stack as sdk.StackName]
+      if (ctx === undefined) continue
+      const results = await settleWithin(ctx.publicClient.multicall({
+        contracts: group.map((b) => ({ address: b.token, abi: erc20Abi, functionName: 'balanceOf', args: [b.creator] }) as const),
+        allowFailure: true,
+      }), POSTER_READ_MS) ?? []
+      group.forEach((b, i) => {
+        const result = results[i]
+        if (result?.status === 'success') this.#coverCache.set(b.key, { at: now, funds: result.result as bigint })
+      })
+    }
+    return reads.map((read) => {
+      const creator = creatorOf(read)
+      const agentId = creator === undefined ? undefined : agentOf(creator)
+      const b = budgeted.find((x) => x.read === read)
+      const cover = b === undefined ? undefined : fresh(this.#coverCache.get(b.key), 30)
+      return {
+        ...read,
+        creatorAgentId: agentId ?? null,
+        ...(b === undefined ? {} : { budgetCovered: cover === undefined ? null : cover.funds >= b.max }),
+      }
+    })
   }
 
   /** A bidder's quote: one accepted token and an exact amount. A later quote from the same bidder replaces it. */

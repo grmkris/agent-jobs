@@ -121,7 +121,7 @@ live('board service on monad-testnet (read-only)', () => {
       },
     )
     expect(req.status).toBe('Accepting quotes — reward not escrowed')
-    expect(board.listQuoteRequests({}).map((r) => r.requestId)).toContain(req.requestId)
+    expect((await board.listQuoteRequests({})).map((r) => r.requestId)).toContain(req.requestId)
     const bidder = privateKeyToAccount(generatePrivateKey())
     const { address: b } = await signIn(bidder)
     await expect(board.submitQuote({ address: b }, { requestId: req.requestId, agentId: '1939', token: 'mUSD', amount: '5' })).rejects.toThrow('not accepted')
