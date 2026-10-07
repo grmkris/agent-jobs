@@ -23,12 +23,12 @@ import {SidequestClocks} from "../src/sidequest/SidequestClocks.sol";
 ///         code). Each `step*` is one broadcast transaction or a few, in the plan's order, so the fork rehearsal can put
 ///         a third party's calls between them:
 ///
-///         1. core: reused on testnet (`sidequest.reuseCore`), a fresh proxy with fees 0 otherwise;
+///         1. core: a fresh proxy with fees 0;
 ///         2. TeamVesting → Factory → FeeSchedule → StakeVault → SidequestHolding → SidequestEvaluator, then
 ///            `setEvaluator` and the attester as verifier;
 ///         3. `bootstrapHolding` (staking opens here, after every piece it depends on exists);
 ///         4. EpochDistributor → MiningReserve, and the 500M mining allocation sent to the reserve;
-///         5. every owner handed to the Safe (`transferOwnership`; the Safe must `acceptOwnership`), and on a fresh core
+///         5. every owner handed to the Safe (`transferOwnership`; the Safe must `acceptOwnership`), and the core has
 ///            both admin roles moved to the Safe and renounced by the deployer.
 ///
 ///         Genesis: the deployer receives the mining (500M, forwarded in step 4) and liquidity (50M) allocations; the
@@ -47,9 +47,6 @@ library SidequestRecipe {
         address arbitrator;
         IERC8004Identity identity;
         IERC8004Reputation reputation;
-        /// @dev `sidequest.reuseCore`: use `deployment.core` (testnet) instead of deploying a core proxy.
-        bool reuseCore;
-        address existingCore;
         address safe;
         address defaultArbitrator;
         uint48 margin;
@@ -71,7 +68,6 @@ library SidequestRecipe {
 
     struct Deployed {
         ERC8183WithAuthorization core;
-        bool coreDeployed;
         uint48 t0;
         TeamVesting vesting;
         Factory factory;
@@ -126,7 +122,7 @@ library SidequestRecipe {
         return string.concat(vm.projectRoot(), "/config/", network, ".json");
     }
 
-    /// @notice The network fields every recipe shares (roles, registries, the recorded core), without the `sidequest`
+    /// @notice The network fields every recipe shares (roles and registries), without the `sidequest`
     ///         block: the fork rehearsals fill that in themselves.
     function loadBase(Vm vm, string memory network) internal view returns (Config memory c) {
         string memory json = vm.readFile(path(vm, network));
@@ -137,7 +133,6 @@ library SidequestRecipe {
         if (vm.keyExistsJson(json, ".roles.arbitrator")) c.arbitrator = vm.parseJsonAddress(json, ".roles.arbitrator");
         c.identity = IERC8004Identity(vm.parseJsonAddress(json, ".erc8004.identity"));
         c.reputation = IERC8004Reputation(vm.parseJsonAddress(json, ".erc8004.reputation"));
-        if (vm.keyExistsJson(json, ".deployment.core")) c.existingCore = vm.parseJsonAddress(json, ".deployment.core");
         c.clocks = SidequestClocks.production();
     }
 
@@ -145,7 +140,6 @@ library SidequestRecipe {
     function load(Vm vm, string memory network) internal view returns (Config memory c) {
         c = loadBase(vm, network);
         string memory json = vm.readFile(path(vm, network));
-        c.reuseCore = vm.parseJsonBool(json, ".sidequest.reuseCore");
         c.safe = vm.parseJsonAddress(json, ".sidequest.safe");
         c.defaultArbitrator = vm.parseJsonAddress(json, ".sidequest.defaultArbitrator");
         // Narrowing casts revert instead of wrapping (C9 MATH-6): a typo like 66536 bps must not load as 1000.
@@ -198,14 +192,6 @@ library SidequestRecipe {
                 || c.treasury == address(0) || c.ecosystem == address(0) || c.liquidity == address(0)
                 || c.vestingBeneficiary == address(0) || c.attester == address(0)
         ) revert BadConfig("zero address");
-        // A fresh core on mainnet; reusing one is a testnet shortcut only.
-        if (c.chainId == MAINNET && c.reuseCore) revert BadConfig("mainnet deploys its own core");
-        if (c.reuseCore && c.existingCore.code.length == 0) revert BadConfig("deployment.core has no code");
-        // Holding funds the core with `net` and keeps the fee; a reused core must charge nothing on top.
-        if (c.reuseCore) {
-            ERC8183WithAuthorization core = ERC8183WithAuthorization(c.existingCore);
-            if (core.platformFeeBP() != 0 || core.evaluatorFeeBP() != 0) revert BadConfig("reused core charges fees");
-        }
         if (address(c.identity).code.length == 0 || address(c.reputation).code.length == 0) {
             revert BadConfig("ERC-8004 registries missing");
         }
@@ -249,10 +235,6 @@ library SidequestRecipe {
 
     function stepCore(Config memory c, Deployed memory d) internal {
         d.t0 = c.genesis == 0 ? uint48(block.timestamp) : c.genesis;
-        if (c.reuseCore) {
-            d.core = ERC8183WithAuthorization(c.existingCore);
-            return;
-        }
         ERC8183WithAuthorization impl = new ERC8183WithAuthorization();
         // Initialised inside the proxy's CREATE: no initializer gap to front-run.
         d.core = ERC8183WithAuthorization(
@@ -262,7 +244,6 @@ library SidequestRecipe {
         );
         d.core.setPlatformFee(0, c.safe);
         d.core.setEvaluatorFee(0);
-        d.coreDeployed = true;
     }
 
     function stepVesting(Config memory c, Deployed memory d) internal {
@@ -339,11 +320,9 @@ library SidequestRecipe {
         d.evaluator.transferOwnership(c.safe);
         d.distributor.transferOwnership(c.safe);
         d.reserve.transferOwnership(c.safe);
-        if (d.coreDeployed) {
-            d.core.grantRole(d.core.DEFAULT_ADMIN_ROLE(), c.safe);
-            d.core.grantRole(d.core.ADMIN_ROLE(), c.safe);
-            d.core.renounceRole(d.core.ADMIN_ROLE(), c.admin);
-            d.core.renounceRole(d.core.DEFAULT_ADMIN_ROLE(), c.admin);
-        }
+        d.core.grantRole(d.core.DEFAULT_ADMIN_ROLE(), c.safe);
+        d.core.grantRole(d.core.ADMIN_ROLE(), c.safe);
+        d.core.renounceRole(d.core.ADMIN_ROLE(), c.admin);
+        d.core.renounceRole(d.core.DEFAULT_ADMIN_ROLE(), c.admin);
     }
 }

@@ -29,24 +29,6 @@
     "usdc": "0x534b2f3A21130d7a60830c2Df862319e593943A3",
     "facilitator": "https://x402-facilitator.molandak.org"
   },
-  "factory": {
-    "faucet": true,
-    "minter": "0x0000000000000000000000000000000000000000"
-  },
-  "holdGates": {
-    "minHoldToPublish": 1000000000000000000,
-    "minHoldToClaim": 1000000000000000000
-  },
-  "faucetTokens": {
-    "names": [
-      "Sidequest USD (testnet)",
-      "Sidequest EUR (testnet)"
-    ],
-    "symbols": [
-      "mUSD",
-      "mEUR"
-    ]
-  },
   "knownTokens": [
     "0x6b56d64150818f91f5112b285e806ec6c78eade8",
     "0x7523106f742b1445b14b0992ee2ea41a3691dc24"
@@ -55,28 +37,6 @@
     "0x6B56D64150818f91f5112B285e806ec6C78EADe8",
     "0x534b2f3A21130d7a60830c2Df862319e593943A3"
   ],
-  "stacks": {
-    "names": [
-      "main"
-    ],
-    "review": [
-      7200
-    ],
-    "dispute": [
-      7200
-    ],
-    "arbitration": [
-      43200
-    ],
-    "margin": [
-      3600
-    ]
-  },
-  "cre": {
-    "forwarder": "0xF8344CFd5c43616a4366C34E3EEE75af79a74482",
-    "workflowOwner": null,
-    "workflowName": "sidequest-evidence"
-  },
   "deployment": {
     "block": 68581020,
     "core": "0x9D3B88bc525E7A363F099332E6F4b5A7af1FcC32",
@@ -129,7 +89,6 @@
       "epochZeroDuration": 1800,
       "epochDuration": 3600
     },
-    "reuseCore": false,
     "safe": "0x77923113FD1a71Ad91F81064C3c05cA1EfB44CD8",
     "defaultArbitrator": "0x96eE4e1660744A4dE92D9E22476C501063524716",
     "margin": 3600,

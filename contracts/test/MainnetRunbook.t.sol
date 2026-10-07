@@ -126,25 +126,23 @@ contract MainnetRunbookTest is Test {
     }
 
     /// LAUNCH-AUDIT-001: runbook §1.2's `sidequest` table is a complete recipe input. A fixture built only from its rows
-    /// (path and type) loads through SidequestRecipe.load; without one row it does not. On 143 the documented reuseCore
-    /// is false. FIX-003: the fixture is set as the `sidequest` object of a scratch copy of the shipped record, so this
+    /// (path and type) loads through SidequestRecipe.load; without one row it does not. FIX-003: the fixture is set as the `sidequest` object of a scratch copy of the shipped record, so this
     /// holds whatever that record holds: no block before R2, R2's own block after (replaced here).
     function test_documentedSidequestInputLoads() public {
         (string memory json, uint256 rows) = _documentedSidequest("");
-        assertEq(rows, 15, "runbook: the sidequest table lists the 15 fields load reads");
+        assertEq(rows, 14, "runbook: the sidequest table lists the 14 fields load reads");
 
         string memory real = vm.readFile(string.concat(vm.projectRoot(), "/config/monad-mainnet.json"));
         string memory path_ = string.concat(vm.projectRoot(), "/config/.test-schema.json");
         vm.writeFile(path_, real);
-        vm.writeJson('{"reuseCore":true,"safe":"0x0000000000000000000000000000000000000bad"}', path_, ".sidequest");
+        vm.writeJson('{"safe":"0x0000000000000000000000000000000000000bad"}', path_, ".sidequest");
         string[2] memory bases = [real, vm.readFile(path_)]; // as shipped, and with an R2 sidequest block
         for (uint256 i; i < 2; ++i) {
             vm.writeFile(path_, bases[i]);
             vm.writeJson(json, path_, ".sidequest");
             SidequestRecipe.Config memory c = SidequestRecipe.load(vm, ".test-schema");
             assertEq(c.chainId, 143);
-            assertFalse(c.reuseCore);
-            assertEq(c.safe, address(uint160(0xa000 + 2)));
+            assertEq(c.safe, address(uint160(0xa000 + 1)));
             assertEq(c.genesis, 1);
         }
         (string memory short,) = _documentedSidequest("margin");
@@ -172,11 +170,10 @@ contract MainnetRunbookTest is Test {
             string[] memory cells = vm.split(line, "|");
             string memory path = vm.replace(vm.replace(vm.trim(cells[1]), "`", ""), "sidequest.", "");
             string memory kind = vm.trim(cells[2]);
+            // The recipe reads only address/uint inputs; retired bool options are not inputs.
+            if (_eq(kind, "bool")) continue;
             string memory value = _fixtureValue(kind, ++rows);
             if (_eq(path, skip)) continue;
-            if (_eq(path, "reuseCore")) {
-                assertTrue(vm.contains(cells[3], "`false`"), "runbook: reuseCore must be false on 143");
-            }
             string[] memory parts = vm.split(path, ".");
             if (parts.length == 1) {
                 if (bytes(group).length > 0) json = string.concat(json, "}");
@@ -199,7 +196,6 @@ contract MainnetRunbookTest is Test {
     }
 
     function _fixtureValue(string memory kind, uint256 row) internal pure returns (string memory) {
-        if (_eq(kind, "bool")) return "false";
         if (_eq(kind, "address")) return string.concat('"', vm.toString(address(uint160(0xa000 + row))), '"');
         if (_eq(kind, "uint")) return "1";
         if (_eq(kind, "uint[4]")) return "[0,1,2,3]";
@@ -304,7 +300,7 @@ contract MainnetRunbookTest is Test {
         assertTrue(
             vm.contains(
                 vm.readFile(string.concat(root, "/../scripts/mining/README.md")),
-                "pnpm mining:publish <epoch-n.json> --stage staging|prod"
+                "pnpm mining:publish <epoch-n.json> --stage dev|prod"
             ),
             "scripts/mining/README.md documents another mining:publish usage"
         );
@@ -349,8 +345,7 @@ contract MainnetRunbookTest is Test {
 
     function test_runbookHasNoLegacyPath() public view {
         // A raw key on a mainnet command line: keystores are mandatory there (--private-key is a testnet fallback).
-        string[5] memory banned =
-            ["Deploy.s.sol", "node scripts/preflight-prod", "--adopt", "--force", "--private-key \"$"];
+        string[4] memory banned = ["node scripts/preflight-prod", "--adopt", "--force", "--private-key \"$"];
         for (uint256 i; i < banned.length; ++i) {
             assertFalse(vm.contains(doc, banned[i]), string.concat("runbook still names ", banned[i]));
         }

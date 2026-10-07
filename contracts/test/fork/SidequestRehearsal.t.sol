@@ -15,8 +15,7 @@ import {RecipeDriver} from "../sidequest/Recipe.t.sol";
 
 /// @dev The C8 rehearsal on a local fork of Monad (nothing is sent). The recipe runs step by step from the configured
 ///      deployer with third-party calls between the steps, the Safe accepts every handover, and one hire runs end to
-///      end against the real ERC-8004 registries (testnet: the live core is reused; mainnet: a fresh core whose admin
-///      roles move to the Safe). The `sidequest` inputs are the rehearsal's own, since the coordinator owns the config
+///      end against the real ERC-8004 registries with a fresh core whose admin roles move to the Safe. The `sidequest` inputs are the rehearsal's own, since the coordinator owns the config
 ///      values. Skipped unless MONAD_TESTNET_RPC_URL / MONAD_MAINNET_RPC_URL are set (public RPCs work).
 contract SidequestRehearsalForkTest is Test {
     address safe = makeAddr("rehearsal-safe");
@@ -31,13 +30,12 @@ contract SidequestRehearsalForkTest is Test {
         return true;
     }
 
-    function _config(string memory network, bool reuseCore) internal returns (SidequestRecipe.Config memory c) {
+    function _config(string memory network) internal returns (SidequestRecipe.Config memory c) {
         (arbitrator, arbitratorPk) = makeAddrAndKey("rehearsal-arbiter");
         c = SidequestRecipe.loadBase(vm, network);
-        // G1b uses the checked-in fast tuple; the mainnet fork deliberately keeps production values.
-        if (reuseCore) c.clocks = SidequestRecipe.load(vm, network).clocks;
+        // Testnet uses the configured clock tuple; mainnet keeps production values.
+        if (c.chainId == 10143) c.clocks = SidequestRecipe.load(vm, network).clocks;
         vm.etch(safe, hex"00"); // the recipe requires code at the Safe
-        c.reuseCore = reuseCore;
         c.safe = safe;
         c.defaultArbitrator = arbitrator;
         c.arbitrator = arbitrator; // the fixture's own role, not the shipped config's (LAUNCH-AUDIT-FIX-001/002)
@@ -46,7 +44,7 @@ contract SidequestRehearsalForkTest is Test {
         c.bps = [uint16(3000), 1000, 300, 100];
         c.feeTreasury = safe;
         c.treasury = safe;
-        c.ecosystem = reuseCore ? c.admin : safe;
+        c.ecosystem = c.chainId == 10143 ? c.admin : safe;
         c.liquidity = c.admin;
         c.vestingBeneficiary = makeAddr("team");
         c.vestingStartOffset = 365 days;
@@ -224,17 +222,19 @@ contract SidequestRehearsalForkTest is Test {
         assertEq(d.factory.balanceOf(creator) - creatorBefore, 20_000e18, "delegator retains exit ownership");
     }
 
-    function test_fork_testnet_reusedCore_oneHire() public {
+    function test_fork_testnet_freshCore_rolesToSafe_oneHire() public {
         if (!_fork("MONAD_TESTNET_RPC_URL")) return vm.skip(true);
-        SidequestRecipe.Config memory c = _config("monad-testnet", true);
+        SidequestRecipe.Config memory c = _config("monad-testnet");
         SidequestRecipe.Deployed memory d = _deploy(c);
         _assertDeployed(c, d);
-        assertEq(address(d.core), c.existingCore, "the live testnet core is reused");
-        assertFalse(d.coreDeployed);
+        assertTrue(d.core.hasRole(d.core.DEFAULT_ADMIN_ROLE(), safe));
+        assertTrue(d.core.hasRole(d.core.ADMIN_ROLE(), safe));
+        assertFalse(d.core.hasRole(d.core.DEFAULT_ADMIN_ROLE(), c.admin));
+        assertFalse(d.core.hasRole(d.core.ADMIN_ROLE(), c.admin));
         string memory json = vm.readFile(SidequestRecipe.path(vm, "monad-testnet"));
         IERC20 mUsd = IERC20(vm.parseJsonAddressArray(json, ".deployment.rewardTokens")[0]);
         _hire(c, d, mUsd, 25e6);
-        // Fast G1b closes epoch zero in 30 min and claims into the new vault, on real testnet dependencies.
+        // The testnet tuple closes epoch zero in 30 min and claims into the new vault, on real testnet dependencies.
         assertEq(c.clocks.epochZeroDuration, 1800);
         assertEq(c.clocks.epochDuration, 3600);
         uint256 end = d.reserve.epochEnd(0);
@@ -256,10 +256,9 @@ contract SidequestRehearsalForkTest is Test {
 
     function test_fork_mainnet_freshCore_rolesToSafe_oneHire() public {
         if (!_fork("MONAD_MAINNET_RPC_URL")) return vm.skip(true);
-        SidequestRecipe.Config memory c = _config("monad-mainnet", false);
+        SidequestRecipe.Config memory c = _config("monad-mainnet");
         SidequestRecipe.Deployed memory d = _deploy(c);
         _assertDeployed(c, d);
-        assertTrue(d.coreDeployed);
         assertTrue(d.core.hasRole(d.core.DEFAULT_ADMIN_ROLE(), safe));
         assertTrue(d.core.hasRole(d.core.ADMIN_ROLE(), safe));
         assertFalse(d.core.hasRole(d.core.DEFAULT_ADMIN_ROLE(), c.admin));

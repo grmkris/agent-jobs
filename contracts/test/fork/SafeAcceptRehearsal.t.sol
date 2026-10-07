@@ -37,7 +37,6 @@ contract SafeAcceptRehearsalForkTest is Test {
 
         SidequestRecipe.Config memory c = SidequestRecipe.loadBase(vm, "monad-testnet");
         c.clocks = SidequestRecipe.load(vm, "monad-testnet").clocks;
-        c.reuseCore = true;
         c.safe = safe;
         c.defaultArbitrator = makeAddr("arbiter");
         c.margin = 1 hours;
@@ -60,7 +59,7 @@ contract SafeAcceptRehearsalForkTest is Test {
         // The promoted record, as PromoteSidequest writes it, in a scratch copy of the config.
         string memory path = string.concat(vm.projectRoot(), "/config/.test-safeaccept.json");
         UnpromotedTestnet.write(vm, path, real);
-        SidequestOutput.write(vm, path, d, safe, 0, block.number);
+        SidequestOutput.write(vm, path, d, safe, block.number, block.number);
         (address recorded, address[6] memory t) = SidequestSafeAccept.targets(vm, vm.readFile(path));
         vm.removeFile(path);
         assertEq(recorded, safe);
