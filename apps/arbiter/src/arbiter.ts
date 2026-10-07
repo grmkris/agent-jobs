@@ -68,7 +68,7 @@ export async function arbitrateOnce(deps: ArbiterDeps): Promise<{ lease: boolean
 async function decide(deps: ArbiterDeps, d: DisputeRow, now: () => number, log: (m: string) => void): Promise<Outcome> {
   if (now() >= d.arbitrationEndsAt) return { taskId: d.taskId, result: 'skipped', why: 'the window has closed' }
   const { bundle, bundleHash } = await deps.board.call<{ bundle: DisputeBundle; bundleHash: Hex }>('get_dispute_bundle', { taskId: d.taskId })
-  // The evaluator must be one of this network's pairs, current or legacy (a job stays on the pair it was published on).
+  // The evaluator must be the configured v1 pair on this network.
   const stack = sdk.allStacks(sdk.deployment(deps.network)).find(([, s]) => s.evaluator.toLowerCase() === bundle.evaluator.toLowerCase())?.[1]
   const chainId = sdk.deployment(deps.network).chainId
   if (stack === undefined || bundle.chainId !== chainId) {
@@ -81,7 +81,7 @@ async function decide(deps: ArbiterDeps, d: DisputeRow, now: () => number, log: 
   // A decision already recorded for this dispute (by this runner before a crash, or by another harness) is final:
   // re-use it and never ask the model again (R114-08). It still passes the same deterministic gate.
   const recorded = d.decision
-  if (recorded !== null && stack.kind === 'sidequest-v1') {
+  if (recorded !== null) {
     const cancellation = await deps.board.call<{ resolved: boolean; nonce: string | null; transactions: sdk.TxRequest[] }>('cancel_ruling', { taskId: d.taskId })
     if (cancellation.resolved) return { taskId: d.taskId, result: 'skipped', why: 'the dispute is already resolved on-chain' }
     if (cancellation.transactions.length > 0) {

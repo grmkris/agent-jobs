@@ -7,11 +7,7 @@ environment loaded:
 NETWORK=monad-testnet bun apps/arbiter/src/main.ts --once
 ```
 
-`V1_ARBITRATOR_PRIVATE_KEY` is required only when that network has a Sidequest v1
-pair. `ARBITRATOR_PRIVATE_KEY` is required only when a current or archived legacy
-pair remains. A mixed testnet deployment needs both keys; a testnet with only
-legacy pairs needs only the legacy key. Mainnet with v1 only needs
-`V1_ARBITRATOR_PRIVATE_KEY` and does not read the legacy secret.
+`V1_ARBITRATOR_PRIVATE_KEY` is required when the selected network has the configured Sidequest v1 pair. The arbiter reads only that key and handles jobs naming its account.
 
 The selected `NETWORK` deployment determines these requirements. Every loaded key
 gets its own board session and handles only jobs naming that arbitrator. Model
