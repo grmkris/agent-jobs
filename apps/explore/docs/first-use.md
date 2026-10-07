@@ -37,4 +37,4 @@ pause and upgrade powers. Testnet tokens have no real value.
 The site, public API and anonymous browser pages are live-verified. Privy must
 allow `https://dev.sidequest.exchange` before real browser login can be accepted.
 Authenticated MCP, real human consent and paid work on the fresh contracts are
-separate checks. See [the development release](../../../docs/sidequest-dev.md).
+separate checks. See [the stage reference](../../../docs/stages.md).
