@@ -11,6 +11,8 @@ contracts/out/
 contracts/cache/
 contracts/broadcast/
 packages/sdk/scripts/.v1-flows/
+packages/sdk/scripts/.state.json
+.crew/
 .sidequest/
 packages/sdk/scripts/privy/.local/
 packages/sdk/scripts/live/.local/
