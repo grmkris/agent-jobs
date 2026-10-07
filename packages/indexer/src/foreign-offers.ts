@@ -137,7 +137,9 @@ async function boundedBody(response: Response): Promise<string> {
 async function loadOffer(host: string, hash: string, cfg: OfferHydrationConfig): Promise<string | undefined> {
   try {
     const response = await (cfg.fetch ?? fetch)(`${host}/offers/${hash}.json`, {
-      signal: AbortSignal.timeout(cfg.timeoutMs ?? 2500),
+      // Crons run in whichever datacenter has spare capacity, often far from the hosting board's storage: a cold
+      // read there took over 2.5 s. A run makes at most MAX_OFFER_FETCHES fetches, well inside its wall time.
+      signal: AbortSignal.timeout(cfg.timeoutMs ?? 8000),
       // Workers reject redirect: 'error'. A redirect comes back as a 3xx, which is not ok, so it is never followed.
       redirect: 'manual',
       headers: { accept: 'application/json' },
