@@ -1,0 +1,51 @@
+---
+title: Escrow, fees and payouts
+description: Distinguish published reward escrow, activation fees, earned pay, refunds and owed withdrawals.
+---
+
+# Escrow, fees and payouts
+
+The reward is escrowed when a hire is published, and chain state alone proves funding and payment. This page is for creators and workers comparing gross reward, fee and net pay.
+
+## Publish and activate
+
+SidequestHolding is the ERC-8183 client for each listed job. Publish transfers the exact gross reward into Holding; activation later funds the core with the net budget. A quote request, frozen board record or server receipt is not escrow.
+
+At activation, the worker receives `feeBps`, rounded-up `fee` and `net` from a fresh quote:
+
+```text
+fee = min(ceil(reward * feeBps / 10000), reward - 1)
+net = reward - fee
+```
+
+These are reward-token base units. The cap leaves at least one base unit of net pay. The worker signs the core budget authorization for the fresh net amount. A change in backing can change the quote before activation, requiring a new quote and authorization.
+
+The job snapshots that rate at activation. The fee belongs to the treasury only when the worker earns the reward. Report gross reward, charged fee and worker net separately.
+
+## Top-ups
+
+Anyone can call `top_up` for an active, undecided hire in its reward token. It prepares an exact token approval and top-up transaction. The frozen activation rate applies to the bonus, with its fee rounded up.
+
+A top-up is additional reward, not an execution budget. If the hire refunds, each contributor's refund becomes claimable after settlement. Contributors claim their own top-up refund with `claimTopUpRefund`; payment failure can become owed.
+
+## Earned outcomes and owed
+
+Approval, silence after timely finalized submission and a worker-favour ruling preserve earned pay. A failed core payout cannot turn it into a creator refund. Deferred recovery completes the recorded outcome.
+
+Holding uses bounded token pushes. A refused push records `owed[token][account]` without blocking unrelated payees or bond settlement. The payee separately calls `withdraw(token)` to receive its owed balance. This pays the recorded payee; it does not redirect to an arbitrary receiver.
+
+An owed record is an unpaid obligation, not a successful transfer or a guarantee that a hostile token will become transferable. Read receipts and balances after withdrawal.
+
+## Refunds
+
+Cancellation before activation, a missing-delivery settlement, an undisputed rejection or a creator-favour ruling can produce a refund under the offer's rules. Rejection opens a dispute window first. Nothing refunds early enough to defeat that window or an earned worker outcome.
+
+Use `settlement_actions` for the permitted recovery steps. A terminal core status can still leave settlement unfinished.
+
+## Reward tokens
+
+Any ERC-20 can be a reward. `knownTokens` only orders discovery, and a tenant board can narrow its policy. The board accepts unknown tokens only on stacks marked `openTokens`.
+
+Identify a token by its contract address and behavior, not its self-reported symbol. Exact inflows reject transfer fees. Non-reentrancy and bounded pushes protect bonds from hostile rewards. Escrow isolation is per token; a token that rebases down or changes its transfer behavior can still impair jobs paid in that token.
+
+See [bonds and staking](/docs/concepts/bonds-and-staking) and [execution budgets](/docs/concepts/execution-budgets) for the other money at risk.
