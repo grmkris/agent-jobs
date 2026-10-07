@@ -1,3 +1,4 @@
+import { offerResponse } from './offers.ts'
 import { erc20Abi } from 'viem'
 import * as Cloudflare from 'alchemy/Cloudflare'
 import type { RuntimeContext } from 'alchemy/RuntimeContext'
@@ -415,13 +416,9 @@ export default class Api extends Cloudflare.Worker<Api>()(
 
         if (path.startsWith('/offers/') && request.method === 'GET') {
           const key = path.slice(1)
-          if (!/^offers\/0x[0-9a-f]{64}\.json$/.test(key)) return HttpServerResponse.text('not found', { status: 404 })
+          if (!/^offers\/0x[0-9a-f]{64}\.json$/.test(key)) return offerResponse(null)
           const object = yield* manifests.get(key)
-          if (object === null) return HttpServerResponse.text('not found', { status: 404 })
-          return HttpServerResponse.text(yield* object.text(), {
-            contentType: 'application/json',
-            headers: { 'cache-control': 'public, max-age=31536000, immutable', 'access-control-allow-origin': '*' },
-          })
+          return offerResponse(object === null ? null : yield* object.text())
         }
 
         if (path.startsWith('/api/') && request.method === 'POST') {
