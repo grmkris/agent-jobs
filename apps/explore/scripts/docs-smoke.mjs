@@ -129,7 +129,7 @@ async function checks() {
   for (const role of ['connector', 'worker', 'publisher', 'arbitrator'])
     assert.equal(
       await (await checkResponse(`/skills/${role}/SKILL.md`)).text(),
-      readFileSync(resolve(repo, `skill/${role}/SKILL.md`), 'utf8'),
+      readFileSync(resolve(repo, `skill/${role}/SKILL.md`), 'utf8').replaceAll('{{SIDEQUEST_ORIGIN}}', origin),
       `${role} skill unchanged`,
     )
   for (const path of ['/', '/jobs']) {
