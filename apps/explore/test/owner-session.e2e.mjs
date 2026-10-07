@@ -35,15 +35,20 @@ try {
     await context.close();
   }
   {
-    // Signing out drops the owner tabs, the nested agents and the private decisions without a reload.
+    // Signing out drops the owner tabs, the nested agents and the private decisions without a reload. Sign out lives
+    // on Account, the sidebar's foot; going back to the agent is the router's own history entry, not a page load.
     const { context, page } = await fixture({ width: 1440, height: 900 });
     const tabs = await owned(page);
     const sidebar = page.getByRole('complementary', { name: 'Sections' });
     await sidebar.getByRole('list', { name: 'Your agents' }).getByRole('link', { name: /My worker/ }).waitFor();
-    await sidebar.getByRole('button', { name: /^Account/ }).click();
-    await page.getByRole('menuitem', { name: 'Sign out' }).click();
-    await tabs.waitFor({ state: 'detached' });
-    assert.equal(await sidebar.getByRole('list', { name: 'Your agents' }).count(), 0);
+    await page.evaluate(() => { window.__noReload = true; });
+    await sidebar.getByRole('link', { name: /^Account/ }).click();
+    await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+    await sidebar.getByRole('list', { name: 'Your agents' }).waitFor({ state: 'detached' });
+    await page.goBack();
+    await page.getByText('My worker', { exact: true }).first().waitFor();
+    assert.equal(await page.evaluate(() => window.__noReload), true);
+    assert.equal(await tabs.count(), 0);
     assert.equal(await page.getByRole('button', { name: 'Stop hosted access and revoke' }).count(), 0);
     await page.getByRole('link', { name: 'Agents' }).first().click();
     await page.getByText('Sign in to see your agents', { exact: true }).waitFor();
