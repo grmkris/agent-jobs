@@ -7,8 +7,8 @@ import { cn } from '../lib/cn.ts'
  * notch and the home indicator. Content scrolls under the translucent chrome.
  */
 import { Link, useLocation } from '@tanstack/react-router'
-import { Bot, BriefcaseBusiness, CircleUserRound, type LucideIcon, Plus } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { Bot, BookOpen, BriefcaseBusiness, CircleUserRound, type LucideIcon, Plus } from 'lucide-react'
+import type { ComponentProps, ReactNode } from 'react'
 import { currentBoardId } from '../api.ts'
 import { agentHome, managedLiveness, pendingByAgent, useManagedAgents, useManagedApprovals } from '../managed.ts'
 import { usePaused } from '../wallet.ts'
@@ -21,13 +21,12 @@ import { useCollectActions } from '../collect.ts'
 import { AccountControl, useAuth, useAutoSignIn } from './Wallet.tsx'
 import { AgentOrb } from './agent/AgentOrb.tsx'
 
-interface Place {
+type Place = {
   label: string
   icon: LucideIcon
-  target: LinkTarget
   /** Whether the current path belongs to this place. */
   active: (path: string) => boolean
-}
+} & ({ target: LinkTarget; href?: never } | { href: string; target?: never })
 
 /** Pages that belong to the account rather than to a job or an agent. */
 const ACCOUNT_PATHS = ['/account', '/sponsorship', '/admin']
@@ -54,6 +53,7 @@ function places(mine: ReadonlySet<string>): Place[] {
     },
     { label: 'Agents', icon: Bot, target: { to: '/agents' }, active: agents },
     { label: 'Account', icon: CircleUserRound, target: { to: '/account' }, active: onAccount },
+    { label: 'Docs', icon: BookOpen, href: '/docs', active: (p) => p.startsWith('/docs') },
   ]
 }
 
@@ -102,7 +102,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const pending = pendingByAgent(auth.signedIn ? (approvals.data?.approvals ?? []) : [])
   const waiting = [...pending.values()].reduce((sum, n) => sum + n, 0)
   const mine = new Set(agents.flatMap((a) => (a.agent_id === null ? [] : [String(a.agent_id)])))
-  const [jobs, agentsPlace, accountPlace] = places(mine)
+  const [jobs, agentsPlace, accountPlace, docsPlace] = places(mine)
   // Nothing is counted when unknown.
   const collect = useCollectActions(auth.address, auth.signedIn).data?.length ?? 0
   return (
@@ -151,6 +151,7 @@ export function Shell({ children }: { children: ReactNode }) {
               </li>
             </ul>
           )}
+          {docsPlace !== undefined && <SideItem place={docsPlace} on={docsPlace.active(pathname)} />}
         </nav>
         <div className="mt-auto grid gap-3 pt-6">
           {auth.signedIn ? (
@@ -194,17 +195,17 @@ export function Shell({ children }: { children: ReactNode }) {
 
       <nav
         aria-label="Sections"
-        className="material-chrome fixed inset-x-0 bottom-0 z-30 grid grid-cols-3 border-t border-border/60 pt-1.5 pr-[var(--safe-right)] pb-[calc(0.375rem+var(--safe-bottom))] pl-[var(--safe-left)] lg:hidden"
+        className="material-chrome fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 border-t border-border/60 pt-1.5 pr-[var(--safe-right)] pb-[calc(0.375rem+var(--safe-bottom))] pl-[var(--safe-left)] lg:hidden"
       >
-        {[jobs, agentsPlace, accountPlace].map((p) => {
+        {[jobs, agentsPlace, docsPlace, accountPlace].map((p) => {
           if (p === undefined) return null
           const on = p.active(pathname)
           const Icon = p.icon
           const n = p.label === 'Agents' ? waiting : p.label === 'Account' ? collect : 0
           return (
-            <BoardLink
+            <PlaceLink
               key={p.label}
-              target={p.target}
+              place={p}
               aria-current={on ? 'page' : undefined}
               className={cn(
                 textLinkClass,
@@ -219,7 +220,7 @@ export function Shell({ children }: { children: ReactNode }) {
               {n > 0 && (
                 <Count n={n} kind={p.label === 'Account' ? 'collect' : 'waiting'} className="absolute top-0 left-[calc(50%+0.5rem)]" />
               )}
-            </BoardLink>
+            </PlaceLink>
           )
         })}
       </nav>
@@ -239,13 +240,18 @@ const sideClass = (on: boolean, nested = false) =>
     on && 'bg-sidebar-accent text-sidebar-accent-foreground [@media(hover:hover)]:hover:bg-sidebar-accent',
   )
 
+function PlaceLink({ place, ...props }: { place: Place } & Omit<ComponentProps<'a'>, 'href' | 'target'>) {
+  if (place.href !== undefined) return <a href={place.href} {...props} />
+  return <BoardLink target={place.target} {...props} />
+}
+
 function SideItem({ place, on, count = null }: { place: Place; on: boolean; count?: ReactNode }) {
   const Icon = place.icon
   return (
-    <BoardLink target={place.target} aria-current={on ? 'page' : undefined} className={sideClass(on)}>
+    <PlaceLink place={place} aria-current={on ? 'page' : undefined} className={sideClass(on)}>
       <Icon aria-hidden className={cn('size-4', on ? 'text-foreground' : 'text-muted-foreground')} />
       <span className="flex-1">{place.label}</span>
       {count}
-    </BoardLink>
+    </PlaceLink>
   )
 }

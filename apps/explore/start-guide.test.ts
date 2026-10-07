@@ -13,7 +13,6 @@ import worker from './worker.ts'
 const source = readFileSync(new URL('../../skill/start.md', import.meta.url), 'utf8')
 const routes = [
   ['/start.md', 'text/markdown; charset=utf-8'],
-  ['/llms.txt', 'text/plain; charset=utf-8'],
 ] as const
 
 describe('agent start guide development routes', () => {
@@ -93,9 +92,9 @@ describe('agent start guide built assets and deployed routes', () => {
     },
   })
 
-  it('emits both names from the same single source document', () => {
+  it('emits the start guide and leaves llms.txt to the docs app', () => {
     expect(files['/start.md']).toBe(source)
-    expect(files['/llms.txt']).toBe(source)
+    expect(files['/llms.txt']).toBeUndefined()
   })
 
   it.each(['https://dev.sidequest.exchange', 'https://preview.example:8443'])('serves identical bodies with URLs at %s', async (origin) => {
@@ -134,7 +133,7 @@ describe('agent start guide built assets and deployed routes', () => {
       expect(body).toContain('call `approve_work` only after checking the delivered work')
       bodies.push(body)
     }
-    expect(bodies[0]).toBe(bodies[1])
+    expect(bodies).toHaveLength(1)
     expect(api).not.toHaveBeenCalled()
   })
 
