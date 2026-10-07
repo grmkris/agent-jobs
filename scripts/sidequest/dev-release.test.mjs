@@ -8,7 +8,7 @@ const infra = JSON.parse(readFileSync(new URL('../../infra/dev.json', import.met
 const fresh = () => ({ zone: { id: infra.cloudflare.zoneId, account: { id: infra.cloudflare.accountId }, name: infra.cloudflare.zoneName, status: 'active' }, workers: [], databases: [], buckets: [], domains: [] })
 
 test('release refuses source edits while permitting neighbours outside its committed export', () => {
-  const clean = { branch: 'main', staged: [], dirty: [], unknown: [] }
+  const clean = { branch: 'dev', staged: [], dirty: [], unknown: [] }
   assertCheckout(clean)
   assertCheckout({ ...clean, dirty: ['apps/indexer/src/worker.ts'], unknown: ['.artifact-video/take.png'] })
   for (const input of [{ ...clean, branch: 'other' }, { ...clean, staged: ['apps/api/src/worker.ts'] }, { ...clean, dirty: ['apps/api/src/worker.ts'] }, { ...clean, unknown: ['scripts/unknown.mjs'] }]) assert.throws(() => assertCheckout(input))
