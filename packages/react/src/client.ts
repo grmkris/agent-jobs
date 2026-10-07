@@ -23,7 +23,7 @@ export interface KeyValueStorage {
 }
 
 export interface BoardApiOptions {
-  /** The API origin, e.g. `https://agentjobs-api-….workers.dev`; empty for same-origin (Explore proxies it). */
+  /** The API origin, e.g. `https://sidequest-api-dev.….workers.dev`; empty for same-origin (Explore proxies it). */
   readonly baseUrl: string
   /** The board slug; default `public`. */
   readonly boardId?: string

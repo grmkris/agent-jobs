@@ -4,7 +4,7 @@
  */
 import type { Address, Hex } from 'viem'
 
-/** The creator's pick of one applicant (`JobHolding.Selection`). */
+/** The creator's pick of one applicant (`SidequestHolding.Selection`). */
 export interface Selection {
   readonly jobId: bigint
   readonly worker: Address
