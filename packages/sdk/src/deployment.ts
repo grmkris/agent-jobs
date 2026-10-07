@@ -187,6 +187,9 @@ export interface DeploymentConfig {
   erc8004: { identity: string; reputation: string }
   delegation: { manager: string; delegator: string; enforcers: Record<keyof DelegationEnforcers, string> }
   x402?: { usdc: string; facilitator: string }
+  /** See `NetworkMeta`. */
+  links?: { testnet?: string }
+  usdPegged?: string[]
   deployment: {
     block?: number
     core?: string
@@ -250,6 +253,29 @@ export class NotDeployedError extends Error {
  */
 export function deployment(network: Network): Deployment {
   return deploymentFromConfig(network, files[network])
+}
+
+/**
+ * What the network config says before (and apart from) any deployment, so it never throws `NotDeployedError`:
+ * - `links.testnet`: the testnet Explore's origin, set only on mainnet before launch, where the "launching soon"
+ *   notices point people. The two networks never link to each other otherwise.
+ * - `usdPegged`: tokens Explore values at one US dollar each in its estimates. Anything else needs a live price.
+ */
+export interface NetworkMeta {
+  readonly links: { readonly testnet?: string }
+  readonly usdPegged: readonly Address[]
+}
+
+export function networkMeta(network: Network): NetworkMeta {
+  return networkMetaFromConfig(files[network])
+}
+
+export function networkMetaFromConfig(c: DeploymentConfig): NetworkMeta {
+  const testnet = c.links?.testnet
+  if (testnet !== undefined && !/^https:\/\/[a-z0-9.-]+$/.test(testnet)) throw new Error('Network config links.testnet must be an https origin')
+  const usdPegged = c.usdPegged ?? []
+  if (!usdPegged.every(validAddress)) throw new Error('Network config usdPegged must list token addresses')
+  return { links: testnet === undefined ? {} : { testnet }, usdPegged }
 }
 
 /** Parse a recorded network config. This also lets offline readers use an archived config without changing it. */

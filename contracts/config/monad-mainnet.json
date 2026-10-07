@@ -30,6 +30,8 @@
   "holdGates": { "minHoldToPublish": 0, "minHoldToClaim": 0 },
   "faucetTokens": { "names": [], "symbols": [] },
   "knownTokens": ["0x754704Bc059F8C67012fEd69BC8A327a5aafb603"],
+  "usdPegged": ["0x754704Bc059F8C67012fEd69BC8A327a5aafb603"],
+  "links": { "testnet": "https://dev.sidequest.exchange" },
   "stacks": {
     "names": ["main"],
     "review": [259200],

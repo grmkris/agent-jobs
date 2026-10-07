@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import mainnet from '../../../contracts/config/monad-mainnet.json' with { type: 'json' }
 import testnet from './fixtures/legacy-deployment.json' with { type: 'json' }
-import { type DeploymentConfig, NotDeployedError, PRODUCTION_CLOCKS, allStacks, deployment, deploymentFromConfig, stackByHolding } from './deployment.ts'
+import { type DeploymentConfig, NotDeployedError, PRODUCTION_CLOCKS, allStacks, deployment, deploymentFromConfig, networkMeta, networkMetaFromConfig, stackByHolding } from './deployment.ts'
 
 const address = (n: number) => `0x${n.toString(16).padStart(40, '0')}`
 const currentConfig = () => structuredClone(testnet) as DeploymentConfig
@@ -113,5 +113,29 @@ describe('deployment config compatibility', () => {
     const c = v1Config()
     mutate(c)
     expect(() => deploymentFromConfig('monad-testnet', c)).toThrow()
+  })
+})
+
+describe('network meta', () => {
+  it('reads mainnet\'s testnet link and pegged tokens before mainnet is deployed', () => {
+    expect(() => deployment('monad-mainnet')).toThrow(NotDeployedError)
+    const meta = networkMeta('monad-mainnet')
+    expect(meta.links.testnet).toBe('https://dev.sidequest.exchange')
+    expect(meta.usdPegged).toEqual([mainnet.x402.usdc])
+  })
+
+  it('testnet links nowhere and pegs its test dollar', () => {
+    const meta = networkMeta('monad-testnet')
+    expect(meta.links).toEqual({})
+    expect(meta.usdPegged.map((a) => a.toLowerCase())).toContain(deployment('monad-testnet').rewardTokens[0]!.toLowerCase())
+  })
+
+  it('refuses a link that is not an https origin and a pegged entry that is not an address', () => {
+    const config = currentConfig()
+    expect(networkMetaFromConfig(config)).toEqual({ links: {}, usdPegged: [] })
+    for (const testnet of ['http://dev.sidequest.exchange', 'https://dev.sidequest.exchange/', 'https://dev.sidequest.exchange/start', 'javascript:alert(1)']) {
+      expect(() => networkMetaFromConfig({ ...config, links: { testnet } })).toThrow('https origin')
+    }
+    expect(() => networkMetaFromConfig({ ...config, usdPegged: ['USDC'] })).toThrow('token addresses')
   })
 })
