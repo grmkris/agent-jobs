@@ -12,11 +12,11 @@
 #   2. DeploySidequest --broadcast --slow, from the deployer;
 #   3. PromoteSidequest (reads only; writes config/<network>.json, which the coordinator commits);
 #   4. SafeAccept (six execTransactions from the Safe owner), then its check();
-#   6. readback: owner() == Safe and pendingOwner() == 0 on vault, feeSchedule, holding, evaluator, distributor and
+#   5. readback: owner() == Safe and pendingOwner() == 0 on vault, feeSchedule, holding, evaluator, distributor and
 #      miningReserve; the Safe holds the core's ADMIN_ROLE, and still has no modules and no guard (the mining fund's
 #      nonce guard, D18, holds only while execTransaction is the Safe's one way to act);
-#   7. the SDK loads the promoted deployment (`deployment('monad-testnet')`: a sidequest-v1 main pair under this Safe);
-#   8. DeployOddTokens, from the deployer.
+#   6. the SDK loads the promoted deployment (`deployment('monad-testnet')`: a sidequest-v1 main pair under this Safe);
+#   7. DeployOddTokens, from the deployer.
 # Flags:
 #   --fee-proposal   the Safe proposes a fee schedule through execTransaction: FEE_PROPOSAL, as JSON
 #                    {"thresholds":[…],"bps":[…],"treasury":"0x…"} with thresholds in whole SIDE like the config;
@@ -257,7 +257,7 @@ if runs accept; then
   ok "the Safe accepted the six"
 fi
 
-# 6. Readback.
+# 5. Readback.
 if runs readback; then
   for name in "${SIX[@]}"; do
     a=$(address_of "$name")
@@ -279,7 +279,7 @@ if runs readback; then
   ok "owner() == Safe on all six, nothing pending"
 fi
 
-# 7. The SDK.
+# 6. The SDK.
 if runs sdk; then
   SDK_TS="$LOGS/sdk-check.ts"
   cat >"$SDK_TS" <<EOF
@@ -302,7 +302,7 @@ EOF
   ok "the SDK loads the promoted deployment"
 fi
 
-# 8. DeployOddTokens.
+# 7. DeployOddTokens.
 if runs odd; then
   log 7-odd.log forge script script/DeployOddTokens.s.sol --rpc-url "$RPC" "${DEPLOYER_SIGNER[@]}" \
     --broadcast --slow || fail "DeployOddTokens"

@@ -219,7 +219,6 @@ per_wallet() {
 }
 echo "GAS PER WALLET, LAUNCH (launch-testnet.sh; Monad charges the limit; testnet gas price now $(cast from-wei "$PRICE" gwei 2>/dev/null | cut -c1-6) gwei)"
 per_wallet "$WORK/launch-gas.tsv"
-awk -F'\t' '$1 ~ /^pauser/ { printf "  of which %s: gas limit %d, used %d\n", $1, $3, $4 }' "$WORK/launch-gas.tsv"
 echo
 echo "GAS PER WALLET, FLOWS"
 per_wallet "$WORK/gas.tsv"

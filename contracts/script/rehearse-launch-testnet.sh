@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # The G1 rehearsal: script/launch-testnet.sh, unchanged, against a throwaway anvil fork of Monad testnet (chain 10143,
 # Monad gas pricing), signing from throwaway encrypted keystores of anvil's public dev keys (as mainnet signs), with a
-# fresh 1-of-2 Safe in a scratch config; dev0 stands in for roles.admin as the reused core's admin, so the launch's
-# pauser step grants the Safe ADMIN_ROLE. Then, on the fork:
+# fresh core and a fresh 1-of-2 Safe in a scratch config; the deployer grants both core admin roles to the Safe and
+# renounces them during deployment. Then, on the fork:
 #   - no signer, or a password file others can read, refuses; a chain-143 RPC refuses before anything is sent (with
 #     the --private-keys fallback); a launch started from outside while this rehearsal runs refuses (the launch lock);
 #     a second launch refuses;
-#   - --from pauser --to sdk re-reads cleanly (the Safe already holds ADMIN_ROLE: nothing sent);
+#   - --from readback --to sdk re-reads cleanly (the Safe holds both core admin roles: nothing sent);
 #   - a Safe with a module, or with a guard, refuses (the mining fund's nonce guard, D18, needs neither);
 #   - at their immutable ETAs anyone executes the fee schedule and accepts the probed Holding.
 # Prints the gas limits each sender is charged. Holds the launch lock (script/launch-lock.sh), so it refuses while
@@ -165,9 +165,11 @@ fi
 
 refused "already records a v1 deployment" "${LAUNCH[@]}" --yes || fail "a second launch was not refused: $OUT"
 ok "a second launch refuses before sending"
-"${LAUNCH[@]}" --from pauser --to sdk >"$LAUNCH_LOGS/readback.out" 2>&1 || { cat "$LAUNCH_LOGS/readback.out"; fail "--from pauser"; }
-grep -q "already holds the core's ADMIN_ROLE" "$LAUNCH_LOGS/readback.out" || fail "--from pauser granted ADMIN_ROLE again"
-ok "--from pauser --to sdk re-reads cleanly (the Safe already holds ADMIN_ROLE; nothing sent)"
+"${LAUNCH[@]}" --from readback --to sdk >"$LAUNCH_LOGS/readback.out" 2>&1 || { cat "$LAUNCH_LOGS/readback.out"; fail "--from readback"; }
+for role in ADMIN_ROLE DEFAULT_ADMIN_ROLE; do
+  grep -q " $role: Safe" "$LAUNCH_LOGS/readback.out" || fail "--from readback did not verify $role"
+done
+ok "--from readback --to sdk re-reads cleanly (the Safe holds both core admin roles; nothing sent)"
 
 # D18 holds only while execTransaction is the Safe's one way to act: a module or a guard is refused.
 SENTINEL=0x0000000000000000000000000000000000000001
