@@ -1,14 +1,12 @@
 /**
- * The indexer against the real logs of the testnet deployment (captured from HyperSync into a fixture, so the
- * test is deterministic), replayed through a scripted source (test double) into node:sqlite. Covers plan S4:
+ * The indexer against ABI-encoded synthetic v1 logs, replayed through a scripted source
+ * (test double) into node:sqlite. Covers plan S4:
  * duplicate pages, an empty page with an advancing next block, a crash before the checkpoint, overlapping runs,
  * a simulated divergence, and a restart and full rebuild equal to the live state; the folds of known jobs.
  */
 import { DatabaseSync } from 'node:sqlite'
-import * as sdk from '@sidequest/sdk'
 import { beforeEach, describe, expect, it } from 'vitest'
-import fixture from '../test/fixtures/testnet-logs.json' with { type: 'json' }
-import historicalConfig from '../../sdk/src/fixtures/legacy-deployment.json' with { type: 'json' }
+import fixture, { fixtureDeployment } from '../test/fixtures/v1-logs.ts'
 import {
   type AsyncSql,
   type ChainHead,
@@ -29,7 +27,7 @@ import {
 } from './index.ts'
 
 const logs = fixture.logs as unknown as RawLog[]
-const historicalDeployment = sdk.deploymentFromConfig('monad-testnet', historicalConfig)
+const historicalDeployment = fixtureDeployment
 const contracts = contractsFromDeployment(historicalDeployment)
 const deployBlock = Number(historicalDeployment.deployBlock)
 const finalized = fixture.toBlock
@@ -96,18 +94,18 @@ beforeEach(async () => {
   live = await snapshot(liveDb)
 })
 
-describe('indexer on the real testnet logs', () => {
-  it('folds known jobs: ruled for the worker, ruled for the creator with a burn, a contest award', async () => {
+describe('indexer on synthetic v1 logs', () => {
+  it('folds known jobs: ruled for the worker, ruled for the creator with a burn, an approved hire', async () => {
     const job = async (id: number) => (await liveDb.all<Record<string, unknown>>('SELECT * FROM jobs WHERE job_id = ?', String(id)))[0]
-    expect(await job(9)).toMatchObject({ status: 'completed', stack: 'demo-v1', mode: 'hire', violation: 'None' })
+    expect(await job(9)).toMatchObject({ status: 'completed', stack: 'main', mode: 'hire', violation: 'None' })
     expect(await liveDb.all('SELECT for_worker, slash_loser FROM rulings WHERE job_id = ?', '9')).toEqual([{ for_worker: 1, slash_loser: 0 }])
     expect(await job(10)).toMatchObject({ status: 'rejected', violation: 'Quality' })
     expect(await liveDb.all("SELECT side FROM bond_outcomes WHERE job_id = ? AND outcome = 'burned'", '10')).toEqual([{ side: 'worker' }])
-    expect(await job(8)).toMatchObject({ status: 'completed', mode: 'contest' })
-    // The candidate's evidence was attached before the award; it matches the deliverable the award submitted.
+    expect(await job(8)).toMatchObject({ status: 'completed', mode: 'hire' })
+    // Evidence matches the submitted hire deliverable.
     expect(await liveDb.all('SELECT matches_onchain FROM evidence WHERE job_id = ?', '8')).toEqual([{ matches_onchain: 1 }])
     expect(await liveDb.all('SELECT recipient, amount FROM reward_outcomes WHERE job_id = ? AND kind = ?', '8', 'paid')).toEqual([
-      { recipient: '0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571', amount: '7000000' },
+      { recipient: '0x0000000000000000000000000000000000000015', amount: '7000000' },
     ])
   })
 
@@ -217,14 +215,11 @@ describe('block times for job timelines', () => {
 })
 
 describe('agent reads', () => {
-  it('count Sidequest v1 jobs only: a chain of pre-v1 jobs has no agents, no agent record and no stats', async () => {
-    const kinds = await liveDb.all<{ kind: string }>('SELECT DISTINCT kind FROM jobs')
-    expect(kinds).toEqual([{ kind: 'legacy' }])
-    const [worker] = await liveDb.all<{ agent_id: string; worker: string }>("SELECT agent_id, worker FROM jobs WHERE agent_id IS NOT NULL AND agent_id <> '0' LIMIT 1")
-    expect(worker).toBeDefined()
-    expect(await listAgents(liveDb, contracts.chainId)).toEqual([])
-    expect(await agentsOfWallet(liveDb, contracts.chainId, worker!.worker)).toEqual([])
-    expect(await agentDetail(liveDb, contracts.chainId, worker!.agent_id)).toBeUndefined()
-    expect(await networkStats(liveDb, contracts.chainId)).toMatchObject({ jobs: 0, completed: 0, agents: 0, paidOut: {}, inEscrow: {}, accounting: {} })
+  it('discovers the v1 worker, jobs and aggregate stats from the same replayed logs', async () => {
+    expect(await listAgents(liveDb, contracts.chainId)).toMatchObject([{ agentId: '7', jobs: 3 }])
+    const [worker] = await liveDb.all<{ worker: string }>("SELECT worker FROM jobs WHERE agent_id = '7' LIMIT 1")
+    expect(await agentsOfWallet(liveDb, contracts.chainId, worker!.worker)).toHaveLength(1)
+    expect((await agentDetail(liveDb, contracts.chainId, '7'))?.jobs).toHaveLength(3)
+    expect(await networkStats(liveDb, contracts.chainId)).toMatchObject({ jobs: 3, completed: 2, agents: 1 })
   })
 })

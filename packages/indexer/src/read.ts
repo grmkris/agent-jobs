@@ -1,6 +1,6 @@
 /**
  * What Explore reads from the indexer's D1: chain facts only. Off-chain progress (titles, candidates, Jev) comes
- * from the board. An evidence statement is labelled "matches the awarded on-chain deliverable" only when it names
+ * from the board. An evidence statement is labelled "matches the submitted on-chain deliverable" only when it names
  * the recorded `JobSubmitted` deliverable and is unexpired now (R114-06); otherwise it is not an on-chain match.
  */
 import type { AsyncSql } from './store.ts'
@@ -48,7 +48,7 @@ export interface JobRow {
   deliverable: string | null
   violation: string | null
   rejection_reason_hash: string | null
-  kind: 'legacy' | 'sidequest-v1' | null
+  kind: 'sidequest-v1' | null
   arbitrator: string | null
   expired_at: number | null
   review_window: number | null
@@ -153,11 +153,10 @@ export async function protocolEvents(sql: AsyncSql, chainId: number, opts: { con
 
 // ---------------------------------------------------------------------------------------------------------------
 // Agents: what any operator or creator can read about an ERC-8004 agent's work here, from chain facts only.
-// Amounts are base-unit strings summed with BigInt (SQLite integers overflow above 9.2e18). Lost contest entries
-// are off-chain and never counted.
+// Amounts are base-unit strings summed with BigInt (SQLite integers overflow above 9.2e18).
 // ---------------------------------------------------------------------------------------------------------------
 
-const IN_PROGRESS = ['active', 'awarded', 'submitted', 'rejected-pending', 'disputed']
+const IN_PROGRESS = ['active', 'submitted', 'rejected-pending', 'disputed']
 // A deferred payout may leave the core Rejected while the evaluator's paid-work decision still stands (M2).
 const WORKER_OUTCOMES = "('Accepted', 'Silence', 'RuledForWorker')"
 
@@ -262,8 +261,8 @@ export async function agentsOfWallet(sql: AsyncSql, chainId: number, wallet: str
   return rows.map((r) => r.agent_id)
 }
 
-/** A job that paid its worker: a v1 job settled Paid, or a completed legacy job. Gross = reward + bonus. */
-const PAID_JOB = "((kind = 'sidequest-v1' AND settlement_outcome = 'Paid') OR (kind = 'legacy' AND status = 'completed'))"
+/** A job that paid its worker: a v1 job settled Paid. Gross = reward + bonus. */
+const PAID_JOB = "(kind = 'sidequest-v1' AND settlement_outcome = 'Paid')"
 
 /** Per token: the reward and bonus (gross), the fee charged on them, and what was left for the worker (net). */
 export type MoneyTotals = { gross: string; fee: string; net: string }
