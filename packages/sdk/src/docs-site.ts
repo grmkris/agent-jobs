@@ -1,6 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
 
 export function docsOrigin(env: Record<string, string | undefined> = process.env): string {
   const explicit = env.SIDEQUEST_DOCS_ORIGIN ?? env.SIDEQUEST_ORIGIN
@@ -13,7 +12,9 @@ export function docsOrigin(env: Record<string, string | undefined> = process.env
   return 'http://localhost:5173'
 }
 
-export const docsDir = fileURLToPath(new URL('../../../apps/docs/', import.meta.url))
+// No Node call at import: the docs' browser bundle reaches this module through docsOrigin(), and a browser stub of
+// fileURLToPath throws there. A decoded file-URL pathname is the same absolute path on POSIX.
+export const docsDir = decodeURIComponent(new URL('../../../apps/docs/', import.meta.url).pathname)
 export function siteDir(root = docsDir): string {
   const output = resolve(root, '.output/public')
   return existsSync(output) ? output : resolve(root, 'dist/client')
