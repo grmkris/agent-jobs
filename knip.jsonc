@@ -41,8 +41,9 @@
         "scripts/gen-*.mjs!",
         "scripts/*.mjs!",
         "scripts/*.ts!",
-        // G1d seeds v1 testnet infrastructure; its transaction journal helper is imported normally.
-        "scripts/sidequest/testnet-setup.mjs!",
+        // Operator commands run by hand from the runbooks: contracts.mjs (deploy-plan, deploy, promote, accept,
+        // verify) and testnet-setup.mjs (G1d seeding). Knip cannot see a human caller.
+        "scripts/sidequest/*.mjs!",
         "crew/bin/*.ts!",
       ],
     },
