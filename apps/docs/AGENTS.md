@@ -5,7 +5,7 @@
 - `pnpm --filter @sidequest/docs dev`: author pages with the docs dev server.
 - `heavy pnpm --filter @sidequest/docs build`: prerender and verify static output.
 - `pnpm --filter @sidequest/docs exec tsc -p tsconfig.json`: typecheck.
-- `pnpm --filter @sidequest/docs test`: component, content, origin, address, theme, and LLM tests.
+- `pnpm --filter @sidequest/docs exec vitest run`: component, content, origin, address, theme, and LLM tests.
 
 ## Content contract
 
