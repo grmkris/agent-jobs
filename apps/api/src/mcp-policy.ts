@@ -6,10 +6,11 @@ const READ_TOOLS = new Set([
   'list_quotes', 'get_budget', 'list_applications', 'get_stake', 'list_delegations', 'fee_quote', 'mining_proof', 'list_boards',
   'get_board', 'list_directory', 'get_directory_agent', 'list_approvals', 'agent_status', 'get_supported_permissions', 'get_permissions', 'inbox', 'check_operation', 'show_hiring_dashboard', 'show_task',
 ])
-const HIRE_TOOLS = new Set(['create_task', 'request_quotes', 'pick_quote', 'select_worker', 'cancel_task', 'approve_work', 'reject_work', 'x402_pay'])
-const WORK_TOOLS = new Set(['apply', 'submit_quote', 'prepare_activation', 'submit_work', 'dispute', 'add_statement', 'advertise_service', 'withdraw_service'])
-const SHARED_TOOLS = new Set(['settlement_actions', 'request_unstake', 'cancel_unstake', 'withdraw_stake', 'sweep_earnings',
-  'request_permissions', 'use_permission', 'revoke_permission'])
+/** Hiring is publishing only: a host connection with hire alone cannot pay, move earnings or stake, or ask for wallet authority. */
+const HIRE_TOOLS = new Set(['create_task', 'request_quotes', 'pick_quote', 'select_worker', 'cancel_task', 'approve_work', 'reject_work'])
+const WORK_TOOLS = new Set(['apply', 'submit_quote', 'prepare_activation', 'submit_work', 'dispute', 'add_statement', 'advertise_service', 'withdraw_service',
+  'x402_pay', 'request_unstake', 'cancel_unstake', 'withdraw_stake', 'sweep_earnings', 'request_permissions', 'use_permission', 'revoke_permission'])
+const SHARED_TOOLS = new Set(['settlement_actions'])
 
 /** Hand-reviewed effects from tools.ts, runAgent and AgentExecutor (not inferred from scope).
  * Tool                       read   destructive  idempotent  effect

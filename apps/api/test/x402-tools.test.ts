@@ -7,12 +7,12 @@ import { agentTools } from '../src/tools-agents.ts'
 import { mcpRoute } from '../src/mcp.ts'
 import type { OAuthGrant } from '../src/oauth.ts'
 
-it('exposes x402_pay only to hire scope on testnet, with an operationKey', async () => {
+it('exposes x402_pay only to work scope on testnet, with an operationKey', async () => {
   expect([...X402_TOOLS]).toEqual(['x402_pay'])
-  expect(requiredToolScope('x402_pay')).toBe('sidequest:hire')
-  expect(permittedTool({ scopes: ['sidequest:hire'] }, 'x402_pay')).toBe(true)
-  expect(permittedTool({ scopes: ['sidequest:read', 'sidequest:work'] }, 'x402_pay')).toBe(false)
-  const grant = { scopes: ['sidequest:read', 'sidequest:hire'], agentIds: ['payer'] } as unknown as OAuthGrant
+  expect(requiredToolScope('x402_pay')).toBe('sidequest:work')
+  expect(permittedTool({ scopes: ['sidequest:read', 'sidequest:work'] }, 'x402_pay')).toBe(true)
+  expect(permittedTool({ scopes: ['sidequest:read', 'sidequest:hire'] }, 'x402_pay')).toBe(false)
+  const grant = { scopes: ['sidequest:read', 'sidequest:work'], agentIds: ['payer'] } as unknown as OAuthGrant
   for (const network of ['monad-testnet', 'monad-mainnet']) {
     const tools = Object.fromEntries(Object.entries(agentTools).filter(([name]) => permittedTool(grant, name) && networkTool(network, name)))
     const reply = await mcpRoute({ method: 'POST', pathname: '/mcp', headers: {}, origin: 'https://dev.sidequest.exchange', grant, tools,

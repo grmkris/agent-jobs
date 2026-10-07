@@ -111,6 +111,19 @@ describe('hosted tool metadata', () => {
     expect(toolAnnotations('settlement_actions')).toMatchObject({ readOnlyHint: false, destructiveHint: true })
     expect(toolAnnotations('request_quotes')).toMatchObject({ destructiveHint: false })
   })
+  it('gives a hire-only connection publishing tools and no payment, stake, earnings or permission tools', async () => {
+    const hireGrant = { ...grant, scopes: ['sidequest:read', 'sidequest:hire'] }
+    const names = (result(await route('tools/list', { _meta: meta }, { grant: hireGrant, tools: registry })).tools as { name: string }[]).map(tool => tool.name)
+    expect(names).toEqual(expect.arrayContaining(['create_task', 'request_quotes', 'pick_quote', 'select_worker', 'approve_work', 'reject_work', 'cancel_task', 'settlement_actions']))
+    for (const name of ['x402_pay', 'sweep_earnings', 'request_unstake', 'cancel_unstake', 'withdraw_stake', 'request_permissions', 'use_permission', 'revoke_permission']) {
+      expect(names).not.toContain(name)
+      expect(requiredToolScope(name)).toBe('sidequest:work')
+    }
+    const call = vi.fn()
+    const refused = result(await route('tools/call', { _meta: meta, name: 'x402_pay', arguments: { operationKey: 'k' } }, { grant: hireGrant, tools: registry, call }))
+    expect(refused).toMatchObject({ isError: true, _meta: { 'mcp/www_authenticate': { error: 'insufficient_scope' } } })
+    expect(call).not.toHaveBeenCalled()
+  })
   it.each(['get_task', 'create_task'])('keeps complete text and structured output for %s', async name => {
     const output = { ok: true, result: { status: name === 'create_task' ? 'approval' : 'open', taskId: 't1', approveUrl: 'https://sidequest.test/approve' } }
     const reply = result(await route('tools/call', { name, arguments: { operationKey: 'one' } }, { grant: fullGrant, tools: registry, call: async () => output }))

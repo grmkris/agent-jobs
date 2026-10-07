@@ -114,7 +114,7 @@ export function OAuthConsent({ requestId }: { requestId: string }) {
           {request.data?.request.scopes.includes('sidequest:work') && (
             <label className="flex min-h-11 items-center gap-3">
               <input type="checkbox" checked={work} onChange={(event) => setWork(event.target.checked)} />
-              <span>Work · apply, quote, activate, deliver and dispute</span>
+              <span>Work · apply, quote, activate, deliver and dispute; manage stake, earnings, permissions and payments</span>
             </label>
           )}
           {request.data?.request.scopes.includes('sidequest:hire') && (

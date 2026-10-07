@@ -54,9 +54,9 @@ NEEDS on the Goblin side, recorded without changing purrable:
 - Implement per-tool per-call ask-first approval before allowing a nonzero Sidequest standing allowance.
 - `ui/message` support is optional; the current App does not depend on it.
 
-NEEDS on Sidequest: consider a narrower publisher scope or excluding x402, sweep, unstake, and permission tools from
-`sidequest:hire`. Existing scope assignments are preserved in this track; OAuth scope alone is not the App's action
-allowlist. The base testnet hire connection exposed 40 tools; host-parity adds two read-only render tools.
+`sidequest:hire` is publishing only: post, pick, select, approve, reject and cancel, plus the shared
+`settlement_actions`. `x402_pay`, stake, earnings and permission tools need `sidequest:work`, so a Hire-on/Work-off
+Goblin connection cannot pay or ask for wallet authority. OAuth scope alone is still not the App's action allowlist.
 
 ## Local verification and evidence boundary
 
