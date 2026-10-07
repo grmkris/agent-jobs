@@ -79,7 +79,9 @@ export default class TelegramDrill extends Cloudflare.Worker<TelegramDrill>()(
             103,
           )
           await sql.batch([
-            stmt('INSERT INTO checkpoint VALUES (10143, 100, NULL, 104)'),
+            stmt(
+              "INSERT INTO checkpoint (chain_id, next_block, block_hash, updated_at, core_address) VALUES (10143, 100, NULL, 104, '0x4444444444444444444444444444444444444444')",
+            ),
             stmt(
               "INSERT INTO jobs (chain_id, job_id, creator, approver, worker, kind, status, updated_block) VALUES (10143, '1', ?, ?, ?, 'sidequest-v1', 'submitted', 99)",
               account.address,

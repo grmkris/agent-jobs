@@ -16,7 +16,7 @@ async function setup() {
   await migrate(sql)
   await migrateRegistry(sql)
   await sql.batch([
-    stmt('INSERT INTO checkpoint VALUES (?, 100, NULL, ?)', chain, now),
+    stmt('INSERT INTO checkpoint (chain_id, next_block, block_hash, updated_at) VALUES (?, 100, NULL, ?)', chain, now),
     stmt(
       "INSERT INTO jobs (chain_id, job_id, creator, approver, worker, kind, status, policy_hash, updated_block) VALUES (?, '7', ?, ?, ?, 'sidequest-v1', 'submitted', ?, 20)",
       chain,

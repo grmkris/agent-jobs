@@ -21,7 +21,12 @@ async function fixture() {
     deployment: { ...base.deployment, deployBlock: 0n },
     publicClient: { ...base.publicClient, getBlock },
   } as unknown as sdk.Ctx
-  db.prepare('INSERT INTO checkpoint VALUES (?,?,?,?)').run(base.deployment.chainId, 11, hash, 1000)
+  db.prepare('INSERT INTO checkpoint (chain_id,next_block,block_hash,updated_at) VALUES (?,?,?,?)').run(
+    base.deployment.chainId,
+    11,
+    hash,
+    1000,
+  )
   return { db, sql, ctx, getBlock }
 }
 const wallet = `0x${'b'.repeat(40)}` as const

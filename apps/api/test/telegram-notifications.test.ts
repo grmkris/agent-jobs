@@ -7,6 +7,8 @@ import { queueTelegramNotifications } from '../src/telegram-notifications.ts'
 const creator = '0x1111111111111111111111111111111111111111'
 const worker = '0x2222222222222222222222222222222222222222'
 const donor = '0x3333333333333333333333333333333333333333'
+// Publication notices are scoped to the indexed core; a checkpoint without one counts as not yet cut over.
+const core = '0x4444444444444444444444444444444444444444'
 const chain = 10143,
   now = 200000
 async function setup() {
@@ -14,7 +16,12 @@ async function setup() {
   await migrate(sql)
   await migrateTelegram(sql)
   await sql.batch([
-    stmt('INSERT INTO checkpoint VALUES (?, 100, NULL, ?)', chain, now),
+    stmt(
+      'INSERT INTO checkpoint (chain_id, next_block, block_hash, updated_at, core_address) VALUES (?, 100, NULL, ?, ?)',
+      chain,
+      now,
+      core,
+    ),
     stmt(
       "INSERT INTO jobs (chain_id, job_id, creator, approver, worker, kind, status, outcome, settlement_outcome, review_window, updated_block) VALUES (?, '1', ?, ?, ?, 'sidequest-v1', 'submitted', 'None', 'None', 172800, 20)",
       chain,

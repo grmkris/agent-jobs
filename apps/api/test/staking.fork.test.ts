@@ -89,7 +89,7 @@ fork('delegated backing API with a checked real event index', () => {
     )
     await sql.batch([
       stmt(
-        'INSERT OR REPLACE INTO checkpoint VALUES (?,?,?,?)',
+        'INSERT OR REPLACE INTO checkpoint (chain_id,next_block,block_hash,updated_at) VALUES (?,?,?,?)',
         f.ctx.deployment.chainId,
         Number(block.number + 1n),
         block.hash,
