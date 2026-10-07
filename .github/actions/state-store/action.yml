@@ -1,0 +1,10 @@
+name: Alchemy state store
+description: Write the ephemeral Cloudflare state-store credential and remove it after the job.
+inputs:
+  credentials:
+    description: JSON contents of cloudflare-state-store.json
+    required: true
+runs:
+  using: node20
+  main: main.mjs
+  post: post.mjs

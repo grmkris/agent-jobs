@@ -1,0 +1,173 @@
+name: CI
+
+on:
+  push:
+    branches: [dev, prod]
+  pull_request:
+    branches: [dev]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  TURBO_TELEMETRY_DISABLED: '1'
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    concurrency:
+      group: verify-${{ github.ref }}
+      cancel-in-progress: true
+    env:
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+      TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+      TURBO_API: ${{ vars.TURBO_API }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          submodules: recursive
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+      - name: Cache Foundry artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            contracts/out
+            contracts/cache
+          key: foundry-${{ runner.os }}-${{ hashFiles('contracts/**/*.sol', 'contracts/foundry.toml') }}
+      - run: bun install --frozen-lockfile
+      - run: bun run check
+      - run: bun run build
+      - name: Working tree is clean after the gates
+        run: git diff --exit-code
+
+  deploy-dev:
+    needs: verify
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: dev
+    concurrency:
+      group: deploy-dev
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          submodules: recursive
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+      - run: bun install --frozen-lockfile
+      - name: Install Alchemy state-store credential
+        uses: ./.github/actions/state-store
+        with:
+          credentials: ${{ secrets.ALCHEMY_STATE_STORE_CREDENTIALS }}
+      - name: Deploy dev
+        env: &dev-env
+          SIDEQUEST_ALLOW_PROD: ${{ vars.SIDEQUEST_ALLOW_PROD }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+          TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+          TURBO_API: ${{ vars.TURBO_API }}
+          RELAY_PRIVATE_KEY: ${{ secrets.RELAY_PRIVATE_KEY }}
+          ATTESTER_PRIVATE_KEY: ${{ secrets.ATTESTER_PRIVATE_KEY }}
+          PRIVY_APP_SECRET: ${{ secrets.PRIVY_APP_SECRET }}
+          PRIVY_SIGNER_KEY: ${{ secrets.PRIVY_SIGNER_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_WEBHOOK_SECRET: ${{ secrets.TELEGRAM_WEBHOOK_SECRET }}
+          AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
+          HYPERSYNC_API_TOKEN: ${{ secrets.HYPERSYNC_API_TOKEN }}
+          MONAD_RPC_URL: ${{ secrets.MONAD_RPC_URL }}
+          GITHUB_APP_PRIVATE_KEY: ${{ secrets.SQ_GITHUB_APP_PRIVATE_KEY }}
+          PRIVY_APP_ID: ${{ vars.PRIVY_APP_ID }}
+          PRIVY_SIGNER_ID: ${{ vars.PRIVY_SIGNER_ID }}
+          PRIVY_POLICY_ID: ${{ vars.PRIVY_POLICY_ID }}
+          ARBITER_MODEL_BASE_URL: ${{ vars.ARBITER_MODEL_BASE_URL }}
+          SCREENING_MODEL: ${{ vars.SCREENING_MODEL }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          GITHUB_APP_ID: ${{ vars.SQ_GITHUB_APP_ID }}
+          GITHUB_APP_INSTALLATION_ID: ${{ vars.SQ_GITHUB_APP_INSTALLATION_ID }}
+        run: bun run deploy:dev
+      - name: Smoke dev
+        run: bun run smoke dev
+      - name: Drift dev
+        env: *dev-env
+        run: bun run drift dev
+
+  deploy-prod:
+    needs: verify
+    if: github.event_name == 'push' && github.ref == 'refs/heads/prod' && vars.SIDEQUEST_ALLOW_PROD == '1'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: prod
+    concurrency:
+      group: deploy-prod
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          submodules: recursive
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+      - run: bun install --frozen-lockfile
+      - name: Install Alchemy state-store credential
+        uses: ./.github/actions/state-store
+        with:
+          credentials: ${{ secrets.ALCHEMY_STATE_STORE_CREDENTIALS }}
+      - name: Deploy prod
+        env: &prod-env
+          SIDEQUEST_ALLOW_PROD: ${{ vars.SIDEQUEST_ALLOW_PROD }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+          TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+          TURBO_API: ${{ vars.TURBO_API }}
+          RELAY_PRIVATE_KEY: ${{ secrets.RELAY_PRIVATE_KEY }}
+          ATTESTER_PRIVATE_KEY: ${{ secrets.ATTESTER_PRIVATE_KEY }}
+          PRIVY_APP_SECRET: ${{ secrets.PRIVY_APP_SECRET }}
+          PRIVY_SIGNER_KEY: ${{ secrets.PRIVY_SIGNER_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_WEBHOOK_SECRET: ${{ secrets.TELEGRAM_WEBHOOK_SECRET }}
+          AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
+          HYPERSYNC_API_TOKEN: ${{ secrets.HYPERSYNC_API_TOKEN }}
+          MONAD_RPC_URL: ${{ secrets.MONAD_RPC_URL }}
+          GITHUB_APP_PRIVATE_KEY: ${{ secrets.SQ_GITHUB_APP_PRIVATE_KEY }}
+          PRIVY_APP_ID: ${{ vars.PRIVY_APP_ID }}
+          PRIVY_SIGNER_ID: ${{ vars.PRIVY_SIGNER_ID }}
+          PRIVY_POLICY_ID: ${{ vars.PRIVY_POLICY_ID }}
+          ARBITER_MODEL_BASE_URL: ${{ vars.ARBITER_MODEL_BASE_URL }}
+          SCREENING_MODEL: ${{ vars.SCREENING_MODEL }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          GITHUB_APP_ID: ${{ vars.SQ_GITHUB_APP_ID }}
+          GITHUB_APP_INSTALLATION_ID: ${{ vars.SQ_GITHUB_APP_INSTALLATION_ID }}
+          PROD_ADMISSION_DRAIN: ${{ vars.PROD_ADMISSION_DRAIN }}
+        run: bun run deploy:prod
+      - name: Smoke prod
+        run: bun run smoke prod
+      - name: Drift prod
+        env: *prod-env
+        run: bun run drift prod
