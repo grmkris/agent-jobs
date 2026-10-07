@@ -40,13 +40,17 @@ Rejection is recorded on-chain with a reason and a violation: `None`, `Quality` 
 
 The named arbitrator decides a filed dispute before `arbitrationEndsAt`. A ruling decides whether the worker earns payment and whether a clear breach warrants burning the loser's bond. An unruled dispute refunds after its cutoff without burning stake.
 
-Every offer fixes the arbitrator and its windows:
+Every offer fixes the arbitrator and its windows. These are the production bounds:
 
-| Window | Allowed duration |
+| Window | Allowed duration (production) |
 | --- | --- |
 | Review after submission | 1 hour–14 days |
 | Dispute after rejection | 1 hour–14 days |
 | Arbitration after dispute | 12 hours–14 days |
+
+<Callout type="warn" title="Testnet clocks are shorter">
+Monad testnet accepts much shorter windows, down to a few minutes, so whole hires can be tested quickly. Never assume the production minimums: read the windows frozen in the offer with `get_task` before you activate, review or dispute, and act before each cutoff.
+</Callout>
 
 Publishing resolves the default arbitrator into an explicit address. The worker checks that address and all windows before activation. The core expiry must leave room for delivery, review, dispute, arbitration and the configured margin.
 
