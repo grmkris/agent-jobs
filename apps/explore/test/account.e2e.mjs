@@ -80,6 +80,24 @@ try {
     const fakeChip = wallet.getByText('3 USDC', { exact: true }).locator('..');
     assert.equal(await fakeChip.locator('img').count(), 0, 'a fake USDC uses no trusted logo');
     assert.equal(await fakeChip.locator('[data-label="U"]').count(), 1);
+    if (device === 'desktop') {
+      // The sidebar row still opens Account; its chevron opens every balance with dollar estimates.
+      await page.getByRole('complementary', { name: 'Sections' }).getByRole('button', { name: 'Wallet balances', exact: true }).click();
+      const peek = page.getByRole('dialog', { name: 'Wallet balances' });
+      await peek.getByText('Test value · testnet tokens have no real value.', { exact: true }).waitFor();
+      await peek.getByText('2.5', { exact: true }).waitFor();
+      await peek.getByText('≈ $2.50', { exact: true }).waitFor();
+      await peek.getByText('≈ $1.25', { exact: true }).waitFor();
+      await peek.getByText('≈ $3.75', { exact: true }).waitFor();
+      const stake = peek.getByRole('link', { name: 'Stake', exact: true });
+      assert.equal(await stake.getAttribute('href'), '/account#backing');
+      await page.screenshot({ path: `${output}/desktop-wallet-peek.png` });
+      await stake.click();
+      await page.waitForURL('**/account#backing');
+      await peek.waitFor({ state: 'hidden' });
+      const top = await page.locator('#backing').evaluate((el) => el.getBoundingClientRect().top);
+      assert.ok(top >= 0 && top < 300, `#backing scrolled into view (top ${top})`);
+    }
     await page.getByRole('heading', { name: 'Collect', exact: true }).waitFor();
     await page.getByRole('heading', { name: 'Notifications', exact: true }).waitFor();
     await page.getByRole('heading', { name: 'My backing positions', exact: true }).waitFor();
@@ -96,7 +114,7 @@ try {
     await wallet.getByRole('status').getByText('Copy failed', { exact: true }).waitFor();
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${device}: horizontal overflow`);
     await page.screenshot({ path: `${output}/${device}-account.png`, fullPage: true });
-    results.push({ device, passed: true, checks: ['direct Account navigation', 'full address and exact copy', 'clipboard refusal and missing API', 'loading, zero and per-token unavailable', 'address-based token icons', 'inline Collect and Notifications', 'backing and Settings reachable', 'faucet and market controls retained', 'no horizontal overflow'] });
+    results.push({ device, passed: true, checks: ['direct Account navigation', 'full address and exact copy', 'clipboard refusal and missing API', 'loading, zero and per-token unavailable', 'address-based token icons', 'inline Collect and Notifications', 'backing and Settings reachable', 'faucet and market controls retained', 'no horizontal overflow', ...(device === 'desktop' ? ['sidebar wallet card: balances, ≈ $, test-value note, Stake → #backing'] : [])] });
     await context.close();
   }
   assert.deepEqual(errors, []);

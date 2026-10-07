@@ -1,6 +1,8 @@
 import { cn } from '../lib/cn.ts'
 import { Link } from '@tanstack/react-router'
+import { useRef } from 'react'
 import { Monogram, useAuth } from './Wallet.tsx'
+import { WalletPeek } from './WalletPeek.tsx'
 
 /** A small count, as on an app icon. `collect` counts actions ready in Collect; `waiting`, decisions an agent waits on. */
 export function Count({ n, kind, className }: { n: number; kind: 'collect' | 'waiting'; className?: string }) {
@@ -18,20 +20,27 @@ export function Count({ n, kind, className }: { n: number; kind: 'collect' | 'wa
   )
 }
 
-/** The signed-in operator's account link at the foot of the sidebar. Account actions live on the account destination. */
+/**
+ * The signed-in operator's account row at the foot of the sidebar: the link to Account, where account actions live, and
+ * beside it the chevron that opens the wallet's balances.
+ */
 export function AccountLink({ collect }: { collect: number }) {
   const auth = useAuth()
+  const row = useRef<HTMLDivElement>(null)
   if (auth.address === undefined) return null
   const short = `${auth.address.slice(0, 6)}…${auth.address.slice(-4)}`
   return (
-    <Link
-      to="/account"
-      aria-label={`Account ${short}`}
-      className="flex min-h-11 w-full min-w-0 items-center gap-2 rounded-lg px-2 text-left text-sm transition-colors duration-(--dur-fast) hover:bg-sidebar-accent"
-    >
-      <Monogram seed={auth.address} />
-      <span className="min-w-0 flex-1 truncate font-mono text-ui">{short}</span>
-      {collect > 0 && <Count n={collect} kind="collect" />}
-    </Link>
+    <div ref={row} className="flex min-w-0 items-center gap-0.5">
+      <Link
+        to="/account"
+        aria-label={`Account ${short}`}
+        className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-lg px-2 text-left text-sm transition-colors duration-(--dur-fast) hover:bg-sidebar-accent"
+      >
+        <Monogram seed={auth.address} />
+        <span className="min-w-0 flex-1 truncate font-mono text-ui">{short}</span>
+        {collect > 0 && <Count n={collect} kind="collect" />}
+      </Link>
+      <WalletPeek address={auth.address} anchor={row} />
+    </div>
   )
 }
