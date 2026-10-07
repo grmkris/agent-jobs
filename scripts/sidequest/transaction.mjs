@@ -4,7 +4,7 @@ import { parseEnv } from 'node:util'
 import { createPublicClient, createWalletClient, http, keccak256 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 
-export const loadEnv = () => ({ ...process.env, ...parseEnv(readFileSync(resolve('.env.local'), 'utf8')) })
+export const loadEnv = () => ({ ...process.env, ...(process.env.SIDEQUEST_STAGE === 'local' || process.env.SIDEQUEST_STAGE === undefined ? parseEnv(readFileSync(resolve('.env.local'), 'utf8')) : {}) })
 const json = value => JSON.stringify(value, (_key, item) => typeof item === 'bigint' ? item.toString() : item, 2) + '\n'
 
 /** Persist signed bytes before broadcasting. An interrupted operation reconciles its original hash;
@@ -12,10 +12,10 @@ const json = value => JSON.stringify(value, (_key, item) => typeof item === 'big
 export async function testnetOperation({ id, key, to, data = '0x', value = 0n, gas = 100_000n, env = loadEnv() }) {
   if (!/^[a-z0-9-]+$/.test(id)) throw new Error('invalid-operation-id')
   if (env.SIDEQUEST_TESTNET_SEND !== '1') throw new Error('testnet-send-not-enabled')
-  const client = createPublicClient({ transport: http(env.MONAD_TESTNET_RPC_URL) })
+  const client = createPublicClient({ transport: http(env.MONAD_RPC_URL) })
   if (await client.getChainId() !== 10143) throw new Error('testnet-chain-mismatch')
   const account = privateKeyToAccount(env[key])
-  const wallet = createWalletClient({ account, transport: http(env.MONAD_TESTNET_RPC_URL) })
+  const wallet = createWalletClient({ account, transport: http(env.MONAD_RPC_URL) })
   const directory = resolve('.sidequest/operations')
   mkdirSync(directory, { recursive: true, mode: 0o700 })
   const path = resolve(directory, `${id}.json`)

@@ -1,12 +1,14 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { concatHex, createPublicClient, decodeEventLog, encodeAbiParameters, encodeFunctionData, getAddress, http, parseAbi, parseAbiParameters, parseEther, zeroAddress } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
+import { stageProfile } from '../../infra/stage.ts'
 import { loadEnv, testnetOperation } from './transaction.mjs'
 
 const env = loadEnv()
-const infra = JSON.parse(readFileSync('infra/dev.json', 'utf8'))
-const client = createPublicClient({ transport: http(env.MONAD_TESTNET_RPC_URL) })
-const address = role => privateKeyToAccount(env[`SIDEQUEST_DEV_${role}_PRIVATE_KEY`]).address
+const infra = stageProfile(env.SIDEQUEST_STAGE ?? 'dev')
+if (infra.network !== 'monad-testnet') throw new Error('testnet-only')
+const client = createPublicClient({ transport: http(env.MONAD_RPC_URL) })
+const address = role => privateKeyToAccount(env[`${role}_PRIVATE_KEY`]).address
 const safeAbi = parseAbi(['function setup(address[],uint256,address,bytes,address,address,uint256,address)', 'function getOwners() view returns (address[])', 'function getThreshold() view returns (uint256)', 'function VERSION() view returns (string)'])
 const factoryAbi = parseAbi(['function createProxyWithNonce(address,bytes,uint256) returns (address)', 'event ProxyCreation(address indexed proxy,address singleton)'])
 
@@ -23,7 +25,7 @@ try {
     const tokens = []
     for (const [name, symbol] of [['Sidequest USD (testnet)', 'mUSD'], ['Sidequest EUR (testnet)', 'mEUR']]) {
       const data = concatHex([artifact.bytecode.object, encodeAbiParameters(parseAbiParameters('string,string'), [name, symbol])])
-      const result = await testnetOperation({ id: `reward-${symbol.toLowerCase()}-20261006`, key: 'SIDEQUEST_DEV_DEPLOYER_PRIVATE_KEY', data, gas: 1_000_000n, env })
+      const result = await testnetOperation({ id: `reward-${symbol.toLowerCase()}-20261006`, key: 'DEPLOYER_PRIVATE_KEY', data, gas: 1_000_000n, env })
       const token = result.receipt.contractAddress
       if (!token || await client.readContract({ address: token, abi: parseAbi(['function symbol() view returns (string)']), functionName: 'symbol' }) !== symbol) throw new Error('reward-readback-mismatch')
       tokens.push(token)
@@ -41,14 +43,14 @@ try {
     const payment = config.deployment.rewardTokens
     const artifact = JSON.parse(readFileSync('contracts/out/TestnetFaucet.sol/TestnetFaucet.json', 'utf8'))
     const data = concatHex([artifact.bytecode.object, encodeAbiParameters(parseAbiParameters('address,address,address[],uint256,uint256'), [address('DEPLOYER'), side, payment, parseEther('1000'), 1_000_000_000n])])
-    const deployed = await testnetOperation({ id: 'faucet-deploy-20261006', key: 'SIDEQUEST_DEV_DEPLOYER_PRIVATE_KEY', data, gas: 1_500_000n, env })
+    const deployed = await testnetOperation({ id: 'faucet-deploy-20261006', key: 'DEPLOYER_PRIVATE_KEY', data, gas: 1_500_000n, env })
     const faucet = deployed.receipt.contractAddress
     const faucetAbi = parseAbi(['function stakeToken() view returns (address)', 'function paymentTokens() view returns (address[])', 'function owner() view returns (address)'])
     const read = functionName => client.readContract({ address: faucet, abi: faucetAbi, functionName })
     if (!faucet || (await read('stakeToken')).toLowerCase() !== side.toLowerCase() || (await read('paymentTokens')).join() !== payment.join() || await read('owner') !== address('DEPLOYER')) throw new Error('faucet-readback-mismatch')
     console.log(JSON.stringify({ faucet, hash: deployed.hash, block: deployed.block }))
     const transfer = encodeFunctionData({ abi: parseAbi(['function transfer(address,uint256) returns (bool)']), functionName: 'transfer', args: [faucet, parseEther('10000000')] })
-    const funded = await testnetOperation({ id: 'faucet-fund-20261006', key: 'SIDEQUEST_DEV_CREATOR_PRIVATE_KEY', to: side, data: transfer, gas: 100_000n, env })
+    const funded = await testnetOperation({ id: 'faucet-fund-20261006', key: 'CREATOR_PRIVATE_KEY', to: side, data: transfer, gas: 100_000n, env })
     console.log(JSON.stringify({ funded: '10000000 SIDE', hash: funded.hash, block: funded.block }))
     config.deployment.testnetFaucet = getAddress(faucet)
     writeFileSync('contracts/config/monad-testnet.json', JSON.stringify(config, null, 2) + '\n')
@@ -59,7 +61,7 @@ try {
     const owners = [address('SAFE_OWNER'), address('SAFE_BACKUP')]
     const initialization = encodeFunctionData({ abi: safeAbi, functionName: 'setup', args: [owners, 1n, zeroAddress, '0x', infra.safeInfrastructure.fallbackHandler, zeroAddress, 0n, zeroAddress] })
     const data = encodeFunctionData({ abi: factoryAbi, functionName: 'createProxyWithNonce', args: [infra.safeInfrastructure.singleton, initialization, 2026100601n] })
-    const result = await testnetOperation({ id: 'safe-create-20261006', key: 'SIDEQUEST_DEV_DEPLOYER_PRIVATE_KEY', to: infra.safeInfrastructure.factory, data, gas: 500_000n, env })
+    const result = await testnetOperation({ id: 'safe-create-20261006', key: 'DEPLOYER_PRIVATE_KEY', to: infra.safeInfrastructure.factory, data, gas: 500_000n, env })
     const creation = result.receipt.logs.filter(log => log.address.toLowerCase() === infra.safeInfrastructure.factory.toLowerCase()).map(log => { try { return decodeEventLog({ abi: factoryAbi, ...log }) } catch { return null } }).find(event => event?.eventName === 'ProxyCreation')
     if (!creation || creation.args.singleton.toLowerCase() !== infra.safeInfrastructure.singleton.toLowerCase()) throw new Error('safe-creation-receipt-mismatch')
     const safe = creation.args.proxy

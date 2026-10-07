@@ -12,7 +12,7 @@ const root = resolve('.sidequest')
 mkdirSync(root, { recursive: true, mode: 0o700 })
 
 function keystore(role) {
-  const key = env[`SIDEQUEST_DEV_${role}_PRIVATE_KEY`]
+  const key = env[`${role}_PRIVATE_KEY`]
   const account = privateKeyToAccount(key)
   const directory = resolve(root, 'keystores')
   mkdirSync(directory, { recursive: true, mode: 0o700 })
@@ -48,7 +48,7 @@ try {
   if (role === 'DEPLOYER' && signer.address !== config.roles.admin) throw new Error('deployer-config-mismatch')
   const scripts = { 'deploy-plan': 'DeploySidequest.s.sol', deploy: 'DeploySidequest.s.sol', promote: 'PromoteSidequest.s.sol', 'accept-plan': 'SafeAccept.s.sol', accept: 'SafeAccept.s.sol', verify: 'SafeAccept.s.sol' }
   if (!scripts[action]) throw new Error('invalid-contract-action')
-  const args = ['script', `script/${scripts[action]}`, '--rpc-url', env.MONAD_TESTNET_RPC_URL, '--sender', signer.address]
+  const args = ['script', `script/${scripts[action]}`, '--rpc-url', env.MONAD_RPC_URL, '--sender', signer.address]
   if (action === 'verify') args.push('--sig', 'check()')
   if (action !== 'promote' && action !== 'verify') args.push('--keystore', signer.path, '--password-file', signer.passwordPath, '--legacy', '--with-gas-price', '110000000000', '--gas-estimate-multiplier', '110')
   if (sends) args.push('--broadcast', '--slow', '--non-interactive')
