@@ -1,7 +1,7 @@
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { test } from 'bun:test'
+import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { outputPath, parseArchiveArgs, readStage, writeArchive } from './archive-jobs.mjs'
 
@@ -63,7 +63,7 @@ function fixtureFetch(calls) {
   }
 }
 
-test('public archive reads Explore jobs, offers and recent quote requests without credentials', async () => {
+void test('public archive reads Explore jobs, offers and recent quote requests without credentials', async () => {
   const calls = []
   const archive = await readStage('dev', { fetcher: fixtureFetch(calls), observedAt: '2026-10-07T00:00:00.000Z' })
   assert.deepEqual(calls, [
@@ -84,7 +84,7 @@ test('public archive reads Explore jobs, offers and recent quote requests withou
   assert.equal(archive.coverage.quoteRequests.historicalComplete, false)
 })
 
-test('stage hosts and output names are explicit and deterministic', () => {
+void test('stage hosts and output names are explicit and deterministic', () => {
   assert.throws(() => parseArchiveArgs([]), /--stage/u)
   assert.throws(() => parseArchiveArgs(['--stage', 'staging']), /usage/u)
   assert.throws(() => parseArchiveArgs(['--stage', 'dev', '--stage', 'prod']), /duplicate/u)
@@ -98,7 +98,7 @@ test('stage hosts and output names are explicit and deterministic', () => {
   assert.throws(() => parseArchiveArgs(['--stage', 'dev', '--date', '2026-02-30']), /usage/u)
 })
 
-test('prod reads the production stage public origin', async () => {
+void test('prod reads the production stage public origin', async () => {
   const reader = fixtureFetch([])
   const origins = new Set()
   await readStage('prod', {
@@ -110,7 +110,7 @@ test('prod reads the production stage public origin', async () => {
   assert.deepEqual([...origins], ['https://sidequest.exchange'])
 })
 
-test('tenant offers and quote requests are captured through public board-prefixed reads', async () => {
+void test('tenant offers and quote requests are captured through public board-prefixed reads', async () => {
   const calls = []
   const reader = fixtureFetch(calls)
   const archive = await readStage('dev', {
@@ -145,7 +145,7 @@ test('tenant offers and quote requests are captured through public board-prefixe
   assert.ok(calls.some((call) => call.path === '/b/tenant-one/api/list_quote_requests' && call.body.recent === true))
 })
 
-test('deployment drift and a public service failure refuse capture', async () => {
+void test('deployment drift and a public service failure refuse capture', async () => {
   const reader = fixtureFetch([])
   let protocolReads = 0
   await assert.rejects(
@@ -171,7 +171,7 @@ test('deployment drift and a public service failure refuse capture', async () =>
   )
 })
 
-test('known public list limits and duplicate rows refuse a silently incomplete archive', async () => {
+void test('known public list limits and duplicate rows refuse a silently incomplete archive', async () => {
   const reader = fixtureFetch([])
   const variants = [
     [
@@ -222,7 +222,7 @@ test('known public list limits and duplicate rows refuse a silently incomplete a
   }
 })
 
-test('archive output refuses overwrites and writes a reviewable JSON file', () => {
+void test('archive output refuses overwrites and writes a reviewable JSON file', () => {
   const root = mkdtempSync(join(tmpdir(), 'sidequest-archive-'))
   try {
     const target = join(root, 'jobs.json')
@@ -235,7 +235,7 @@ test('archive output refuses overwrites and writes a reviewable JSON file', () =
   }
 })
 
-test('malformed public chain facts fail closed before an archive is written', async () => {
+void test('malformed public chain facts fail closed before an archive is written', async () => {
   const fetcher = fixtureFetch([])
   await assert.rejects(
     readStage('dev', {

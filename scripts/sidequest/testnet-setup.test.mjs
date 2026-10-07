@@ -1,4 +1,4 @@
-import { test } from 'bun:test'
+import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
@@ -7,7 +7,7 @@ import { join } from 'node:path'
 import { parseEther } from 'viem'
 import { existingSafe, faucetPlan, parseSetupArgs, safeNonce, setupOperationId } from './testnet-setup-model.mjs'
 
-test('a generation is required and all setup operation IDs change with it', () => {
+void test('a generation is required and all setup operation IDs change with it', () => {
   for (const args of [
     [],
     ['fund'],
@@ -33,7 +33,7 @@ test('a generation is required and all setup operation IDs change with it', () =
   assert.equal(safeNonce('g1d'), safeNonce('g1d'))
 })
 
-test('the configured Safe is reused after the deployment config is reset', async () => {
+void test('the configured Safe is reused after the deployment config is reset', async () => {
   const safe = '0x1111111111111111111111111111111111111111'
   assert.equal(await existingSafe({ sidequest: { safe }, deployment: {} }, { getCode: async () => '0x6000' }), safe)
   assert.equal(await existingSafe({ deployment: { sidequest: { safe } } }, { getCode: async () => '0x6000' }), safe)
@@ -61,7 +61,7 @@ const faucetConfig = {
   },
 }
 
-test('the faucet plan names its sender, constructor arguments, SIDE source and config key', () => {
+void test('the faucet plan names its sender, constructor arguments, SIDE source and config key', () => {
   const plan = faucetPlan(faucetConfig, 'g1d')
   assert.equal(plan.sender, faucetConfig.roles.admin)
   assert.deepEqual(plan.constructorArgs, [
@@ -78,7 +78,7 @@ test('the faucet plan names its sender, constructor arguments, SIDE source and c
   assert.throws(() => faucetPlan({ ...faucetConfig, chainId: 143 }, 'g1d'), /testnet-only/)
 })
 
-test('faucet without send enabled prints the plan with no RPC, keys, artifact or journal', () => {
+void test('faucet without send enabled prints the plan with no RPC, keys, artifact or journal', () => {
   const root = mkdtempSync(join(tmpdir(), 'g1d-faucet-plan-'))
   try {
     mkdirSync(join(root, 'contracts/config'), { recursive: true })

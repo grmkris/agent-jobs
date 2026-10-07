@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { test } from 'bun:test'
+import { test } from 'node:test'
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -41,7 +41,7 @@ const owner = {
   passwordPath: '/k/safe_owner.password',
 }
 
-test('every action needs an explicit generation label', () => {
+void test('every action needs an explicit generation label', () => {
   assert.throws(() => parseArgs(['deploy']), /generation-required/)
   assert.throws(() => parseArgs(['deploy', '--generation', 'G1D']), /generation-required/)
   assert.throws(() => parseArgs(['launch', '--generation', 'g1d']), /invalid-contract-action/)
@@ -50,7 +50,7 @@ test('every action needs an explicit generation label', () => {
   assert.equal(archivePath('g1d'), 'contracts/config/archive/pre-g1d-monad-testnet.json')
 })
 
-test('archive keeps every top-level key and only the reward tokens of the old deployment', () => {
+void test('archive keeps every top-level key and only the reward tokens of the old deployment', () => {
   assert.deepEqual(Object.keys(fresh), Object.keys(promoted))
   assert.deepEqual(fresh.deployment, { rewardTokens: ['0xmusd', '0xmeur'] })
   assert.deepEqual(fresh.boards, promoted.boards)
@@ -58,7 +58,7 @@ test('archive keeps every top-level key and only the reward tokens of the old de
   assert.throws(() => resetConfig({ ...promoted, chainId: 143 }), /fresh-testnet-config-required/)
 })
 
-test('sending actions refuse without SIDEQUEST_TESTNET_SEND and plans never broadcast', () => {
+void test('sending actions refuse without SIDEQUEST_TESTNET_SEND and plans never broadcast', () => {
   const unsent = { MONAD_RPC_URL: env.MONAD_RPC_URL }
   assert.throws(
     () =>
@@ -97,7 +97,7 @@ test('sending actions refuse without SIDEQUEST_TESTNET_SEND and plans never broa
   assert.equal(plan.forgeEnv.FOUNDRY_BROADCAST, 'broadcast/sidequest-g1d')
 })
 
-test('deploy refuses a promoted config, an existing candidate and a foreign deployer', () => {
+void test('deploy refuses a promoted config, an existing candidate and a foreign deployer', () => {
   assert.throws(
     () =>
       planAction({
@@ -170,7 +170,7 @@ test('deploy refuses a promoted config, an existing candidate and a foreign depl
   assert.ok(plan.args.includes('--broadcast') && plan.args.includes('--slow'))
 })
 
-test('accept signs as the Safe owner; promote and verify use no keystore', () => {
+void test('accept signs as the Safe owner; promote and verify use no keystore', () => {
   assert.equal(roleFor('accept'), 'SAFE_OWNER')
   assert.equal(roleFor('accept-plan'), 'SAFE_OWNER')
   assert.equal(roleFor('promote'), 'DEPLOYER')
@@ -212,7 +212,7 @@ function temporary(operation) {
   }
 }
 
-test('archive, deploy, promote and accept share an exclusive generation operation lock', () =>
+void test('archive, deploy, promote and accept share an exclusive generation operation lock', () =>
   temporary((root) => {
     assert.deepEqual([...LOCKED_OPERATIONS], ['archive', 'deploy', 'promote', 'accept'])
     assert.equal(operationLockPath('g1d'), '.sidequest/contracts-g1d.lock')
@@ -243,7 +243,7 @@ test('archive, deploy, promote and accept share an exclusive generation operatio
     assert.equal(existsSync(lock), false)
   }))
 
-test('a pre-existing lock is preserved; errors release only the acquired lock', () =>
+void test('a pre-existing lock is preserved; errors release only the acquired lock', () =>
   temporary((root) => {
     const lock = join(root, 'contracts-g1d.lock')
     writeFileSync(lock, 'old-pid\n')
@@ -274,7 +274,7 @@ test('a pre-existing lock is preserved; errors release only the acquired lock', 
     assert.equal(existsSync(lock), false)
   }))
 
-test('explicit process exit releases the operation lock', () =>
+void test('explicit process exit releases the operation lock', () =>
   temporary((root) => {
     const result = spawnSync('node', [
       '--input-type=module',
@@ -286,7 +286,7 @@ test('explicit process exit releases the operation lock', () =>
     assert.equal(existsSync(join(root, 'contracts-g1d.lock')), false)
   }))
 
-test('an existing archive refuses without overwriting it or resetting the config', () =>
+void test('an existing archive refuses without overwriting it or resetting the config', () =>
   temporary((root) => {
     const configPath = join(root, 'config.json'),
       target = join(root, 'archive.json')
@@ -298,7 +298,7 @@ test('an existing archive refuses without overwriting it or resetting the config
     assert.equal(readFileSync(configPath, 'utf8'), bytes)
   }))
 
-test('the exclusive archive preserves the exact bytes of the single config read', () =>
+void test('the exclusive archive preserves the exact bytes of the single config read', () =>
   temporary((root) => {
     const configPath = join(root, 'config.json'),
       target = join(root, 'archive.json')
