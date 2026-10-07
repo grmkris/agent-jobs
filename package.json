@@ -97,7 +97,7 @@
       "fumadocs-ui": "npm:@fumadocs/base-ui@16.16.2",
       "mdast-util-to-markdown": "2.2.0",
       "unist-util-visit": "5.1.0",
-      "zod": "4.4.3",
+      "zod": "4.6.5",
       "@types/mdast": "4.0.4",
       "@types/mdx": "2.0.14",
       "@types/unist": "3.0.3",
