@@ -19,7 +19,7 @@ export default defineConfig({
     prerender: { enabled: true, crawlLinks: true, autoSubfolderIndex: false, filter: ({ path }) => path.startsWith('/docs') || path.startsWith('/llms') || path.startsWith('/__tsr/') },
     pages: [...pages, { path: '/docs/not-found' }, { path: '/docs/search.json' }, { path: '/llms.txt' }, { path: '/llms-full.txt' }],
   }), react()],
-  resolve: { tsconfigPaths: true },
+  resolve: { tsconfigPaths: true, dedupe: ['fumadocs-core', 'react', 'zod'] },
   define: { __DOCS_ORIGIN__: JSON.stringify(docsOrigin()) },
   build: { assetsDir: 'docs/_assets' },
 })

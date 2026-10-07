@@ -32,7 +32,7 @@ async function loadDocs() {
     envDir: false,
     plugins: [...fumadocsMdx(), react()],
     define: { __DOCS_ORIGIN__: JSON.stringify(placeholder) },
-    resolve: { tsconfigPaths: true },
+    resolve: { tsconfigPaths: true, dedupe: ['fumadocs-core', 'react', 'zod'] },
     server: { middlewareMode: true, hmr: false, watch: null },
     appType: 'custom',
     optimizeDeps: { noDiscovery: true, include: [] },
