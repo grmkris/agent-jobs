@@ -530,15 +530,20 @@ export async function drainTelegramOutbox(
 export async function enqueuePublicRequest(
   sql: AsyncSql,
   channelId: string,
-  input: { boardId: string; taskId: string; title?: string; network: Network; now: number; kind: 'job' | 'quotes' },
+  input: { boardId: string; taskId: string; title?: string; network: Network; now: number } & (
+    | { kind: 'job'; coreAddress: string }
+    | { kind: 'quotes' }
+  ),
 ) {
   if (channelId === '') {
     console.info('Telegram public request skipped: channel unset', input.network)
     return
   }
   const boardPath = input.boardId === 'public' ? '' : `/b/${encodeURIComponent(input.boardId)}`
+  // Core job IDs restart at each deployment; quote request IDs keep their off-chain identity.
+  const identity = input.kind === 'job' ? `${input.coreAddress.toLowerCase()}:${input.boardId}` : input.boardId
   await enqueueTelegram(sql, {
-    id: `telegram:request:${input.boardId}:${input.taskId}`,
+    id: `telegram:request:${identity}:${input.taskId}`,
     chatId: channelId,
     text: `New Sidequest request${input.title === undefined ? '' : `: ${input.title.slice(0, 200)}`}\n${publicOrigin()}${boardPath}/${input.kind === 'job' ? 'job' : 'quotes'}/${encodeURIComponent(input.taskId)}`,
     now: input.now,

@@ -47,12 +47,17 @@ export async function queueTelegramNotifications(
   } = {},
 ) {
   const chainId = telegramChainId(network)
-  const [checkpoint] = await sql.all<{ updated_at: number }>(
-    'SELECT updated_at FROM checkpoint WHERE chain_id = ?',
+  const [checkpoint] = await sql.all<{ updated_at: number; core_address: string | null }>(
+    'SELECT updated_at, core_address FROM checkpoint WHERE chain_id = ?',
     chainId,
   )
   // Reminders must never be sent from a stalled index. Bot link replies can still drain independently.
-  if (options.caughtUp === false || checkpoint === undefined || checkpoint.updated_at < now - 120)
+  if (
+    options.caughtUp === false ||
+    checkpoint === undefined ||
+    checkpoint.core_address === null ||
+    checkpoint.updated_at < now - 120
+  )
     return { processed: 0, reminders: 0, stale: true }
   const events = await sql.all<Event>(
     `SELECT e.*, b.timestamp FROM events e
@@ -100,6 +105,7 @@ export async function queueTelegramNotifications(
         boardId: 'public',
         taskId: e.job_id,
         kind: 'job',
+        coreAddress: checkpoint.core_address,
         network,
         now,
       })
