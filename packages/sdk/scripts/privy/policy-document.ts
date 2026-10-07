@@ -27,4 +27,3 @@ export function writablePolicy(policy: JsonRecord): JsonRecord {
 export function canonical(policy: JsonRecord): string {
   return formatPrivyAuthorizationPayload({ method: 'PATCH', url: '', headers: {}, body: policy })
 }
-
