@@ -37,6 +37,8 @@ export function contentErrors(text: string, file = 'page.mdx'): string[] {
   if (metadata.legacy !== true && banned.test(text)) error('legacy or unsupported terminology')
   visit(tree, (node, _index, parent) => {
     if (node.type === 'mdxjsEsm') error('imports and exports are forbidden')
+    // The page template renders the frontmatter title as the one H1; a body H1 doubles it in HTML and Markdown.
+    if (node.type === 'heading' && node.depth === 1) error('no H1 in the body: the frontmatter title is the page heading')
     if (node.type === 'mdxFlowExpression' || node.type === 'mdxTextExpression') error('expressions are forbidden in prose')
     if (node.type === 'text' && node.value.includes('{')) error('braces are forbidden in prose')
     if (node.type === 'code') { if (node.lang === 'npm') error('npm code fences are forbidden'); if (/\btab\s*=/.test(node.meta ?? '')) error('code tab metadata is forbidden') }
