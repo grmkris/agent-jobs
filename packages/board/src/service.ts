@@ -671,7 +671,7 @@ export class Board {
     const ctx = this.#ctx(stack)
     await this.#requireUnpaused(stack)
     const token = await this.#resolveToken(ctx, input.token)
-    const decimals = await ctx.publicClient.readContract({ address: token, abi: sdk.factoryTokenAbi, functionName: 'decimals' })
+    const decimals = await ctx.publicClient.readContract({ address: token, abi: erc20Abi, functionName: 'decimals' })
     const [windows, arbitrator, block] = await Promise.all([
       sidequest.offerWindows(ctx, input.windows),
       sidequest.offerArbitrator(ctx, input.arbitrator),
@@ -735,7 +735,7 @@ export class Board {
       if (worker === zeroAddress || [creator, terms.approver, terms.arbitrator].some(a => eq(a, worker))) throw new BoardError('invalid', 'the invited agent must have a registered wallet distinct from creator, approver and arbitrator')
       invited = { worker, agentId }
     }
-    const symbol = await ctx.publicClient.readContract({ address: token, abi: sdk.factoryTokenAbi, functionName: 'symbol' })
+    const symbol = await ctx.publicClient.readContract({ address: token, abi: erc20Abi, functionName: 'symbol' })
     // "mEUR"/"mUSD" read as millions to a model; say what the unit is.
     const unit = this.#config.network === 'monad-testnet' ? ` (${symbol} is a testnet mock token worth about 1 ${symbol.replace(/^m/, '')} of play money; "m" means mock, not million)` : ''
     const screening = await screenOffer(this.#config.screening, terms, `${input.reward} ${symbol}${unit}`, this.#now())
@@ -860,7 +860,7 @@ export class Board {
     if (b.kind !== 'advance') throw new BoardError('invalid', "an execution budget is an 'advance' or a 'call'")
     if (b.token === undefined) throw new BoardError('invalid', 'an advance needs its `token`')
     const token = await this.#advanceToken(ctx, b.token)
-    const decimals = await ctx.publicClient.readContract({ address: token, abi: sdk.factoryTokenAbi, functionName: 'decimals' })
+    const decimals = await ctx.publicClient.readContract({ address: token, abi: erc20Abi, functionName: 'decimals' })
     let cap: bigint
     try {
       cap = parseUnits(b.cap, decimals)
@@ -874,7 +874,7 @@ export class Board {
   async #advanceToken(ctx: sdk.Ctx, token: string): Promise<Address> {
     if (!isAddress(token)) return this.#resolveToken(ctx, token)
     const t = getAddress(token)
-    await ctx.publicClient.readContract({ address: t, abi: sdk.factoryTokenAbi, functionName: 'decimals' }).catch(() => {
+    await ctx.publicClient.readContract({ address: t, abi: erc20Abi, functionName: 'decimals' }).catch(() => {
       throw new BoardError('invalid', `${t} is not an ERC-20 on ${ctx.deployment.network}`)
     })
     return t
@@ -883,8 +883,8 @@ export class Board {
   /** A base-unit amount as people read it: the token's symbol and a decimal amount. */
   async #displayAmount<T extends { token: Address; amount: string }>(ctx: sdk.Ctx, x: T): Promise<T & { symbol: string }> {
     const [symbol, decimals] = await Promise.all([
-      ctx.publicClient.readContract({ address: x.token, abi: sdk.factoryTokenAbi, functionName: 'symbol' }),
-      ctx.publicClient.readContract({ address: x.token, abi: sdk.factoryTokenAbi, functionName: 'decimals' }),
+      ctx.publicClient.readContract({ address: x.token, abi: erc20Abi, functionName: 'symbol' }),
+      ctx.publicClient.readContract({ address: x.token, abi: erc20Abi, functionName: 'decimals' }),
     ])
     return { ...x, symbol, amount: formatUnits(BigInt(x.amount), decimals) }
   }
@@ -896,7 +896,7 @@ export class Board {
   async #resolveToken(ctx: sdk.Ctx, token: string): Promise<Address> {
     if (!isAddress(token)) {
       for (const t of ctx.deployment.rewardTokens) {
-        const symbol = await ctx.publicClient.readContract({ address: t, abi: sdk.factoryTokenAbi, functionName: 'symbol' })
+        const symbol = await ctx.publicClient.readContract({ address: t, abi: erc20Abi, functionName: 'symbol' })
         if (symbol.toLowerCase() === token.toLowerCase()) return t
       }
       throw new BoardError('invalid', `"${token}" is not a known token symbol; name the token by its address (any ERC-20)`)
@@ -904,8 +904,8 @@ export class Board {
     const t = getAddress(token)
     if (ctx.deployment.rewardTokens.some((r) => eq(r, t))) return t
     const symbol = await Promise.all([
-      ctx.publicClient.readContract({ address: t, abi: sdk.factoryTokenAbi, functionName: 'symbol' }),
-      ctx.publicClient.readContract({ address: t, abi: sdk.factoryTokenAbi, functionName: 'decimals' }),
+      ctx.publicClient.readContract({ address: t, abi: erc20Abi, functionName: 'symbol' }),
+      ctx.publicClient.readContract({ address: t, abi: erc20Abi, functionName: 'decimals' }),
     ]).then(
       ([sym]) => sym,
       () => {
@@ -930,7 +930,7 @@ export class Board {
       const [spender, spenderLabel] = to ?? [ctx.stack.holding, 'JobHolding']
       const allowance = await ctx.publicClient.readContract({
         address: token,
-        abi: sdk.factoryTokenAbi,
+        abi: erc20Abi,
         functionName: 'allowance',
         args: [owner, spender],
       })
@@ -941,7 +941,7 @@ export class Board {
           `approve ${label} for ${spenderLabel}`,
           token,
           // Exactly the amount this step needs, never an unlimited allowance a mismatched listing could draw on.
-          encodeFunctionData({ abi: sdk.factoryTokenAbi, functionName: 'approve', args: [spender, amount] }),
+          encodeFunctionData({ abi: erc20Abi, functionName: 'approve', args: [spender, amount] }),
         ),
       )
     }
@@ -1302,7 +1302,7 @@ export class Board {
     const task = this.#task(row.task_id)
     const ctx = this.#taskCtx(task)
     const token = getAddress(row.token)
-    const decimals = await ctx.publicClient.readContract({ address: token, abi: sdk.factoryTokenAbi, functionName: 'decimals' })
+    const decimals = await ctx.publicClient.readContract({ address: token, abi: erc20Abi, functionName: 'decimals' })
     const amount = parseUnits(input.amount, decimals)
     if (amount <= 0n) throw new BoardError('invalid', 'amount must be positive')
     const pool = getAddress(row.pool)
@@ -1548,7 +1548,7 @@ export class Board {
       throw new BoardError('invalid', 'budget is {token, max}')
     }
     const token = await this.#resolveToken(ctx, input.token)
-    const decimals = await ctx.publicClient.readContract({ address: token, abi: sdk.factoryTokenAbi, functionName: 'decimals' })
+    const decimals = await ctx.publicClient.readContract({ address: token, abi: erc20Abi, functionName: 'decimals' })
     let max: bigint
     try {
       max = parseUnits(input.max, decimals)
@@ -1707,7 +1707,7 @@ export class Board {
     if (!request.tokens.some((t) => eq(t, token))) throw new BoardError('invalid', 'that token is not accepted by this request')
     const agentWallet = await sdk.agentWallet(ctx, BigInt(input.agentId)).catch(() => zeroAddress)
     if (!eq(agentWallet, me)) throw new BoardError('forbidden', `agent ${input.agentId}'s registered wallet is ${agentWallet}, not ${me}`)
-    const decimals = await ctx.publicClient.readContract({ address: token, abi: sdk.factoryTokenAbi, functionName: 'decimals' })
+    const decimals = await ctx.publicClient.readContract({ address: token, abi: erc20Abi, functionName: 'decimals' })
     let amount: bigint
     try {
       amount = parseUnits(input.amount, decimals)
@@ -1721,7 +1721,7 @@ export class Board {
     let expectedCosts: { token: Address; amount: string; note: string } | undefined
     if (input.expectedCosts !== undefined) {
       const costToken = await this.#advanceToken(ctx, input.expectedCosts.token)
-      const costDecimals = await ctx.publicClient.readContract({ address: costToken, abi: sdk.factoryTokenAbi, functionName: 'decimals' })
+      const costDecimals = await ctx.publicClient.readContract({ address: costToken, abi: erc20Abi, functionName: 'decimals' })
       let cost: bigint
       try {
         cost = parseUnits(input.expectedCosts.amount, costDecimals)
@@ -1763,8 +1763,8 @@ export class Board {
     for (const q of this.#sql.all<QuoteRow>('SELECT * FROM quotes WHERE request_id = ? ORDER BY created_at', req.id)) {
       if (!all && !eq(q.worker, me)) continue
       const [symbol, decimals] = await Promise.all([
-        ctx.publicClient.readContract({ address: q.token as Address, abi: sdk.factoryTokenAbi, functionName: 'symbol' }),
-        ctx.publicClient.readContract({ address: q.token as Address, abi: sdk.factoryTokenAbi, functionName: 'decimals' }),
+        ctx.publicClient.readContract({ address: q.token as Address, abi: erc20Abi, functionName: 'symbol' }),
+        ctx.publicClient.readContract({ address: q.token as Address, abi: erc20Abi, functionName: 'decimals' }),
       ])
       out.push({
         quoteId: q.id,
@@ -1826,7 +1826,7 @@ export class Board {
       windows?: import('./terms.ts').EvaluatorWindows; arbitrator?: Address
       tags?: sdk.JobTag[]
     }
-    const decimals = await ctx.publicClient.readContract({ address: q.token as Address, abi: sdk.factoryTokenAbi, functionName: 'decimals' })
+    const decimals = await ctx.publicClient.readContract({ address: q.token as Address, abi: erc20Abi, functionName: 'decimals' })
     const created = await this.createTask(
       caller,
       {

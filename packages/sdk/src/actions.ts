@@ -1,3 +1,4 @@
+import { erc20Abi } from 'viem'
 /**
  * Every on-chain operation of the protocol, one function each, over viem clients. Writes simulate first (so a
  * revert surfaces with its decoded error before anything is sent), then send and wait for the receipt; a reverted
@@ -23,7 +24,6 @@ import {
 } from 'viem'
 import {
   coreAbi,
-  factoryTokenAbi,
   faucetTokenAbi,
   identityAbi,
   jobHoldingAbi,
@@ -145,16 +145,16 @@ export function drip(ctx: Ctx, wallet: Wallet, to: Address = wallet.account.addr
 export async function ensureAllowance(ctx: Ctx, wallet: Wallet, token: Address, spender: Address, amount: bigint) {
   const current = await ctx.publicClient.readContract({
     address: token,
-    abi: factoryTokenAbi,
+    abi: erc20Abi,
     functionName: 'allowance',
     args: [wallet.account.address, spender],
   })
   if (current >= amount) return undefined
-  return write(ctx, wallet, token, factoryTokenAbi, 'approve', [spender, maxUint256])
+  return write(ctx, wallet, token, erc20Abi, 'approve', [spender, maxUint256])
 }
 
 export function balanceOf(ctx: Ctx, token: Address, who: Address) {
-  return ctx.publicClient.readContract({ address: token, abi: factoryTokenAbi, functionName: 'balanceOf', args: [who] })
+  return ctx.publicClient.readContract({ address: token, abi: erc20Abi, functionName: 'balanceOf', args: [who] })
 }
 
 /** Registers the wallet as an ERC-8004 agent; its agent wallet defaults to the owner. Returns the agent id. */

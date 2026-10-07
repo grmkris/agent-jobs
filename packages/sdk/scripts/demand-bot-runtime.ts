@@ -1,3 +1,4 @@
+import { erc20Abi } from 'viem'
 import { type Hex, decodeEventLog, getAddress, isAddress, zeroAddress } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import * as sdk from '../src/index.ts'
@@ -40,8 +41,8 @@ export function createDemandRuntime(key: Hex, rpc: string, directory: string) {
   async function validateChain() {
     if (ctx.deployment.chainId !== 10143 || await ctx.publicClient.getChainId() !== 10143 || ctx.stack.kind !== 'sidequest-v1') throw new Error('only Monad testnet v1 is authorized')
     const [symbol, decimals] = await Promise.all([
-      ctx.publicClient.readContract({ address: token, abi: sdk.factoryTokenAbi, functionName: 'symbol' }),
-      ctx.publicClient.readContract({ address: token, abi: sdk.factoryTokenAbi, functionName: 'decimals' }),
+      ctx.publicClient.readContract({ address: token, abi: erc20Abi, functionName: 'symbol' }),
+      ctx.publicClient.readContract({ address: token, abi: erc20Abi, functionName: 'decimals' }),
     ])
     if (symbol !== 'mUSD' || decimals !== 6) throw new Error('configured demand token is not 6-decimal mUSD')
   }

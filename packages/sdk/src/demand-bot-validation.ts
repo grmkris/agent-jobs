@@ -1,8 +1,9 @@
+import { erc20Abi } from 'viem'
 /** Validate hosted preparations against the bot's frozen decision before any signing. */
 import { type Address, type Hex, encodeFunctionData, getAddress, keccak256 } from 'viem'
 import type { Ctx } from './actions.ts'
 import { hashText } from './actions.ts'
-import { factoryTokenAbi, sidequestEvaluatorAbi, sidequestHoldingAbi } from './abi/index.ts'
+import { sidequestEvaluatorAbi, sidequestHoldingAbi } from './abi/index.ts'
 import type { TxRequest } from './board-client.ts'
 import type { OfferWindows } from './clocks.ts'
 import { type DemandQuote, type DemandTemplate, parseMUsdAmount } from './demand-bot.ts'
@@ -129,7 +130,7 @@ export function validateDemandPreparation(ctx: Ctx, intent: DemandIntent, reques
   }
   const approve: TxRequest = {
     description: 'Approve exact reward', chainId: 10143, to: intent.token, value: '0',
-    data: encodeFunctionData({ abi: factoryTokenAbi, functionName: 'approve', args: [ctx.stack.holding, reward] }),
+    data: encodeFunctionData({ abi: erc20Abi, functionName: 'approve', args: [ctx.stack.holding, reward] }),
   }
   assertDemandTransactions(prepared.transactions, prepared.transactions.length === 2 ? [approve, publish] : [publish])
 }

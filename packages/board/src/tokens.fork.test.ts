@@ -1,3 +1,4 @@
+import { erc20Abi } from 'viem'
 /**
  * ADR-0010 on a local anvil fork of Monad testnet: a reward in a token nobody listed, through the board, on the pair
  * whose Holding is safe with any ERC-20, and refused on a legacy pair that predates it. The reward is the real
@@ -92,7 +93,7 @@ fork('permissionless reward tokens on a testnet fork (ADR-0010)', () => {
     try {
       for (const a of [creator, worker]) {
         const hash = await rpcCall('eth_sendTransaction', [{ from: ecosystem, to: token(),
-          data: encodeFunctionData({ abi: sdk.factoryTokenAbi, functionName: 'transfer', args: [a.address, parseEther('100')] }) }]) as Hex
+          data: encodeFunctionData({ abi: erc20Abi, functionName: 'transfer', args: [a.address, parseEther('100')] }) }]) as Hex
         expect((await c.publicClient.waitForTransactionReceipt({ hash })).status).toBe('success')
       }
     } finally { await rpcCall('anvil_stopImpersonatingAccount', [ecosystem]) }

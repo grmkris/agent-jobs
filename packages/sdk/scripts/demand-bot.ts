@@ -1,3 +1,4 @@
+import { erc20Abi } from 'viem'
 /** C2 CLI. Setup funds only this independent testnet creator; start is reserved for Claude. */
 import { spawnSync } from 'node:child_process'
 import { appendFileSync, chmodSync, closeSync, existsSync, fsyncSync, openSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
@@ -92,7 +93,7 @@ async function main() {
     })
     for (const [operation, amount, tx] of [
       ['setup/native', nativeAmount, { to: account.address, value: nativeAmount.toString(), data: '0x' as Hex }],
-      ['setup/musd', tokenAmount, { to: token, value: '0', data: encodeFunctionData({ abi: sdk.factoryTokenAbi, functionName: 'transfer', args: [account.address, tokenAmount] }) }],
+      ['setup/musd', tokenAmount, { to: token, value: '0', data: encodeFunctionData({ abi: erc20Abi, functionName: 'transfer', args: [account.address, tokenAmount] }) }],
     ] as const) {
       if (amount === 0n) continue
       if (store.state.sends[operation] === undefined) {

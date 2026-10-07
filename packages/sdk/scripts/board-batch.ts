@@ -1,3 +1,4 @@
+import { erc20Abi } from 'viem'
 /**
  * EIP-7702 batches through the hosted board, live on Monad testnet (demo board): every multi-transaction step goes
  * out as one transaction through the MetaMask DeleGator (ERC-7579 `execute`), and the board confirms each operation from the
@@ -96,7 +97,7 @@ await pub.call('submit_selection', { taskId: t3, nonce: sel.nonce, signature: aw
 const prep = await wrk.call('prepare_activation', { taskId: t3 })
 const act = await wrk.call('build_activation', { taskId: t3, budgetSignature: await sdk.signTypedDataJson(worker, prep.sign.typedData) })
 // The bond approval is included only when the worker's allowance does not cover it yet.
-const allowance = await ctx.publicClient.readContract({ address: ctx.deployment.factory, abi: sdk.factoryTokenAbi, functionName: 'allowance', args: [workerAccount.address, ctx.stack.holding] })
+const allowance = await ctx.publicClient.readContract({ address: ctx.deployment.factory, abi: erc20Abi, functionName: 'allowance', args: [workerAccount.address, ctx.stack.holding] })
 check('worker: build_activation returns activate, preceded by the approval only if missing', act.transactions.length === (allowance >= 10n ** 18n ? 1 : 2), act.transactions.map((t: sdk.TxRequest) => t.description.split(':')[0]).join(', '))
 const a = await sendReported(wrk, worker, ctx.publicClient, t3, act.transactions, 'worker', D)
 check('worker: activated in one transaction', a.length === 1)

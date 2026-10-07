@@ -1,3 +1,4 @@
+import { erc20Abi } from 'viem'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import * as sdk from '@sidequest/sdk'
 import { useEffect, useState } from 'react'
@@ -67,7 +68,7 @@ function BuyPanel({ market: m, want, address, onDone }: { market: sdk.Market; wa
     }
   })()
   const balance = useReadContracts({
-    contracts: [{ address: tokenIn, abi: sdk.factoryTokenAbi, functionName: 'balanceOf', args: [address], chainId: chain.id }] as const,
+    contracts: [{ address: tokenIn, abi: erc20Abi, functionName: 'balanceOf', args: [address], chainId: chain.id }] as const,
     query: { refetchInterval: 10_000 },
   }).data?.[0]?.result as bigint | undefined
   const price = useQuery({ queryKey: ['market-price', m.poolId], queryFn: () => sdk.sidePrice(ctx, m, quoteToken.decimals), refetchInterval: 30_000 })

@@ -1,3 +1,4 @@
+import { erc20Abi } from 'viem'
 /**
  * Live protocol flows on Monad testnet through the SDK only, against the deployed demo stack (2m review, 2m
  * dispute, 5m arbitration). Every step is a real transaction; every money outcome is checked against balances.
@@ -130,7 +131,7 @@ async function balances() {
     sdk.balanceOf(ctx, mEUR, worker.account.address),
     sdk.balanceOf(ctx, SIDE, creator.account.address),
     sdk.balanceOf(ctx, SIDE, worker.account.address),
-    ctx.publicClient.readContract({ address: SIDE, abi: sdk.factoryTokenAbi, functionName: 'totalSupply' }),
+    ctx.publicClient.readContract({ address: SIDE, abi: erc20Abi, functionName: 'totalSupply' }),
   ])
   return { cPay, wPayUsd, wPayEur, cFac, wFac, supply }
 }

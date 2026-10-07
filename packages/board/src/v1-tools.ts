@@ -1,3 +1,4 @@
+import { erc20Abi } from 'viem'
 /** Unsigned v1 wallet actions. Amounts enter in token units and leave as base-unit strings. */
 import * as sdk from '@sidequest/sdk'
 import { type Address, encodeFunctionData, parseUnits, maxUint256 } from 'viem'
@@ -17,16 +18,16 @@ export function positiveAmount(text: string, decimals: number, fail: Fail): bigi
 async function approved(ctx: sdk.Ctx, wallet: Address, token: Address, spender: Address, amount: bigint, fail: Fail): Promise<sdk.TxRequest[]> {
   const [balance, allowance] = await Promise.all([
     sdk.balanceOf(ctx, token, wallet),
-    ctx.publicClient.readContract({ address: token, abi: sdk.factoryTokenAbi, functionName: 'allowance', args: [wallet, spender] }),
+    ctx.publicClient.readContract({ address: token, abi: erc20Abi, functionName: 'allowance', args: [wallet, spender] }),
   ])
   if (balance < amount) throw fail('conflict', 'the wallet has insufficient token balance')
-  return allowance >= amount ? [] : [transaction(ctx, 'Approve the exact amount', token, encodeFunctionData({ abi: sdk.factoryTokenAbi, functionName: 'approve', args: [spender, amount] }))]
+  return allowance >= amount ? [] : [transaction(ctx, 'Approve the exact amount', token, encodeFunctionData({ abi: erc20Abi, functionName: 'approve', args: [spender, amount] }))]
 }
 export async function prepareTopUp(ctx: sdk.Ctx, wallet: Address, jobId: bigint, text: string, fail: Fail) {
   requireV1(ctx, fail)
   const [job, listing, decision, paused] = await Promise.all([sdk.getJob(ctx, jobId), sdk.getV1Listing(ctx, jobId), sdk.caseOf(ctx, jobId), ctx.publicClient.readContract({ address: ctx.deployment.core, abi: sdk.coreAbi, functionName: 'paused' })])
   if (paused || !['Funded', 'Submitted'].includes(job.statusName) || decision.outcome !== 0) throw fail('conflict', 'top-ups require an active, undecided job on an unpaused core')
-  const decimals = await ctx.publicClient.readContract({ address: listing.token, abi: sdk.factoryTokenAbi, functionName: 'decimals' })
+  const decimals = await ctx.publicClient.readContract({ address: listing.token, abi: erc20Abi, functionName: 'decimals' })
   const amount = positiveAmount(text, decimals, fail)
   return { token: listing.token, amount: amount.toString(), transactions: [
     ...await approved(ctx, wallet, listing.token, ctx.stack.holding, amount, fail),

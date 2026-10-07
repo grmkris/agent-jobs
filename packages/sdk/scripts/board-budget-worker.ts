@@ -1,3 +1,4 @@
+import { erc20Abi } from 'viem'
 /**
  * The worker half of an execution-budget test driven by a person in Explore (ADR-0009): agent 1942 waits for a hire
  * with a budget published by CREATOR, applies, activates once selected, waits for the grant, then draws once: half
@@ -72,7 +73,7 @@ log(`granted: ${budget.kind} of ${budget.cap} ${budget.symbol}, expires ${new Da
 
 let draw: { transactions: sdk.TxRequest[] }
 if (budget.kind === 'advance') {
-  const decimals = await reads.readContract({ address: budget.token as Address, abi: sdk.factoryTokenAbi, functionName: 'decimals' })
+  const decimals = await reads.readContract({ address: budget.token as Address, abi: erc20Abi, functionName: 'decimals' })
   const half = formatUnits(parseUnits(budget.cap, decimals) / 2n, decimals)
   log(`drawing ${half} ${budget.symbol}`)
   draw = await board.call('spend_budget', { taskId, amount: half, note: 'test draw: half the advance' })

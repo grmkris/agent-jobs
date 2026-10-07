@@ -1,3 +1,4 @@
+import { erc20Abi } from 'viem'
 /** Real quote-to-hire preparations, signing and receipts on a local Monad fork. */
 import { DatabaseSync } from 'node:sqlite'
 import { type Address, encodeFunctionData, parseAbi } from 'viem'
@@ -50,7 +51,7 @@ fork('demand creator with real board SQLite and v1 bytecode', () => {
     const prepared = await board.pickQuote(creator, { requestId: request.requestId, quoteId: chosen.quoteId, idempotencyKey: 'demand-fork-pick' })
     const expiredAt = await sdk.minExpiry(f.ctx, intent.deliveryDeadline, { reviewWindow: 3600, disputeWindow: 3600, arbitrationWindow: 43200 })
     validateDemandPreparation(f.ctx, intent, request.requestHash, chosen, prepared, expiredAt)
-    const poisoned = { ...prepared, transactions: [{ ...prepared.transactions[0]!, data: encodeFunctionData({ abi: sdk.factoryTokenAbi, functionName: 'approve', args: [f.contributor.account.address, 3_000_000n] }) }, ...prepared.transactions.slice(1)] }
+    const poisoned = { ...prepared, transactions: [{ ...prepared.transactions[0]!, data: encodeFunctionData({ abi: erc20Abi, functionName: 'approve', args: [f.contributor.account.address, 3_000_000n] }) }, ...prepared.transactions.slice(1)] }
     expect(() => validateDemandPreparation(f.ctx, intent, request.requestHash, chosen, poisoned, expiredAt)).toThrow('frozen decision')
 
     let durable: sdk.FlowState = { binding: 'demand-fork', values: {}, sends: {} }

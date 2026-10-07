@@ -222,8 +222,8 @@ export class BudgetDesk {
       b.kind === 'call'
         ? [nativeSymbol(st.ctx), 18]
         : await Promise.all([
-            st.ctx.publicClient.readContract({ address: b.token, abi: sdk.factoryTokenAbi, functionName: 'symbol' }),
-            st.ctx.publicClient.readContract({ address: b.token, abi: sdk.factoryTokenAbi, functionName: 'decimals' }),
+            st.ctx.publicClient.readContract({ address: b.token, abi: erc20Abi, functionName: 'symbol' }),
+            st.ctx.publicClient.readContract({ address: b.token, abi: erc20Abi, functionName: 'decimals' }),
           ])
     const fmt = (x: bigint) => formatUnits(x, decimals)
     let used: bigint
@@ -302,7 +302,7 @@ export class BudgetDesk {
     const { b, row, signed } = await this.#drawable(me, st)
     if (b.kind !== 'advance') throw this.#deps.fail('invalid', 'this is a call budget: use spend_budget_call')
     const advance: AdvanceBudget = b
-    const decimals = await st.ctx.publicClient.readContract({ address: advance.token, abi: sdk.factoryTokenAbi, functionName: 'decimals' })
+    const decimals = await st.ctx.publicClient.readContract({ address: advance.token, abi: erc20Abi, functionName: 'decimals' })
     let amount: bigint
     try {
       amount = parseUnits(input.amount, decimals)

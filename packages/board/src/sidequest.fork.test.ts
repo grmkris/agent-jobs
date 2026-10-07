@@ -40,7 +40,7 @@ fork('Sidequest board on a local Monad fork', () => {
     expect(publish.args[0]).toMatchObject({ arbitrator: f.arbitrator.account.address, reviewWindow: 3600, disputeWindow: 7200, arbitrationWindow: 43200 })
     // The only approval is for the reward, never for a bond reservation.
     expect(created.transactions.length).toBeLessThanOrEqual(2)
-    if (created.transactions.length === 2) expect(decodeFunctionData({ abi: sdk.factoryTokenAbi, data: created.transactions[0]!.data }).args).toEqual([getAddress(f.ctx.stack.holding), 101n])
+    if (created.transactions.length === 2) expect(decodeFunctionData({ abi: erc20Abi, data: created.transactions[0]!.data }).args).toEqual([getAddress(f.ctx.stack.holding), 101n])
     await sdk.sendAll(f.creator, f.ctx.publicClient, created.transactions)
     // Simulate the lost publication response. Chain recovery must retain the direct application.
     const seen = await board.getTask({ address: f.creator.account.address }, { taskId: created.taskId })

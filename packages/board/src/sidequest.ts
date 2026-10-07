@@ -1,3 +1,4 @@
+import { erc20Abi } from 'viem'
 /** Kind-specific v1 preparation. Chain facts remain authoritative; the board supplies unsigned calls only. */
 import * as sdk from '@sidequest/sdk'
 import { type Address, type Hex, encodeFunctionData, formatEther, getAddress, zeroAddress } from 'viem'
@@ -52,10 +53,10 @@ export async function publishSidequest(ctx: sdk.Ctx, terms: OfferTerms, hash: He
   await requireBacking(ctx, terms.creator, terms.creatorBond, 'creator')
   const windows = { reviewWindow: terms.windows.reviewSeconds, disputeWindow: terms.windows.disputeSeconds, arbitrationWindow: terms.windows.arbitrationSeconds }
   const expiredAt = await sdk.minExpiry(ctx, terms.deliveryDeadline, windows)
-  const allowance = await ctx.publicClient.readContract({ address: terms.token, abi: sdk.factoryTokenAbi, functionName: 'allowance', args: [terms.creator, ctx.stack.holding] })
+  const allowance = await ctx.publicClient.readContract({ address: terms.token, abi: erc20Abi, functionName: 'allowance', args: [terms.creator, ctx.stack.holding] })
   const out: sdk.TxRequest[] = []
   if (allowance < terms.reward) out.push(transaction(ctx, 'Approve the escrowed reward', terms.token,
-    encodeFunctionData({ abi: sdk.factoryTokenAbi, functionName: 'approve', args: [ctx.stack.holding, terms.reward] })))
+    encodeFunctionData({ abi: erc20Abi, functionName: 'approve', args: [ctx.stack.holding, terms.reward] })))
   out.push(transaction(ctx, 'Publish the funded hire and reserve your bond from stake', ctx.stack.holding,
     encodeFunctionData({ abi: sdk.sidequestHoldingAbi, functionName: 'publish', args: [{
       approver: terms.approver, arbitrator: terms.arbitrator, manifestHash: hash, policyHash: hash,

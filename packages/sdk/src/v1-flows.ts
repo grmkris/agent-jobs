@@ -1,3 +1,4 @@
+import { erc20Abi } from 'viem'
 /** Testnet live matrix money paths. Every send goes through the persisted journal; this module never deploys. */
 import { type Address, parseUnits } from 'viem'
 import * as sdk from './index.ts'
@@ -28,9 +29,9 @@ export async function requireLegacyContestFactory(ctx: sdk.Ctx, creator: sdk.Wal
   const pair = Object.values(ctx.deployment.legacyStacks).find(p => p.kind === 'legacy' && p.openTokens)
   if (pair === undefined) throw new Error('legacy-contest requires a configured legacy open-token pair')
   const factory = await ctx.publicClient.readContract({ address: pair.holding, abi: sdk.jobHoldingAbi, functionName: 'factory' })
-  const decimals = await ctx.publicClient.readContract({ address: factory, abi: sdk.factoryTokenAbi, functionName: 'decimals' })
+  const decimals = await ctx.publicClient.readContract({ address: factory, abi: erc20Abi, functionName: 'decimals' })
   const required = 10n ** BigInt(decimals)
-  const held = await ctx.publicClient.readContract({ address: factory, abi: sdk.factoryTokenAbi, functionName: 'balanceOf', args: [creator.account.address] })
+  const held = await ctx.publicClient.readContract({ address: factory, abi: erc20Abi, functionName: 'balanceOf', args: [creator.account.address] })
   if (held < required) throw new Error(`legacy-contest requires creator to hold at least 1 SIDE v1 (factory ${factory}); creator balance is below 1 token`)
   return { pair, factory, held, required }
 }

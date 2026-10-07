@@ -1,10 +1,11 @@
+import { erc20Abi } from 'viem'
 import { parseAbi, parseEther } from 'viem'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { forkEnabled, forkSetupTimeout, startSidequestFork } from '../test/sidequest-fixture.ts'
 import { registerAgent, delegate } from './actions.ts'
 import { FlowJournal, flowJson, parseFlowJson, type FlowState } from './flow-journal.ts'
 import { FlowWaiting, V1_CORE_FLOWS, runV1CoreFlow } from './v1-flows.ts'
-import { coreAbi, factoryTokenAbi, sidequestHoldingAbi } from './abi/index.ts'
+import { coreAbi, sidequestHoldingAbi } from './abi/index.ts'
 import { getBacking, getPosition } from './staking.ts'
 
 const fork = forkEnabled ? describe : describe.skip
@@ -99,7 +100,7 @@ fork('live matrix runner against real v1 bytecode', () => {
     expect(state.sends).toEqual({})
     expect(await f.ctx.publicClient.getTransactionCount({ address: f.creator.account.address })).toBe(creatorNonce)
     // The later legacy flow exercises the same check and real publish with exactly one old token.
-    await f.send(f.ctx.deployment.legacyStacks['test-legacy']!.factory, factoryTokenAbi, 'transfer', [f.creator.account.address, parseEther('1')])
+    await f.send(f.ctx.deployment.legacyStacks['test-legacy']!.factory, erc20Abi, 'transfer', [f.creator.account.address, parseEther('1')])
   }, 120_000)
   it('starts both clocks in one journal, interleaves payment/slash, and resumes after a terminal receipt crash', async () => {
     const snapshot = await f.rpc('evm_snapshot')
@@ -200,7 +201,7 @@ fork('live matrix runner against real v1 bytecode', () => {
       expect(durable.values[`${scope}/before`]).toEqual(before)
       expect(durable.sends[`${scope}/settle`]!.hash).toBe(settleHash)
       expect((await getBacking(f.ctx, f.worker.account.address)).active).toBe(originalStake - 2n * base.bond)
-      expect(await f.ctx.publicClient.readContract({ address: token, abi: factoryTokenAbi, functionName: 'balanceOf', args: [f.worker.account.address] })).toBe(credit)
+      expect(await f.ctx.publicClient.readContract({ address: token, abi: erc20Abi, functionName: 'balanceOf', args: [f.worker.account.address] })).toBe(credit)
       const nonces = await Promise.all([f.creator, f.worker, f.admin, f.contributor].map(w => f.ctx.publicClient.getTransactionCount({ address: w.account.address })))
       await runV1CoreFlow({ ...odd, journal: boot() }, 'hire', scope)
       expect(await Promise.all([f.creator, f.worker, f.admin, f.contributor].map(w => f.ctx.publicClient.getTransactionCount({ address: w.account.address })))).toEqual(nonces)

@@ -1,3 +1,4 @@
+import { erc20Abi } from 'viem'
 /** Shared job and persisted-send operations for the testnet flow matrix. */
 import { type Abi, type Address, type TransactionReceipt, decodeEventLog } from 'viem'
 import * as sdk from './index.ts'
@@ -17,11 +18,11 @@ export function v1FlowActions(d: V1FlowDeps, flow: V1CoreFlow, scope: string) {
   }
   async function approve(label: string, wallet: sdk.Wallet, token: Address, spender: Address, amount: bigint) {
     const needed = await j.once(`${scope}/${label}/needed`, async () => {
-      const allowance = await ctx.publicClient.readContract({ address: token, abi: sdk.factoryTokenAbi,
+      const allowance = await ctx.publicClient.readContract({ address: token, abi: erc20Abi,
         functionName: 'allowance', args: [wallet.account.address, spender] })
       return allowance < amount
     })
-    if (needed) await call(label, wallet, token, sdk.factoryTokenAbi, 'approve', [spender, amount])
+    if (needed) await call(label, wallet, token, erc20Abi, 'approve', [spender, amount])
   }
   async function publish(pair = ctx, options: { workerBond?: bigint; deliverySeconds?: number } = {}) {
     const p = await j.once(`${scope}/offer`, async () => {
