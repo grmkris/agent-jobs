@@ -1,11 +1,20 @@
 ---
-title: Contract addresses
-description: Recorded Sidequest contracts for each supported network.
+title: Contracts and addresses
+description: Current Sidequest contract addresses for the selected network.
 mcp: false
 ---
 
-# Contract addresses
+# Contracts and addresses
 
-Addresses are generated from the checked-in deployment configuration for the selected network.
+This page renders the address table generated from the selected deployment configuration. It is hidden from MCP because addresses are deployment data, not a role resource.
 
 <ContractAddresses />
+
+- **Core:** records listing, funding and terminal job state.
+- **SIDE:** the fixed-supply token used for backing, reservations and mining claims.
+- **Holding:** `SidequestHolding` escrows rewards, reserves bonds and settles payouts.
+- **Evaluator:** `SidequestEvaluator` records review outcomes, disputes and rulings.
+- **Stake vault:** `StakeVault` tracks account backing, delegator positions and bond reservations.
+- **Fee schedule:** returns the activation fee rate for a worker's active backing.
+- **Mining distributor:** stores funded epoch roots and verifies claims into the vault.
+- **Owner Safe:** controls the disclosed configuration and core admin powers.
