@@ -30,6 +30,10 @@ export default defineConfig({
           { pattern: '!**/node_modules/.vite/**', base: 'workspace' },
           { pattern: '!**/node_modules/.vite-temp/**', base: 'workspace' },
           { pattern: '!**/.alchemy/**', base: 'workspace' },
+          { pattern: 'apps/docs/content/**', base: 'workspace' },
+          { pattern: 'apps/docs/src/**', base: 'workspace' },
+          { pattern: 'scripts/gen-docs.mjs', base: 'workspace' },
+          { pattern: 'contracts/config/**', base: 'workspace' },
         ],
         output: [
           { pattern: '!**/node_modules/.vite/**', base: 'workspace' },
