@@ -5,7 +5,8 @@
  * kept in localStorage (so a new tab stays signed in until it expires) and is valid on every board. Which address it
  * belongs to is kept beside it (`Wallet.tsx`), so another wallet never inherits it.
  */
-import { ApiError, type BoardApi, type ChainJob, PUBLIC_BOARD_ID, type TaskIndexEntry, createBoardApi } from '@sidequest/react'
+import { ApiError, type BoardApi, type ChainJob as BaseChainJob, PUBLIC_BOARD_ID, type TaskIndexEntry, createBoardApi } from '@sidequest/react'
+import type { ForeignOffer } from './job-offer.tsx'
 import type { DirectoryAgent } from '@sidequest/sdk'
 import { LAUNCH_MESSAGE, toolAllowed } from './launch.ts'
 import { writesOpen } from './wallet.ts'
@@ -16,7 +17,6 @@ export {
   type AdvanceBudgetTerms,
   type Budget,
   type CallBudgetTerms,
-  type ChainJob,
   type Deliverable,
   type DeliverableCheck,
   type DeliverableKind,
@@ -27,6 +27,8 @@ export {
   type TxRequest,
   type BoardInfo,
 } from '@sidequest/react'
+
+export type ChainJob = BaseChainJob & { foreign_offer?: ForeignOffer | undefined }
 
 /** The board slug of the current URL (`/b/<slug>`, `/embed/<slug>`), or `public`. */
 export function currentBoardId(): string {

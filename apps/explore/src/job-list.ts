@@ -1,3 +1,4 @@
+import type { JobTag } from '@sidequest/sdk'
 /**
  * The single Jobs list: on-chain jobs and quote requests as one set of rows, which filter each belongs to, which
  * deadline its countdown runs to, and the order (open work first, soonest deadline first, then newest).
@@ -29,7 +30,9 @@ export function viewOf(phase: Phase | null): Exclude<View, 'all' | 'mine'> | nul
  * A closed request reads "Closed · no pick" to everyone but its poster, who can still pick one of its quotes.
  */
 export function listPhase(phase: Phase): Phase {
-  return phase.key === 'quotes-closed' && !phase.roles.includes('creator') ? { ...phase, label: 'Closed · no pick' } : phase
+  return phase.key === 'quotes-closed' && !phase.roles.includes('creator')
+    ? { ...phase, label: 'Closed · no pick' }
+    : phase
 }
 
 /** The countdown a row shows: what happens at the deadline, and what it reads once passed. */
@@ -64,13 +67,17 @@ export const postedAt = (item: JobListItem): number | null => item.request?.crea
 export const postedJustNow = (posted: number, now: number): boolean => now - posted < 60
 
 /** Who posted it: the request's or the offer's creator wallet, else the chain listing's. */
-export const posterOf = (item: JobListItem): string | null => item.request?.creator ?? item.task?.creator ?? item.chain?.creator ?? null
+export const posterOf = (item: JobListItem): string | null =>
+  item.request?.creator ?? item.task?.creator ?? item.chain?.creator ?? null
 
-export const titleOf = (item: JobListItem): string => item.request?.title ?? item.task?.title ?? ''
+export const titleOf = (item: JobListItem): string =>
+  item.request?.title ?? item.task?.title ?? item.chain?.foreign_offer?.terms.title ?? ''
 
-export const tagsOf = (item: JobListItem): readonly string[] => item.request?.tags ?? item.task?.tags ?? []
+export const tagsOf = (item: JobListItem): readonly JobTag[] =>
+  item.request?.tags ?? item.task?.tags ?? item.chain?.foreign_offer?.terms.tags ?? []
 
-export const rowKey = (item: JobListItem): string => item.request !== undefined ? `request:${item.request.requestId}` : item.jobId ?? `task:${item.task?.taskId}`
+export const rowKey = (item: JobListItem): string =>
+  item.request !== undefined ? `request:${item.request.requestId}` : (item.jobId ?? `task:${item.task?.taskId}`)
 
 /** Open work first, the soonest deadline first; then everything else, newest first. */
 export function sortRows<T extends { item: JobListItem; phase: Phase | null }>(rows: readonly T[]): T[] {

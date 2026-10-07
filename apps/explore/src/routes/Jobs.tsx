@@ -27,6 +27,7 @@ import { type JobListItem, type View, listPhase, postedAt, postedJustNow, poster
 import { useManagedAgents } from '../managed.ts'
 import { useQuoteRequests } from '../quote-requests.ts'
 import { useToken } from '../useTokens.ts'
+import { HostedBy } from '../job-offer.tsx'
 import { cn } from '../lib/cn.ts'
 
 export type { JobListItem } from '../job-list.ts'
@@ -335,7 +336,7 @@ export function JobsPage() {
           : index === null
             ? 'The chain index is not built yet.'
             : `Chain facts up to block ${(index.next_block - 1).toLocaleString('en-US')}, refreshed every minute.`}{' '}
-        Jobs from before titles were kept show as “Job #N”.
+        Jobs whose offers are not found on known boards show as “Job #N”.
       </p>
     </>
   )
@@ -390,7 +391,7 @@ export function JobRow({ item, phase, note, now, posterAgent = null }: {
   const countdown = rowCountdown(phase)
   const posted = postedAt(item)
   const poster = posterOf(item)
-  const tags = request?.tags ?? item.task?.tags ?? []
+  const tags = tagsOf(item)
   const screened = (request === undefined ? item.task?.screening?.verdict : undefined) === 'reject'
   return (
     <Item
@@ -417,11 +418,13 @@ export function JobRow({ item, phase, note, now, posterAgent = null }: {
       )}
       {/* One grid: on a phone the price and countdown are a line under the badges; wider, they are the right column. */}
       <ItemContent className="grid min-w-0 flex-1 grid-cols-1 gap-1 sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-x-6">
-        <ItemTitle className="block truncate font-medium sm:col-start-1 sm:row-start-1">{request?.title ?? item.task?.title ?? `Job #${item.jobId}`}</ItemTitle>
+        <ItemTitle className="block truncate font-medium sm:col-start-1 sm:row-start-1">{titleOf(item) || `Job #${item.jobId}`}</ItemTitle>
         <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-ui text-muted-foreground sm:col-start-1 sm:row-start-2">
           <PhaseBadge phase={phase} />
           {tags.map(tag => <Badge key={tag} variant="neutral">{JOB_TAG_LABELS[tag]}</Badge>)}
           {other !== null && <Badge variant="info">{other}</Badge>}
+          <HostedBy origin={item.chain?.foreign_offer?.origin} />
+          {request === undefined && item.task === undefined && item.chain?.foreign_offer === undefined && <span>offer not found on known boards</span>}
           {screened && <Badge variant="warning">Screener flagged</Badge>}
           {request !== undefined && <span className="tabular-nums">{quotesText(request)}</span>}
           {note !== '' && <span className="truncate">{note}</span>}
