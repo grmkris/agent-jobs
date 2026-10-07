@@ -26,7 +26,7 @@ export default defineConfig({
   },
   lint: {
     // Foundry dependencies are git submodules with their own JS tooling; not ours to lint.
-    ignorePatterns: ['contracts/lib/**', 'contracts/out/**', 'contracts/cache/**'],
+    ignorePatterns: ['contracts/lib/**', 'contracts/out/**', 'contracts/cache/**', 'apps/docs/dist/**', 'apps/docs/.output/**', 'apps/docs/.nitro/**', 'apps/docs/.tanstack/**', 'apps/docs/.source/**', 'apps/docs/src/routeTree.gen.ts'],
     categories: {
       correctness: 'error',
       suspicious: 'error',
