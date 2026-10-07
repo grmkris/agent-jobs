@@ -85,11 +85,7 @@ export interface ChainConfig {
   roles: Record<string, string>
   erc8004: { identity: string; reputation: string }
   x402: { usdc: string }
-  factory: { faucet: boolean }
-  holdGates: { minHoldToPublish: number; minHoldToClaim: number }
-  faucetTokens: { names: string[]; symbols: string[] }
   knownTokens: string[]
-  stacks: { names: string[] }
   /** SidequestRecipe's input; the preflight reads the default arbitrator and clocks from it (LAUNCH-AUDIT-FIX-001). */
   sidequest?: { defaultArbitrator?: string | null; clocks?: LaunchClocks } | null
   deployment: {
@@ -138,13 +134,11 @@ function validateCompleteProdConfig(config: ChainConfig, artifact: ProdArtifact)
   check(typeof artifact.admission?.drain === 'boolean', 'admission mode')
   check(artifact.privy.approved === true && typeof artifact.privy.appId === 'string' && artifact.privy.appId.length > 0 &&
     artifact.privy.origins.length > 0 && artifact.privy.origins.every(origin => origin === 'https://sidequest.exchange'), 'Privy app/origin approval')
-  check(config.factory.faucet === false && config.faucetTokens.names.length === 0 && config.faucetTokens.symbols.length === 0, 'no mainnet faucet')
-  check(config.holdGates.minHoldToPublish === 0 && config.holdGates.minHoldToClaim === 0, 'zero hold gates')
   check(config.knownTokens.length === 1 && config.knownTokens[0]?.toLowerCase() === config.x402.usdc.toLowerCase(), 'known USDC')
   const deployed = config.deployment
   check(deployed.network === artifact.network && Number.isSafeInteger(deployed.block) && (deployed.block ?? 0) > 0, 'deployment network/block')
   check(deployed.main?.openTokens === true, 'open-token main Holding metadata')
-  check(config.stacks.names.length === 1 && config.stacks.names[0] === 'main' && deployed.demo === undefined && deployed.fast === undefined, 'single v1 stack')
+  check(deployed.demo === undefined && deployed.fast === undefined, 'single v1 stack')
   check(deployed.main?.kind === 'sidequest-v1' && artifact.deployment.main.kind === 'sidequest-v1', 'main v1 kind')
   check(address(deployed.main?.factory) && deployed.main.factory.toLowerCase() === deployed.factory?.toLowerCase() &&
     deployed.main.factory.toLowerCase() === deployed.sidequest?.factory?.toLowerCase(), 'v1 factory consistency')
