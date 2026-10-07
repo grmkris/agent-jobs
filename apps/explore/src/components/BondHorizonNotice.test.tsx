@@ -1,29 +1,33 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { expect, it, vi } from 'vitest'
+import { expect, it } from 'vitest'
+import { stakeContext } from '../stake-context.ts'
 import { BondHorizonNotice } from './BondHorizonNotice.tsx'
 
-const query = vi.hoisted(() => {
-  const result: { data: number | undefined } = { data: undefined }
-  return result
-})
-vi.mock('@tanstack/react-query', () => ({ useQuery: () => query }))
+function noticeMarkup(bonded: boolean, delay?: number): string {
+  const client = new QueryClient()
+  const ctx = stakeContext()
+  client.setQueryData(['bond-horizon', ctx.deployment.chainId, ctx.deployment.sidequest?.vault], delay)
+  return renderToStaticMarkup(
+    <QueryClientProvider client={client}>
+      <BondHorizonNotice bonded={bonded} />
+    </QueryClientProvider>,
+  )
+}
 
 it.each([
   [259200, '3 days'],
   [1209600, '14 days'],
 ])('displays the actual vault delay %s', (delay, label) => {
-  query.data = Number(delay)
-  expect(renderToStaticMarkup(<BondHorizonNotice bonded />)).toContain(`within ${label} (the unstake period)`)
+  expect(noticeMarkup(true, delay)).toContain(`within ${label} (the unstake period)`)
 })
 
 it('omits the limit for an unbonded offer', () => {
-  query.data = 1209600
-  expect(renderToStaticMarkup(<BondHorizonNotice bonded={false} />)).toBe('')
+  expect(noticeMarkup(false, 1209600)).toBe('')
 })
 
 it('does not claim a duration when the deployed delay is unavailable', () => {
-  query.data = undefined
-  const html = renderToStaticMarkup(<BondHorizonNotice bonded />)
-  expect(html).toContain('delivery, review, dispute, arbitration and the expiry margin')
-  expect(html).not.toContain('14 days')
+  const copy = noticeMarkup(true)
+  expect(copy).toContain('delivery, review, dispute, arbitration and the expiry margin')
+  expect(copy).not.toContain('14 days')
 })
