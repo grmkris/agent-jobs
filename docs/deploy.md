@@ -11,7 +11,7 @@ Prod currently runs on Monad testnet. Every mainnet transaction needs a separate
 | `verify` | push to dev/prod, PR to dev, workflow dispatch | frozen Bun install, `bun run check`, build, clean tree check | all quality gates and build pass |
 | `deploy-dev` | push to dev, after verify | stage-env guarded release, smoke, drift | GitHub `dev` environment; serialized |
 | `deploy-prod` | push to prod, after verify | stage-env guarded release, smoke, drift | GitHub `prod` environment and `SIDEQUEST_ALLOW_PROD=1` |
-| `smoke` | hourly at minute 17, or workflow dispatch | public dev and prod health/discovery/auth-refusal checks | read-only public checks |
+| `smoke` | hourly at minute 17, or workflow dispatch | public dev and prod health/discovery/auth-refusal checks and indexer freshness | read-only public checks |
 
 The workflow lives in [ci.yml](../.github/workflows/ci.yml); scheduled checks live in
 [smoke.yml](../.github/workflows/smoke.yml). Promotion is manual:
@@ -108,4 +108,5 @@ authenticated host or money-moving acceptance.
 | GitHub push returns HTTP 500 | GitHub server error observed on 7 Oct | Read the remote ref before retrying the same authorized push; never force or rewrite history |
 | State-store version mismatch | Shared Worker differs from installed provider protocol | Coordinate the shared version change; do not run `syncState` or bootstrap it from planning |
 | Plan refuses replace/delete/orphan/create | Resource or state delta exceeds the guard | Review exact names and inventory with the coordinator; never weaken the guard |
+| A new Worker's cron never fires; `/data/jobs` says the index is not built | `sidequest-indexer-prod` had its schedule but no scheduled invocation for 70 minutes after the first prod deploy (7 Oct); it fired 6 minutes after the next deployment | Smoke now fails on a missing or stale (>10 min) checkpoint. Check `workersInvocationsScheduled` in Cloudflare GraphQL; re-PUT the schedule, then redeploy the Worker (push the same SHA again) |
 | `heavy` exits 75 | Another job holds the shared capacity | Retry after 15 seconds; this is contention, not a failed check |
