@@ -120,7 +120,7 @@ async function main() {
   const env = { ...process.env, ...verifiedLocalEnv, ...verifiedAuthority, SIDEQUEST_STAGE: 'dev', SIDEQUEST_NETWORK: 'monad-testnet', SIDEQUEST_DEV_RELEASE: '1', SIDEQUEST_APPLY_MIGRATIONS: '1', ALCHEMY_REMOTE_STATE: '0', ALCHEMY_STATE_MODE: 'local', CLOUDFLARE_ACCOUNT_ID: infra.cloudflare.accountId }
   if (env.SIDEQUEST_WITHOUT_EXPLORE === '1') throw new Error('complete-stack-required')
   for (const key of ['CLOUDFLARE_API_TOKEN', 'MONAD_TESTNET_RPC_URL', 'SIDEQUEST_DEV_RELAY_PRIVATE_KEY', 'SIDEQUEST_DEV_ATTESTER_PRIVATE_KEY', 'HYPERSYNC_API_TOKEN']) if (!env[key]) throw new Error('required-dev-credential-missing')
-  if (config.chainId !== 10143 || config.sidequest.reuseCore !== false || !config.deployment.sidequest || config.deployment.legacy && Object.keys(config.deployment.legacy).length) throw new Error('fresh-sidequest-deployment-required')
+  if (config.chainId !== 10143 || config.sidequest?.reuseCore === true || !config.deployment.sidequest || config.deployment.legacy && Object.keys(config.deployment.legacy).length) throw new Error('fresh-sidequest-deployment-required')
   for (const role of ['relay', 'attester']) if (privateKeyToAccount(env[`SIDEQUEST_DEV_${role.toUpperCase()}_PRIVATE_KEY`]).address.toLowerCase() !== config.roles[role].toLowerCase()) throw new Error('dev-signing-address-mismatch')
   const client = createPublicClient({ transport: http(env.MONAD_TESTNET_RPC_URL) })
   if (await client.getChainId() !== 10143) throw new Error('rpc-chain-mismatch')

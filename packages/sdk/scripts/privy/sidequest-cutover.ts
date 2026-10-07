@@ -127,7 +127,7 @@ function safeSummary(state: CutoverState) {
     devEnvWritten: existsSync(envPath), legacyAuthorityPreserved: true }
 }
 export async function runCutover(mode: 'prepare' | 'apply' | 'verify') {
-  if (config.chainId !== 10143 || config.deployment?.main?.kind !== 'sidequest-v1' || config.sidequest?.reuseCore !== false) {
+  if (config.chainId !== 10143 || config.deployment?.main?.kind !== 'sidequest-v1' || config.sidequest?.reuseCore === true) {
     throw new SidequestCutoverError('Fresh Sidequest testnet deployment required')
   }
   const env = localEnv()

@@ -37,7 +37,7 @@ function keystore(role) {
 
 try {
   const config = JSON.parse(readFileSync('contracts/config/monad-testnet.json', 'utf8'))
-  if (config.chainId !== 10143 || config.sidequest.reuseCore !== false) throw new Error('fresh-testnet-config-required')
+  if (config.chainId !== 10143 || config.sidequest?.reuseCore === true) throw new Error('fresh-testnet-config-required')
   const sends = ['deploy', 'accept'].includes(action)
   if (sends && env.SIDEQUEST_TESTNET_SEND !== '1') throw new Error('testnet-send-not-enabled')
   const promoted = config.deployment.sidequest !== undefined
