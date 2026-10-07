@@ -67,3 +67,22 @@ listing due for renewal (20 h). Its operator can leave standing instructions in
 A run that needs the operator (an approval, say) writes the link to `.crew/hosted/<member>/agent/state/needs-operator`,
 and `status` shows it. Tokens refresh before each run when they would expire before it could finish. Secrets come from
 `.env.local` and `~/.config/secrets.env`, and only the variables a member's `env` lists enter its container.
+
+## Start and stop the loop
+
+The loop runs in tmux window `agent-jobs:crew`, started from the repository root in an interactive shell (so
+`~/.config/secrets.env` and the cliproxy key are loaded):
+
+    tmux new-window -t agent-jobs -n crew
+    tmux send-keys -t agent-jobs:crew 'bun crew/bin/crew.ts loop 10 2>&1 | tee -a .crew/hosted/loop.log' Enter
+
+Start the window with a shell first, as above: if the loop is the window's own command, Ctrl-C closes the window.
+To stop it, wait until no member is mid-run (`docker ps --filter ancestor=sidequest-crew` is empty; a run cut off
+mid-send leaves a saved operation key the next run resumes, but it is cleaner not to), then press Ctrl-C in the window.
+Nothing else needs stopping: the members' tokens, cursors and scratch stay in `.crew/hosted/<member>/`, so a restart
+picks up where the loop left off. Tokens older than their refresh token's life need `login` again; `status` says so.
+
+Each wake costs relay gas when the member sends anything (about 0.05–0.1 MON per sponsored send on testnet, see
+`docs/sponsorship.md`), and the loop skips every wake while the relay holds less than `relayFloorMon`. Check
+`.crew/hosted/loop.log` and `status` after a restart. Stopped on 7 Oct 2026 at Kris's request after waves 1–3.
+
