@@ -32,10 +32,9 @@ used.
   paths (`node_modules/.vite*`, `.alchemy/`) and forge's `out/`/`cache/`, or they never cache.
 - alchemy's harness (`alchemy/Test/Vitest`, `dev: true`) deploys the stack into local workerd in
   about 4 s and the four binding probes (runtime, Durable Object, R2, D1) pass in about 8 s.
-- The stack file defaults to `Alchemy.localState()`; `ALCHEMY_REMOTE_STATE=1` selects
-  `Cloudflare.state()`, which the staging deploy script sets. `Cloudflare.state()` prompts to
-  bootstrap a remote store, which is why it cannot be the default under a non-interactive harness.
-  **Release amendment, 30 September 2026:** this describes backend selection, not safety to update an existing stack. Original staging used local state because remote permission was unavailable (`docs/reality-check.md`); main's local state maps the existing live IDs, whereas the observed remote state identifies duplicates. Follow `docs/staging-release-runbook.md`: validate the explicitly selected authoritative backend without bootstrap, automatic fallback, adoption or state transplant. Local staging is not inherently invalid. If remote is selected, separately prove Secrets Store permission and matching remote IDs; production remote readiness remains mandatory and distinct. The root `deploy:staging` command now resolves to a local fail-closed hold with no Alchemy/provider fallback; no release or state migration is approved.
+- Local workerd uses `Alchemy.localState()`. Sidequest dev releases use the owned manifest and readback gates in
+  [the dev runbook](../sidequest-dev.md). `Cloudflare.state()` is reserved for the explicit production stage;
+  production remote readiness remains a separate gate.
 - alchemy resolves Cloudflare credentials even for local providers, so `apps/api/vitest.config.ts`
   supplies placeholder `CLOUDFLARE_ACCOUNT_ID`/`CLOUDFLARE_API_TOKEN` when none are set. Nothing in
   the suite reaches the cloud; real values win when present.

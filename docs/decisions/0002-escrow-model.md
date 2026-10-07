@@ -1,52 +1,26 @@
 # ADR-0002: Escrow model — Holding as the ERC-8183 client
 
-**V1 scope note (2 Oct):** this dated spike establishes Holding as client, not the current handshake or bond custody. [ADR-0011](0011-sidequest-v1.md) specifies worker activation, net-budget authorization and vault reservations for v1.
-
-Date: 2026-09-25. Status: accepted (spike S1).
+Date: 2026-09-25. Status: accepted; v1 terms are defined by [ADR-0011](0011-sidequest-v1.md).
 
 ## Decision
 
-`JobHolding` is the ERC-8183 client of every listed job. The creator deposits the reward and an optional
-bond (same token) into Holding at publish; Holding creates the core job with no provider, assigns the
-worker with its ERC-8004 agent id, and funds the core once the worker has accepted by setting the
-budget to exactly the listed reward. `JobsEvaluator` is the evaluator of every listed job; it holds the
-minimal dispute state and only ever makes terminal calls on the core. The bond never enters the core.
+`SidequestHolding` is the ERC-8183 client of every listed job. The reward is escrowed at publish. Worker activation
+confirms the frozen listing, sets provider and budget, reserves the worker bond and funds the core. The worker signs
+budget authorization for the freshly quoted net reward. Creator and worker bonds remain stake reservations in
+`StakeVault`, outside the core. `SidequestEvaluator` records the outcome and makes the core's terminal calls.
 
-Alternatives rejected: a stake gate as the core's `fund` hook (hooks cannot run on `createJob`, so a
-listing could not prove anything at publish, and it needed a second token); pre-deposit with an
-authorization wrapper (the provider sets the budget, so the client cannot pre-fund).
+## Why it works against the pinned core
 
-## Why it works against the pinned core (`142e669c`)
-
-- `client = msg.sender` in `createJob`; nothing forbids a contract client.
-- `setBudget` is provider-only, and `setBudgetWithAuthorization` executes as the signer, so the accept
-  step is one worker signature that anyone may relay. No core patch.
-- `reject` is terminal and refunds immediately, so the evaluator records a creator's rejection itself
-  and calls `reject` only when the dispute window lapses undisputed or a ruling goes against the worker.
-- `claimRefund` cannot be hooked; Holding requires `expiredAt >= deliveryDeadline + settlementWindow`
-  so it can never pre-empt review, dispute filing or arbitration.
-- Refunds arrive in Holding without a callback, so recovery is pull-based: `withdraw` reads the core
-  job's status and pays each of reward and bond at most once.
-
-## Found by the tests
-
-The invariant suite caught a stranding path in the first draft: the core allows `submit` on an Open
-job with budget 0, so an assigned worker could submit *before* accepting, and the creator's `accept`
-would have completed the job with a zero payout while the reward sat in Holding with no way out. The
-evaluator now refuses to settle any job Holding never funded, and `rejectAfterDeliveryDeadline` clears
-such a job so the creator recovers immediately rather than at expiry.
-
-## Superseded in part
-
-ADR-0003 (26 Sep) separates the collateral asset from the reward, replaces the single optional bond with
-creator and worker bonds in SIDE, and makes the ruling two-part. The Holding-as-client model and the
-refund paths described here stand.
+- `client = msg.sender` in `createJob`; a contract can own the escrow and remain the client.
+- Provider budget authorization can be relayed without a core patch.
+- `reject` is terminal and refunds immediately, so the evaluator records the approver's rejection on-chain and only
+  calls `reject` after an undisputed dispute window or a ruling for the creator.
+- Core expiry cannot pre-empt timely submission, review, dispute filing or arbitration: publish checks that expiry
+  covers the delivery deadline and all frozen settlement windows plus the margin.
+- Core status alone never releases a reservation whose penalty is due. Failed worker payout remains earned; deferred
+  recovery retries the recorded outcome, and refused transfers become separately withdrawable `owed` balances.
 
 ## Consequences
 
-- `contracts/SURFACE.md` classifies every external function of the core.
-- The windows (review, dispute, arbitration, margin) are constructor arguments of the evaluator;
-  the demo deploy uses minutes, the default config days.
-- ERC-8004 feedback is a no-op hook in `JobsEvaluator._recordOutcome` until spike S2 confirms the
-  registry ABI.
-- The core proxy is ours: deployer EOA is admin, fees 0, one allowed token, no hooks.
+The chain establishes funding and settlement. A board-service receipt cannot replace those facts. The core admin can
+pause, upgrade and withdraw escrow while paused; those trusted powers remain explicit.

@@ -374,7 +374,6 @@ Copyable review prompt:
 ### Sidequest source and operational context
 
 - [ChatGPT integration handoff](../integrations/chatgpt.md)
-- [Sidequest agent handoff](../sidequest-agent-handoff-2026-10-06.md)
 - [Reality check](../reality-check.md)
 - [Sidequest MCP route](../../apps/api/src/mcp.ts)
 - [Sidequest MCP Events](../../apps/api/src/mcp-events.ts)
@@ -388,7 +387,6 @@ Copyable review prompt:
 - [Delegated stake ADR](../decisions/0014-delegated-stake.md)
 - [Deliverables anywhere ADR](../decisions/0006-deliverables-anywhere.md)
 - [Sponsorship boundaries](../sponsorship.md)
-- [Staging release runbook](../staging-release-runbook.md)
 - [Dev release runbook](../sidequest-dev.md)
 - [Monad documentation index](https://docs.monad.xyz/llms.txt)
 - [Solidity skill required before contract changes](https://ethskills.com/SKILL.md)

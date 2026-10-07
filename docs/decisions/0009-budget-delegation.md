@@ -1,23 +1,20 @@
 # ADR-0009: Execution budgets as on-chain delegations
 
-**V1 scope note (2 Oct):** the execution-budget authority and expiry rules remain. V1 [gas sponsorship](../sponsorship.md) is a separate delegation and does not sponsor budget draws. Shared admission rates and relay nonce/cap recovery now exist; the later text saying an upgrade needs a limit is the dated September readiness snapshot. The live jobs named here prove legacy budgets, not the v1 matrix.
+**V1 scope note (2 Oct):** the execution-budget authority and expiry rules remain. V1 [gas sponsorship](../sponsorship.md) is a separate delegation and does not sponsor budget draws. Shared admission rates and relay nonce/cap recovery now exist; the later text saying an upgrade needs a limit is the dated September readiness snapshot.
 
-Date: 2026-09-29. Status: **implemented, fork-tested, and live on Monad testnet staging with a Privy server wallet as
-the creator** (jobs 58–59, `docs/reality-check.md`). The grant from an embedded wallet in Explore is not live-verified
-yet. Supersedes ADR-0005. Decided in myplan note 12 §16 (R124).
+Date: 2026-09-29. Status: implemented and tested; current deployment and live-flow evidence is in
+[reality-check.md](../reality-check.md). Decided in myplan note 12 §16 (R124).
 
 ## Context
 
-ADR-0005 spent a creator's budget through a Privy session signer: the board held a key over creator funds, Privy's
-policy bounded each transfer, and the running total lived only in the board's ledger. ChatGPT's 29 Sep review and our
-own research found a cleaner shape. The MetaMask Delegation Framework (ERC-7710, v1.3.0) is deployed on Monad 10143
-and 143 at the same addresses, and enforces the whole budget on-chain. The worker can then draw it from its own
-wallet, and the board goes back to holding no keys and moving no money.
+The MetaMask Delegation Framework (ERC-7710, v1.3.0) enforces the execution budget on-chain. The activated worker draws
+from its own wallet, and the board holds no user key over creator funds. [Gas sponsorship](../sponsorship.md) is a
+separate delegation and does not sponsor budget draws.
 
 ## Decision
 
 - **What a budget is.** An offer may carry one `executionBudget`, frozen into the terms and so into the `termsHash`
-  the worker activates against. Hire only; a contest never has one. It expires no later than the delivery deadline.
+  the worker activates against. It expires no later than the delivery deadline.
   - `{kind: 'advance', token, cap, expiresAt}`: the worker may move up to `cap` of any ERC-20 the creator names from
     the creator's wallet **to the worker's own wallet**, and pays its providers from there (x402 included).
   - `{kind: 'call', target, function, cap, expiresAt}`: the worker may make **one** call to one function of one
@@ -54,15 +51,12 @@ wallet, and the board goes back to holding no keys and moving no money.
   `createDelegation`. `contracts/config/<network>.json` holds the framework's addresses; a unit test pins them to
   `@metamask/delegation-deployments`, and cross-checks caveat terms, delegation hashes and the permission context
   against `@metamask/delegation-core`, both as dev dependencies.
-- **Removed, not disabled:** the Privy session signer and policy builder, the board's budget ledger, the x402 remote
-  signer (`sign_budget_x402`), their scripts and env vars. Stored tasks with an older budget shape are deleted when
-  the board migrates.
 
 ## Consequences
 
 - **The board holds no key over anyone's funds again.** The cap, the recipient, the function, the call count and the
   expiry are enforced by audited contracts; a board outage or compromise cannot move a creator's money.
-- **The worker holds the advance.** What was drawn is the worker's, including on rejected work, as in ADR-0005; the
+- **The worker holds the advance.** What was drawn is the worker's, including on rejected work; the
   rest never left the creator's wallet.
 - **Between the job's end and the expiry, only the creator's revoke stops a draw.** The board refuses to prepare one,
   but a worker can redeem directly. Short expiries and the revoke prompt bound this.

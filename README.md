@@ -90,9 +90,8 @@ The protocol has explicit trusted powers:
 - **Delegation framework.** Execution budgets and sponsorship depend on MetaMask Delegation Framework v1.3.0 and
   the user's EIP-7702 DeleGator. The board holds no user key, but a signed delegation remains on-chain authority until
   revoked or expired. The relay owns its gas funds and can refuse service; users retain wallet-paid paths.
-- **Evidence and reputation.** Attestations prove a signer reported something, not its truth. The legacy CRE
-  [simulation](docs/cre-simulation.md) is not hosted production delivery. Reputation is not Sybil-resistant, and
-  failed feedback is never counted as success.
+- **Evidence and reputation.** Attestations prove a signer reported something, not its truth. Reputation is not
+  Sybil-resistant, and failed feedback is never counted as success.
 - **Mining inputs.** A Safe owner signs the token prices; the Safe posts roots backed by epoch funding. The
   consumer verifies proofs and root metadata against the chain. It cannot establish that a signed price is fair.
 
@@ -128,7 +127,7 @@ docs/              ADRs, evidence and release/runbook documentation
 
 pnpm workspaces, Vite+, TypeScript, Effect, alchemy.run and Foundry. `heavy pnpm check` runs package checks, Forge,
 mining tests and lint. Fork suites require their RPC variables; skipped tests are not live proof. Use Node 24+.
-`pnpm dev` runs local workerd. Staging updates use the [guarded runbook](docs/staging-release-runbook.md), reviewed
-source and approved-change manifest. Only the coordinator deploys; any mainnet transaction requires Kris's explicit go.
+`pnpm dev` runs local workerd. Dev updates use the [Sidequest dev runbook](docs/sidequest-dev.md).
+Only the coordinator deploys; any mainnet transaction requires Kris's explicit go.
 
 Code is written with AI coding tools under human review.

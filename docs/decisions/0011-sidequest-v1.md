@@ -3,29 +3,20 @@
 Date: 2026-10-02. Status: **implemented, unit-tested, fork-rehearsed on Monad testnet and mainnet; audited — C9 signed
 off 2 Oct (`review/contracts-C9-signoff.md`, at 4dfc039); not deployed** (`~/code/sidequest.wt/briefs/plan.md`).
 Findings and resolutions are in "C9 audit" below. The sign-off is a source review, not deployment authorization. Decided in myplan note 17 (`doc_eea3BzAG1fugdaPf`, rev 8) and the
-v1 build plan. Supersedes the contest parts of ADR-0004 and ADR-0007 for new jobs; the legacy pairs keep them.
+v1 build plan. Supersedes the retired protocol decisions for all v1 jobs.
 
 ## Context
 
-The 2 Oct ethskills review found two High findings in `JobPool` (H1: a curator-signed permit drains pledges; H2:
-`reclaimHold` sweeps the whole SIDE balance) and four Medium findings in the pair (M1: a reward-token hook can
-recover the creator bond before a ruling's burn; M2: a token that refuses the worker blocks a ruling for the worker
-and the timeout then refunds the creator; M3: anyone can front-run `publish` with a copied `policyHash`; M4: a reward
-owed to a pool can never be withdrawn). Note 17 also drops contests, adds per-offer windows and arbitrators, platform
-fees by staking tier, top-ups instead of pools, a fixed-supply SIDE with a staking vault that holds every bond,
-and Merkle work mining. Mainnet launches on 9 Oct with these contracts, all or nothing.
-
-The legacy `JobHolding`, `JobsEvaluator` and `JobPool` are byte-for-byte unchanged: their ABIs, the legacy test
-suite and the indexer's decoding of the live testnet pairs depend on them. Every v1 contract is a new file in
-`contracts/src/sidequest/`, against interfaces in `contracts/src/sidequest/interfaces/` that freeze at F0 (3 Oct 20:00).
+The v1 design defines one `sidequest-v1` pair per network. Every listed job is a hire with a frozen
+reward, terms, approver, arbitrator and settlement windows. Rewards are escrowed through `SidequestHolding`; stake
+reservations and outcome recording are handled by the v1 evaluator and vault.
 
 ## Decision
 
-### One pair, no contests, per-offer terms
+### One pair, per-offer terms
 
-- `SidequestHolding` + `SidequestEvaluator` replace the main, demo and fast stacks. There is no `Mode`, `Candidate`,
-  `award`, `expireContest` or `completeAward`, so nobody can create a contest on the v1 pair, even by a direct call.
-  Discovery is request → quotes → selection off-chain; on-chain every job is one hire.
+- `SidequestHolding` + `SidequestEvaluator` are the v1 pair. Discovery is request → quotes → selection off-chain;
+  on-chain every job is one hire.
 - Each offer sets its own `reviewWindow` and `disputeWindow` (1 h–14 d) and `arbitrationWindow` (12 h–14 d), and its
   own `arbitrator` (zero = `defaultArbitrator`). All are frozen into the listing at publish and are part of the terms
   the worker activates against. The evaluator reads them through `termsOf` everywhere; it has no window of its own.
@@ -60,7 +51,6 @@ suite and the indexer's decoding of the live testnet pairs depend on them. Every
   finishes the recorded outcome (C9-003).
 - **M3.** `policyListed` is keyed by creator and hash. A copied hash published by someone else no longer blocks the
   real creator; a creator still cannot fund the same offer twice (R114-07).
-- **H1, H2, M4** go with `JobPool`, which has no v1 successor. Top-ups replace it.
 - **Ruling nonces** are per arbitrator (`rulingNonceUsed[arbitrator][nonce]`), since arbitrators are now per offer and
   one arbitrator's nonce must not burn another's.
 
@@ -266,10 +256,9 @@ Pre-deploy checklist (ethskills security):
 
 ## Consequences
 
-- Indexers and the SDK choose the ABI per stack by `kind` (`sidequest-v1` vs legacy). The provisional v1 ABIs are
-  generated from the interfaces (`scripts/gen-abi.ts`: `sidequestHoldingAbi`, `sidequestEvaluatorAbi`, `stakeVaultAbi`,
-  `feeScheduleAbi`, `factoryV2Abi`, `miningReserveAbi`, `epochDistributorAbi`) and switch to the implementations under
-  the same names; legacy exports are untouched.
+- Indexers and the SDK use the v1 ABIs generated from the implementations (`scripts/gen-abi.ts`:
+  `sidequestHoldingAbi`, `sidequestEvaluatorAbi`, `stakeVaultAbi`, `feeScheduleAbi`, `factoryV2Abi`,
+  `miningReserveAbi`, `epochDistributorAbi`).
 - Bonds require stake: a creator stakes before publishing a bonded offer, a worker before activating one.
 - The vault is the highest-value contract and the focus of the C9 audit.
-- Not in v1: contests, pools, x402, cross-chain SIDE.
+- V1 excludes cross-chain settlement.
