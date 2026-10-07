@@ -55,7 +55,7 @@ beforeAll(async () => {
   const request = await run('request_quotes', { ...offer, tokens: [token], quoteDeadline: now + 3_600 }) as { requestId: string }
   for (const [name, args] of [
     ['list_tasks', { role: 'creator' }], ['get_task', { taskId: task.taskId }],
-    ['list_quote_requests', {}], ['list_quote_requests', { mine: true }],
+    ['list_quote_requests', {}], ['list_quote_requests', { recent: true }], ['list_quote_requests', { mine: true }],
     ['list_quotes', { requestId: request.requestId }], ['whoami', {}], ['protocol_info', {}],
     ['list_applications', { taskId: task.taskId }],
   ] as const) fixtures.push({ name, output: wire(await run(name, args)) })

@@ -143,6 +143,12 @@ export interface QuoteRequest {
   requestId: string
   requestHash: string
   status: string
+  /** The hire a pick created; null while the request is open or after it closed unpicked. */
+  taskId: string | null
+  /** When the board recorded the request, unix seconds. */
+  createdAt: number
+  /** How many bidders quoted; amounts and bidders stay private to the requester. */
+  quotesCount: number
   creator: string
   title: string
   brief: string

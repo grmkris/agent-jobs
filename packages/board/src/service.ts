@@ -140,7 +140,10 @@ export interface TaskPreparation {
   manifestUrl: string; manifest: string; transactions: TxRequest[]; applicationId?: string; next: string
 }
 interface QuotePreparation { requestId: string; requestHash: Hex; status: string; next: string }
-interface QuoteRequestRead { requestId: string; requestHash: string; taskId: string | null; status: string; [key: string]: unknown }
+/** How long a closed or picked quote request stays in the public list's `recent` view. */
+const RECENT_REQUESTS = 7 * 86_400
+
+interface QuoteRequestRead { requestId: string; requestHash: string; taskId: string | null; status: string; createdAt: number; quotesCount: number; [key: string]: unknown }
 
 /** An EIP-712 message for the caller's wallet: `cast wallet sign --data '<json>'`, or `eth_signTypedData_v4`. */
 export interface SignRequest {
@@ -1537,17 +1540,27 @@ export class Board {
     return row
   }
 
-  /** Public discovery stays unchanged; a connected creator may page every request it created, including picked/expired rows. */
+  /**
+   * Public discovery lists open requests; `recent` adds the ones that closed or were picked within the last week (for
+   * Explore's single list). A connected creator may page every request it created, including picked/expired rows.
+   * Every row carries its board record time and how many bidders quoted; the amounts and the bidders stay private.
+   */
   listQuoteRequests(caller: Caller): QuoteRequestRead[]
   listQuoteRequests(caller: Caller, input: { mine: true; cursor?: string }): { requests: QuoteRequestRead[]; nextCursor?: string }
-  listQuoteRequests(caller: Caller, input: { mine?: boolean; cursor?: string }): QuoteRequestRead[] | { requests: QuoteRequestRead[]; nextCursor?: string }
-  listQuoteRequests(caller: Caller, input: { mine?: boolean; cursor?: string } = {}): QuoteRequestRead[] | { requests: QuoteRequestRead[]; nextCursor?: string } {
+  listQuoteRequests(caller: Caller, input: { mine?: false; recent?: boolean }): QuoteRequestRead[]
+  listQuoteRequests(caller: Caller, input: { mine?: boolean; cursor?: string; recent?: boolean }): QuoteRequestRead[] | { requests: QuoteRequestRead[]; nextCursor?: string }
+  listQuoteRequests(caller: Caller, input: { mine?: boolean; cursor?: string; recent?: boolean } = {}): QuoteRequestRead[] | { requests: QuoteRequestRead[]; nextCursor?: string } {
+    const now = this.#now()
     if (input.mine !== true) {
       if (input.cursor !== undefined) throw new BoardError('invalid', 'cursor requires mine=true')
-      return this.#sql
-        .all<QuoteRequestRow>('SELECT * FROM quote_requests WHERE task_id IS NULL AND quote_deadline > ? ORDER BY created_at DESC LIMIT 50', this.#now())
-        .map((r) => ({ requestId: r.id, requestHash: r.request_hash, taskId: r.task_id, status: 'Accepting quotes — reward not escrowed', ...(JSON.parse(r.request_json) as object) }))
+      const open = this.#sql.all<QuoteRequestRow>('SELECT * FROM quote_requests WHERE task_id IS NULL AND quote_deadline > ? ORDER BY created_at DESC LIMIT 50', now)
+      const recent = input.recent !== true ? [] : this.#sql.all<QuoteRequestRow>(
+        'SELECT * FROM quote_requests WHERE (task_id IS NOT NULL OR quote_deadline <= ?) AND quote_deadline > ? ORDER BY quote_deadline DESC LIMIT 50',
+        now, now - RECENT_REQUESTS,
+      )
+      return this.#requestReads([...open, ...recent], now)
     }
+    if (input.recent === true) throw new BoardError('invalid', 'recent applies to the public list; omit it with mine=true')
     const me = this.#requireCaller(caller)
     const cursor = input.cursor === undefined ? undefined : (() => {
       const match = /^qr:(\d+):(.+)$/.exec(input.cursor!)
@@ -1557,9 +1570,32 @@ export class Board {
     const rows = this.#sql.all<QuoteRequestRow>(`SELECT * FROM quote_requests WHERE creator = ?${cursor === undefined ? '' : ' AND (created_at < ? OR (created_at = ? AND id < ?))'} ORDER BY created_at DESC, id DESC LIMIT 51`, me,
       ...(cursor === undefined ? [] : [cursor.createdAt, cursor.createdAt, cursor.id]))
     const page = rows.slice(0, 50)
-    const requests = page.map(r => ({ requestId: r.id, requestHash: r.request_hash, taskId: r.task_id, status: r.task_id !== null ? 'Picked — hire linked' : this.#now() >= r.quote_deadline ? 'Expired — reward not escrowed' : 'Accepting quotes — reward not escrowed', ...(JSON.parse(r.request_json) as object) }))
+    const requests = this.#requestReads(page, now)
     const last = page.at(-1)
     return { requests, ...(rows.length > page.length && last !== undefined ? { nextCursor: `qr:${last.created_at}:${last.id}` } : {}) }
+  }
+
+  /** Request rows as read: the frozen request, then the board's own facts, which a stored key can never override. */
+  #requestReads(rows: readonly QuoteRequestRow[], now: number): QuoteRequestRead[] {
+    const counts = new Map<string, number>()
+    // Bound parameters stay under Cloudflare's 100 per statement.
+    for (let i = 0; i < rows.length; i += 90) {
+      const ids = rows.slice(i, i + 90).map((r) => r.id)
+      if (ids.length === 0) continue
+      for (const c of this.#sql.all<{ request_id: string; n: number }>(`SELECT request_id, COUNT(*) AS n FROM quotes WHERE request_id IN (${ids.map(() => '?').join(', ')}) GROUP BY request_id`, ...ids)) {
+        counts.set(c.request_id, Number(c.n))
+      }
+    }
+    return rows.map((r) => ({
+      ...(JSON.parse(r.request_json) as object),
+      requestId: r.id,
+      requestHash: r.request_hash,
+      taskId: r.task_id,
+      status: r.task_id !== null ? 'Picked — hire linked' : now >= r.quote_deadline ? 'Expired — reward not escrowed' : 'Accepting quotes — reward not escrowed',
+      createdAt: r.created_at,
+      // One quote per bidder (UNIQUE request_id, worker), so this counts bidders.
+      quotesCount: counts.get(r.id) ?? 0,
+    }))
   }
 
   /** A bidder's quote: one accepted token and an exact amount. A later quote from the same bidder replaces it. */

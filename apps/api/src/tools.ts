@@ -288,9 +288,13 @@ export const tools: Record<string, Tool> = {
   },
 
   list_quote_requests: {
-    description: 'Anyone: open quote requests (the work, accepted tokens, bonds, deadlines). A connected publisher may set mine=true to page its own picked and expired requests, including taskId.',
-    inputSchema: { type: 'object', properties: { mine: { type: 'boolean', description: 'Connected publisher only: include your picked and expired requests.' }, cursor: { type: 'string', description: 'Cursor from a prior mine=true page.' } } },
-    run: (board, caller, a) => board.listQuoteRequests(caller, { ...(a.mine === true ? { mine: true } : {}), ...(typeof a.cursor === 'string' ? { cursor: a.cursor } : {}) }),
+    description: 'Anyone: open quote requests (the work, accepted tokens, any public budget, bonds, deadlines), each with createdAt and quotesCount (how many bidders quoted; amounts stay private). recent=true also lists requests closed or picked in the last 7 days. A connected publisher may set mine=true to page its own picked and expired requests, including taskId.',
+    inputSchema: { type: 'object', properties: {
+      mine: { type: 'boolean', description: 'Connected publisher only: include your picked and expired requests.' },
+      cursor: { type: 'string', description: 'Cursor from a prior mine=true page.' },
+      recent: { type: 'boolean', description: 'Public list only: also requests closed or picked in the last 7 days (status says which).' },
+    } },
+    run: (board, caller, a) => board.listQuoteRequests(caller, { ...(a.mine === true ? { mine: true } : {}), ...(typeof a.cursor === 'string' ? { cursor: a.cursor } : {}), ...(a.recent === true ? { recent: true } : {}) }),
   },
 
   submit_quote: {

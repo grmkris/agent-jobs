@@ -95,6 +95,31 @@ it('owned requests include picked and expired history and page identical timesta
   expect(() => board.listQuoteRequests({ address: alice }, { mine: true, cursor: 'bad' })).toThrow(/cursor/)
 })
 
+it('the public list carries record time and bidder count; recent adds the last week of closed and picked requests', () => {
+  const { board, sql } = fixture()
+  const week = 7 * 86_400
+  // now = 1000; quote deadlines straddle it and the 7-day recent window.
+  const rows: [string, number, string | null][] = [['open', 1100, null], ['closed', 999, null], ['picked', 1100, 'alice-own'], ['stale', 1000 - week, null], ['stale-picked', 1000 - week - 1, 'alice-judges']]
+  rows.forEach(([id, deadline, taskId], i) =>
+    sql.run('INSERT INTO quote_requests (id, creator, stack, request_json, request_hash, quote_deadline, task_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', id, alice, 'main', '{"title":"Request","quotesCount":99,"status":"forged"}', id, deadline, taskId, 500 + i))
+  for (const worker of [bob, carol]) {
+    sql.run('INSERT INTO quotes (id, request_id, worker, agent_id, token, amount, note, quote_hash, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', `q-${worker}`, 'open', worker, '7', alice, '1', '', '0x', 900)
+  }
+  const open = board.listQuoteRequests({})
+  expect(open.map(r => r.requestId)).toEqual(['open'])
+  // The board's own facts win over anything stored in the request JSON.
+  expect(open[0]).toMatchObject({ createdAt: 500, quotesCount: 2, status: 'Accepting quotes — reward not escrowed', taskId: null })
+  const recent = board.listQuoteRequests({}, { recent: true })
+  expect(recent.map(r => [r.requestId, r.status, r.quotesCount])).toEqual([
+    ['open', 'Accepting quotes — reward not escrowed', 2],
+    ['picked', 'Picked — hire linked', 0],
+    ['closed', 'Expired — reward not escrowed', 0],
+  ])
+  expect(recent.find(r => r.requestId === 'picked')).toMatchObject({ taskId: 'alice-own' })
+  expect(() => board.listQuoteRequests({ address: alice }, { mine: true, recent: true } as never)).toThrow(/recent applies to the public list/)
+  expect(board.listQuoteRequests({ address: alice }, { mine: true }).requests.find(r => r.requestId === 'open')).toMatchObject({ createdAt: 500, quotesCount: 2 })
+})
+
 it('creator dashboard keeps chain status, funding, operation and next actor separate', async () => {
   const { board } = fixture()
   const list = await board.listTasks({ address: alice }, { role: 'creator' })
