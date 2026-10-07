@@ -1,3 +1,4 @@
+import { stage } from '../wallet.ts'
 import { textLinkClass } from './kit.tsx'
 import { cn } from '../lib/cn.ts'
 /**
@@ -98,6 +99,7 @@ function Brand() {
           {boardId !== 'public' && <span className="font-normal text-muted-foreground"> · {boardId}</span>}
         </span>
       </Link>
+      {stage === 'dev' && <span className="text-[10px] font-semibold tracking-wider text-muted-foreground">DEV</span>}
       <TestnetTag />
     </div>
   )

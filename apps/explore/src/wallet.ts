@@ -8,11 +8,15 @@ import { MAINNET_LIVE } from './release.ts'
 
 declare const __SIDEQUEST_NETWORK__: sdk.Network
 declare const __PRIVY_APP_ID__: string
+declare const __SIDEQUEST_STAGE__: string
+declare const __SIDEQUEST_RELAY__: `0x${string}`
 
 /** Privy's public app id; empty hides the email/social sign-in. */
 export const privyAppId: string = typeof __PRIVY_APP_ID__ === 'string' ? __PRIVY_APP_ID__ : ''
 
 export const network: sdk.Network = typeof __SIDEQUEST_NETWORK__ === 'string' ? __SIDEQUEST_NETWORK__ : 'monad-testnet'
+export const stage = typeof __SIDEQUEST_STAGE__ === 'string' ? __SIDEQUEST_STAGE__ : 'local'
+if (typeof __SIDEQUEST_RELAY__ === 'string' && (__SIDEQUEST_RELAY__ as string) !== '') sdk.setRelayOverride(__SIDEQUEST_RELAY__)
 export const isMainnet = network === 'monad-mainnet'
 
 /**

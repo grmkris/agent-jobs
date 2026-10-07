@@ -108,6 +108,13 @@ export default {
       headers.delete('ETag')
       res = new Response(request.method === 'HEAD' ? null : source, { status: res.status, headers })
     }
+    if (/^\/skills\/[a-z]+\/SKILL\.md$/.test(pathname) && res.ok) {
+      const raw = renderStartGuide(await res.text(), new URL(request.url).origin)
+      const headers = new Headers(res.headers)
+      headers.delete('Content-Length')
+      headers.delete('ETag')
+      res = new Response(request.method === 'HEAD' ? null : raw, { status: res.status, headers })
+    }
     if (pathname.endsWith('.webmanifest')) res.headers.set('Content-Type', 'application/manifest+json')
     // The agent skills (/skills/<role>/SKILL.md): readable in a browser and by `curl`, in UTF-8.
     if (pathname.endsWith('.md')) res.headers.set('Content-Type', 'text/markdown; charset=utf-8')

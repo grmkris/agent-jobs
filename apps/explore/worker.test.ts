@@ -109,6 +109,19 @@ describe('explore worker routing', () => {
     expect(e.api).toEqual([])
     expect((await get('/skills/nobody/SKILL.md', e)).status).toBe(404)
   })
+
+  it('renders connector skills for the request origin and discards the template byte metadata', async () => {
+    const e = env({ '/skills/connector/SKILL.md': '# Connect\n{{SIDEQUEST_ORIGIN}}/mcp' })
+    for (const origin of ['https://sidequest.exchange', 'https://dev.sidequest.exchange']) {
+      const response = await worker.fetch(new Request(`${origin}/skills/connector/SKILL.md`), e.env)
+      expect(await response.text()).toBe(`# Connect\n${origin}/mcp`)
+      expect(response.headers.get('content-length')).toBeNull()
+      expect(response.headers.get('etag')).toBeNull()
+      const head = await worker.fetch(new Request(`${origin}/skills/connector/SKILL.md`, { method: 'HEAD' }), e.env)
+      expect(head.status).toBe(200)
+      expect(await head.text()).toBe('')
+    }
+  })
 })
 
 

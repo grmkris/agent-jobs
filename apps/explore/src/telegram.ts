@@ -2,7 +2,8 @@ import { useQuery } from '@tanstack/react-query'
 import { tool } from './api.ts'
 
 /** Sidequest's bot. Its `/start <code>` finishes a link the wallet has signed for. */
-export const TELEGRAM_BOT = 'sidequest_xyz_bot'
+declare const __SIDEQUEST_TELEGRAM_BOT__: string
+export const TELEGRAM_BOT = typeof __SIDEQUEST_TELEGRAM_BOT__ === 'string' ? __SIDEQUEST_TELEGRAM_BOT__ : 'sidequest_excange_dev_bot'
 
 /** What the bot DMs about once linked (B9). */
 export const TELEGRAM_NOTICES = [

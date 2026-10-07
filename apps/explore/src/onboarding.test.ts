@@ -14,7 +14,7 @@ const swap =
 
 describe('Telegram link', () => {
   it('builds the bot deep link only for a code Telegram passes to /start', () => {
-    expect(deepLink('a1_B-2')).toBe('https://t.me/sidequest_xyz_bot?start=a1_B-2')
+    expect(deepLink('a1_B-2')).toBe('https://t.me/sidequest_excange_dev_bot?start=a1_B-2')
     expect(deepLink('')).toBeNull()
     expect(deepLink('has space')).toBeNull()
     expect(deepLink('x&start=evil')).toBeNull()

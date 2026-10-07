@@ -7,9 +7,12 @@ import { defineConfig } from 'vite'
 import { MAINNET_LIVE } from './src/release.ts'
 import { startGuide } from './start-guide-plugin.ts'
 import { docsSite, docsDev } from './docs-site-plugin.ts'
+import { stageProfile } from '../../infra/stage.ts'
 import { NotDeployedError, deployment } from '../../packages/sdk/src/deployment.ts'
 
-const network = process.env.SIDEQUEST_NETWORK ?? 'monad-testnet'
+const profile = stageProfile()
+const network = profile?.network ?? process.env.SIDEQUEST_NETWORK ?? 'monad-testnet'
+const stage = process.env.SIDEQUEST_STAGE ?? 'local'
 /** Whether the network's config has Sidequest v1: false on mainnet until launch day promotes it (as `wallet.ts` reads it). */
 const deployed = (() => {
   try {
@@ -96,7 +99,7 @@ function skills() {
         const role = /^\/skills\/([a-z]+)\/SKILL\.md$/.exec((req.url ?? '').split('?')[0] ?? '')?.[1]
         if (role === undefined || !(SKILL_ROLES as readonly string[]).includes(role)) return next()
         res.setHeader('Content-Type', 'text/markdown; charset=utf-8')
-        res.end(skillSource(role))
+        res.end(skillSource(role).replaceAll('{{SIDEQUEST_ORIGIN}}', profile?.origin ?? `http://${req.headers.host ?? 'localhost:5173'}`))
       })
     },
     generateBundle(this: { emitFile(f: { type: 'asset'; fileName: string; source: string }): void }) {
@@ -111,7 +114,10 @@ export default defineConfig({
   // PRIVY_APP_ID is public (it identifies the app to Privy's login modal); the app secret never reaches the browser.
   define: {
     __SIDEQUEST_NETWORK__: JSON.stringify(network),
-    __PRIVY_APP_ID__: JSON.stringify((network === 'monad-mainnet' ? process.env.SIDEQUEST_PROD_PRIVY_APP_ID : process.env.PRIVY_APP_ID) ?? ''),
+    __SIDEQUEST_STAGE__: JSON.stringify(stage),
+    __SIDEQUEST_RELAY__: JSON.stringify(profile?.relay ?? ''),
+    __SIDEQUEST_TELEGRAM_BOT__: JSON.stringify(profile?.telegram.botUsername ?? stageProfile('dev')!.telegram.botUsername),
+    __PRIVY_APP_ID__: JSON.stringify(process.env.PRIVY_APP_ID ?? ''),
   },
   // Pre-bundle the shader package. Found mid-run, the dev optimizer reloads, and a stale chunk keeps a second React, so a
   // cold checkout's first page with an agent orb failed ("reading 'useState'" of null).
