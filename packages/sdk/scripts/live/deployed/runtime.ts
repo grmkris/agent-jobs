@@ -1,3 +1,4 @@
+import { ORIGIN } from "./guards.ts";
 import { type Hex, parseEther } from "viem";
 import * as sdk from "../../../src/index.ts";
 import { HostedBrowser, type ManagedAgent } from "./browser.ts";
@@ -102,10 +103,10 @@ export class Runtime {
     const wallet = sdk.wallet(
       "monad-testnet",
       privateKeyToAccount(key as Hex),
-      process.env.MONAD_TESTNET_RPC_URL!,
+      (process.env.MONAD_RPC_URL ?? process.env.MONAD_TESTNET_RPC_URL)!,
     );
     this.chain.addActor(wallet.account.address);
-    const board = sdk.boardClient("https://dev.sidequest.exchange");
+    const board = sdk.boardClient(ORIGIN);
     await this.chain.reserve("creator-login", 100_000n, parseEther("0.05"));
     await board.signIn(wallet.account as import("viem").LocalAccount);
     await this.chain.finish("creator-login", []);

@@ -4,28 +4,41 @@ import { erc20Abi } from 'viem'
  *
  * Every protocol send is journaled: the signed bytes and nonce are persisted before broadcast, so a
  * restarted process resumes the exact transaction. The runner refuses any chain other than Monad testnet.
- * Required values are read by name from .env.local; no key is ever logged.
+ * Required values come from the chosen stage's process environment; no key is ever logged.
  */
 import { closeSync, existsSync, openSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
+import { parseEnv } from 'node:util'
 import { type Hex, decodeEventLog, parseAbi, parseUnits } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import * as sdk from '../src/index.ts'
 import config from '../../../contracts/config/monad-testnet.json' with { type: 'json' }
+import { stageProfile } from '../../../infra/stage.ts'
 import { ensureFlowDirectory, saveFlowState } from './flow-persistence.ts'
 import { v1FlowArbitrators } from './v1-flow-keys.ts'
 
 const names = [...sdk.V1_CORE_FLOWS, ...sdk.V1_HOSTED_FLOWS, ...sdk.V1_ADMIN_FLOWS, 'owed-blocklist', 'owed-gas']
-if (process.argv[2] === '--list') { console.log(names.join('\n')); process.exit(0) }
-const requested = (process.argv[2] === 'all' ? names.join(',') : process.argv[2] ?? 'hire,cancel,topup-paid').split(',').map(name => name.trim()).filter(Boolean)
+const args = process.argv.slice(2)
+if (args.includes('--list')) { console.log(names.join('\n')); process.exit(0) }
+const stageFlag = args.indexOf('--stage')
+const stageName = stageFlag === -1 ? process.env.SIDEQUEST_STAGE ?? 'dev' : args[stageFlag + 1]
+if (stageFlag !== -1 && (stageName !== 'dev' && stageName !== 'prod')) throw new Error('--stage requires dev or prod')
+const stageEnv = stageFlag === -1 ? process.env : { ...process.env, ...parseEnv(readFileSync(join(homedir(), '.config', 'sidequest', `${stageName}.env`), 'utf8')) }
+const flowArg = args.find((arg, index) => (stageFlag === -1 || index !== stageFlag && index !== stageFlag + 1) && !arg.startsWith('--'))
+const requested = (flowArg === 'all' ? names.join(',') : flowArg ?? 'hire,cancel,topup-paid').split(',').map(name => name.trim()).filter(Boolean)
 for (const name of requested) if (!names.includes(name as typeof names[number])) throw new Error(`unknown v1 flow ${name}; use --list`)
 
 const env = (name: string, optional = false) => {
-  const value = process.env[name]
-  if ((value === undefined || value === '') && !optional) throw new Error(`${name} is not set (.env.local)`)
+  const value = stageEnv[name]
+  if ((value === undefined || value === '') && !optional) throw new Error(`${name} is not set (chosen stage environment)`)
   return value
 }
 async function main() {
-const rpc = env('MONAD_TESTNET_RPC_URL')!
+const selected = stageProfile(stageName) ?? stageProfile('dev')!
+if (selected.network !== 'monad-testnet') throw new Error('v1 flow runner is testnet only')
+sdk.setRelayOverride(selected.relay)
+const rpc = env('MONAD_RPC_URL', true) ?? env('MONAD_TESTNET_RPC_URL')!
 const network = 'monad-testnet' as const
 const ctx = sdk.context(network, 'main', rpc)
 if (ctx.deployment.chainId !== 10143 || ctx.stack.kind !== 'sidequest-v1' || ctx.deployment.sidequest === null)
@@ -33,10 +46,10 @@ if (ctx.deployment.chainId !== 10143 || ctx.stack.kind !== 'sidequest-v1' || ctx
 const creator = sdk.wallet(network, privateKeyToAccount(env('TESTNET_CREATOR_PRIVATE_KEY') as Hex), rpc)
 const worker = sdk.wallet(network, privateKeyToAccount(env('TESTNET_WORKER_PRIVATE_KEY') as Hex), rpc)
 const relay = sdk.wallet(network, privateKeyToAccount(env('RELAY_PRIVATE_KEY') as Hex), rpc)
-const arbiters = v1FlowArbitrators(config, process.env)
+const arbiters = v1FlowArbitrators(config, stageEnv)
 const arbitrator = sdk.wallet(network, arbiters.v1, rpc)
 const explorer = 'https://testnet.monadscan.com/tx/'
-const yieldBeforeChainTime = process.env.V1_FLOW_YIELD === '1'
+const yieldBeforeChainTime = stageEnv.V1_FLOW_YIELD === '1'
 const profile = env('V1_FLOW_PROFILE', true) ?? 'default'
 if (!/^[A-Za-z0-9_-]{1,80}$/.test(profile)) throw new Error('V1_FLOW_PROFILE must be a short alphanumeric label')
 const stateDir = new URL(`./.v1-flows/${profile}/`, import.meta.url)
@@ -66,7 +79,7 @@ state.binding = binding
 const save = (next: sdk.FlowState) => saveFlowState(stateDir, next)
 const log = (label: string, hash: Hex) => console.log(`[${label}] ${explorer}${hash}`)
 const journal = new sdk.FlowJournal(ctx, state, save, log)
-if (relay.account.address.toLowerCase() !== ctx.deployment.relay.toLowerCase()) throw new Error('relay key does not match the promoted testnet config')
+if (relay.account.address.toLowerCase() !== ctx.deployment.relay.toLowerCase()) throw new Error('relay key does not match the selected stage')
 
 async function waitUntil(label: string, target: number) {
   for (;;) {
@@ -126,7 +139,7 @@ const reward = parseUnits(env('V1_FLOW_REWARD', true) ?? '1', rewardDecimals)
 const bond = parseUnits(env('V1_FLOW_BOND', true) ?? '10', factoryDecimals)
 if (reward <= 0n || bond <= 0n) throw new Error('live money verification needs positive reward and bond amounts')
 const hosted = requested.some(name => (sdk.V1_HOSTED_FLOWS as readonly string[]).includes(name))
-const boardUrl = hosted ? env('V1_BOARD_URL')! : ''
+const boardUrl = hosted ? env('V1_BOARD_URL', true) ?? selected.origin : ''
 const clients = new Map<string, ReturnType<typeof sdk.boardClient>>()
 const call = async <T = any>(wallet: sdk.Wallet, tool: string, input: Record<string, unknown>): Promise<T> => {
   let client = clients.get(wallet.account.address)

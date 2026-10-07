@@ -245,7 +245,7 @@ export class HostedBrowser {
       const message = await this.page.locator("#privy-modal-content").innerText();
       if (
         !message.includes(
-          "dev.sidequest.exchange wants you to sign in with your Ethereum account:",
+          `${new URL(ORIGIN).host} wants you to sign in with your Ethereum account:`,
         ) ||
         !message.includes("Chain ID: 10143")
       )

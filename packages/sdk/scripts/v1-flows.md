@@ -5,8 +5,9 @@
 `all` includes long waits and integration prerequisites. Only chain 10143 is accepted, and the SDK must load
 a promoted v1 `main` pair. The runner never deploys or edits the deployment config.
 
-Run from the backend worktree. Bun loads its testnet-only `.env.local`. Required names:
-`MONAD_TESTNET_RPC_URL`, `TESTNET_CREATOR_PRIVATE_KEY`, `TESTNET_WORKER_PRIVATE_KEY`, `RELAY_PRIVATE_KEY`,
+Run from the backend worktree with the selected stage environment. Set the plain names in the process environment, or
+pass `--stage dev`/`--stage prod` to load `~/.config/sidequest/<stage>.env`. Required names:
+`MONAD_RPC_URL`, `TESTNET_CREATOR_PRIVATE_KEY`, `TESTNET_WORKER_PRIVATE_KEY`, `RELAY_PRIVATE_KEY`,
 `V1_ARBITRATOR_PRIVATE_KEY`. Its address is checked against `sidequest.defaultArbitrator`. The named arbitrator is
 passed explicitly at publish; the worker checks the listing and signs a fresh net quote before activation.
 
