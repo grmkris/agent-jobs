@@ -1,4 +1,8 @@
-@import 'tailwindcss';
+/* Explicit sources: the release builds from a git-archive export with no .git, where automatic detection
+   ignores .gitignore and scans the previous environment's dist output, so server and client CSS diverged. */
+@import 'tailwindcss' source(none);
+@source '..';
+@source '../../content';
 @import '@fontsource-variable/geist';
 @import 'fumadocs-ui/css/neutral.css';
 @import 'fumadocs-ui/css/preset.css';
