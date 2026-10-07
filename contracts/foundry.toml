@@ -30,9 +30,9 @@ remappings = [
     "forge-std/=lib/forge-std/src/",
 ]
 # Monad verification wants metadata present but unhashed (docs.monad.xyz/guides/verify-smart-contract/foundry).
-# These keys need Foundry >= 1.8; older versions warn and ignore them.
-metadata = true
-metadata_hash = "none"
+# Foundry's own keys: the CBOR metadata stays, without a source hash, so the bytecode does not depend on file paths.
+cbor_metadata = true
+bytecode_hash = "none"
 use_literal_content = true
 
 [fuzz]

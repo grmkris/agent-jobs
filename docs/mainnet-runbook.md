@@ -10,13 +10,29 @@ subshell. Every read names its `--rpc-url`, and RPC URLs and API keys are never 
 The fresh **development** stack serves only `dev.sidequest.exchange`. It has independent state and resources;
 this runbook does not update the previous staging stack, which is held for reconciliation and retirement.
 
+## Launch decisions (Kris, 7 October)
+
+- **Gate.** Mainnet goes only after A01–A08 (the agent-first acceptance list) are recorded on the production stage
+  while it runs on testnet, and R7 has passed again on the commit that launches. There is no fixed date; if the gate
+  is not green before the 13 October submission, the submission goes out on testnet.
+- **Stages.** `sidequest.exchange` (prod) runs on testnet, sharing dev's contracts, until the launch. At launch it
+  flips to 143 through `infra/prod.json` and a redeploy; `dev.sidequest.exchange` stays on testnet.
+- **Safe.** Kris's wallet `0xB9970A6371358F6C74DFb15A7cB2653E3AE3E471` plus an offline backup owner, threshold 1, so
+  `SafeAccept.s.sol` runs as scripted.
+- **Allocation.** Treasury (200M) and ecosystem (100M) go to the Safe. Team vesting (150M) goes to Kris's wallet,
+  starting one year after T0 and running three years, with no cliff. Liquidity (50M) goes to a fresh seeder key.
+- **Keys.** Fresh relay, attester and arbitrator keys for 143 only. Rotating the other credentials exposed on 1 October
+  happens after the launch.
+- **Disclosure.** Explore's footer and sidebar say the contracts are unaudited; there is no separate terms page.
+
 ## 0. What is already proven, without a mainnet transaction
 
 - **The whole launch on a fork of 143 (R7).** `RPC=https://rpc.monad.xyz bash contracts/script/rehearse-launch.sh`
   runs §3.1–§3.7 and a first hire and mining epoch against the live chain's state, with Monad gas pricing and anvil
   dev keys. It passed on main c6fd84e (2 Oct). The D16 launch gate refused while the six handovers were pending and
   passed after `SafeAccept`, and `SeedPool`'s receipt verification ran against forge's real run log. The budget in §2
-  comes from that run.
+  comes from that run. The stake vault, the Sidequest reset and the launch scripts changed since c6fd84e, so R7 must pass
+  again on the launching commit before the go.
 - **Fork tests** (`(cd contracts && set -a && . ../.env.local && set +a && forge test --match-path 'test/fork/*')`):
   - `SidequestRehearsal.t.sol`: the recipe step by step on a mainnet fork, with third-party calls between the steps; a
     fresh core whose admin roles move to the Safe; the Safe accepts every handover; one hire end to end against the
@@ -48,7 +64,6 @@ this runbook does not update the previous staging stack, which is held for recon
 
    | field | type | on chain 143 |
    | --- | --- | --- |
-   | `sidequest.reuseCore` | bool | `false`: mainnet deploys its own core (`true` is refused on 143) |
    | `sidequest.safe` | address | the Safe |
    | `sidequest.defaultArbitrator` | address | the fresh v1 arbitrator, = `roles.arbitrator` (enforced); per-offer arbitrators override it |
    | `sidequest.margin` | uint | seconds added to the windows when checking `expiredAt`; the reviewed default is 3600 |
