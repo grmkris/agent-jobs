@@ -6,6 +6,7 @@ import { deployedFork } from './fork.ts'
 import { verifyAtomic } from './atomic.ts'
 import { Runtime, object, text, type Proof } from './runtime.ts'
 import { ensureAllowance } from './worker.ts'
+import { confirmGrant } from './signing.ts'
 import { decodeGrantBatch } from '../../../../board/src/hire-batch.ts'
 
 interface StoredGrant {
@@ -221,6 +222,13 @@ export async function limits(runtime: Runtime): Promise<Proof> {
     (response) => new URL(response.url()).pathname === `/api/approvals/${approvalId}/decide`,
   )
   await section.getByRole('button', { name: 'Sign and approve hire', exact: true }).click()
+  await confirmGrant(runtime.browser, chain.ctx, `/api/approvals/${approvalId}/prepare`, {
+    kind: 'allowance-once',
+    delegator: runtime.agent.operator,
+    agent: runtime.agent.address,
+    token: chain.ctx.deployment.rewardTokens[0]!,
+    amount: 12_000_000n,
+  })
   const body = (await (await reply).json()) as { ok?: boolean; result?: unknown }
   if (body.ok !== true || object(body.result).status !== 'confirmed')
     throw new Error('P8_EXACT_OPERATOR_APPROVAL_NOT_EXECUTED')

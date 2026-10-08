@@ -3,6 +3,7 @@ import * as sdk from '../../../src/index.ts'
 import { ORIGIN, required } from './guards.ts'
 import { type ManagedAgent } from './browser.ts'
 import { Runtime, type Proof } from './runtime.ts'
+import { confirmGrant } from './signing.ts'
 
 async function readAgent(runtime: Runtime, id: string): Promise<ManagedAgent> {
   const { agents } = await runtime.browser.api<{ agents: ManagedAgent[] }>('/api/agents')
@@ -86,6 +87,7 @@ export async function onboarding(runtime: Runtime): Promise<Proof> {
         key: 'onboarding/operator',
         gas: 200_000n,
       })
+      await confirmGrant(browser, chain.ctx, '/api/sponsor_prepare', { kind: 'operator', delegator: operator })
       await browser.page
         .getByRole('button', { name: 'Review registration grant', exact: true })
         .waitFor({ timeout: 60_000 })
@@ -98,6 +100,10 @@ export async function onboarding(runtime: Runtime): Promise<Proof> {
     await browser.click('Sign registration permission', {
       key: 'onboarding/register',
       gas: 1_200_000n,
+    })
+    await confirmGrant(browser, chain.ctx, `/api/agents/${draft.id}/registration-prepare`, {
+      kind: 'registration',
+      delegator: operator,
     })
     if (!(await response).ok()) throw new Error('P8_AGENT_REGISTRATION_REFUSED')
     agent = await readAgent(runtime, draft.id)

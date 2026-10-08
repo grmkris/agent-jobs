@@ -2,6 +2,7 @@ import { type Address, type Hex, encodeFunctionData, parseAbi } from 'viem'
 import * as sdk from '../../../src/index.ts'
 import { ORIGIN } from './guards.ts'
 import { Runtime, object, text, type Proof } from './runtime.ts'
+import { confirmGrant } from './signing.ts'
 
 export async function ensureAllowance(runtime: Runtime): Promise<void> {
   const funded = runtime.run.get('operator-reward-funding')
@@ -36,6 +37,13 @@ export async function ensureAllowance(runtime: Runtime): Promise<void> {
     (reply) => new URL(reply.url()).pathname === `/api/agents/${runtime.agent.id}/allowance-confirm`,
   )
   await card.getByRole('button', { name: 'Sign budget', exact: true }).click()
+  await confirmGrant(runtime.browser, runtime.chain.ctx, `/api/agents/${runtime.agent.id}/allowance-prepare`, {
+    kind: 'allowance',
+    delegator: runtime.agent.operator,
+    agent: runtime.agent.address,
+    token,
+    amount: 25_000_000n,
+  })
   if (!(await response).ok()) throw new Error('P8_INITIAL_ALLOWANCE_REFUSED')
   const after = await runtime.browser.api<{ allowances: Array<{ token: Address; limit: string }> }>(
     `/api/agents/${runtime.agent.id}`,
