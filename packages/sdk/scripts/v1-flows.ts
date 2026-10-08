@@ -59,6 +59,18 @@ async function main() {
   const ctx = sdk.context(network, 'main', rpc)
   if (ctx.deployment.chainId !== 10143 || ctx.stack.kind !== 'sidequest-v1' || ctx.deployment.sidequest === null)
     throw new Error('testnet v1 flows require a promoted Sidequest v1 main pair')
+  const bondPolicy = await ctx.publicClient.readContract({
+    address: ctx.stack.holding,
+    abi: parseAbi(['function minimumCreatorBond() view returns (uint256)']),
+    functionName: 'minimumCreatorBond',
+  })
+  const sideDecimals = await ctx.publicClient.readContract({
+    address: ctx.deployment.factory,
+    abi: erc20Abi,
+    functionName: 'decimals',
+  })
+  const requestedBond = parseUnits(env('V1_FLOW_BOND', true) ?? '10', sideDecimals)
+  if (requestedBond < bondPolicy) throw new Error('V1_FLOW_BOND is below the live minimum creator bond')
   const creator = sdk.wallet(network, privateKeyToAccount(env('TESTNET_CREATOR_PRIVATE_KEY') as Hex), rpc)
   const worker = sdk.wallet(network, privateKeyToAccount(env('TESTNET_WORKER_PRIVATE_KEY') as Hex), rpc)
   const relay = sdk.wallet(network, privateKeyToAccount(env('RELAY_PRIVATE_KEY') as Hex), rpc)
@@ -180,7 +192,8 @@ async function main() {
       abi: erc20Abi,
       functionName: 'decimals',
     })
-    const target = parseUnits(env('V1_STAKE_TARGET', true) ?? '100', decimals)
+    const configuredTarget = parseUnits(env('V1_STAKE_TARGET', true) ?? '100', decimals)
+    const target = configuredTarget > requestedBond ? configuredTarget : requestedBond
     for (const [name, wallet] of [
       ['creator', creator],
       ['worker', worker],

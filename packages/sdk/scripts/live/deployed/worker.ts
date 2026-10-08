@@ -3,8 +3,10 @@ import * as sdk from '../../../src/index.ts'
 import { ORIGIN } from './guards.ts'
 import { Runtime, object, text, type Proof } from './runtime.ts'
 import { confirmGrant } from './signing.ts'
+import { creatorBond, ensureAgentBacking, requireCreatorBacking } from './backing.ts'
 
-export async function ensureAllowance(runtime: Runtime): Promise<void> {
+export async function ensureAllowance(runtime: Runtime, operations: readonly string[]): Promise<void> {
+  if (operations.length > 0) await ensureAgentBacking(runtime, operations)
   const funded = runtime.run.get('operator-reward-funding')
   if (funded === undefined) {
     const { wallet } = await runtime.creator()
@@ -62,7 +64,7 @@ interface Prepared {
 /** The creator is a fixture key; apply/activation/delivery are the real Codex MCP. */
 export async function worker(runtime: Runtime): Promise<Proof> {
   await runtime.login()
-  await ensureAllowance(runtime)
+  await ensureAllowance(runtime, [])
   const coding = await runtime.coding()
   const guide = await coding.call('get_instructions', { role: 'worker' }, 'a02-instructions')
   const instructions = guide.output
@@ -74,6 +76,7 @@ export async function worker(runtime: Runtime): Promise<Proof> {
     throw new Error('P8_WORKER_INSTRUCTIONS_MISSING')
   const { chain, run } = runtime
   const { wallet, board } = await runtime.creator()
+  if (run.get('a02/offer') === undefined) await requireCreatorBacking(runtime, wallet.account.address)
   const token = chain.ctx.deployment.rewardTokens[0]!
   const windows = sdk.minimumOfferWindows(await sdk.readWindowBounds(chain.ctx))
   const args =
@@ -85,7 +88,7 @@ export async function worker(runtime: Runtime): Promise<Proof> {
       acceptanceCriteria: ['The onchain deliverable names the configured Holding on chain 10143.'],
       token,
       reward: '1',
-      creatorBond: '0',
+      creatorBond: await creatorBond(runtime),
       workerBond: '0',
       mode: 'hire',
       deliveryDeadline: Number((await chain.ctx.publicClient.getBlock()).timestamp) + 6 * 3600,

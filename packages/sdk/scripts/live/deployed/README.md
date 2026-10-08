@@ -1,5 +1,19 @@
 # Deployed P8 fixture acceptance
 
+Kris stopped A01–A08 reruns on 8 October 2026. G1e acceptance is manual; see
+`docs/acceptance/a01-a08.md`. The code changes for its live creator-bond floor and
+operator-owned agent backing are prepared only. No G1e fixture rerun is authorized.
+The existing G1d journal, 2 MON ledger, browser profile and Codex homes are retained.
+
+Before any separately approved future run, the operator uses the real agent profile's
+**Back this agent** action to deposit at least four live floor bonds. Reconcile any
+saved position action in Explore before preparing another deposit. The harness reads
+available backing for the next publishes and at least four floor bonds of active
+operator-owned position value (including bonds already reserved); it blocks with
+`P8_OPERATOR_AGENT_BACKING_REQUIRED` until both match. The fixture creator must also
+stake at least the live floor in its own wallet before A02. Bond targets and publish
+intents are frozen in the run journal. This setup preflight never submits a deposit.
+
 This harness drives the real testnet website in Chromium and uses a real isolated
 Codex as its hosted MCP client. Every result is **fixture**. It does not establish
 genuine-user consent, wallet rotation or mainnet readiness.

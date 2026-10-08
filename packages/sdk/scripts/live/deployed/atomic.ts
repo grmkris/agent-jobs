@@ -6,6 +6,7 @@ import { required } from './guards.ts'
 import { deployedFork } from './fork.ts'
 import { Runtime, object, text, type Proof } from './runtime.ts'
 import { ensureAllowance } from './worker.ts'
+import { assertCreatorBond, creatorBond } from './backing.ts'
 
 /** Inspect actual relay calldata and the three economic events in its one receipt. */
 export async function verifyAtomic(runtime: Runtime, hash: Hex) {
@@ -36,6 +37,7 @@ export async function verifyAtomic(runtime: Runtime, hash: Hex) {
   )
     throw new Error('P8_WRONG_HIRE_EXECUTION_ORDER')
   const params = published.args[0]
+  assertCreatorBond(runtime, params.creatorBond)
   const agent = runtime.agent.address
   const operator = runtime.agent.operator
   const holding = chain.ctx.stack.holding
@@ -168,7 +170,7 @@ async function rollback(runtime: Runtime, transaction: Hex, blockNumber: bigint)
 
 export async function atomicHire(runtime: Runtime): Promise<Proof> {
   await runtime.login()
-  await ensureAllowance(runtime)
+  await ensureAllowance(runtime, ['a03-hire'])
   const coding = await runtime.coding()
   const { chain, run } = runtime
   const grok = required('P8_GROK_AGENT_ID')
@@ -183,7 +185,7 @@ export async function atomicHire(runtime: Runtime): Promise<Proof> {
       mode: 'hire',
       token: chain.ctx.deployment.rewardTokens[0]!,
       reward: '3',
-      creatorBond: '0',
+      creatorBond: await creatorBond(runtime),
       workerBond: '0',
       deliveryDeadline: Number((await chain.ctx.publicClient.getBlock()).timestamp) + 6 * 3600,
       windows: sdk.minimumOfferWindows(await sdk.readWindowBounds(chain.ctx)),

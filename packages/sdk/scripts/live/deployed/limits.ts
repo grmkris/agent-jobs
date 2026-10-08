@@ -6,6 +6,7 @@ import { deployedFork } from './fork.ts'
 import { verifyAtomic } from './atomic.ts'
 import { Runtime, object, text, type Proof } from './runtime.ts'
 import { ensureAllowance } from './worker.ts'
+import { creatorBond } from './backing.ts'
 import { confirmGrant } from './signing.ts'
 import { decodeGrantBatch } from '../../../../board/src/hire-batch.ts'
 
@@ -205,7 +206,7 @@ async function concurrentHires(runtime: Runtime, base: Record<string, unknown>):
 
 export async function limits(runtime: Runtime): Promise<Proof> {
   await runtime.login()
-  await ensureAllowance(runtime)
+  await ensureAllowance(runtime, ['a04-concurrent-a', 'a04-concurrent-b'])
   const time = await chainLimits(runtime)
   const { chain, run } = runtime
   const base =
@@ -217,7 +218,7 @@ export async function limits(runtime: Runtime): Promise<Proof> {
       token: chain.ctx.deployment.rewardTokens[0]!,
       reward: '12',
       mode: 'hire',
-      creatorBond: '0',
+      creatorBond: await creatorBond(runtime),
       workerBond: '0',
       deliveryDeadline: Number((await chain.ctx.publicClient.getBlock()).timestamp) + 6 * 3600,
       windows: sdk.minimumOfferWindows(await sdk.readWindowBounds(chain.ctx)),
