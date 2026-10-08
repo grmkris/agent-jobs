@@ -1,5 +1,6 @@
 import { type Hex } from 'viem'
 import * as sdk from '../../../src/index.ts'
+import { logWindowEnd, smallerLogSpan } from '../../../src/log-ranges.ts'
 import { Runtime, object, text, type Proof } from './runtime.ts'
 import { verifyAtomic } from './atomic.ts'
 import { ensureAllowance } from './worker.ts'
@@ -37,21 +38,37 @@ export async function restart(runtime: Runtime): Promise<Proof> {
   const original = run.get<{ operationId: Hex; txHash: Hex; boundary: string }>(`interrupted/${label}`)
   if (original === undefined) throw new Error('P8_INTERRUPT_MARKER_MISSING')
   const result = await runtime.write(coding, 'create_task', args, label, 2_000_000n)
+  // SAFETY: runtime.write validates this confirmed sponsorship hash as 32-byte hex before returning.
   const recovered = text(object(object(result.result).sponsorship).txHash) as Hex
   if (text(object(result).operationId) !== original.operationId || recovered !== original.txHash)
     throw new Error('P8_RESTART_CHANGED_ECONOMIC_OPERATION')
   const verified = await verifyAtomic(runtime, recovered)
-  const logs = await chain.ctx.publicClient.getContractEvents({
-    address: chain.ctx.stack.holding,
-    abi: sdk.sidequestHoldingAbi,
-    eventName: 'Published',
-    fromBlock: run.get<bigint>('firstBlock')!,
-    toBlock: 'latest',
-  })
-  if (
-    logs.filter((log) => log.args.policyHash?.toLowerCase() === verified.params.policyHash.toLowerCase()).length !== 1
-  )
-    throw new Error('P8_RESTART_DUPLICATE_PUBLISH')
+  const through = await chain.ctx.publicClient.getBlockNumber()
+  let from = run.get<bigint>('firstBlock')!
+  let span = 1_000n
+  let published = 0
+  while (from <= through) {
+    const toBlock = logWindowEnd(from, through, span)
+    try {
+      const logs = await chain.ctx.publicClient.getContractEvents({
+        address: chain.ctx.stack.holding,
+        abi: sdk.sidequestHoldingAbi,
+        eventName: 'Published',
+        fromBlock: from,
+        toBlock,
+      })
+      published += logs.filter(
+        (log) => log.args.policyHash?.toLowerCase() === verified.params.policyHash.toLowerCase(),
+      ).length
+      from = toBlock + 1n
+    } catch (error) {
+      const smaller = smallerLogSpan(error, span)
+      if (smaller === undefined) throw new Error('P8_RESTART_EVENT_READ_FAILED', { cause: error })
+      // Retry this same inclusive range; a refused query never skips blocks.
+      span = smaller
+    }
+  }
+  if (published !== 1) throw new Error('P8_RESTART_DUPLICATE_PUBLISH')
   return {
     checks: [
       'real Codex process killed at the lost-response boundary',
@@ -64,6 +81,7 @@ export async function restart(runtime: Runtime): Promise<Proof> {
       operationId: original.operationId,
       boundary: original.boundary,
       taskId: object(result.result).taskId,
+      verifiedThroughBlock: through.toString(),
       rotation: 'outside A07f; no wallet rotation performed',
     },
   }
