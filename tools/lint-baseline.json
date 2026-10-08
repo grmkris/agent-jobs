@@ -1806,10 +1806,6 @@
     "eslint(max-lines)": 1,
     "eslint(max-lines-per-function)": 1
   },
-  "packages/sdk/src/market.test.ts": {
-    "anti-slop(no-chained-type-assertions)": 1,
-    "anti-slop(require-safety-comment-for-type-assertion)": 3
-  },
   "packages/sdk/src/market.ts": {
     "anti-slop(require-safety-comment-for-type-assertion)": 1,
     "typescript(no-unnecessary-type-assertion)": 1
