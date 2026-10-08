@@ -190,7 +190,9 @@ export async function atomicHire(runtime: Runtime): Promise<Proof> {
       invite: { agentId: grok },
       deliverable: { accepts: ['artifact', 'url'] },
     })
-  const result = await runtime.write(coding, 'create_task', args, 'a03-hire', 1_500_000n)
+  // The deployed relay's atomic batch used 1,652,660 gas in the retained
+  // receipt; keep its 2 MON-cap reservation above that observed bound.
+  const result = await runtime.write(coding, 'create_task', args, 'a03-hire', 2_000_000n)
   if (result.status !== 'confirmed') throw new Error('P8_IN_CAP_HIRE_REQUIRED_APPROVAL')
   const output = object(result.result)
   const hash = text(object(output.sponsorship).txHash) as Hex
