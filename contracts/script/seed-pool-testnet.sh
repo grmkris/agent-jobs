@@ -88,7 +88,7 @@ if [[ $DRY_RUN -eq 1 ]]; then
   exit 0
 fi
 forge script script/SeedPool.s.sol --rpc-url "$RPC" --private-key "$KEY" --broadcast --slow
-RUN="broadcast/SeedPool.s.sol/10143/run-latest.json"
+RUN="${FOUNDRY_BROADCAST:-broadcast}/SeedPool.s.sol/10143/run-latest.json"
 [[ -f "$RUN" ]] || { echo "refusing: SeedPool run log missing" >&2; exit 1; }
 echo "SeedPool transaction hashes:"
 jq -r '.transactions[] | .hash // .transactionHash // empty' "$RUN"

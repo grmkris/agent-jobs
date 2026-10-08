@@ -1,0 +1,99 @@
+{
+  "observedAt": "2026-10-08T21:47:41.778Z",
+  "step": 7,
+  "chainId": 10143,
+  "musdMint": {
+    "step": "7-mint",
+    "mode": "mint",
+    "observedAt": "2026-10-08T21:46:17.023Z",
+    "chainId": 10143,
+    "receipts": [
+      {
+        "id": "g1e-pool-musd",
+        "hash": "0x63a88853b9caddff43f15574375e9202f4b8fe33082c718eb89172ff4239f300",
+        "nonce": 94,
+        "from": "0xe5b7054e177e833d63f8d0548ffa9ecfc4289a71",
+        "to": "0x6b56d64150818f91f5112b285e806ec6c78eade8",
+        "chainId": 10143,
+        "status": "success",
+        "block": "69365664",
+        "gasUsed": "100000",
+        "effectiveGasPrice": "100000000000",
+        "gasCostWei": "10000000000000000",
+        "contractAddress": null
+      }
+    ],
+    "readbacks": {
+      "quote": "0x6B56D64150818f91f5112B285e806ec6C78EADe8",
+      "recipient": "0xe5B7054e177e833D63f8d0548ffa9ecfC4289A71",
+      "balance": "1205200000",
+      "decimals": 6
+    },
+    "gasCostWei": "10000000000000000",
+    "gasCostMon": "0.01"
+  },
+  "seedBroadcastSha256": "3cab205f7700ebaf32bdd14fb76adb4585edb2ffd8651b5ec8ce4927f7e4471d",
+  "receipts": [
+    {
+      "nonce": 95,
+      "hash": "0x0a9cd64474675fae7db003dcf38cd1096b51ab633665a05dd6c035d6f41b5948",
+      "from": "0xe5b7054e177e833d63f8d0548ffa9ecfc4289a71",
+      "to": null,
+      "block": "69365861",
+      "gasUsed": "2582713",
+      "effectiveGasPrice": "103000000000",
+      "gasCostWei": "266019439000000000",
+      "contractAddress": "0x2f89adac6dc793a54a739ae650e9532511671055",
+      "status": "success"
+    },
+    {
+      "nonce": 96,
+      "hash": "0x19682c31be0872d3396454f81cda83ba1ad4bbac23bb38b9d505adf8cb6897dc",
+      "from": "0xe5b7054e177e833d63f8d0548ffa9ecfc4289a71",
+      "to": "0x6b56d64150818f91f5112b285e806ec6c78eade8",
+      "block": "69365868",
+      "gasUsed": "67746",
+      "effectiveGasPrice": "103000000000",
+      "gasCostWei": "6977838000000000",
+      "contractAddress": null,
+      "status": "success"
+    },
+    {
+      "nonce": 97,
+      "hash": "0x39e8b6ba999bbfa32597fd095dc4e819c1fdbf4458f7355894864fc319367200",
+      "from": "0xe5b7054e177e833d63f8d0548ffa9ecfc4289a71",
+      "to": "0xbf0a7336d774729af63d415b5a6bdae8731b2e9b",
+      "block": "69365874",
+      "gasUsed": "67887",
+      "effectiveGasPrice": "103000000000",
+      "gasCostWei": "6992361000000000",
+      "contractAddress": null,
+      "status": "success"
+    },
+    {
+      "nonce": 98,
+      "hash": "0x08c52f1569e39a6f1d7a0878d6c8966b4a2bfc101fd0d40f3b692841e26e769b",
+      "from": "0xe5b7054e177e833d63f8d0548ffa9ecfc4289a71",
+      "to": "0x2f89adac6dc793a54a739ae650e9532511671055",
+      "block": "69365880",
+      "gasUsed": "1068726",
+      "effectiveGasPrice": "103000000000",
+      "gasCostWei": "110078778000000000",
+      "contractAddress": null,
+      "status": "success"
+    }
+  ],
+  "helper": "0x2f89adac6dc793a54a739ae650e9532511671055",
+  "verify": {
+    "positionTokenId": 94,
+    "owner": "0x77923113FD1a71Ad91F81064C3c05cA1EfB44CD8",
+    "liquidity": "99990000000000000",
+    "poolId": "0x4eb903f29419f209c25c85a75aafad8f5f3dd0a79f4a6f5cba11f4d854e09a4d"
+  },
+  "safeNonce": "18",
+  "gasCostWei": "390068416000000000",
+  "limits": [
+    "Pool verify passed; position token and liquidity are recorded from SeedPool verify() output."
+  ],
+  "wrapperReportingNote": "The wrapper printed retained G1d hashes from its hardcoded default RUN path. G1e deployment/verify used the generation-specific root; actual G1e receipts were independently verified. RUN now honors FOUNDRY_BROADCAST; no rebroadcast."
+}
