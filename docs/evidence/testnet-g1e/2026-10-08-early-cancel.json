@@ -1,0 +1,289 @@
+{
+  "observedAt": "2026-10-08T23:54:20.503Z",
+  "sourceCommit": "62a6c582e1199a6bdbb908bd8630f10f0a8c1eb3",
+  "network": "monad-testnet",
+  "chainId": 10143,
+  "origin": "https://sidequest.exchange",
+  "layer": "FLOW-wallet operator test",
+  "creator": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+  "worker": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571",
+  "agentId": "2081",
+  "core": "0x5914B7de3E80F1e8460901b4eBd6D19B15f9147e",
+  "holding": "0x8E2C39f28119F21566D88ba18028B95c1F19Bb31",
+  "vault": "0x0281F52d12ADbBe48DeF22a79ADef9A2308BD81b",
+  "factory": "0xbf0A7336d774729af63d415b5A6bDae8731b2e9B",
+  "profile": "g1e-prod-20261008",
+  "step": 13,
+  "result": "pass",
+  "flow": "early-unfilled-cancel",
+  "jobId": "3",
+  "publishedAt": 1791503645,
+  "cancelAt": 1791504245,
+  "cancelTimestamp": 1791503653,
+  "bond": "10000000000000000000",
+  "forfeit": "0",
+  "released": "10000000000000000000",
+  "listing": {
+    "creator": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+    "outcome": 2,
+    "funded": false,
+    "rewardSettled": true,
+    "creatorBondSettled": true,
+    "workerBondSettled": false,
+    "creatorBondBurned": false,
+    "workerBondBurned": false,
+    "workerBondReserved": false,
+    "approver": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+    "deliveryDeadline": 1791525236,
+    "expiredAt": 1791529376,
+    "arbitrator": "0x96eE4e1660744A4dE92D9E22476C501063524716",
+    "reviewWindow": 120,
+    "disputeWindow": 120,
+    "feeBps": 0,
+    "worker": "0x0000000000000000000000000000000000000000",
+    "arbitrationWindow": 300,
+    "publishedAt": 1791503645,
+    "unfilledForfeitBps": 2500,
+    "token": "0x6B56D64150818f91f5112B285e806ec6C78EADe8",
+    "reward": "1000000",
+    "fee": "0",
+    "bonus": "0",
+    "creatorBond": "10000000000000000000",
+    "workerBond": "0",
+    "manifestHash": "0x70f43963e27096023a63ae1d0f82b147c5135f6a2fca7dbfa0687417e306d1c0",
+    "policyHash": "0xe0389df654728e97c936930a8e33dd54c3ca790f47318e3d0adc0305de6f6a28"
+  },
+  "before": {
+    "blockNumber": "69391130",
+    "policy": {
+      "minimumCreatorBond": "10000000000000000000",
+      "unfilledForfeitBps": 2500,
+      "cancelGrace": 600,
+      "treasury": "0x77923113FD1a71Ad91F81064C3c05cA1EfB44CD8"
+    },
+    "creator": {
+      "account": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+      "blockNumber": "69391130",
+      "assets": "100000000000000000000",
+      "reserved": "20000000000000000000",
+      "shares": "100000000000000000000",
+      "queuedShares": "0",
+      "generation": "0",
+      "active": "100000000000000000000",
+      "queued": "0",
+      "available": "80000000000000000000",
+      "tier": {
+        "index": 0,
+        "threshold": "0",
+        "feeBps": 3000,
+        "nextThreshold": "10000000000000000000000",
+        "nextFeeBps": 1000,
+        "needed": "9900000000000000000000"
+      }
+    },
+    "worker": {
+      "account": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571",
+      "blockNumber": "69391130",
+      "assets": "100000000000000000000",
+      "reserved": "0",
+      "shares": "100000000000000000000",
+      "queuedShares": "0",
+      "generation": "0",
+      "active": "100000000000000000000",
+      "queued": "0",
+      "available": "100000000000000000000",
+      "tier": {
+        "index": 0,
+        "threshold": "0",
+        "feeBps": 3000,
+        "nextThreshold": "10000000000000000000000",
+        "nextFeeBps": 1000,
+        "needed": "9900000000000000000000"
+      }
+    },
+    "creatorPosition": {
+      "account": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+      "delegator": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+      "blockNumber": "69391130",
+      "shares": "100000000000000000000",
+      "activeShares": "100000000000000000000",
+      "queuedShares": "0",
+      "value": "100000000000000000000",
+      "activeValue": "100000000000000000000",
+      "queued": "0",
+      "unlockAt": 0,
+      "generation": "0",
+      "staleGeneration": false,
+      "shareBps": 10000
+    },
+    "treasurySIDE": "200000000000000000000000000",
+    "vaultSIDE": "92290000000000000000000",
+    "totalAssets": "92290000000000000000000"
+  },
+  "after": {
+    "blockNumber": "69391131",
+    "policy": {
+      "minimumCreatorBond": "10000000000000000000",
+      "unfilledForfeitBps": 2500,
+      "cancelGrace": 600,
+      "treasury": "0x77923113FD1a71Ad91F81064C3c05cA1EfB44CD8"
+    },
+    "creator": {
+      "account": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+      "blockNumber": "69391131",
+      "assets": "100000000000000000000",
+      "reserved": "10000000000000000000",
+      "shares": "100000000000000000000",
+      "queuedShares": "0",
+      "generation": "0",
+      "active": "100000000000000000000",
+      "queued": "0",
+      "available": "90000000000000000000",
+      "tier": {
+        "index": 0,
+        "threshold": "0",
+        "feeBps": 3000,
+        "nextThreshold": "10000000000000000000000",
+        "nextFeeBps": 1000,
+        "needed": "9900000000000000000000"
+      }
+    },
+    "worker": {
+      "account": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571",
+      "blockNumber": "69391131",
+      "assets": "100000000000000000000",
+      "reserved": "0",
+      "shares": "100000000000000000000",
+      "queuedShares": "0",
+      "generation": "0",
+      "active": "100000000000000000000",
+      "queued": "0",
+      "available": "100000000000000000000",
+      "tier": {
+        "index": 0,
+        "threshold": "0",
+        "feeBps": 3000,
+        "nextThreshold": "10000000000000000000000",
+        "nextFeeBps": 1000,
+        "needed": "9900000000000000000000"
+      }
+    },
+    "creatorPosition": {
+      "account": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+      "delegator": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+      "blockNumber": "69391131",
+      "shares": "100000000000000000000",
+      "activeShares": "100000000000000000000",
+      "queuedShares": "0",
+      "value": "100000000000000000000",
+      "activeValue": "100000000000000000000",
+      "queued": "0",
+      "unlockAt": 0,
+      "generation": "0",
+      "staleGeneration": false,
+      "shareBps": 10000
+    },
+    "treasurySIDE": "200000000000000000000000000",
+    "vaultSIDE": "92290000000000000000000",
+    "totalAssets": "92290000000000000000000"
+  },
+  "holdingEvents": [
+    {
+      "eventName": "Cancelled",
+      "args": {
+        "jobId": "3"
+      },
+      "transactionHash": "0x3674ccb93679f2d231a88212a5b6c4630758596b74c4d2e6cc61907b2ea6b60e",
+      "blockNumber": "69391131",
+      "logIndex": 35
+    },
+    {
+      "eventName": "BondReleased",
+      "args": {
+        "jobId": "3",
+        "account": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+        "side": 0,
+        "amount": "10000000000000000000"
+      },
+      "transactionHash": "0x3674ccb93679f2d231a88212a5b6c4630758596b74c4d2e6cc61907b2ea6b60e",
+      "blockNumber": "69391131",
+      "logIndex": 37
+    },
+    {
+      "eventName": "RewardSettled",
+      "args": {
+        "jobId": "3",
+        "to": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+        "outcome": 2,
+        "amount": "1000000"
+      },
+      "transactionHash": "0x3674ccb93679f2d231a88212a5b6c4630758596b74c4d2e6cc61907b2ea6b60e",
+      "blockNumber": "69391131",
+      "logIndex": 38
+    }
+  ],
+  "vaultEvents": [
+    {
+      "eventName": "Released",
+      "args": {
+        "holding": "0x8E2C39f28119F21566D88ba18028B95c1F19Bb31",
+        "account": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+        "amount": "10000000000000000000"
+      },
+      "transactionHash": "0x3674ccb93679f2d231a88212a5b6c4630758596b74c4d2e6cc61907b2ea6b60e",
+      "blockNumber": "69391131",
+      "logIndex": 36
+    }
+  ],
+  "sideTransfers": [],
+  "receipts": [
+    {
+      "step": "g1e-early/approve-reward",
+      "hash": "0xf685e9f25daa774016e14798bbaf5587515a274c290b1804da217c51497162c7",
+      "chainId": 10143,
+      "nonce": 358,
+      "from": "0x9819c243702dd06e8d793987f0f46f793996c71c",
+      "to": "0x6b56d64150818f91f5112b285e806ec6c78eade8",
+      "value": "0",
+      "block": "69391086",
+      "status": "success",
+      "inputHash": "0x9d7d78b9448f96bad9fe57e89e0d736058509c1f89def20999848761bf36432a",
+      "gasUsed": "75127",
+      "effectiveGasPrice": "102000000000",
+      "gasCostWei": "7662954000000000"
+    },
+    {
+      "step": "g1e-early/publish",
+      "hash": "0xd4c0471e8fb6256fd48be6023d25de4655d046dfa014f6dddeacf419e0eb94ff",
+      "chainId": 10143,
+      "nonce": 359,
+      "from": "0x9819c243702dd06e8d793987f0f46f793996c71c",
+      "to": "0x8e2c39f28119f21566d88ba18028b95c1f19bb31",
+      "value": "0",
+      "block": "69391106",
+      "status": "success",
+      "inputHash": "0xff71dfbd10571946058afdfdf2dc956c59cb78c136fdc3c488e65fa94b07ee85",
+      "gasUsed": "728550",
+      "effectiveGasPrice": "102000000000",
+      "gasCostWei": "74312100000000000"
+    },
+    {
+      "step": "g1e-early/cancel",
+      "hash": "0x3674ccb93679f2d231a88212a5b6c4630758596b74c4d2e6cc61907b2ea6b60e",
+      "chainId": 10143,
+      "nonce": 360,
+      "from": "0x9819c243702dd06e8d793987f0f46f793996c71c",
+      "to": "0x8e2c39f28119f21566d88ba18028b95c1f19bb31",
+      "value": "0",
+      "block": "69391131",
+      "status": "success",
+      "inputHash": "0xb4d96e628d9d257b2632d55d206e1a1f12e3b239b167732b372cb7663a9b16f4",
+      "gasUsed": "700543",
+      "effectiveGasPrice": "102000000000",
+      "gasCostWei": "71455386000000000"
+    }
+  ],
+  "limits": [
+    "FLOW operator wallet proof is separate from genuine-user or managed signer acceptance."
+  ]
+}

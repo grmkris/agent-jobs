@@ -1,0 +1,1030 @@
+{
+  "observedAt": "2026-10-08T23:58:43.477Z",
+  "sourceCommit": "62a6c582e1199a6bdbb908bd8630f10f0a8c1eb3",
+  "network": "monad-testnet",
+  "chainId": 10143,
+  "result": "pass",
+  "step": 13,
+  "flow": "quotes-and-early-cancel",
+  "evidence": [
+    "2026-10-08-live-hire.json",
+    "2026-10-08-early-cancel.json"
+  ],
+  "receipts": [
+    {
+      "step": "quotes/publish/0",
+      "hash": "0xdecd66a147f231fe42a48a1b6f349152f14a5b40c337128eb6d0b8894f0076cb",
+      "chainId": 10143,
+      "nonce": 355,
+      "from": "0x9819c243702dd06e8d793987f0f46f793996c71c",
+      "to": "0x6b56d64150818f91f5112b285e806ec6c78eade8",
+      "value": "0",
+      "block": "69390828",
+      "status": "success",
+      "inputHash": "0x9d7d78b9448f96bad9fe57e89e0d736058509c1f89def20999848761bf36432a",
+      "gasUsed": "75127",
+      "effectiveGasPrice": "102000000000",
+      "gasCostWei": "7662954000000000"
+    },
+    {
+      "step": "quotes/publish/1",
+      "hash": "0x5b869cdd77181594758c1b83d1479405a36c445624e9eabf334477d879bf4663",
+      "chainId": 10143,
+      "nonce": 356,
+      "from": "0x9819c243702dd06e8d793987f0f46f793996c71c",
+      "to": "0x8e2c39f28119f21566d88ba18028b95c1f19bb31",
+      "value": "0",
+      "block": "69390849",
+      "status": "success",
+      "inputHash": "0x8f39f0d4c2800d718ba7bf6743ba9f4d598ce96e86a1d4e8b69c848c2bfd9000",
+      "gasUsed": "750060",
+      "effectiveGasPrice": "102000000000",
+      "gasCostWei": "76506120000000000"
+    },
+    {
+      "step": "quotes/activate/0",
+      "hash": "0xe523fa90ef81185468c3dc36d87caab866a0a526fc324f9945677349a650e245",
+      "chainId": 10143,
+      "nonce": 207,
+      "from": "0xd7e3b7b7229196b8b65f97fc5544231dd4a7e571",
+      "to": "0x8e2c39f28119f21566d88ba18028b95c1f19bb31",
+      "value": "0",
+      "block": "69390903",
+      "status": "success",
+      "inputHash": "0xca5f492c59672743cf8b63944bc13187c1bfc1706b2ea5bfbd4f5a3778d2117c",
+      "gasUsed": "642565",
+      "effectiveGasPrice": "102000000000",
+      "gasCostWei": "65541630000000000"
+    },
+    {
+      "step": "quotes/submit/0",
+      "hash": "0x500d6c0a577b55272984be2053c81e9b97711b59a0a63b3f81d9e84ca7e5ca3f",
+      "chainId": 10143,
+      "nonce": 208,
+      "from": "0xd7e3b7b7229196b8b65f97fc5544231dd4a7e571",
+      "to": "0x5914b7de3e80f1e8460901b4ebd6d19b15f9147e",
+      "value": "0",
+      "block": "69390931",
+      "status": "success",
+      "inputHash": "0x33463a0d288d6c82d9b3cf7fefaa9f9a26f962abf48c552e5b3c6e05889a882b",
+      "gasUsed": "112255",
+      "effectiveGasPrice": "102000000000",
+      "gasCostWei": "11450010000000000"
+    },
+    {
+      "step": "quotes/accept/0",
+      "hash": "0xf32022363fe8f9bf25240811976a3668afbd2bcec292dc219bfdd32dfe513d9d",
+      "chainId": 10143,
+      "nonce": 357,
+      "from": "0x9819c243702dd06e8d793987f0f46f793996c71c",
+      "to": "0x13a38bf23b7e6f748769d54dea0017235dd0e120",
+      "value": "0",
+      "block": "69390959",
+      "status": "success",
+      "inputHash": "0x1b0890fdcb84f908b35285990852ee656a5907cb0f8e394fc4a2dce349ddb7b3",
+      "gasUsed": "1280948",
+      "effectiveGasPrice": "102000000000",
+      "gasCostWei": "130656696000000000"
+    },
+    {
+      "step": "quotes/settle/0",
+      "hash": "0x6477aa0fa9e91cdb0eb010d0cf5fa20012ba57a15659cd622f08705cf6a8e095",
+      "chainId": 10143,
+      "nonce": 209,
+      "from": "0xd7e3b7b7229196b8b65f97fc5544231dd4a7e571",
+      "to": "0x8e2c39f28119f21566d88ba18028b95c1f19bb31",
+      "value": "0",
+      "block": "69390990",
+      "status": "success",
+      "inputHash": "0x793ae0bdbbac1763d2ade9c771b8d202616c9351b9cc90936fed793468b83174",
+      "gasUsed": "592254",
+      "effectiveGasPrice": "102000000000",
+      "gasCostWei": "60409908000000000"
+    },
+    {
+      "step": "g1e-early/approve-reward",
+      "hash": "0xf685e9f25daa774016e14798bbaf5587515a274c290b1804da217c51497162c7",
+      "chainId": 10143,
+      "nonce": 358,
+      "from": "0x9819c243702dd06e8d793987f0f46f793996c71c",
+      "to": "0x6b56d64150818f91f5112b285e806ec6c78eade8",
+      "value": "0",
+      "block": "69391086",
+      "status": "success",
+      "inputHash": "0x9d7d78b9448f96bad9fe57e89e0d736058509c1f89def20999848761bf36432a",
+      "gasUsed": "75127",
+      "effectiveGasPrice": "102000000000",
+      "gasCostWei": "7662954000000000"
+    },
+    {
+      "step": "g1e-early/publish",
+      "hash": "0xd4c0471e8fb6256fd48be6023d25de4655d046dfa014f6dddeacf419e0eb94ff",
+      "chainId": 10143,
+      "nonce": 359,
+      "from": "0x9819c243702dd06e8d793987f0f46f793996c71c",
+      "to": "0x8e2c39f28119f21566d88ba18028b95c1f19bb31",
+      "value": "0",
+      "block": "69391106",
+      "status": "success",
+      "inputHash": "0xff71dfbd10571946058afdfdf2dc956c59cb78c136fdc3c488e65fa94b07ee85",
+      "gasUsed": "728550",
+      "effectiveGasPrice": "102000000000",
+      "gasCostWei": "74312100000000000"
+    },
+    {
+      "step": "g1e-early/cancel",
+      "hash": "0x3674ccb93679f2d231a88212a5b6c4630758596b74c4d2e6cc61907b2ea6b60e",
+      "chainId": 10143,
+      "nonce": 360,
+      "from": "0x9819c243702dd06e8d793987f0f46f793996c71c",
+      "to": "0x8e2c39f28119f21566d88ba18028b95c1f19bb31",
+      "value": "0",
+      "block": "69391131",
+      "status": "success",
+      "inputHash": "0xb4d96e628d9d257b2632d55d206e1a1f12e3b239b167732b372cb7663a9b16f4",
+      "gasUsed": "700543",
+      "effectiveGasPrice": "102000000000",
+      "gasCostWei": "71455386000000000"
+    }
+  ],
+  "indexChecks": [
+    {
+      "origin": "https://dev.sidequest.exchange",
+      "checkpoint": {
+        "next_block": 69391962,
+        "updated_at": 1791503904
+      },
+      "jobCount": 3,
+      "jobs": [
+        {
+          "jobId": "2",
+          "job": {
+            "chain_id": 10143,
+            "job_id": "2",
+            "stack": "main",
+            "mode": "hire",
+            "creator": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+            "approver": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+            "token": "0x6B56D64150818f91f5112B285e806ec6C78EADe8",
+            "reward": "1000000",
+            "creator_bond": "10000000000000000000",
+            "worker_bond": "10000000000000000000",
+            "policy_hash": "0x6e2a60e168b572dfb0968ad22d31af455042f15d83daa6bb3481e0118eccb90a",
+            "delivery_deadline": 1791525144,
+            "selection_deadline": null,
+            "worker": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571",
+            "agent_id": "2081",
+            "status": "completed",
+            "deliverable": "0x44d8597865bf55522969dc939d655c3152650e50eb4f0a6c99cc2ca9c3cf4d67",
+            "violation": null,
+            "rejection_reason_hash": null,
+            "kind": "sidequest-v1",
+            "arbitrator": "0x96eE4e1660744A4dE92D9E22476C501063524716",
+            "expired_at": 1791529284,
+            "review_window": 120,
+            "dispute_window": 120,
+            "arbitration_window": 300,
+            "fee_bps": 3000,
+            "fee": "300000",
+            "net": "700000",
+            "bonus": "0",
+            "outcome": "Accepted",
+            "settlement_outcome": "Paid",
+            "charged_fee": "300000",
+            "bonus_fee": "0",
+            "payout_deferred": 0,
+            "refund_deferred": 0,
+            "refunded_to_holding": null,
+            "published_block": 69390849,
+            "published_tx": "0x5b869cdd77181594758c1b83d1479405a36c445624e9eabf334477d879bf4663",
+            "updated_block": 69390990,
+            "manifest_hash": "0x6e2a60e168b572dfb0968ad22d31af455042f15d83daa6bb3481e0118eccb90a"
+          },
+          "timeline": [
+            {
+              "name": "JobCreated",
+              "block": 69390849,
+              "logIndex": 9,
+              "txHash": "0x5b869cdd77181594758c1b83d1479405a36c445624e9eabf334477d879bf4663",
+              "args": {
+                "jobId": "2",
+                "client": "0x8E2C39f28119F21566D88ba18028B95c1F19Bb31",
+                "provider": "0x0000000000000000000000000000000000000000",
+                "evaluator": "0x13a38Bf23B7e6F748769d54dEA0017235DD0E120",
+                "expiredAt": 1791529284,
+                "hook": "0x0000000000000000000000000000000000000000"
+              },
+              "at": 1791503568
+            },
+            {
+              "name": "Published",
+              "block": 69390849,
+              "logIndex": 10,
+              "txHash": "0x5b869cdd77181594758c1b83d1479405a36c445624e9eabf334477d879bf4663",
+              "args": {
+                "jobId": "2",
+                "creator": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+                "approver": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+                "arbitrator": "0x96eE4e1660744A4dE92D9E22476C501063524716",
+                "token": "0x6B56D64150818f91f5112B285e806ec6C78EADe8",
+                "reward": "1000000",
+                "creatorBond": "10000000000000000000",
+                "workerBond": "10000000000000000000",
+                "manifestHash": "0x6e2a60e168b572dfb0968ad22d31af455042f15d83daa6bb3481e0118eccb90a",
+                "policyHash": "0x6e2a60e168b572dfb0968ad22d31af455042f15d83daa6bb3481e0118eccb90a",
+                "deliveryDeadline": 1791525144,
+                "expiredAt": 1791529284,
+                "reviewWindow": 120,
+                "disputeWindow": 120,
+                "arbitrationWindow": 300
+              },
+              "at": 1791503568
+            },
+            {
+              "name": "Activated",
+              "block": 69390903,
+              "logIndex": 1,
+              "txHash": "0xe523fa90ef81185468c3dc36d87caab866a0a526fc324f9945677349a650e245",
+              "args": {
+                "jobId": "2",
+                "worker": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571",
+                "agentId": "2081",
+                "selectionNonce": "65841826294484319158515878609415855511",
+                "feeBps": 3000,
+                "fee": "300000",
+                "net": "700000",
+                "workerBond": "10000000000000000000"
+              },
+              "at": 1791503584
+            },
+            {
+              "name": "ProviderSet",
+              "block": 69390903,
+              "logIndex": 3,
+              "txHash": "0xe523fa90ef81185468c3dc36d87caab866a0a526fc324f9945677349a650e245",
+              "args": {
+                "jobId": "2",
+                "provider": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571",
+                "agentId": "2081"
+              },
+              "at": 1791503584
+            },
+            {
+              "name": "BudgetSet",
+              "block": 69390903,
+              "logIndex": 5,
+              "txHash": "0xe523fa90ef81185468c3dc36d87caab866a0a526fc324f9945677349a650e245",
+              "args": {
+                "jobId": "2",
+                "token": "0x6B56D64150818f91f5112B285e806ec6C78EADe8",
+                "amount": "700000"
+              },
+              "at": 1791503584
+            },
+            {
+              "name": "JobFunded",
+              "block": 69390903,
+              "logIndex": 8,
+              "txHash": "0xe523fa90ef81185468c3dc36d87caab866a0a526fc324f9945677349a650e245",
+              "args": {
+                "jobId": "2",
+                "client": "0x8E2C39f28119F21566D88ba18028B95c1F19Bb31",
+                "amount": "700000"
+              },
+              "at": 1791503584
+            },
+            {
+              "name": "JobSubmitted",
+              "block": 69390931,
+              "logIndex": 7,
+              "txHash": "0x500d6c0a577b55272984be2053c81e9b97711b59a0a63b3f81d9e84ca7e5ca3f",
+              "args": {
+                "jobId": "2",
+                "provider": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571",
+                "deliverable": "0x44d8597865bf55522969dc939d655c3152650e50eb4f0a6c99cc2ca9c3cf4d67"
+              },
+              "at": 1791503592
+            },
+            {
+              "name": "Accepted",
+              "block": 69390959,
+              "logIndex": 34,
+              "txHash": "0xf32022363fe8f9bf25240811976a3668afbd2bcec292dc219bfdd32dfe513d9d",
+              "args": {
+                "jobId": "2",
+                "approver": "0x9819C243702dD06E8D793987F0F46f793996c71c"
+              },
+              "at": 1791503601
+            },
+            {
+              "name": "BondReleased",
+              "block": 69390959,
+              "logIndex": 36,
+              "txHash": "0xf32022363fe8f9bf25240811976a3668afbd2bcec292dc219bfdd32dfe513d9d",
+              "args": {
+                "jobId": "2",
+                "account": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+                "side": 0,
+                "amount": "10000000000000000000"
+              },
+              "at": 1791503601
+            },
+            {
+              "name": "BondReleased",
+              "block": 69390959,
+              "logIndex": 38,
+              "txHash": "0xf32022363fe8f9bf25240811976a3668afbd2bcec292dc219bfdd32dfe513d9d",
+              "args": {
+                "jobId": "2",
+                "account": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571",
+                "side": 1,
+                "amount": "10000000000000000000"
+              },
+              "at": 1791503601
+            },
+            {
+              "name": "PaymentReleased",
+              "block": 69390959,
+              "logIndex": 40,
+              "txHash": "0xf32022363fe8f9bf25240811976a3668afbd2bcec292dc219bfdd32dfe513d9d",
+              "args": {
+                "jobId": "2",
+                "recipient": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571",
+                "amount": "700000"
+              },
+              "at": 1791503601
+            },
+            {
+              "name": "JobCompleted",
+              "block": 69390959,
+              "logIndex": 41,
+              "txHash": "0xf32022363fe8f9bf25240811976a3668afbd2bcec292dc219bfdd32dfe513d9d",
+              "args": {
+                "jobId": "2",
+                "evaluator": "0x13a38Bf23B7e6F748769d54dEA0017235DD0E120",
+                "reason": "0x6163636570746564000000000000000000000000000000000000000000000000"
+              },
+              "at": 1791503601
+            },
+            {
+              "name": "FeedbackRecorded",
+              "block": 69390959,
+              "logIndex": 43,
+              "txHash": "0xf32022363fe8f9bf25240811976a3668afbd2bcec292dc219bfdd32dfe513d9d",
+              "args": {
+                "jobId": "2",
+                "agentId": "2081",
+                "value": "1",
+                "tag": "completed"
+              },
+              "at": 1791503601
+            },
+            {
+              "name": "RewardSettled",
+              "block": 69390990,
+              "logIndex": 79,
+              "txHash": "0x6477aa0fa9e91cdb0eb010d0cf5fa20012ba57a15659cd622f08705cf6a8e095",
+              "args": {
+                "jobId": "2",
+                "to": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571",
+                "outcome": 1,
+                "amount": "0"
+              },
+              "at": 1791503610
+            },
+            {
+              "name": "FeeCharged",
+              "block": 69390990,
+              "logIndex": 80,
+              "txHash": "0x6477aa0fa9e91cdb0eb010d0cf5fa20012ba57a15659cd622f08705cf6a8e095",
+              "args": {
+                "jobId": "2",
+                "token": "0x6B56D64150818f91f5112B285e806ec6C78EADe8",
+                "worker": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571",
+                "creator": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+                "amount": "300000",
+                "bonusPart": "0"
+              },
+              "at": 1791503610
+            }
+          ],
+          "bonds": [
+            {
+              "side": "creator",
+              "outcome": "returned",
+              "recipient": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+              "amount": "10000000000000000000",
+              "block": 69390959,
+              "tx_hash": "0xf32022363fe8f9bf25240811976a3668afbd2bcec292dc219bfdd32dfe513d9d"
+            },
+            {
+              "side": "worker",
+              "outcome": "returned",
+              "recipient": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571",
+              "amount": "10000000000000000000",
+              "block": 69390959,
+              "tx_hash": "0xf32022363fe8f9bf25240811976a3668afbd2bcec292dc219bfdd32dfe513d9d"
+            }
+          ],
+          "ok": true
+        },
+        {
+          "jobId": "3",
+          "job": {
+            "chain_id": 10143,
+            "job_id": "3",
+            "stack": "main",
+            "mode": "hire",
+            "creator": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+            "approver": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+            "token": "0x6B56D64150818f91f5112B285e806ec6C78EADe8",
+            "reward": "1000000",
+            "creator_bond": "10000000000000000000",
+            "worker_bond": "0",
+            "policy_hash": "0xe0389df654728e97c936930a8e33dd54c3ca790f47318e3d0adc0305de6f6a28",
+            "delivery_deadline": 1791525236,
+            "selection_deadline": null,
+            "worker": null,
+            "agent_id": null,
+            "status": "cancelled",
+            "deliverable": null,
+            "violation": null,
+            "rejection_reason_hash": null,
+            "kind": "sidequest-v1",
+            "arbitrator": "0x96eE4e1660744A4dE92D9E22476C501063524716",
+            "expired_at": 1791529376,
+            "review_window": 120,
+            "dispute_window": 120,
+            "arbitration_window": 300,
+            "fee_bps": null,
+            "fee": null,
+            "net": null,
+            "bonus": "0",
+            "outcome": "None",
+            "settlement_outcome": "Refunded",
+            "charged_fee": "0",
+            "bonus_fee": "0",
+            "payout_deferred": 0,
+            "refund_deferred": 0,
+            "refunded_to_holding": null,
+            "published_block": 69391106,
+            "published_tx": "0xd4c0471e8fb6256fd48be6023d25de4655d046dfa014f6dddeacf419e0eb94ff",
+            "updated_block": 69391131,
+            "manifest_hash": "0x70f43963e27096023a63ae1d0f82b147c5135f6a2fca7dbfa0687417e306d1c0"
+          },
+          "timeline": [
+            {
+              "name": "JobCreated",
+              "block": 69391106,
+              "logIndex": 28,
+              "txHash": "0xd4c0471e8fb6256fd48be6023d25de4655d046dfa014f6dddeacf419e0eb94ff",
+              "args": {
+                "jobId": "3",
+                "client": "0x8E2C39f28119F21566D88ba18028B95c1F19Bb31",
+                "provider": "0x0000000000000000000000000000000000000000",
+                "evaluator": "0x13a38Bf23B7e6F748769d54dEA0017235DD0E120",
+                "expiredAt": 1791529376,
+                "hook": "0x0000000000000000000000000000000000000000"
+              },
+              "at": 1791503645
+            },
+            {
+              "name": "Published",
+              "block": 69391106,
+              "logIndex": 29,
+              "txHash": "0xd4c0471e8fb6256fd48be6023d25de4655d046dfa014f6dddeacf419e0eb94ff",
+              "args": {
+                "jobId": "3",
+                "creator": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+                "approver": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+                "arbitrator": "0x96eE4e1660744A4dE92D9E22476C501063524716",
+                "token": "0x6B56D64150818f91f5112B285e806ec6C78EADe8",
+                "reward": "1000000",
+                "creatorBond": "10000000000000000000",
+                "workerBond": "0",
+                "manifestHash": "0x70f43963e27096023a63ae1d0f82b147c5135f6a2fca7dbfa0687417e306d1c0",
+                "policyHash": "0xe0389df654728e97c936930a8e33dd54c3ca790f47318e3d0adc0305de6f6a28",
+                "deliveryDeadline": 1791525236,
+                "expiredAt": 1791529376,
+                "reviewWindow": 120,
+                "disputeWindow": 120,
+                "arbitrationWindow": 300
+              },
+              "at": 1791503645
+            },
+            {
+              "name": "JobRejected",
+              "block": 69391131,
+              "logIndex": 34,
+              "txHash": "0x3674ccb93679f2d231a88212a5b6c4630758596b74c4d2e6cc61907b2ea6b60e",
+              "args": {
+                "jobId": "3",
+                "rejector": "0x8E2C39f28119F21566D88ba18028B95c1F19Bb31",
+                "reason": "0x63616e63656c6c65640000000000000000000000000000000000000000000000"
+              },
+              "at": 1791503653
+            },
+            {
+              "name": "Cancelled",
+              "block": 69391131,
+              "logIndex": 35,
+              "txHash": "0x3674ccb93679f2d231a88212a5b6c4630758596b74c4d2e6cc61907b2ea6b60e",
+              "args": {
+                "jobId": "3"
+              },
+              "at": 1791503653
+            },
+            {
+              "name": "BondReleased",
+              "block": 69391131,
+              "logIndex": 37,
+              "txHash": "0x3674ccb93679f2d231a88212a5b6c4630758596b74c4d2e6cc61907b2ea6b60e",
+              "args": {
+                "jobId": "3",
+                "account": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+                "side": 0,
+                "amount": "10000000000000000000"
+              },
+              "at": 1791503653
+            },
+            {
+              "name": "RewardSettled",
+              "block": 69391131,
+              "logIndex": 38,
+              "txHash": "0x3674ccb93679f2d231a88212a5b6c4630758596b74c4d2e6cc61907b2ea6b60e",
+              "args": {
+                "jobId": "3",
+                "to": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+                "outcome": 2,
+                "amount": "1000000"
+              },
+              "at": 1791503653
+            }
+          ],
+          "bonds": [
+            {
+              "side": "creator",
+              "outcome": "returned",
+              "recipient": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+              "amount": "10000000000000000000",
+              "block": 69391131,
+              "tx_hash": "0x3674ccb93679f2d231a88212a5b6c4630758596b74c4d2e6cc61907b2ea6b60e"
+            }
+          ],
+          "ok": true
+        }
+      ]
+    },
+    {
+      "origin": "https://sidequest.exchange",
+      "checkpoint": {
+        "next_block": 69391965,
+        "updated_at": 1791503905
+      },
+      "jobCount": 3,
+      "jobs": [
+        {
+          "jobId": "2",
+          "job": {
+            "chain_id": 10143,
+            "job_id": "2",
+            "stack": "main",
+            "mode": "hire",
+            "creator": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+            "approver": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+            "token": "0x6B56D64150818f91f5112B285e806ec6C78EADe8",
+            "reward": "1000000",
+            "creator_bond": "10000000000000000000",
+            "worker_bond": "10000000000000000000",
+            "policy_hash": "0x6e2a60e168b572dfb0968ad22d31af455042f15d83daa6bb3481e0118eccb90a",
+            "manifest_hash": "0x6e2a60e168b572dfb0968ad22d31af455042f15d83daa6bb3481e0118eccb90a",
+            "delivery_deadline": 1791525144,
+            "selection_deadline": null,
+            "worker": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571",
+            "agent_id": "2081",
+            "status": "completed",
+            "deliverable": "0x44d8597865bf55522969dc939d655c3152650e50eb4f0a6c99cc2ca9c3cf4d67",
+            "violation": null,
+            "rejection_reason_hash": null,
+            "kind": "sidequest-v1",
+            "arbitrator": "0x96eE4e1660744A4dE92D9E22476C501063524716",
+            "expired_at": 1791529284,
+            "review_window": 120,
+            "dispute_window": 120,
+            "arbitration_window": 300,
+            "fee_bps": 3000,
+            "fee": "300000",
+            "net": "700000",
+            "bonus": "0",
+            "outcome": "Accepted",
+            "settlement_outcome": "Paid",
+            "charged_fee": "300000",
+            "bonus_fee": "0",
+            "payout_deferred": 0,
+            "refund_deferred": 0,
+            "refunded_to_holding": null,
+            "published_block": 69390849,
+            "published_tx": "0x5b869cdd77181594758c1b83d1479405a36c445624e9eabf334477d879bf4663",
+            "updated_block": 69390990
+          },
+          "timeline": [
+            {
+              "name": "JobCreated",
+              "block": 69390849,
+              "logIndex": 9,
+              "txHash": "0x5b869cdd77181594758c1b83d1479405a36c445624e9eabf334477d879bf4663",
+              "args": {
+                "jobId": "2",
+                "client": "0x8E2C39f28119F21566D88ba18028B95c1F19Bb31",
+                "provider": "0x0000000000000000000000000000000000000000",
+                "evaluator": "0x13a38Bf23B7e6F748769d54dEA0017235DD0E120",
+                "expiredAt": 1791529284,
+                "hook": "0x0000000000000000000000000000000000000000"
+              },
+              "at": 1791503568
+            },
+            {
+              "name": "Published",
+              "block": 69390849,
+              "logIndex": 10,
+              "txHash": "0x5b869cdd77181594758c1b83d1479405a36c445624e9eabf334477d879bf4663",
+              "args": {
+                "jobId": "2",
+                "creator": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+                "approver": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+                "arbitrator": "0x96eE4e1660744A4dE92D9E22476C501063524716",
+                "token": "0x6B56D64150818f91f5112B285e806ec6C78EADe8",
+                "reward": "1000000",
+                "creatorBond": "10000000000000000000",
+                "workerBond": "10000000000000000000",
+                "manifestHash": "0x6e2a60e168b572dfb0968ad22d31af455042f15d83daa6bb3481e0118eccb90a",
+                "policyHash": "0x6e2a60e168b572dfb0968ad22d31af455042f15d83daa6bb3481e0118eccb90a",
+                "deliveryDeadline": 1791525144,
+                "expiredAt": 1791529284,
+                "reviewWindow": 120,
+                "disputeWindow": 120,
+                "arbitrationWindow": 300
+              },
+              "at": 1791503568
+            },
+            {
+              "name": "Activated",
+              "block": 69390903,
+              "logIndex": 1,
+              "txHash": "0xe523fa90ef81185468c3dc36d87caab866a0a526fc324f9945677349a650e245",
+              "args": {
+                "jobId": "2",
+                "worker": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571",
+                "agentId": "2081",
+                "selectionNonce": "65841826294484319158515878609415855511",
+                "feeBps": 3000,
+                "fee": "300000",
+                "net": "700000",
+                "workerBond": "10000000000000000000"
+              },
+              "at": 1791503584
+            },
+            {
+              "name": "ProviderSet",
+              "block": 69390903,
+              "logIndex": 3,
+              "txHash": "0xe523fa90ef81185468c3dc36d87caab866a0a526fc324f9945677349a650e245",
+              "args": {
+                "jobId": "2",
+                "provider": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571",
+                "agentId": "2081"
+              },
+              "at": 1791503584
+            },
+            {
+              "name": "BudgetSet",
+              "block": 69390903,
+              "logIndex": 5,
+              "txHash": "0xe523fa90ef81185468c3dc36d87caab866a0a526fc324f9945677349a650e245",
+              "args": {
+                "jobId": "2",
+                "token": "0x6B56D64150818f91f5112B285e806ec6C78EADe8",
+                "amount": "700000"
+              },
+              "at": 1791503584
+            },
+            {
+              "name": "JobFunded",
+              "block": 69390903,
+              "logIndex": 8,
+              "txHash": "0xe523fa90ef81185468c3dc36d87caab866a0a526fc324f9945677349a650e245",
+              "args": {
+                "jobId": "2",
+                "client": "0x8E2C39f28119F21566D88ba18028B95c1F19Bb31",
+                "amount": "700000"
+              },
+              "at": 1791503584
+            },
+            {
+              "name": "JobSubmitted",
+              "block": 69390931,
+              "logIndex": 7,
+              "txHash": "0x500d6c0a577b55272984be2053c81e9b97711b59a0a63b3f81d9e84ca7e5ca3f",
+              "args": {
+                "jobId": "2",
+                "provider": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571",
+                "deliverable": "0x44d8597865bf55522969dc939d655c3152650e50eb4f0a6c99cc2ca9c3cf4d67"
+              },
+              "at": 1791503592
+            },
+            {
+              "name": "Accepted",
+              "block": 69390959,
+              "logIndex": 34,
+              "txHash": "0xf32022363fe8f9bf25240811976a3668afbd2bcec292dc219bfdd32dfe513d9d",
+              "args": {
+                "jobId": "2",
+                "approver": "0x9819C243702dD06E8D793987F0F46f793996c71c"
+              },
+              "at": 1791503601
+            },
+            {
+              "name": "BondReleased",
+              "block": 69390959,
+              "logIndex": 36,
+              "txHash": "0xf32022363fe8f9bf25240811976a3668afbd2bcec292dc219bfdd32dfe513d9d",
+              "args": {
+                "jobId": "2",
+                "account": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+                "side": 0,
+                "amount": "10000000000000000000"
+              },
+              "at": 1791503601
+            },
+            {
+              "name": "BondReleased",
+              "block": 69390959,
+              "logIndex": 38,
+              "txHash": "0xf32022363fe8f9bf25240811976a3668afbd2bcec292dc219bfdd32dfe513d9d",
+              "args": {
+                "jobId": "2",
+                "account": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571",
+                "side": 1,
+                "amount": "10000000000000000000"
+              },
+              "at": 1791503601
+            },
+            {
+              "name": "PaymentReleased",
+              "block": 69390959,
+              "logIndex": 40,
+              "txHash": "0xf32022363fe8f9bf25240811976a3668afbd2bcec292dc219bfdd32dfe513d9d",
+              "args": {
+                "jobId": "2",
+                "recipient": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571",
+                "amount": "700000"
+              },
+              "at": 1791503601
+            },
+            {
+              "name": "JobCompleted",
+              "block": 69390959,
+              "logIndex": 41,
+              "txHash": "0xf32022363fe8f9bf25240811976a3668afbd2bcec292dc219bfdd32dfe513d9d",
+              "args": {
+                "jobId": "2",
+                "evaluator": "0x13a38Bf23B7e6F748769d54dEA0017235DD0E120",
+                "reason": "0x6163636570746564000000000000000000000000000000000000000000000000"
+              },
+              "at": 1791503601
+            },
+            {
+              "name": "FeedbackRecorded",
+              "block": 69390959,
+              "logIndex": 43,
+              "txHash": "0xf32022363fe8f9bf25240811976a3668afbd2bcec292dc219bfdd32dfe513d9d",
+              "args": {
+                "jobId": "2",
+                "agentId": "2081",
+                "value": "1",
+                "tag": "completed"
+              },
+              "at": 1791503601
+            },
+            {
+              "name": "RewardSettled",
+              "block": 69390990,
+              "logIndex": 79,
+              "txHash": "0x6477aa0fa9e91cdb0eb010d0cf5fa20012ba57a15659cd622f08705cf6a8e095",
+              "args": {
+                "jobId": "2",
+                "to": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571",
+                "outcome": 1,
+                "amount": "0"
+              },
+              "at": 1791503610
+            },
+            {
+              "name": "FeeCharged",
+              "block": 69390990,
+              "logIndex": 80,
+              "txHash": "0x6477aa0fa9e91cdb0eb010d0cf5fa20012ba57a15659cd622f08705cf6a8e095",
+              "args": {
+                "jobId": "2",
+                "token": "0x6B56D64150818f91f5112B285e806ec6C78EADe8",
+                "worker": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571",
+                "creator": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+                "amount": "300000",
+                "bonusPart": "0"
+              },
+              "at": 1791503610
+            }
+          ],
+          "bonds": [
+            {
+              "side": "creator",
+              "outcome": "returned",
+              "recipient": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+              "amount": "10000000000000000000",
+              "block": 69390959,
+              "tx_hash": "0xf32022363fe8f9bf25240811976a3668afbd2bcec292dc219bfdd32dfe513d9d"
+            },
+            {
+              "side": "worker",
+              "outcome": "returned",
+              "recipient": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571",
+              "amount": "10000000000000000000",
+              "block": 69390959,
+              "tx_hash": "0xf32022363fe8f9bf25240811976a3668afbd2bcec292dc219bfdd32dfe513d9d"
+            }
+          ],
+          "ok": true
+        },
+        {
+          "jobId": "3",
+          "job": {
+            "chain_id": 10143,
+            "job_id": "3",
+            "stack": "main",
+            "mode": "hire",
+            "creator": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+            "approver": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+            "token": "0x6B56D64150818f91f5112B285e806ec6C78EADe8",
+            "reward": "1000000",
+            "creator_bond": "10000000000000000000",
+            "worker_bond": "0",
+            "policy_hash": "0xe0389df654728e97c936930a8e33dd54c3ca790f47318e3d0adc0305de6f6a28",
+            "manifest_hash": "0x70f43963e27096023a63ae1d0f82b147c5135f6a2fca7dbfa0687417e306d1c0",
+            "delivery_deadline": 1791525236,
+            "selection_deadline": null,
+            "worker": null,
+            "agent_id": null,
+            "status": "cancelled",
+            "deliverable": null,
+            "violation": null,
+            "rejection_reason_hash": null,
+            "kind": "sidequest-v1",
+            "arbitrator": "0x96eE4e1660744A4dE92D9E22476C501063524716",
+            "expired_at": 1791529376,
+            "review_window": 120,
+            "dispute_window": 120,
+            "arbitration_window": 300,
+            "fee_bps": null,
+            "fee": null,
+            "net": null,
+            "bonus": "0",
+            "outcome": "None",
+            "settlement_outcome": "Refunded",
+            "charged_fee": "0",
+            "bonus_fee": "0",
+            "payout_deferred": 0,
+            "refund_deferred": 0,
+            "refunded_to_holding": null,
+            "published_block": 69391106,
+            "published_tx": "0xd4c0471e8fb6256fd48be6023d25de4655d046dfa014f6dddeacf419e0eb94ff",
+            "updated_block": 69391131
+          },
+          "timeline": [
+            {
+              "name": "JobCreated",
+              "block": 69391106,
+              "logIndex": 28,
+              "txHash": "0xd4c0471e8fb6256fd48be6023d25de4655d046dfa014f6dddeacf419e0eb94ff",
+              "args": {
+                "jobId": "3",
+                "client": "0x8E2C39f28119F21566D88ba18028B95c1F19Bb31",
+                "provider": "0x0000000000000000000000000000000000000000",
+                "evaluator": "0x13a38Bf23B7e6F748769d54dEA0017235DD0E120",
+                "expiredAt": 1791529376,
+                "hook": "0x0000000000000000000000000000000000000000"
+              },
+              "at": 1791503645
+            },
+            {
+              "name": "Published",
+              "block": 69391106,
+              "logIndex": 29,
+              "txHash": "0xd4c0471e8fb6256fd48be6023d25de4655d046dfa014f6dddeacf419e0eb94ff",
+              "args": {
+                "jobId": "3",
+                "creator": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+                "approver": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+                "arbitrator": "0x96eE4e1660744A4dE92D9E22476C501063524716",
+                "token": "0x6B56D64150818f91f5112B285e806ec6C78EADe8",
+                "reward": "1000000",
+                "creatorBond": "10000000000000000000",
+                "workerBond": "0",
+                "manifestHash": "0x70f43963e27096023a63ae1d0f82b147c5135f6a2fca7dbfa0687417e306d1c0",
+                "policyHash": "0xe0389df654728e97c936930a8e33dd54c3ca790f47318e3d0adc0305de6f6a28",
+                "deliveryDeadline": 1791525236,
+                "expiredAt": 1791529376,
+                "reviewWindow": 120,
+                "disputeWindow": 120,
+                "arbitrationWindow": 300
+              },
+              "at": 1791503645
+            },
+            {
+              "name": "JobRejected",
+              "block": 69391131,
+              "logIndex": 34,
+              "txHash": "0x3674ccb93679f2d231a88212a5b6c4630758596b74c4d2e6cc61907b2ea6b60e",
+              "args": {
+                "jobId": "3",
+                "rejector": "0x8E2C39f28119F21566D88ba18028B95c1F19Bb31",
+                "reason": "0x63616e63656c6c65640000000000000000000000000000000000000000000000"
+              },
+              "at": 1791503653
+            },
+            {
+              "name": "Cancelled",
+              "block": 69391131,
+              "logIndex": 35,
+              "txHash": "0x3674ccb93679f2d231a88212a5b6c4630758596b74c4d2e6cc61907b2ea6b60e",
+              "args": {
+                "jobId": "3"
+              },
+              "at": 1791503653
+            },
+            {
+              "name": "BondReleased",
+              "block": 69391131,
+              "logIndex": 37,
+              "txHash": "0x3674ccb93679f2d231a88212a5b6c4630758596b74c4d2e6cc61907b2ea6b60e",
+              "args": {
+                "jobId": "3",
+                "account": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+                "side": 0,
+                "amount": "10000000000000000000"
+              },
+              "at": 1791503653
+            },
+            {
+              "name": "RewardSettled",
+              "block": 69391131,
+              "logIndex": 38,
+              "txHash": "0x3674ccb93679f2d231a88212a5b6c4630758596b74c4d2e6cc61907b2ea6b60e",
+              "args": {
+                "jobId": "3",
+                "to": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+                "outcome": 2,
+                "amount": "1000000"
+              },
+              "at": 1791503653
+            }
+          ],
+          "bonds": [
+            {
+              "side": "creator",
+              "outcome": "returned",
+              "recipient": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+              "amount": "10000000000000000000",
+              "block": 69391131,
+              "tx_hash": "0x3674ccb93679f2d231a88212a5b6c4630758596b74c4d2e6cc61907b2ea6b60e"
+            }
+          ],
+          "ok": true
+        }
+      ]
+    }
+  ],
+  "assertions": {
+    "quoteJob": {
+      "jobId": "2",
+      "status": "completed",
+      "settlement": "Paid",
+      "grossReward": "1000000",
+      "workerPayout": "700000",
+      "treasuryFee": "300000",
+      "creatorBond": "10000000000000000000",
+      "workerBond": "10000000000000000000"
+    },
+    "earlyCancel": {
+      "jobId": "3",
+      "status": "cancelled",
+      "publishedAt": 1791503645,
+      "cancelTimestamp": 1791503653,
+      "elapsedSeconds": 8,
+      "creatorBondReleased": "10000000000000000000",
+      "forfeited": "0",
+      "treasuryDelta": "0",
+      "bondForfeitedEvents": 0,
+      "vaultForfeitedEvents": 0
+    }
+  }
+}

@@ -1,0 +1,360 @@
+{
+  "observedAt": "2026-10-08T23:53:41.435Z",
+  "sourceCommit": "62a6c582e1199a6bdbb908bd8630f10f0a8c1eb3",
+  "network": "monad-testnet",
+  "chainId": 10143,
+  "origin": "https://sidequest.exchange",
+  "layer": "FLOW-wallet operator test",
+  "creator": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+  "worker": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571",
+  "agentId": "2081",
+  "core": "0x5914B7de3E80F1e8460901b4eBd6D19B15f9147e",
+  "holding": "0x8E2C39f28119F21566D88ba18028B95c1F19Bb31",
+  "vault": "0x0281F52d12ADbBe48DeF22a79ADef9A2308BD81b",
+  "factory": "0xbf0A7336d774729af63d415b5A6bDae8731b2e9B",
+  "profile": "g1e-prod-20261008",
+  "step": 13,
+  "result": "pass",
+  "flow": "quotes",
+  "taskId": "734102d946015f1e",
+  "requestId": "6e6b52ecfb36f9a1",
+  "jobId": "2",
+  "listing": {
+    "creator": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+    "outcome": 1,
+    "funded": true,
+    "rewardSettled": true,
+    "creatorBondSettled": true,
+    "workerBondSettled": true,
+    "creatorBondBurned": false,
+    "workerBondBurned": false,
+    "workerBondReserved": true,
+    "approver": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+    "deliveryDeadline": 1791525144,
+    "expiredAt": 1791529284,
+    "arbitrator": "0x96eE4e1660744A4dE92D9E22476C501063524716",
+    "reviewWindow": 120,
+    "disputeWindow": 120,
+    "feeBps": 3000,
+    "worker": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571",
+    "arbitrationWindow": 300,
+    "publishedAt": 1791503568,
+    "unfilledForfeitBps": 2500,
+    "token": "0x6B56D64150818f91f5112B285e806ec6C78EADe8",
+    "reward": "1000000",
+    "fee": "300000",
+    "bonus": "0",
+    "creatorBond": "10000000000000000000",
+    "workerBond": "10000000000000000000",
+    "manifestHash": "0x6e2a60e168b572dfb0968ad22d31af455042f15d83daa6bb3481e0118eccb90a",
+    "policyHash": "0x6e2a60e168b572dfb0968ad22d31af455042f15d83daa6bb3481e0118eccb90a"
+  },
+  "operations": [
+    {
+      "kind": "publish",
+      "status": "confirmed",
+      "txHash": null,
+      "operationId": null
+    },
+    {
+      "kind": "activate",
+      "status": "confirmed",
+      "txHash": null,
+      "operationId": null
+    },
+    {
+      "kind": "submit",
+      "status": "confirmed",
+      "txHash": null,
+      "operationId": null
+    },
+    {
+      "kind": "accept",
+      "status": "confirmed",
+      "txHash": null,
+      "operationId": null
+    }
+  ],
+  "economics": {
+    "reward": "1000000",
+    "net": "700000",
+    "fee": "300000",
+    "creatorBond": "10000000000000000000",
+    "workerBond": "10000000000000000000"
+  },
+  "before": {
+    "blockNumber": "69390763",
+    "policy": {
+      "minimumCreatorBond": "10000000000000000000",
+      "unfilledForfeitBps": 2500,
+      "cancelGrace": 600,
+      "treasury": "0x77923113FD1a71Ad91F81064C3c05cA1EfB44CD8"
+    },
+    "creator": {
+      "account": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+      "blockNumber": "69390763",
+      "assets": "100000000000000000000",
+      "reserved": "10000000000000000000",
+      "shares": "100000000000000000000",
+      "queuedShares": "0",
+      "generation": "0",
+      "active": "100000000000000000000",
+      "queued": "0",
+      "available": "90000000000000000000",
+      "tier": {
+        "index": 0,
+        "threshold": "0",
+        "feeBps": 3000,
+        "nextThreshold": "10000000000000000000000",
+        "nextFeeBps": 1000,
+        "needed": "9900000000000000000000"
+      }
+    },
+    "worker": {
+      "account": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571",
+      "blockNumber": "69390763",
+      "assets": "100000000000000000000",
+      "reserved": "0",
+      "shares": "100000000000000000000",
+      "queuedShares": "0",
+      "generation": "0",
+      "active": "100000000000000000000",
+      "queued": "0",
+      "available": "100000000000000000000",
+      "tier": {
+        "index": 0,
+        "threshold": "0",
+        "feeBps": 3000,
+        "nextThreshold": "10000000000000000000000",
+        "nextFeeBps": 1000,
+        "needed": "9900000000000000000000"
+      }
+    },
+    "creatorPosition": {
+      "account": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+      "delegator": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+      "blockNumber": "69390763",
+      "shares": "100000000000000000000",
+      "activeShares": "100000000000000000000",
+      "queuedShares": "0",
+      "value": "100000000000000000000",
+      "activeValue": "100000000000000000000",
+      "queued": "0",
+      "unlockAt": 0,
+      "generation": "0",
+      "staleGeneration": false,
+      "shareBps": 10000
+    },
+    "treasurySIDE": "200000000000000000000000000",
+    "vaultSIDE": "92290000000000000000000",
+    "totalAssets": "92290000000000000000000"
+  },
+  "after": {
+    "blockNumber": "69391020",
+    "policy": {
+      "minimumCreatorBond": "10000000000000000000",
+      "unfilledForfeitBps": 2500,
+      "cancelGrace": 600,
+      "treasury": "0x77923113FD1a71Ad91F81064C3c05cA1EfB44CD8"
+    },
+    "creator": {
+      "account": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+      "blockNumber": "69391020",
+      "assets": "100000000000000000000",
+      "reserved": "10000000000000000000",
+      "shares": "100000000000000000000",
+      "queuedShares": "0",
+      "generation": "0",
+      "active": "100000000000000000000",
+      "queued": "0",
+      "available": "90000000000000000000",
+      "tier": {
+        "index": 0,
+        "threshold": "0",
+        "feeBps": 3000,
+        "nextThreshold": "10000000000000000000000",
+        "nextFeeBps": 1000,
+        "needed": "9900000000000000000000"
+      }
+    },
+    "worker": {
+      "account": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571",
+      "blockNumber": "69391020",
+      "assets": "100000000000000000000",
+      "reserved": "0",
+      "shares": "100000000000000000000",
+      "queuedShares": "0",
+      "generation": "0",
+      "active": "100000000000000000000",
+      "queued": "0",
+      "available": "100000000000000000000",
+      "tier": {
+        "index": 0,
+        "threshold": "0",
+        "feeBps": 3000,
+        "nextThreshold": "10000000000000000000000",
+        "nextFeeBps": 1000,
+        "needed": "9900000000000000000000"
+      }
+    },
+    "creatorPosition": {
+      "account": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+      "delegator": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+      "blockNumber": "69391020",
+      "shares": "100000000000000000000",
+      "activeShares": "100000000000000000000",
+      "queuedShares": "0",
+      "value": "100000000000000000000",
+      "activeValue": "100000000000000000000",
+      "queued": "0",
+      "unlockAt": 0,
+      "generation": "0",
+      "staleGeneration": false,
+      "shareBps": 10000
+    },
+    "treasurySIDE": "200000000000000000000000000",
+    "vaultSIDE": "92290000000000000000000",
+    "totalAssets": "92290000000000000000000"
+  },
+  "tokenTransfers": [
+    {
+      "eventName": "Transfer",
+      "args": {
+        "from": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+        "to": "0x8E2C39f28119F21566D88ba18028B95c1F19Bb31",
+        "value": "1000000"
+      },
+      "transactionHash": "0x5b869cdd77181594758c1b83d1479405a36c445624e9eabf334477d879bf4663",
+      "blockNumber": "69390849",
+      "logIndex": 7
+    },
+    {
+      "eventName": "Transfer",
+      "args": {
+        "from": "0x8E2C39f28119F21566D88ba18028B95c1F19Bb31",
+        "to": "0x5914B7de3E80F1e8460901b4eBd6D19B15f9147e",
+        "value": "700000"
+      },
+      "transactionHash": "0xe523fa90ef81185468c3dc36d87caab866a0a526fc324f9945677349a650e245",
+      "blockNumber": "69390903",
+      "logIndex": 7
+    },
+    {
+      "eventName": "Transfer",
+      "args": {
+        "from": "0x5914B7de3E80F1e8460901b4eBd6D19B15f9147e",
+        "to": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571",
+        "value": "700000"
+      },
+      "transactionHash": "0xf32022363fe8f9bf25240811976a3668afbd2bcec292dc219bfdd32dfe513d9d",
+      "blockNumber": "69390959",
+      "logIndex": 39
+    },
+    {
+      "eventName": "Transfer",
+      "args": {
+        "from": "0x8E2C39f28119F21566D88ba18028B95c1F19Bb31",
+        "to": "0x77923113FD1a71Ad91F81064C3c05cA1EfB44CD8",
+        "value": "300000"
+      },
+      "transactionHash": "0x6477aa0fa9e91cdb0eb010d0cf5fa20012ba57a15659cd622f08705cf6a8e095",
+      "blockNumber": "69390990",
+      "logIndex": 81
+    }
+  ],
+  "receipts": [
+    {
+      "step": "quotes/publish/0",
+      "hash": "0xdecd66a147f231fe42a48a1b6f349152f14a5b40c337128eb6d0b8894f0076cb",
+      "chainId": 10143,
+      "nonce": 355,
+      "from": "0x9819c243702dd06e8d793987f0f46f793996c71c",
+      "to": "0x6b56d64150818f91f5112b285e806ec6c78eade8",
+      "value": "0",
+      "block": "69390828",
+      "status": "success",
+      "inputHash": "0x9d7d78b9448f96bad9fe57e89e0d736058509c1f89def20999848761bf36432a",
+      "gasUsed": "75127",
+      "effectiveGasPrice": "102000000000",
+      "gasCostWei": "7662954000000000"
+    },
+    {
+      "step": "quotes/publish/1",
+      "hash": "0x5b869cdd77181594758c1b83d1479405a36c445624e9eabf334477d879bf4663",
+      "chainId": 10143,
+      "nonce": 356,
+      "from": "0x9819c243702dd06e8d793987f0f46f793996c71c",
+      "to": "0x8e2c39f28119f21566d88ba18028b95c1f19bb31",
+      "value": "0",
+      "block": "69390849",
+      "status": "success",
+      "inputHash": "0x8f39f0d4c2800d718ba7bf6743ba9f4d598ce96e86a1d4e8b69c848c2bfd9000",
+      "gasUsed": "750060",
+      "effectiveGasPrice": "102000000000",
+      "gasCostWei": "76506120000000000"
+    },
+    {
+      "step": "quotes/activate/0",
+      "hash": "0xe523fa90ef81185468c3dc36d87caab866a0a526fc324f9945677349a650e245",
+      "chainId": 10143,
+      "nonce": 207,
+      "from": "0xd7e3b7b7229196b8b65f97fc5544231dd4a7e571",
+      "to": "0x8e2c39f28119f21566d88ba18028b95c1f19bb31",
+      "value": "0",
+      "block": "69390903",
+      "status": "success",
+      "inputHash": "0xca5f492c59672743cf8b63944bc13187c1bfc1706b2ea5bfbd4f5a3778d2117c",
+      "gasUsed": "642565",
+      "effectiveGasPrice": "102000000000",
+      "gasCostWei": "65541630000000000"
+    },
+    {
+      "step": "quotes/submit/0",
+      "hash": "0x500d6c0a577b55272984be2053c81e9b97711b59a0a63b3f81d9e84ca7e5ca3f",
+      "chainId": 10143,
+      "nonce": 208,
+      "from": "0xd7e3b7b7229196b8b65f97fc5544231dd4a7e571",
+      "to": "0x5914b7de3e80f1e8460901b4ebd6d19b15f9147e",
+      "value": "0",
+      "block": "69390931",
+      "status": "success",
+      "inputHash": "0x33463a0d288d6c82d9b3cf7fefaa9f9a26f962abf48c552e5b3c6e05889a882b",
+      "gasUsed": "112255",
+      "effectiveGasPrice": "102000000000",
+      "gasCostWei": "11450010000000000"
+    },
+    {
+      "step": "quotes/accept/0",
+      "hash": "0xf32022363fe8f9bf25240811976a3668afbd2bcec292dc219bfdd32dfe513d9d",
+      "chainId": 10143,
+      "nonce": 357,
+      "from": "0x9819c243702dd06e8d793987f0f46f793996c71c",
+      "to": "0x13a38bf23b7e6f748769d54dea0017235dd0e120",
+      "value": "0",
+      "block": "69390959",
+      "status": "success",
+      "inputHash": "0x1b0890fdcb84f908b35285990852ee656a5907cb0f8e394fc4a2dce349ddb7b3",
+      "gasUsed": "1280948",
+      "effectiveGasPrice": "102000000000",
+      "gasCostWei": "130656696000000000"
+    },
+    {
+      "step": "quotes/settle/0",
+      "hash": "0x6477aa0fa9e91cdb0eb010d0cf5fa20012ba57a15659cd622f08705cf6a8e095",
+      "chainId": 10143,
+      "nonce": 209,
+      "from": "0xd7e3b7b7229196b8b65f97fc5544231dd4a7e571",
+      "to": "0x8e2c39f28119f21566d88ba18028b95c1f19bb31",
+      "value": "0",
+      "block": "69390990",
+      "status": "success",
+      "inputHash": "0x793ae0bdbbac1763d2ade9c771b8d202616c9351b9cc90936fed793468b83174",
+      "gasUsed": "592254",
+      "effectiveGasPrice": "102000000000",
+      "gasCostWei": "60409908000000000"
+    }
+  ],
+  "limits": [
+    "This uses the existing FLOW wallets and hosted wallet tools. It is not genuine-user consent or hosted managed signing."
+  ]
+}
