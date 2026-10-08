@@ -1563,9 +1563,6 @@
     "anti-slop(require-safety-comment-for-type-assertion)": 5,
     "complexity(complexity)": 1
   },
-  "packages/sdk/scripts/live/deployed/clients.ts": {
-    "anti-slop(no-runtime-typeof)": 1
-  },
   "packages/sdk/scripts/live/deployed/codex.ts": {
     "anti-slop(no-runtime-typeof)": 3,
     "anti-slop(require-safety-comment-for-type-assertion)": 2,
