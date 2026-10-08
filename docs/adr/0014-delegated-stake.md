@@ -68,7 +68,10 @@ The accepted testnet edges are:
    `expiredAt`. A no-show is punished only if a party resolves it before expiry;
    the creator also recovers its reward sooner through that timeout than through
    the core refund after expiry. This bounds penalty exposure even when
-   reconciliation is delayed.
+   reconciliation is delayed. Two consequences are accepted (review
+   HR001-R02/R03): a creator colluding with a worker can wait past expiry to
+   spare the worker's bond, and a core pause that spans `expiredAt` releases a
+   penalty that was due.
 2. Request/cancel can change the tier just before activation. A stale signed net
    budget then reverts atomically; the SDK must quote and sign again.
 3. Repeated near-total slashes can inflate one pool's share count. Deposits cap
