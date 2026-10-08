@@ -12,7 +12,7 @@ import {
 } from 'viem'
 import * as sdk from '@sidequest/sdk'
 import { forkEnabled, forkSetupTimeout, startSidequestFork } from '../../sdk/test/sidequest-fixture.ts'
-import { SponsorDesk, type NamedSponsorEntry } from './sponsor.ts'
+import { SponsorDesk, sponsorBudget, type NamedSponsorEntry } from './sponsor.ts'
 import { GrantStore } from './grants.ts'
 import { AgentStore } from './agents.ts'
 import { BoardError } from './service.ts'
@@ -241,7 +241,7 @@ describe.skipIf(!forkEnabled)('named sponsorship grants on a real Monad fork', (
     db.prepare('INSERT INTO sponsor_operator_usage VALUES (?,?,?,?,?)').run(
       'fixture-rate-reservation',
       fixture.creator.account.address.toLowerCase(),
-      20,
+      sponsorBudget(ctx.deployment.network).walletCalls,
       0,
       now,
     )

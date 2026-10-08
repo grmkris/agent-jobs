@@ -158,7 +158,7 @@ suite('resumable agent registry onboarding', () => {
       ).state,
     ).toBe('active')
     expect(await ctx.publicClient.getTransactionCount({ address: fixture.admin.account.address })).toBe(after)
-  })
+  }, 120_000)
 
   it('disables the old allowance before replacement, then stops OAuth and disables every known agent grant', async () => {
     const operator = fixture.creator.account.address

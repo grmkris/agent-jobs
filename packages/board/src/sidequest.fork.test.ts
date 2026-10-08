@@ -236,12 +236,13 @@ fork('Sidequest board on a local Monad fork', () => {
   )
 
   it('direct hire freezes windows/arbitrator and signs the current net; a changed fee quote requires a new signature', async () => {
+    const bounds = await sdk.readWindowBounds(f.ctx)
     await expect(
       board.createTask(
         { address: f.creator.account.address },
-        { ...offer(), windows: { ...windows, reviewSeconds: 3599 } },
+        { ...offer(), windows: { ...windows, reviewSeconds: bounds.review.min - 1 } },
       ),
-    ).rejects.toThrow('1 hour')
+    ).rejects.toThrow('review window')
     await expect(
       board.createTask({ address: f.creator.account.address }, { ...offer(), arbitrator: f.creator.account.address }),
     ).rejects.toThrow('distinct')
@@ -398,7 +399,7 @@ fork('Sidequest board on a local Monad fork', () => {
     expect(board.taskIndex({}).find((task) => task.taskId === picked.taskId)?.tags).toEqual(['coding', 'research'])
     expect(
       (await board.listQuotes({ address: f.creator.account.address }, { requestId: requested.requestId })).creator,
-    ).toBe(f.creator.account.address.toLowerCase())
+    ).toBe(f.creator.account.address)
     expect(picked.applicationId).toBeDefined()
   }, 120_000)
 

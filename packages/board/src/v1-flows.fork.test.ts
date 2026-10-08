@@ -9,7 +9,7 @@ import { fromNodeSqlite } from './store.ts'
 
 const fork = forkEnabled ? describe : describe.skip
 fork('live hosted runner through the REST/MCP registry on a real local fork', () => {
-  let f: Awaited<ReturnType<typeof startSidequestFork>>, board: Board, db: DatabaseSync, agentId: bigint
+  let f: Awaited<ReturnType<typeof startSidequestFork>>, board: Board, db: DatabaseSync, agentId: bigint, now: number
   const boot = () =>
     new Board(fromNodeSqlite(db), {
       network: 'monad-testnet',
@@ -18,10 +18,13 @@ fork('live hosted runner through the REST/MCP registry on a real local fork', ()
       domain: 'fork.test',
       uri: 'https://fork.test',
       manifestBaseUrl: 'https://fork.test/offers',
-      now: () => Math.floor(Date.now() / 1000),
+      // Anvil's automined clock can lag wall time during concurrent fork suites.
+      // Operation timestamps must use the fork clock, as receipt reconciliation does.
+      now: () => now,
     })
   beforeAll(async () => {
     f = await startSidequestFork()
+    now = Number((await f.ctx.publicClient.getBlock()).timestamp)
     db = new DatabaseSync(':memory:')
     const ctx = { ...f.ctx, deployment: { ...f.ctx.deployment, relay: f.admin.account.address } }
     f.ctx = ctx
