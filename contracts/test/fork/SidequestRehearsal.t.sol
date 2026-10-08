@@ -163,7 +163,11 @@ contract SidequestRehearsalForkTest is Test {
         assertEq(d.vault.positionOf(worker, worker).shares, 0);
         assertEq(d.vault.positionOf(worker, creator).shares, 20_000e18);
 
-        uint48 deadline = uint48(vm.getBlockTimestamp() + 2 days);
+        // Leave the complete review/dispute/arbitration tail and core margin inside the deployed bond horizon.
+        uint256 deliveryDuration = c.clocks.unstakeDelay
+            - (c.clocks.minReviewWindow + c.clocks.minDisputeWindow + c.clocks.minArbitrationWindow + c.margin);
+        if (deliveryDuration > 2 days) deliveryDuration = 2 days;
+        uint48 deadline = uint48(vm.getBlockTimestamp() + deliveryDuration);
         ISidequestHolding.PublishParams memory p = ISidequestHolding.PublishParams({
             approver: address(0),
             arbitrator: address(0),
