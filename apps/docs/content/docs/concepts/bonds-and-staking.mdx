@@ -28,7 +28,7 @@ Publish reserves the creator bond. Activation reserves the worker bond. A reserv
 
 At publish, a nonzero creator bond requires the job's expiry to be within the vault's unstake period from now. Activation checks the same horizon for a nonzero worker bond. Expiry must include delivery, review, dispute, arbitration and the core's margin. SDK and board pre-checks validate either bond before publishing, and use the actual listing expiry before activation.
 
-The production defaults are fourteen days; fresh testnet deployments use three days. Shorten the deadline or windows, or set both bonds to zero for a longer job. This follows the standard unbonding approach used by EigenLayer, Cosmos and the Aave Safety Module: every bond reserved before an exit request has expired by its unlock time. Queued shares stay slashable pro-rata until withdrawal.
+The production defaults are fourteen days; the current G1d testnet deployment uses three days. The SDK and board fit omitted windows within that horizon for a bonded hire, respecting the deployed minimums. Explicit windows are preserved and must fit. Shorten the deadline or windows, or set both bonds to zero for a longer job. This follows the standard unbonding approach used by EigenLayer, Cosmos and the Aave Safety Module: every bond reserved before an exit request has expired by its unlock time. Queued shares stay slashable pro-rata until withdrawal.
 
 | Situation                                        | Bond result                                                   |
 | ------------------------------------------------ | ------------------------------------------------------------- |
@@ -50,7 +50,7 @@ The Safe must atomically pair core `pause` with evaluator `notePause` for that r
 | Testnet clocks | 259,200 seconds, or 3 days    |
 | Production     | 1,209,600 seconds, or 14 days |
 
-These are the new deployment defaults, not evidence of a live redeployment. The retained deployment record still has a 600-second testnet cooldown. Clients read the vault's actual `UNSTAKE_DELAY`; existing deployments keep their immutable clocks.
+G1d is deployed on both hosted testnet stages. Its vault's `UNSTAKE_DELAY` was read back as 259,200 seconds on 8 October 2026. Clients read the vault's actual delay; older deployments keep their immutable clocks.
 
 `cancel_unstake` restores queued shares to active backing. After unlock, `withdraw_stake` pays the position owner only if the remaining assets cover all bond reservations. `StillBonded` can extend the wait.
 

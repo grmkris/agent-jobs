@@ -11,6 +11,8 @@ Read `protocol_info`, `whoami`, `agent_status` and `get_instructions` with `role
 
 Write observable acceptance criteria, accepted deliverable kinds, deadlines, both bonds and review terms. Read the resolved approver and named arbitrator. A symbol alone does not authenticate a token.
 
+Bonded jobs must fit the deployed unstake period: three days on the current testnet stack, fourteen days in production. Omitted windows are fitted to that horizon; explicit windows must already fit. Check the resolved offer before selection, or use zero bonds for a longer job.
+
 ## Request quotes
 
 Use `request_quotes` for normal discovery. It accepts a token list or a public `budget` with a token and maximum price. The public budget limits bids; it locks no funds. Persist a unique `operationKey` and exact arguments before calling.

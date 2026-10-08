@@ -1,0 +1,19 @@
+{
+  "sourceCommit": "fb5d2696021cccd86fd5cd9b207fb6e20ae21c79",
+  "layer": "live-chain-readback",
+  "observedAt": "2026-10-08T15:10:19.933Z",
+  "chainId": 10143,
+  "vault": "0x7F9e1eAB7472f14f8a43233e6AC82f5088f7f36a",
+  "UNSTAKE_DELAY": "259200",
+  "configuredClocks": {
+    "epochDuration": 3600,
+    "epochZeroDuration": 1800,
+    "feeDelay": 300,
+    "holdingDelay": 262800,
+    "minArbitrationWindow": 300,
+    "minDisputeWindow": 120,
+    "minReviewWindow": 120,
+    "proposalGrace": 1800,
+    "unstakeDelay": 259200
+  }
+}
