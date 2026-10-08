@@ -252,6 +252,10 @@ export class CodingClient {
         'exec',
         '-c',
         'mcp_servers.sidequest.required=true',
+        // The fixture ledger bounds authorized writes. Approve only this requested
+        // MCP tool while retaining the read-only shell sandbox.
+        '-c',
+        `mcp_servers.sidequest.tools.${name}.approval_mode="approve"`,
         '--json',
         '--ephemeral',
         '--skip-git-repo-check',
@@ -307,6 +311,8 @@ export class CodingClient {
           'exec',
           '-c',
           'mcp_servers.sidequest.required=true',
+          '-c',
+          `mcp_servers.sidequest.tools.${name}.approval_mode="approve"`,
           '--json',
           '--ephemeral',
           '--skip-git-repo-check',
