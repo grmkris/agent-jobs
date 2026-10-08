@@ -1,0 +1,181 @@
+{
+  "schemaVersion": 2,
+  "chainId": 10143,
+  "from": "pre-g1d",
+  "to": "g1d",
+  "snapshot": {
+    "block": 69264362,
+    "blockHash": "0xb422d130b2edd865b7213fd4f4b750c333f28984b0bfafb543e5e29eafd71b46",
+    "timestamp": 1791465355,
+    "checksum": "3820b0cc31989010cc3974bcf5c662479a4507b90fe82c862463b590467512f3"
+  },
+  "old": {
+    "vault": "0x48aB9ec1d37818293Ba1F9e63a4f01C8e4a05C76",
+    "factory": "0x7572f3Eb31C5bd3E5809F20d221603C2E31f170d",
+    "core": "0x9D3B88bc525E7A363F099332E6F4b5A7af1FcC32",
+    "holding": "0xfa52B3d905346c53436B6F4824A7c6F0439A0614",
+    "block": 68581014,
+    "configChecksum": "c584eab2e2b13ca94fea92ab1366c399afaf1f720591428e960fd6e3f4331d72"
+  },
+  "positions": [
+    {
+      "account": "0x564F6384a2fE01051D58FB4583aBd613d8c45eC0",
+      "delegator": "0x5f3D114a607b5bBB71a2E11Ba045fC9f4F239Ce7",
+      "amount": "150000000000000000000",
+      "active": "150000000000000000000",
+      "unstaking": "0",
+      "shares": "150000000000000000000",
+      "queuedShares": "0",
+      "generation": "0",
+      "unlockAt": 0
+    },
+    {
+      "account": "0x5760b5e2E1314BCd7d43E259Bd12485cc5A22aAE",
+      "delegator": "0x5dbC93cbbeFedd3b5f2E34ea2844a6383c88f95F",
+      "amount": "500000000000000000000",
+      "active": "500000000000000000000",
+      "unstaking": "0",
+      "shares": "500000000000000000000",
+      "queuedShares": "0",
+      "generation": "0",
+      "unlockAt": 0
+    },
+    {
+      "account": "0x5f576f142Ef0b2fE2FceDE9a994d02E281967fC6",
+      "delegator": "0x5f3D114a607b5bBB71a2E11Ba045fC9f4F239Ce7",
+      "amount": "150000000000000000000",
+      "active": "150000000000000000000",
+      "unstaking": "0",
+      "shares": "150000000000000000000",
+      "queuedShares": "0",
+      "generation": "0",
+      "unlockAt": 0
+    },
+    {
+      "account": "0x63F13E384f041E3642678bb1ce1bD127E34524C1",
+      "delegator": "0x5f3D114a607b5bBB71a2E11Ba045fC9f4F239Ce7",
+      "amount": "150000000000000000000",
+      "active": "150000000000000000000",
+      "unstaking": "0",
+      "shares": "150000000000000000000",
+      "queuedShares": "0",
+      "generation": "0",
+      "unlockAt": 0
+    },
+    {
+      "account": "0x6f2037aaE8a4EEfbD4BEED23b674fc05BfB45B6D",
+      "delegator": "0x5f3D114a607b5bBB71a2E11Ba045fC9f4F239Ce7",
+      "amount": "150000000000000000000",
+      "active": "150000000000000000000",
+      "unstaking": "0",
+      "shares": "150000000000000000000",
+      "queuedShares": "0",
+      "generation": "0",
+      "unlockAt": 0
+    },
+    {
+      "account": "0x77899d992e137F2616dfaF5e832A1BD462AcE1c1",
+      "delegator": "0x5f3D114a607b5bBB71a2E11Ba045fC9f4F239Ce7",
+      "amount": "150000000000000000000",
+      "active": "150000000000000000000",
+      "unstaking": "0",
+      "shares": "150000000000000000000",
+      "queuedShares": "0",
+      "generation": "0",
+      "unlockAt": 0
+    },
+    {
+      "account": "0x8D94DeeaD75D06730694106Dd0108f5eea523472",
+      "delegator": "0xB856CA0E80BA0f804EcFf75d0ABe4a49FFACC583",
+      "amount": "500000000000000000000",
+      "active": "500000000000000000000",
+      "unstaking": "0",
+      "shares": "500000000000000000000",
+      "queuedShares": "0",
+      "generation": "0",
+      "unlockAt": 0
+    },
+    {
+      "account": "0xd41a2741baE475242e114BD87A63A58aC7669618",
+      "delegator": "0x5f3D114a607b5bBB71a2E11Ba045fC9f4F239Ce7",
+      "amount": "150000000000000000000",
+      "active": "150000000000000000000",
+      "unstaking": "0",
+      "shares": "150000000000000000000",
+      "queuedShares": "0",
+      "generation": "0",
+      "unlockAt": 0
+    },
+    {
+      "account": "0xd41a2741baE475242e114BD87A63A58aC7669618",
+      "delegator": "0xeF41b657Ecc8b710e6e32c7c255B891836F060b7",
+      "amount": "10000000000000000000000",
+      "active": "10000000000000000000000",
+      "unstaking": "0",
+      "shares": "10000000000000000000000",
+      "queuedShares": "0",
+      "generation": "0",
+      "unlockAt": 0
+    },
+    {
+      "account": "0xdc1fE125d77486Bac3ec0a6f731c60A04DB70bb7",
+      "delegator": "0xB9970A6371358F6C74DFb15A7cB2653E3AE3E471",
+      "amount": "80000000000000000000000",
+      "active": "80000000000000000000000",
+      "unstaking": "0",
+      "shares": "80000000000000000000000",
+      "queuedShares": "0",
+      "generation": "0",
+      "unlockAt": 0
+    },
+    {
+      "account": "0xe89F284d22a9280b3bab3F1c135bd7629D1a3587",
+      "delegator": "0xe89F284d22a9280b3bab3F1c135bd7629D1a3587",
+      "amount": "90000000000000000000",
+      "active": "90000000000000000000",
+      "unstaking": "0",
+      "shares": "100000000000000000000",
+      "queuedShares": "0",
+      "generation": "0",
+      "unlockAt": 0
+    },
+    {
+      "account": "0xeF41b657Ecc8b710e6e32c7c255B891836F060b7",
+      "delegator": "0xeF41b657Ecc8b710e6e32c7c255B891836F060b7",
+      "amount": "100000000000000000000",
+      "active": "100000000000000000000",
+      "unstaking": "0",
+      "shares": "100000000000000000000",
+      "queuedShares": "0",
+      "generation": "0",
+      "unlockAt": 0
+    }
+  ],
+  "transfers": [
+    {
+      "wallet": "0xB9970A6371358F6C74DFb15A7cB2653E3AE3E471",
+      "amount": "20000000000000000000000",
+      "sources": [
+        "Kris loose old SIDE at snapshot"
+      ]
+    }
+  ],
+  "excluded": [
+    {
+      "wallet": "0x311746E7B0dbadC0E905eDa3Fc5c4d281187Fada",
+      "amount": "9997000000000000000000000",
+      "reason": "old faucet balance is not refunded"
+    },
+    {
+      "wallet": "0xeF41b657Ecc8b710e6e32c7c255B891836F060b7",
+      "amount": "89889700000000000000000000",
+      "reason": "ecosystem allocation is recreated"
+    }
+  ],
+  "totals": {
+    "positions": "92090000000000000000000",
+    "transfers": "20000000000000000000000",
+    "roundingDust": "0"
+  },
+  "checksum": "bf18f2e9d105234add6773d5c829145dbdd6a96751bc97b4b5d69c4becc8a610"
+}

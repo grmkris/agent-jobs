@@ -446,3 +446,38 @@ An attempted next-step broadcast did not start: automatic approval review first 
 retry because the current request authorized signer investigation/unblocking rather than the exact irreversible
 deployment broadcast. The signer blocker is resolved; step 3's testnet broadcast awaits explicit current-session
 approval. No sending command executed.
+
+## G1d testnet generation deployed (8 Oct 2026)
+
+After Kris's explicit redeploy approval, the recovered dev signers completed G1d on Monad testnet (10143):
+
+- The fresh deployment has **26 successful receipts**, blocks **69264363–69264514**. Promotion committed the new
+  config and pre-G1d recovery archives in `993d395`; the old contracts and public job records remain preserved.
+- Safe acceptance has **six successful receipts**. Independent `verify` confirms the Safe owns the vault, fee
+  schedule, Holding, Evaluator, distributor and mining reserve.
+- Faucet `0xDB257E28bD501f19E6Df100B34491655A8D4Fe62` was deployed and funded with **10,000,000 new SIDE**,
+  confirmed by onchain balance readback. The setup receipts include the **1,100 mUSD** mint for liquidity.
+- The pool seed has **four successful receipts**. Position **92** belongs to the Safe, with liquidity
+  **99989999999999999** and pool ID `0x58d464a271a5828f4d092c3df6169f18766c8de18a09efda5a53f91a12fbc17d`.
+  Authoritative verification confirms the pool key, full-range ticks, seeded helper and zero leftover allowances.
+- The fixed refund snapshot is block **69264362**, hash
+  `0xb422d130b2edd865b7213fd4f4b750c333f28984b0bfafb543e5e29eafd71b46`. The locked journal reconciles
+  **14 successful operations**, leaving zero refunds: **12 positions totaling 92,090 SIDE**, plus **20,000 SIDE**
+  to Kris. Independent position valuation and token-balance readback match those exact amounts. The post-cutoff
+  report through block **69270790** contains **zero old-vault events and zero relevant old-SIDE transfers**.
+- Privy's existing Sidequest routine policy was updated and verified against the new core/Holding, retaining both
+  dev/prod relays and the existing recovery authority. This is provider policy proof, separate from hosted signing.
+
+Receipts: [deployment](evidence/testnet-g1d/2026-10-08-contracts.json),
+[Safe](evidence/testnet-g1d/2026-10-08-safe-accept.json), [faucet](evidence/testnet-g1d/2026-10-08-faucet.json),
+[pool](evidence/testnet-g1d/2026-10-08-pool.json), [refunds](evidence/testnet-g1d/2026-10-08-refunds.json),
+[manifest](evidence/testnet-g1d/refund-manifest.json), and [Privy](evidence/testnet-g1d/2026-10-08-privy.json).
+
+Two release blockers were found and fixed during this cutover. The pool wrapper's stale 10 mUSD cap refused the
+approved 1,000 mUSD seed; `43f6696` permits that seed while independently capping repair spending at 5 mUSD.
+Nine wrapper tests pass, including a regression that fails before the fix. SDK market tests assumed the old SIDE
+address sorted after mUSD; `ca4d69d` preserves those five archived cases and adds five G1d cases for the reversed
+ordering, exact pool ID, prices and swap limits. All ten focused cases and scoped format/lint/typecheck pass.
+
+Hosted dev/prod deployment and indexer cutover are pending at this checkpoint. Mainnet and genuine-user acceptance
+remain unverified. No chain-143 transaction occurred.

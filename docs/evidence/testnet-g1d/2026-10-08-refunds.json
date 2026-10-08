@@ -1,0 +1,164 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-08T13:58:04.927Z",
+  "chainId": 10143,
+  "generation": "g1d",
+  "manifestChecksum": "bf18f2e9d105234add6773d5c829145dbdd6a96751bc97b4b5d69c4becc8a610",
+  "vault": "0x7F9e1eAB7472f14f8a43233e6AC82f5088f7f36a",
+  "positions": [
+    {
+      "account": "0x564F6384a2fE01051D58FB4583aBd613d8c45eC0",
+      "delegator": "0x5f3D114a607b5bBB71a2E11Ba045fC9f4F239Ce7",
+      "assets": "150000000000000000000"
+    },
+    {
+      "account": "0x5760b5e2E1314BCd7d43E259Bd12485cc5A22aAE",
+      "delegator": "0x5dbC93cbbeFedd3b5f2E34ea2844a6383c88f95F",
+      "assets": "500000000000000000000"
+    },
+    {
+      "account": "0x5f576f142Ef0b2fE2FceDE9a994d02E281967fC6",
+      "delegator": "0x5f3D114a607b5bBB71a2E11Ba045fC9f4F239Ce7",
+      "assets": "150000000000000000000"
+    },
+    {
+      "account": "0x63F13E384f041E3642678bb1ce1bD127E34524C1",
+      "delegator": "0x5f3D114a607b5bBB71a2E11Ba045fC9f4F239Ce7",
+      "assets": "150000000000000000000"
+    },
+    {
+      "account": "0x6f2037aaE8a4EEfbD4BEED23b674fc05BfB45B6D",
+      "delegator": "0x5f3D114a607b5bBB71a2E11Ba045fC9f4F239Ce7",
+      "assets": "150000000000000000000"
+    },
+    {
+      "account": "0x77899d992e137F2616dfaF5e832A1BD462AcE1c1",
+      "delegator": "0x5f3D114a607b5bBB71a2E11Ba045fC9f4F239Ce7",
+      "assets": "150000000000000000000"
+    },
+    {
+      "account": "0x8D94DeeaD75D06730694106Dd0108f5eea523472",
+      "delegator": "0xB856CA0E80BA0f804EcFf75d0ABe4a49FFACC583",
+      "assets": "500000000000000000000"
+    },
+    {
+      "account": "0xd41a2741baE475242e114BD87A63A58aC7669618",
+      "delegator": "0x5f3D114a607b5bBB71a2E11Ba045fC9f4F239Ce7",
+      "assets": "150000000000000000000"
+    },
+    {
+      "account": "0xd41a2741baE475242e114BD87A63A58aC7669618",
+      "delegator": "0xeF41b657Ecc8b710e6e32c7c255B891836F060b7",
+      "assets": "10000000000000000000000"
+    },
+    {
+      "account": "0xdc1fE125d77486Bac3ec0a6f731c60A04DB70bb7",
+      "delegator": "0xB9970A6371358F6C74DFb15A7cB2653E3AE3E471",
+      "assets": "80000000000000000000000"
+    },
+    {
+      "account": "0xe89F284d22a9280b3bab3F1c135bd7629D1a3587",
+      "delegator": "0xe89F284d22a9280b3bab3F1c135bd7629D1a3587",
+      "assets": "90000000000000000000"
+    },
+    {
+      "account": "0xeF41b657Ecc8b710e6e32c7c255B891836F060b7",
+      "delegator": "0xeF41b657Ecc8b710e6e32c7c255B891836F060b7",
+      "assets": "100000000000000000000"
+    }
+  ],
+  "totalAssets": "92090000000000000000000",
+  "krisBalance": "20000000000000000000000",
+  "receipts": [
+    {
+      "key": "approval",
+      "hash": "0xb7bb39172111e77445b98021b7bde7e5640bd51f1de04d54f420558a3904530b",
+      "block": "69270543",
+      "status": "success"
+    },
+    {
+      "key": "position/0x564f6384a2fe01051d58fb4583abd613d8c45ec0/0x5f3d114a607b5bbb71a2e11ba045fc9f4f239ce7",
+      "hash": "0x2e0107b6cdee78df294c205d0f484ba3d006e68ce4419bdce4f256ca60740172",
+      "block": "69270550",
+      "status": "success"
+    },
+    {
+      "key": "position/0x5760b5e2e1314bcd7d43e259bd12485cc5a22aae/0x5dbc93cbbefedd3b5f2e34ea2844a6383c88f95f",
+      "hash": "0x75435ac3979b6b1996109790e012648150c7c4c0285305db3c1e7e4c9168b24a",
+      "block": "69270557",
+      "status": "success"
+    },
+    {
+      "key": "position/0x5f576f142ef0b2fe2fcede9a994d02e281967fc6/0x5f3d114a607b5bbb71a2e11ba045fc9f4f239ce7",
+      "hash": "0x2d2bea545d0bc008f2f336183bb8c552262a166f54da5430d29bc97b20bae5da",
+      "block": "69270565",
+      "status": "success"
+    },
+    {
+      "key": "position/0x63f13e384f041e3642678bb1ce1bd127e34524c1/0x5f3d114a607b5bbb71a2e11ba045fc9f4f239ce7",
+      "hash": "0xd6a71b41b3217520a7420768145475f36766e2d55fa6969ee0d560617daacede",
+      "block": "69270573",
+      "status": "success"
+    },
+    {
+      "key": "position/0x6f2037aae8a4eefbd4beed23b674fc05bfb45b6d/0x5f3d114a607b5bbb71a2e11ba045fc9f4f239ce7",
+      "hash": "0xd8991dc0b3438f8fe476b3c3aba3c288dd33802023932e15ec9cf2ffcb19603a",
+      "block": "69270579",
+      "status": "success"
+    },
+    {
+      "key": "position/0x77899d992e137f2616dfaf5e832a1bd462ace1c1/0x5f3d114a607b5bbb71a2e11ba045fc9f4f239ce7",
+      "hash": "0x7b8e69dd94250882c470647a570a73b7a90eaffbe0d7ce523d6f689193fd776e",
+      "block": "69270587",
+      "status": "success"
+    },
+    {
+      "key": "position/0x8d94deead75d06730694106dd0108f5eea523472/0xb856ca0e80ba0f804ecff75d0abe4a49ffacc583",
+      "hash": "0x5e228cbda90d1abdd2c90fafc85a504f39f9e33f4985873fb4a71c05935456d6",
+      "block": "69270594",
+      "status": "success"
+    },
+    {
+      "key": "position/0xd41a2741bae475242e114bd87a63a58ac7669618/0x5f3d114a607b5bbb71a2e11ba045fc9f4f239ce7",
+      "hash": "0x518757866e38062fcc7737731c5da597ee6da4d478ea484e9c0b94ff5b3f350d",
+      "block": "69270600",
+      "status": "success"
+    },
+    {
+      "key": "position/0xd41a2741bae475242e114bd87a63a58ac7669618/0xef41b657ecc8b710e6e32c7c255b891836f060b7",
+      "hash": "0x4a4e5b2f91bd16e1184d5437d5a9a0a714a607e6cf0092f8b8c6d37817884df8",
+      "block": "69270606",
+      "status": "success"
+    },
+    {
+      "key": "position/0xdc1fe125d77486bac3ec0a6f731c60a04db70bb7/0xb9970a6371358f6c74dfb15a7cb2653e3ae3e471",
+      "hash": "0xdfe09796f7189fe58fdd8ecb73f02739343825b955cc37aba57911bdea2c35d6",
+      "block": "69270612",
+      "status": "success"
+    },
+    {
+      "key": "position/0xe89f284d22a9280b3bab3f1c135bd7629d1a3587/0xe89f284d22a9280b3bab3f1c135bd7629d1a3587",
+      "hash": "0x4e7d8b2b1909ddd14bcdb0566844e23c75a0e818756cf673f329ef27e7ea7908",
+      "block": "69270619",
+      "status": "success"
+    },
+    {
+      "key": "position/0xef41b657ecc8b710e6e32c7c255b891836f060b7/0xef41b657ecc8b710e6e32c7c255b891836f060b7",
+      "hash": "0x971df093503383591e2aff711492b3c0823d542345cb05633a27439cdbd1f093",
+      "block": "69270626",
+      "status": "success"
+    },
+    {
+      "key": "transfer/0xb9970a6371358f6c74dfb15a7cb2653e3ae3e471",
+      "hash": "0x94d2f229623b064aa0f78fc1098b77a509cf08c6d9ef63922a0af8ce06779eeb",
+      "block": "69270633",
+      "status": "success"
+    }
+  ],
+  "remaining": "0",
+  "postCutoff": {
+    "throughBlock": 69270790,
+    "oldVaultEvents": 0,
+    "oldSideTransfers": 0
+  }
+}

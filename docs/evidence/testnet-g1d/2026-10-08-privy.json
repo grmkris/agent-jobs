@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-08T13:50:36.170Z",
+  "chainId": 10143,
+  "sourceCommit": "ca4d69d",
+  "mode": "update-policy-and-verify",
+  "result": "pass",
+  "policySha256": "c8ea3a324d4964c4c26b50b5e25df2889e46f2ff5a2129956fb538e2f98a8af3",
+  "core": "0xAa658Ff5C8A82e780A0647561E51064846bDcb54",
+  "holding": "0xBCCB896A42B3350ECdDBA3d67E5397Eb1c4421c2",
+  "relays": [
+    "0xC4173dBC98ffd6F5785E8Fba85E9e5bd8b3F5058",
+    "0xa6D3eC73053152221af873789aEd179E506b1F0E"
+  ],
+  "limits": [
+    "Provider policy readback only; genuine-user hosted signing acceptance remains separate."
+  ]
+}

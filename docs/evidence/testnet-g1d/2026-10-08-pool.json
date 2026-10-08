@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-08T13:40:37.730883+00:00",
+  "chainId": 10143,
+  "generation": "g1d",
+  "sourceCommit": "66d9bca",
+  "positionId": 92,
+  "owner": "0x77923113FD1a71Ad91F81064C3c05cA1EfB44CD8",
+  "liquidity": "99989999999999999",
+  "poolId": "0x58d464a271a5828f4d092c3df6169f18766c8de18a09efda5a53f91a12fbc17d",
+  "receipts": [
+    {
+      "hash": "0xb19223d7409f4162387e8d9862d6f194cb275e8310029ce5a89c0eaa6cedd8ec",
+      "block": 69268658,
+      "status": "success"
+    },
+    {
+      "hash": "0x00d6669d4d6282be3e072fb7c888c2fa727bc78d9ea5e05a488b9c41da022238",
+      "block": 69268665,
+      "status": "success"
+    },
+    {
+      "hash": "0x869fb506ef089a43beb46fbeb66eae248691fe395f00c1b8780f3859d06d1880",
+      "block": 69268671,
+      "status": "success"
+    },
+    {
+      "hash": "0xdbe12dc93d3c5cb09a97721553a259ecff52b57b824166f2d45ddd53c06eff2c",
+      "block": 69268677,
+      "status": "success"
+    }
+  ],
+  "verification": {
+    "dryRunExit": 0,
+    "verifyExit": 0,
+    "checks": [
+      "Safe owns position",
+      "liquidity matches config",
+      "pool key and full-range ticks match",
+      "helper seeded",
+      "no remaining token or Permit2 allowances"
+    ]
+  }
+}
