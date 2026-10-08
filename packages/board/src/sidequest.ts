@@ -211,6 +211,7 @@ export async function sidequestChainView(ctx: sdk.Ctx, jobId: bigint, offer: Off
     submittedAt: job.submittedAt === 0 ? null : job.submittedAt,
     timely: job.submittedAt > 0 && job.submittedAt <= terms.deliveryDeadline,
     deliveryDeadline: terms.deliveryDeadline,
+    expiredAt: listing.expiredAt,
     reviewEndsAt: state.reviewEndsAt,
     disputeEndsAt: state.disputeEndsAt,
     arbitrationEndsAt: state.arbitrationEndsAt,

@@ -16,7 +16,7 @@ import {ISidequestHolding} from "./ISidequestHolding.sol";
 ///         after a timely submission is acceptance; every timeout is permissionless.
 ///
 ///         M1 (ruling order). Every terminal path runs: checks → record `outcome` and `slashed` → emit → slash the
-///         loser's bond → release the other bonds → core call → feedback. A hostile reward token that re-enters
+///         loser's bond before expiry (release at or after expiry) → release the other bonds → core call → feedback. A hostile reward token that re-enters
 ///         `ISidequestHolding.settle` during the core call finds the bonds already settled.
 ///
 ///         M2 (`_payWorker`). Accept, silence and a ruling for the worker try `core.complete`. If it fails (a token
@@ -60,7 +60,7 @@ interface ISidequestEvaluator {
         DeliveryMissed
     }
 
-    /// @notice Which bond a finding slashed. At most one side per job.
+    /// @notice Which bond a finding penalizes. At most one side per job; Holding releases at or after `expiredAt`.
     enum SlashedSide {
         None,
         Creator,
@@ -210,7 +210,8 @@ interface ISidequestEvaluator {
 
     /// @notice The listing's arbitrator rules within the arbitration window: who gets the reward, and whether the
     ///         loser broke a slashable obligation (for the worker: a bad-faith rejection burns the creator bond; for the
-    ///         creator: the named violation is upheld and the worker bond burns, which needs a named violation).
+    ///         creator: the named violation is upheld and the worker bond is penalized, which needs a named violation).
+    ///         Holding burns only before `expiredAt`; at or after expiry it releases even a penalized bond.
     function rule(uint256 jobId, bool forWorker, bool slashLoser, bytes32 reasonHash) external;
 
     /// @notice The same ruling, signed by the listing's arbitrator and relayed by anyone, under the same cutoff.
@@ -235,8 +236,8 @@ interface ISidequestEvaluator {
     /// @notice A timely submission with no decision within the review window: silence is acceptance.
     function completeAfterSilence(uint256 jobId) external;
 
-    /// @notice A rejection nobody disputed within the dispute window becomes final; a named violation slashes the
-    ///         worker bond.
+    /// @notice A rejection nobody disputed within the dispute window becomes final; a named violation records a worker
+    ///         penalty. Resolve before `expiredAt` for a burn; Holding releases the bond at or after expiry.
     function rejectAfterWindow(uint256 jobId) external;
 
     /// @notice The arbitrator did not rule in time: refund, both bonds released, no feedback. Reverts `AlreadyRuled`
@@ -244,8 +245,9 @@ interface ISidequestEvaluator {
     function refundAfterArbitrationTimeout(uint256 jobId) external;
 
     /// @notice A funded job with no timely submission, strictly after the delivery deadline: refund, the worker bond
-    ///         slashed, the creator bond released. Reverts `CorePaused` while the core is paused; a deadline inside the
-    ///         observed pause (`notePause`) refunds without the slash.
+    ///         penalized, the creator bond released. Resolve before `expiredAt` for the worker bond to burn; Holding
+    ///         releases at or after expiry. Reverts `CorePaused` while the core is paused; a deadline inside the
+    ///         observed pause (`notePause`) refunds without the penalty.
     function rejectAfterDeliveryDeadline(uint256 jobId) external;
 
     /// @notice Finishes a deferred core call under the recorded outcome (C9-003): refund outcomes, and worker outcomes
@@ -274,11 +276,13 @@ interface ISidequestEvaluator {
     ///         whose review window has passed (R114-03).
     function earnedByWorker(uint256 jobId) external view returns (bool);
 
-    /// @notice Whether the worker bond is forfeit: a ruling or final rejection that slashed it, or (with no outcome
+    /// @notice Whether a worker penalty finding exists: a penalizing ruling or final rejection, or (with no outcome
     ///         yet) a missed delivery past the deadline or an undisputed named violation past the dispute window.
+    ///         This is not proof of a burn: Holding releases the bond at or after `expiredAt`.
     function workerPenaltyDue(uint256 jobId) external view returns (bool);
 
-    /// @notice Whether the creator bond is forfeit: a ruling for the worker that found the rejection in bad faith.
+    /// @notice Whether a creator penalty finding exists: a ruling for the worker found the rejection in bad faith.
+    ///         This is not proof of a burn: Holding releases the bond at or after `expiredAt`.
     function creatorPenaltyDue(uint256 jobId) external view returns (bool);
 
     // ---------------------------------------------------------------------------------------------

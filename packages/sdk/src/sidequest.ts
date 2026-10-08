@@ -1,5 +1,5 @@
 /** Sidequest readers and unsigned collect steps shared by hosted services and wallet clients. */
-import { encodeFunctionData, type Address } from 'viem'
+import { parseEventLogs, encodeFunctionData, type Address, type TransactionReceipt } from 'viem'
 import { coreAbi, sidequestEvaluatorAbi, sidequestHoldingAbi } from './abi/index.ts'
 import { caseOf, getJob, getV1Listing, termsOf, V1_GAS, type Ctx } from './actions.ts'
 import type { TxRequest } from './board-client.ts'
@@ -15,6 +15,43 @@ export const SidequestOutcome = [
   'ArbitrationTimeout',
   'DeliveryMissed',
 ] as const
+
+/** The evaluator records a finding; only Holding's actual bond event proves release or burn. */
+export function bondSettlementEvent(
+  receipts: readonly TransactionReceipt[],
+  holding: Address,
+  jobId: bigint,
+  side: 0 | 1,
+) {
+  const matches = receipts.flatMap((receipt) => {
+    if (receipt.status !== 'success') throw new Error('Bond settlement receipt must be successful')
+    return parseEventLogs({
+      abi: sidequestHoldingAbi,
+      eventName: ['BondReleased', 'BondSlashed'],
+      logs: receipt.logs.filter((log) => log.address.toLowerCase() === holding.toLowerCase()),
+      strict: true,
+    })
+      .filter((event) => event.args.jobId === jobId && event.args.side === side)
+      .map((event) => ({ burned: event.eventName === 'BondSlashed', receipt }))
+  })
+  if (matches.length > 1) throw new Error('Multiple bond settlement events for one job and side')
+  return matches[0] ?? null
+}
+
+/** Reconcile original settlement time on resume, including a penalty resolved exactly at expiry. */
+export async function bondBurnExpectation(
+  ctx: Ctx,
+  receipts: readonly TransactionReceipt[],
+  jobId: bigint,
+  finding: { side: 0 | 1; penalty: boolean; expiredAt: number },
+): Promise<boolean> {
+  const event = bondSettlementEvent(receipts, ctx.stack.holding, jobId, finding.side)
+  if (event === null) throw new Error('Missing bond settlement event')
+  const block = await ctx.publicClient.getBlock({ blockHash: event.receipt.blockHash })
+  const expected = finding.penalty && block.timestamp < BigInt(finding.expiredAt)
+  if (event.burned !== expected) throw new Error('Bond event disagrees with settlement time and penalty finding')
+  return event.burned
+}
 
 export function deferredCollectTransactions(ctx: Ctx, jobId: bigint): TxRequest[] {
   if (ctx.stack.kind !== 'sidequest-v1') throw new Error('Deferred collection requires sidequest-v1')
@@ -100,6 +137,7 @@ export async function sidequestLifecycle(ctx: Ctx, jobId: bigint): Promise<Lifec
     mode: 'hire',
     status: state.status,
     deliveryDeadline: terms.deliveryDeadline,
+    expiredAt: listing.expiredAt,
     workerBond: listing.workerBond,
     outcome: outcome === 'None' ? null : normalized[outcome],
     timely: job.submittedAt === 0 ? null : job.submittedAt <= terms.deliveryDeadline,

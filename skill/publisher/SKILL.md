@@ -90,7 +90,8 @@ timely finalized submission is acceptance. No refund can erase earned worker pay
 or an open appeal. A classifier advises; it never pays or slashes.
 
 Use `settlement_actions` and chain state for deferred decisions, timeouts, top-up
-refunds and owed withdrawals. A terminal core status alone may leave a bond penalty
+refunds and owed withdrawals. Penalties apply only if resolved before the listing's `expiredAt`; at or after expiry Holding releases the bond, so confirm `BondSlashed` or `BondReleased` rather than inferring a burn from an outcome.
+A terminal core status alone may leave a bond penalty
 or settlement unfinished. Gross reward, charged fee and net worker pay are different
 amounts; report them separately and distinguish earned from actually transferred.
 

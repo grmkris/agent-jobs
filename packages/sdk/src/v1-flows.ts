@@ -293,6 +293,25 @@ export async function runV1CoreFlow(d: V1FlowDeps, flow: V1CoreFlow, scope = flo
         sdk.V1_GAS.claimTopUpRefund,
       )
     const after = await sdk.getV1Listing(ctx, jobId)
+    // Use the original bond event's block time: resuming after expiry does not undo a timely burn.
+    const terminal = ['accept', 'rule', 'silence', 'final-rejection', 'missed', 'timeout', 'cancel', 'settle'].flatMap(
+      (label) => {
+        const receipt = receipts.get(label)
+        return receipt === undefined ? [] : [receipt]
+      },
+    )
+    if (x.p.creatorBond !== 0n)
+      slashCreator = await sdk.bondBurnExpectation(ctx, terminal, jobId, {
+        side: 0,
+        penalty: slashCreator,
+        expiredAt: after.expiredAt,
+      })
+    if (flow !== 'cancel' && x.p.workerBond !== 0n)
+      slashWorker = await sdk.bondBurnExpectation(ctx, terminal, jobId, {
+        side: 1,
+        penalty: slashWorker,
+        expiredAt: after.expiredAt,
+      })
     check('settlement outcome', after.outcome, paid ? 1 : 2)
     check('creator bond settled', after.creatorBondSettled, true)
     if (flow !== 'cancel') check('worker bond settled', after.workerBondSettled, true)
@@ -302,12 +321,6 @@ export async function runV1CoreFlow(d: V1FlowDeps, flow: V1CoreFlow, scope = flo
     const workerCredit = paid ? net + after.bonus - bonusFee : 0n
     // Reconcile the original terminal receipts on every resume. Saved wallet-wide baselines from older journals
     // remain evidence, but cannot prove this job's economics after unrelated cases have changed those balances.
-    const terminal = ['accept', 'rule', 'silence', 'final-rejection', 'missed', 'timeout', 'cancel', 'settle'].flatMap(
-      (label) => {
-        const receipt = receipts.get(label)
-        return receipt === undefined ? [] : [receipt]
-      },
-    )
     verifyJobEconomics(terminal, {
       jobId,
       holding: ctx.stack.holding,

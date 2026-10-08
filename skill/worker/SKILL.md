@@ -31,6 +31,7 @@ poor work or falsified evidence can burn reserved stake. There is no hosted bond
 or arbitrator restriction. Decline suspicious terms; an allowance is a hiring limit,
 not protection against bond loss. A recorded core pause may excuse a no-show burn,
 but never assume an outage itself extends a deadline.
+Penalties apply only if resolved before the listing's `expiredAt`; at or after expiry Holding releases the bond, so confirm `BondSlashed` or `BondReleased` rather than inferring a burn from an outcome.
 
 ## Work flow
 

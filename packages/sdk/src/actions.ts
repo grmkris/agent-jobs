@@ -452,6 +452,7 @@ export function completeAfterSilence(ctx: Ctx, anyone: Wallet, jobId: bigint) {
   return write(ctx, anyone, ctx.stack.evaluator, evaluatorAbi(ctx), 'completeAfterSilence', [jobId], V1_GAS.evaluator)
 }
 
+/** Finalize the undisputed finding; resolve before listing expiry for a bond penalty to apply. */
 export function rejectAfterWindow(ctx: Ctx, anyone: Wallet, jobId: bigint) {
   return write(ctx, anyone, ctx.stack.evaluator, evaluatorAbi(ctx), 'rejectAfterWindow', [jobId], V1_GAS.evaluator)
 }
@@ -468,7 +469,7 @@ export function refundAfterArbitrationTimeout(ctx: Ctx, anyone: Wallet, jobId: b
   )
 }
 
-/** The missed-delivery burn, after the delivery deadline. */
+/** Resolve missed delivery after its deadline; before listing expiry it penalizes, at or after expiry it releases. */
 export function burnMissedDelivery(ctx: Ctx, anyone: Wallet, jobId: bigint) {
   return write(
     ctx,

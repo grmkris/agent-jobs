@@ -58,11 +58,17 @@ The accepted testnet edges are:
    has `unlockAt >= expiredAt`. Delivery, all three windows and the core expiry
    margin must fit. This is the standard approach used by EigenLayer, Cosmos
    and the Aave Safety Module: bonded jobs fit inside the unstake period, while
-   longer jobs run unbonded. A newcomer shares open-bond exposure pro-rata until
-   those jobs settle, which is standard pooled staking behavior and disclosed
-   before backing. Queued shares remain slashable pro-rata; `withdraw` retains
+   longer jobs run unbonded. A newcomer shares open-bond penalty exposure pro-rata
+   before expiry, which is standard pooled staking behavior and disclosed
+   before backing. Queued shares share timely slashes pro-rata; `withdraw` retains
    its existing collateral check. A delayed settlement can still require
    permissionless reconciliation after expiry before collateral is released.
+   Penalties end at expiry (HR-001, decided by Kris on 2026-10-08): evaluator
+   findings do not prove burns, and Holding releases a bond settled at or after
+   `expiredAt`. A no-show is punished only if a party resolves it before expiry;
+   the creator also recovers its reward sooner through that timeout than through
+   the core refund after expiry. This bounds penalty exposure even when
+   reconciliation is delayed.
 2. Request/cancel can change the tier just before activation. A stale signed net
    budget then reverts atomically; the SDK must quote and sign again.
 3. Repeated near-total slashes can inflate one pool's share count. Deposits cap

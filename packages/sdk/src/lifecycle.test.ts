@@ -210,6 +210,25 @@ describe('actions follow the contracts', () => {
 })
 
 describe('who acts, and what they are told', () => {
+  it.each(['active', 'submitted', 'rejected-pending'] as const)(
+    '%s keeps timeout findings distinct from bond penalties at expiry',
+    (status) => {
+      const input = job({
+        status,
+        deliveryDeadline: NOW - 100,
+        timely: false,
+        violation: 'Quality',
+        disputeEndsAt: NOW - 10,
+        expiredAt: NOW,
+      })
+      const atExpiry = lifecycle(input, CREATOR, NOW)
+      expect(phaseText(atExpiry.next)).toMatch(/bond is released/)
+      expect(phaseText(atExpiry.next)).not.toMatch(/bond is burned/)
+      expect(phaseText(lifecycle(input, CREATOR, NOW - 1).next)).toMatch(/only if resolved before expiry/)
+      expect(phaseText(lifecycle({ ...input, workerBond: '0' }, CREATOR, NOW).next)).not.toMatch(/bond/)
+    },
+  )
+
   it('silence is acceptance: the review sentence says so, with the deadline as a time', () => {
     const p = lifecycle(job({ status: 'submitted', timely: true, reviewEndsAt: NOW + 7200 }), APPROVER, NOW)
     expect(p.youAct).toBe(true)

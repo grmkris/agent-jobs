@@ -207,6 +207,34 @@ async function snapshot(sql: AsyncSql) {
 }
 
 describe('Sidequest event indexing', () => {
+  it('uses the emitted release after a late penalty finding instead of the evaluator outcome', async () => {
+    const sql = await db()
+    const late = [
+      published(),
+      activated(),
+      log(
+        evaluator,
+        addr(3),
+        'TimedOut',
+        { jobId: 1000n, reason: stringToHex('delivery-deadline', { size: 32 }) },
+        103,
+      ),
+      log(sdk.coreAbi, d.core, 'JobRejected', { jobId: 1000n, rejector: addr(3), reason: hash(4) }, 103, 1),
+      log(holding, addr(2), 'BondReleased', { jobId: 1000n, side: 0, account: creator, amount: 100n }, 104),
+      log(holding, addr(2), 'BondReleased', { jobId: 1000n, side: 1, account: worker, amount: 200n }, 104, 1),
+      log(holding, addr(2), 'RewardSettled', { jobId: 1000n, to: creator, outcome: 2, amount: 1000n }, 104, 2),
+    ]
+    const config = cfg(late)
+    config.head.blockTimestamp = async () => 60_000
+    await runOnce(sql, config)
+    const detail = await jobDetail(sql, contracts.chainId, '1000', 0)
+    expect(detail?.job.outcome).toBe('DeliveryMissed')
+    expect(detail?.bonds).toEqual(
+      expect.arrayContaining([expect.objectContaining({ side: 'worker', outcome: 'returned', recipient: worker })]),
+    )
+    expect(detail?.bonds).not.toEqual(expect.arrayContaining([expect.objectContaining({ outcome: 'burned' })]))
+  })
+
   it('headline accounting separates gross, fee, net earned and a refused worker transfer', async () => {
     const sql = await db()
     await runOnce(sql, cfg(paidLogs))

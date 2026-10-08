@@ -39,7 +39,7 @@ The production defaults are fourteen days; fresh testnet deployments use three d
 | Arbitrator inactivity                            | No burn for inactivity.                                       |
 | Delivery deadline inside a recorded core pause   | No-show burn is excused.                                      |
 
-The Safe must atomically pair core `pause` with evaluator `notePause` for that recorded exception. An outage alone does not extend a deadline. A terminal core status does not release a bond with a penalty still due.
+The Safe must atomically pair core `pause` with evaluator `notePause` for that recorded exception. An outage alone does not extend a deadline. Penalties apply only when the bond settles before the listing's `expiredAt`; at or after expiry Holding releases it even if the evaluator records a penalty finding, so confirm `BondSlashed` or `BondReleased`.
 
 ## Queue and withdraw
 

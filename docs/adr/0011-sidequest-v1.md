@@ -34,9 +34,12 @@ reservations and outcome recording are handled by the v1 evaluator and vault.
 ### The review fixes
 
 - **M1, ruling order.** Every terminal path in the evaluator runs: checks → record `outcome` and `slashed` → emit →
-  slash the loser's bond → release the other bonds → core call → feedback. A hostile reward token that re-enters
+  settle the loser's bond → release the other bonds → core call → feedback. A hostile reward token that re-enters
   `SidequestHolding.settle` during the core call finds both bonds already settled, and `settle` itself consults
-  `creatorPenaltyDue` and `workerPenaltyDue`, so even a re-entry before the slash would slash rather than release.
+  `creatorPenaltyDue` and `workerPenaltyDue`. These are findings, not proof of a burn: Holding burns only before
+  `expiredAt`, and releases at or after expiry (HR-001, decided by Kris on 2026-10-08). The trade-off is that a no-show
+  is punished only if someone resolves it before expiry. The creator has an incentive to call the permissionless
+  timeout because it refunds the reward sooner than the core refund available after expiry.
 - **M2, `_payWorker`.** Accept, silence and a ruling for the worker `try core.complete{gas: CORE_GAS}` (300k). On
   failure (a refusing or gas-burning token, an expensive worker hook, a paused core), or when the core charges fees,
   the evaluator sets `payoutDeferred`, emits `PayoutDeferred`, and tries `core.reject("payout-deferred")` with whatever

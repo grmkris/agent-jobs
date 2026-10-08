@@ -42,6 +42,8 @@ export interface LifecycleInput {
   mode?: 'hire'
   status: JobStatusWord | (string & {})
   deliveryDeadline: number | null
+  /** Holding stops bond penalties at this timestamp, including equality. */
+  expiredAt?: number | null
   /** Whether the final submission landed by the delivery deadline; unknown from the indexer alone. */
   timely?: boolean | null
   reviewEndsAt?: number | null
@@ -167,7 +169,12 @@ function hasBond(bond: LifecycleInput['workerBond']): boolean {
 function draftOf(input: LifecycleInput, now: number): Draft {
   const s = input.status
   const due = input.deliveryDeadline
-  const burn = hasBond(input.workerBond) ? " and the agent's bond is burned" : ''
+  const burn = !hasBond(input.workerBond)
+    ? ''
+    : input.expiredAt != null && now >= input.expiredAt
+      ? " and the agent's bond is released because penalties end at expiry"
+      : " and the agent's bond is burned only if resolved before expiry"
+  const penaltyReminder = hasBond(input.workerBond) ? ' Resolve before expiry for the bond penalty to apply.' : ''
   const past = (t: number | null | undefined) => typeof t === 'number' && now > t
 
   if (s === 'draft' || s === 'awaiting-publish' || s === 'awaiting publish') {
@@ -264,7 +271,7 @@ function draftOf(input: LifecycleInput, now: number): Draft {
           { time: due as number },
           `. Anyone can close it: the reward goes back to the creator${burn}.`,
         ],
-        toActor: ['Nothing was delivered in time. Close it to get the reward back.'],
+        toActor: [`Nothing was delivered in time. Close it to get the reward back.${penaltyReminder}`],
         can: { anyone: ['settle'] },
         timeout: 'rejectAfterDeliveryDeadline',
         beneficiary: 'creator',
@@ -292,7 +299,7 @@ function draftOf(input: LifecycleInput, now: number): Draft {
         next: [
           `It arrived after the deadline. The approver may still accept it; until then anyone can end it as missed, refunding the creator${burn}.`,
         ],
-        toActor: ['It arrived after the deadline. Accept it anyway, or let it close as missed.'],
+        toActor: [`It arrived after the deadline. Accept it anyway, or let it close as missed.${penaltyReminder}`],
         can: { approver: ['approve'], anyone: ['settle'] },
         timeout: 'rejectAfterDeliveryDeadline',
         beneficiary: 'creator',
@@ -345,8 +352,7 @@ function draftOf(input: LifecycleInput, now: number): Draft {
         : input.violation === 'Falsified'
           ? ' for faked evidence'
           : ''
-    const stake =
-      input.violation === 'Quality' || input.violation === 'Falsified' ? ", and the agent's bond is burned" : ''
+    const stake = input.violation === 'Quality' || input.violation === 'Falsified' ? burn : ''
     if (past(end)) {
       return {
         key: 'rejection-final',
@@ -355,7 +361,9 @@ function draftOf(input: LifecycleInput, now: number): Draft {
         actor: 'anyone',
         deadline: null,
         next: [`Rejected${why} and not disputed. Anyone can finalize it: the reward goes back to the creator${stake}.`],
-        toActor: ['The dispute window closed. Finalize the rejection to get the reward back.'],
+        toActor: [
+          `The dispute window closed. Finalize the rejection to get the reward back.${stake ? penaltyReminder : ''}`,
+        ],
         can: { approver: ['approve'], anyone: ['settle'] },
         timeout: 'rejectAfterWindow',
         beneficiary: 'creator',
@@ -659,6 +667,7 @@ export function lifecycleFromIndexed(row: {
   approver: string | null
   worker: string | null
   delivery_deadline: number | null
+  expired_at?: number | null
   worker_bond: string | null
   violation?: string | null
   outcome?: string | null
@@ -679,6 +688,7 @@ export function lifecycleFromIndexed(row: {
     mode: 'hire',
     status: row.status,
     deliveryDeadline: row.delivery_deadline,
+    expiredAt: row.expired_at ?? null,
     violation: (row.violation ?? null) as ViolationName | null,
     workerBond: row.worker_bond,
     outcome: protocolOutcome(row.outcome),
@@ -702,6 +712,7 @@ export function lifecycleFromTask(task: {
   workerBond: string
   chain: {
     status: string
+    expiredAt?: number | null
     provider: string | null
     timely: boolean
     submittedAt: number | null
@@ -722,6 +733,7 @@ export function lifecycleFromTask(task: {
     mode: 'hire',
     status: c.status,
     deliveryDeadline: task.deliveryDeadline,
+    expiredAt: c.expiredAt ?? null,
     timely: c.submittedAt === null ? null : c.timely,
     reviewEndsAt: c.reviewEndsAt,
     disputeEndsAt: c.disputeEndsAt,
