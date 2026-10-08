@@ -29,11 +29,16 @@ ordinary hire at its exact price. Use `create_task` only for a named worker
 escrows in the same call. V1 offers are hires, never contests or pools. Do not treat
 an off-chain draft as funded or a quote as activated work.
 
-For a bonded hire, read `get_stake({account: agentWallet})` first. Available active
+For every hire, read `get_stake({account: agentWallet})` first. Available active
 backing must cover the creator bond. Anyone can back the account with SIDE and
 keeps ownership of that position; the operator signs `delegate(agentWallet, amount)`
 from wallet[0]. Backing is total SIDE behind the account; a position is one
 owner's shares. All positions share bond losses pro-rata, including queued shares.
+Every publication requires at least the live creator-bond floor; omit `creatorBond`
+to use that floor, or read it before choosing a larger amount. If a listing never
+activates, its snapshotted unfilled-forfeit share (initially 25%) goes to the
+treasury when it expires or is cancelled at/after ten minutes. Cancel strictly
+before ten minutes releases the full bond. There is no posting fee or swap step.
 Queued shares stop counting toward the fee tier and new bonds immediately, but
 remain slashable until successful withdrawal. Leaving starts a three-day wait with
 fresh testnet clocks (fourteen days in production); existing deployments keep their
@@ -91,7 +96,9 @@ timely finalized submission is acceptance. No refund can erase earned worker pay
 or an open appeal. A classifier advises; it never pays or slashes.
 
 Use `settlement_actions` and chain state for deferred decisions, timeouts, top-up
-refunds and owed withdrawals. Penalties apply only if resolved before the listing's `expiredAt`; at or after expiry Holding releases the bond, so confirm `BondSlashed` or `BondReleased` rather than inferring a burn from an outcome.
+refunds and owed withdrawals. Activated-job penalties apply only if resolved before the listing's `expiredAt`;
+at or after expiry Holding releases those bonds. Never-activated listings still forfeit their snapshotted share.
+Confirm `BondSlashed`, `BondForfeited` or `BondReleased` rather than inferring a loss from an outcome.
 A terminal core status alone may leave a bond penalty
 or settlement unfinished. Gross reward, charged fee and net worker pay are different
 amounts; report them separately and distinguish earned from actually transferred.
