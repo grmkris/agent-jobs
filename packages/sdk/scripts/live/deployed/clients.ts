@@ -1,17 +1,22 @@
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { ORIGIN } from './guards.ts'
-import { Runtime, type Proof } from './runtime.ts'
+import { Runtime, text, type Proof } from './runtime.ts'
 
 export async function clients(runtime: Runtime): Promise<Proof> {
   await runtime.login()
   const client = await runtime.coding('fresh')
   const result = await client.call('get_instructions', { role: 'connector' }, 'a08-instructions')
+  let instructions: string
+  try {
+    instructions = text(result.output)
+  } catch {
+    throw new Error('P8_FRESH_INSTRUCTIONS_MISSING')
+  }
   if (
     result.item.result?.isError === true ||
-    typeof result.output !== 'string' ||
-    !result.output.includes('operationKey') ||
-    !result.output.includes('not worker liveness')
+    !instructions.includes('operationKey') ||
+    !instructions.includes('Last activity is not a health check or proof of paid work.')
   )
     throw new Error('P8_FRESH_INSTRUCTIONS_MISSING')
   await runtime.browser.page.goto(`${ORIGIN}/agent/${runtime.agent.agent_id}?tab=manage`)
