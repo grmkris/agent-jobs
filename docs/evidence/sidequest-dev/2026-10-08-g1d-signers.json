@@ -1,0 +1,120 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-08T12:53:10.419Z",
+  "evidenceTier": "local-signer-derivation-and-public-testnet-readback",
+  "chainId": 10143,
+  "block": 69259839,
+  "signers": [
+    {
+      "role": "DEPLOYER",
+      "address": "0xe5B7054e177e833D63f8d0548ffa9ecfC4289A71",
+      "expected": "0xe5B7054e177e833D63f8d0548ffa9ecfC4289A71",
+      "match": true,
+      "canonicalName": "DEPLOYER_PRIVATE_KEY",
+      "originalName": "SIDEQUEST_DEV_DEPLOYER_PRIVATE_KEY",
+      "balanceMON": "5.030125481",
+      "confirmedNonce": 35,
+      "pendingNonce": 35,
+      "unreconciledPending": false
+    },
+    {
+      "role": "SAFE_OWNER",
+      "address": "0xd3392156861c922675d4859BB9C32d8ad2BaD956",
+      "expected": "0xd3392156861c922675d4859BB9C32d8ad2BaD956",
+      "match": true,
+      "canonicalName": "SAFE_OWNER_PRIVATE_KEY",
+      "originalName": "SIDEQUEST_DEV_SAFE_OWNER_PRIVATE_KEY",
+      "balanceMON": "5.12560051",
+      "confirmedNonce": 6,
+      "pendingNonce": 6,
+      "unreconciledPending": false
+    },
+    {
+      "role": "CREATOR",
+      "address": "0xeF41b657Ecc8b710e6e32c7c255B891836F060b7",
+      "expected": "0xeF41b657Ecc8b710e6e32c7c255B891836F060b7",
+      "match": true,
+      "canonicalName": "CREATOR_PRIVATE_KEY",
+      "originalName": "SIDEQUEST_DEV_CREATOR_PRIVATE_KEY",
+      "balanceMON": "10.170124985999822766",
+      "confirmedNonce": 15,
+      "pendingNonce": 15,
+      "unreconciledPending": false
+    }
+  ],
+  "safe": {
+    "address": "0x77923113FD1a71Ad91F81064C3c05cA1EfB44CD8",
+    "owners": [
+      "0xd3392156861c922675d4859BB9C32d8ad2BaD956",
+      "0xf031DbaE78DFAc1Ea4255d9D8252417ED90784Ab"
+    ],
+    "threshold": 1,
+    "safeOwnerVerified": true
+  },
+  "stageFile": {
+    "path": "~/.config/sidequest/dev.env",
+    "mode": "600"
+  },
+  "transactionsSent": 0,
+  "sourceCommit": "dafd5015ab9efbb853fa585a789b0ef9f1c52a8f",
+  "rootCause": {
+    "originalAttempt": "The unscoped .env.local DEPLOYER_PRIVATE_KEY matches monad-mainnet.roles.admin; G1d testnet operator keys use SIDEQUEST_DEV_* names.",
+    "stageAttempt": "The dev stage file lacked DEPLOYER_PRIVATE_KEY, SAFE_OWNER_PRIVATE_KEY and CREATOR_PRIVATE_KEY. loadEnv retained an unrelated inherited deployer key and both other roles were missing.",
+    "cleanupCommit": "d5425ab edited .env.example and two comments; it did not rename or remove private key values."
+  },
+  "repair": {
+    "kind": "private-local-configuration-only",
+    "keysAdded": [
+      "DEPLOYER_PRIVATE_KEY",
+      "SAFE_OWNER_PRIVATE_KEY",
+      "CREATOR_PRIVATE_KEY"
+    ],
+    "sourceFile": ".env.local",
+    "destinationFile": "~/.config/sidequest/dev.env",
+    "sourceValuesPreserved": true,
+    "runtimeCodeChanged": false,
+    "prodStageFileChanged": false,
+    "mode": "600",
+    "valuesPublished": false
+  },
+  "limits": [
+    "Signer derivation, balances, matching confirmed/pending nonces and current Safe ownership only.",
+    "No transaction signature, broadcast, contract redeployment, Privy mutation, push or hosted release.",
+    "The pre-G1d config reset and job archives remain preserved and uncommitted."
+  ],
+  "validation": {
+    "forcedBuild": {
+      "command": "heavy forge build --force",
+      "cwd": "contracts",
+      "exitCode": 0,
+      "compiledFiles": 157,
+      "compiler": "Solc 0.8.28",
+      "compilerSeconds": 428.96
+    },
+    "deployPlan": {
+      "command": "SIDEQUEST_STAGE=dev SIDEQUEST_TESTNET_SEND=0 heavy node scripts/sidequest/contracts.mjs deploy-plan --generation g1d",
+      "exitCode": 0,
+      "sends": false,
+      "privateLog": ".sidequest/contracts-g1d-deploy-plan.log"
+    },
+    "operatorSuites": {
+      "command": "node --test scripts/sidequest/transaction.test.mjs scripts/sidequest/contracts.test.mjs scripts/sidequest/testnet-setup.test.mjs",
+      "exitCode": 0,
+      "passingTestFiles": 3
+    },
+    "docsScopedCheck": {
+      "command": "bun --no-env-file run check:files docs/reality-check.md docs/evidence/sidequest-dev/2026-10-08-g1d-signers.json",
+      "exitCode": 0,
+      "format": "skipped by existing docs ignore",
+      "lint": "no lintable files"
+    }
+  },
+  "nextStep": {
+    "step": 3,
+    "action": "G1d contract deployment broadcast",
+    "status": "awaiting explicit current-session deployment approval",
+    "chainId": 10143,
+    "command": "SIDEQUEST_STAGE=dev SIDEQUEST_TESTNET_SEND=1 heavy node scripts/sidequest/contracts.mjs deploy --generation g1d",
+    "automaticApproval": "Initial review timed out; one retry was rejected because the current user request authorized investigation/unblocking rather than the exact irreversible deployment broadcast. Neither command started."
+  }
+}

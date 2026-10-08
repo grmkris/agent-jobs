@@ -411,3 +411,38 @@ c7da8ba matches by `substr`. On dev c7da8ba the next approval went to Done in ~1
 bond above the backing* (200 vs 100 SIDE) is refused before anything is sent (2eb9cac). **Open:** `submit_work`
 accepts plain `http://` and private-address URLs (its text says https or ipfs); the screener rejected an ordinary
 competitive-research brief (job 16) as risky.
+
+## G1d signer recovery (8 Oct 2026)
+
+The overnight G1d run stopped before deployment because its effective signing keys did not match the configured
+testnet roles. The first attempt read `.env.local`'s generic `DEPLOYER_PRIVATE_KEY`, which matches the mainnet admin.
+After `dafd501` switched stage runs to `~/.config/sidequest/dev.env`, that file still lacked `DEPLOYER_PRIVATE_KEY`,
+`SAFE_OWNER_PRIVATE_KEY` and `CREATOR_PRIVATE_KEY`. The loader therefore retained an unrelated inherited deployer key;
+the other two roles remained missing. Cleanup commit `d5425ab` changed `.env.example`, not the private key inventory.
+
+The required keys were already present in `.env.local` as `SIDEQUEST_DEV_DEPLOYER_PRIVATE_KEY`,
+`SIDEQUEST_DEV_SAFE_OWNER_PRIVATE_KEY` and `SIDEQUEST_DEV_CREATOR_PRIVATE_KEY`. After deriving and checking each address,
+the recovery added those three values to the private dev stage file under their canonical operator names. The file
+remains mode 600. This was a local configuration repair; no runtime source or prod stage file changed, and no key value
+was published.
+
+At **12:53:10 UTC**, the real `SIDEQUEST_STAGE=dev` loader derived all three expected addresses. Public Monad testnet
+readback at block **69259839** verified 5.030125481 MON for the deployer, 5.12560051 MON for the Safe owner, and
+10.170124985999822766 MON for the ecosystem creator. Their confirmed/pending nonces agreed at 35/35, 6/6 and 15/15.
+The configured Safe returned both recorded owners and threshold 1; the selected Safe signer is one of those owners.
+Existing deployer and Safe-owner encrypted keystore addresses also matched. See the
+[sanitized signer receipt](evidence/sidequest-dev/2026-10-08-g1d-signers.json).
+
+This establishes signer recovery and current testnet funding/ownership only. No G1d transaction, contract deployment,
+Privy mutation, push or hosted release occurred during this recovery. The interrupted run's pre-G1d job archives and
+local config reset remain preserved for resumption at step 3.
+
+The forced `heavy forge build --force` then passed (157 files, Solc 0.8.28), and the real
+`SIDEQUEST_STAGE=dev SIDEQUEST_TESTNET_SEND=0` G1d `deploy-plan` completed with exit 0 and `sends: false`.
+The three existing Node operator test files passed. The scoped docs check returned 0; docs are excluded from the
+configured formatter and contain no lintable code. These are build/simulation checks, not deployment evidence.
+
+An attempted next-step broadcast did not start: automatic approval review first timed out, then rejected its single
+retry because the current request authorized signer investigation/unblocking rather than the exact irreversible
+deployment broadcast. The signer blocker is resolved; step 3's testnet broadcast awaits explicit current-session
+approval. No sending command executed.
