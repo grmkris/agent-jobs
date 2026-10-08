@@ -37,7 +37,9 @@ async function main() {
   if (!send) return
   const { privateKeyToAccount } = await import('viem/accounts')
   const { context, wallet } = await import('../../packages/sdk/src/client.ts')
-  const key = process.env[options.keyEnv]
+  // `.env.local` locally, or `SIDEQUEST_STAGE=dev|prod`'s stage env file; the value is never printed.
+  const { loadEnv } = await import('../../scripts/sidequest/transaction.mjs')
+  const key = loadEnv()[options.keyEnv]
   if (!key) throw new Error(`refund: set ${options.keyEnv}`)
   const account = privateKeyToAccount(key)
   if (address(account.address) !== plan.funding) throw new Error('refund: key does not own the reviewed funding wallet')

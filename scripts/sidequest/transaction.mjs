@@ -1,12 +1,19 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { homedir } from 'node:os'
+import { join, resolve } from 'node:path'
 import { parseEnv } from 'node:util'
 import { createPublicClient, createWalletClient, http, keccak256 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 
-export const loadEnv = () => {
-  const local = process.env.SIDEQUEST_STAGE === 'local' || process.env.SIDEQUEST_STAGE === undefined
-  const env = { ...process.env, ...(local ? parseEnv(readFileSync(resolve('.env.local'), 'utf8')) : {}) }
+/** Local runs read `.env.local`; `SIDEQUEST_STAGE=dev|prod` reads that stage's `~/.config/sidequest/<stage>.env` (plain
+ * key names, as `v1-flows.ts --stage` does). Values are never printed. */
+export const loadEnv = (source = process.env, home = homedir()) => {
+  const stage = source.SIDEQUEST_STAGE
+  const local = stage === 'local' || stage === undefined
+  const stageFile = stage === 'dev' || stage === 'prod' ? join(home, '.config', 'sidequest', `${stage}.env`) : undefined
+  if (stageFile !== undefined && !existsSync(stageFile)) throw new Error(`stage-env-missing ${stage}`)
+  const file = local ? resolve('.env.local') : stageFile
+  const env = { ...source, ...(file === undefined ? {} : parseEnv(readFileSync(file, 'utf8'))) }
   return { ...env, MONAD_RPC_URL: env.MONAD_RPC_URL || (local ? env.MONAD_TESTNET_RPC_URL : undefined) }
 }
 const json = (value) =>

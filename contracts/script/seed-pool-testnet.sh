@@ -13,6 +13,13 @@ if [[ $# -eq 1 && "$1" == --dry-run ]]; then DRY_RUN=1
 elif [[ $# -ne 0 ]]; then echo "usage: seed-pool-testnet.sh [--dry-run]" >&2; exit 2; fi
 NETWORK="monad-testnet"
 export NETWORK
+# SIDEQUEST_STAGE=dev|prod: that stage's key file (plain names), as scripts/sidequest/transaction.mjs loadEnv reads it.
+case "${SIDEQUEST_STAGE:-}" in
+  dev | prod)
+    STAGE_ENV="$HOME/.config/sidequest/$SIDEQUEST_STAGE.env"
+    [[ -f "$STAGE_ENV" ]] || { echo "refusing: $STAGE_ENV is missing" >&2; exit 2; }
+    set -a; . "$STAGE_ENV"; set +a ;;
+esac
 RPC_ENV="${RPC_ENV:-MONAD_RPC_URL}"
 if [[ -z "${!RPC_ENV:-}" && "$RPC_ENV" == MONAD_RPC_URL && -n "${MONAD_TESTNET_RPC_URL:-}" ]]; then RPC_ENV="MONAD_TESTNET_RPC_URL"; fi
 RPC="${!RPC_ENV:-}"
