@@ -1,0 +1,141 @@
+{
+  "observedAt": "2026-10-08T21:41:13.826Z",
+  "step": 5,
+  "mode": "accept",
+  "chainId": 10143,
+  "broadcastPath": "contracts/broadcast/sidequest-g1e/SafeAccept.s.sol/10143/run-latest.json",
+  "broadcastSha256": "66a22019a7e55ecae95b54cedfe45fae33b527f0c0d123cd0a6047032bd5f97e",
+  "sender": "0xd3392156861c922675d4859BB9C32d8ad2BaD956",
+  "firstNonce": 13,
+  "lastNonce": 18,
+  "confirmedNonce": 19,
+  "pendingNonce": 19,
+  "pendingCount": 0,
+  "receipts": [
+    {
+      "hash": "0x9d3ad2e48a47225248e9a4143db69871e439dbeac0bd0340bba46ede2cacd6b4",
+      "nonce": 13,
+      "from": "0xd3392156861c922675d4859bb9c32d8ad2bad956",
+      "to": "0x77923113fd1a71ad91f81064c3c05ca1efb44cd8",
+      "status": "success",
+      "block": "69364153",
+      "blockHash": "0x7ce499488a31ea38d10a842ac1d62d27128906158490fde85605e33fbcb342b3",
+      "gasUsed": "109716",
+      "effectiveGasPrice": "110000000000",
+      "gasCostWei": "12068760000000000",
+      "contractAddress": null
+    },
+    {
+      "hash": "0x6539dcc3e0abff1cf9090e17c0b3a3d439f25e2da33ecce6b9ce81fa372c25eb",
+      "nonce": 14,
+      "from": "0xd3392156861c922675d4859bb9c32d8ad2bad956",
+      "to": "0x77923113fd1a71ad91f81064c3c05ca1efb44cd8",
+      "status": "success",
+      "block": "69364159",
+      "blockHash": "0x88aef09b99c8f1469823ff399ff5fcbe4ec6660bf67669cfedc9e3097d2fa864",
+      "gasUsed": "109333",
+      "effectiveGasPrice": "110000000000",
+      "gasCostWei": "12026630000000000",
+      "contractAddress": null
+    },
+    {
+      "hash": "0xf927282eb728e8b26ea705613c812831644cfbb18a611ebc3b7aa2af5ce2ea26",
+      "nonce": 15,
+      "from": "0xd3392156861c922675d4859bb9c32d8ad2bad956",
+      "to": "0x77923113fd1a71ad91f81064c3c05ca1efb44cd8",
+      "status": "success",
+      "block": "69364166",
+      "blockHash": "0x48a17f1c67e2f91a2e898c56dff2f25050f4eb17fe421a9b7b8574ebcacd610d",
+      "gasUsed": "109518",
+      "effectiveGasPrice": "110000000000",
+      "gasCostWei": "12046980000000000",
+      "contractAddress": null
+    },
+    {
+      "hash": "0xfbed630795a64c92cea56bddeabf814abb353788311bdb3d4477f57a9eddac07",
+      "nonce": 16,
+      "from": "0xd3392156861c922675d4859bb9c32d8ad2bad956",
+      "to": "0x77923113fd1a71ad91f81064c3c05ca1efb44cd8",
+      "status": "success",
+      "block": "69364171",
+      "blockHash": "0x9e62f97d0273f9e8e6b8f0d56b77c8d59f417e22745e26ce4900bb7929f23f34",
+      "gasUsed": "109663",
+      "effectiveGasPrice": "110000000000",
+      "gasCostWei": "12062930000000000",
+      "contractAddress": null
+    },
+    {
+      "hash": "0xec1006235bed4aceac7be9cb0a57b0b31db3242634a3c54ad85bc8bd8d7a5a3f",
+      "nonce": 17,
+      "from": "0xd3392156861c922675d4859bb9c32d8ad2bad956",
+      "to": "0x77923113fd1a71ad91f81064c3c05ca1efb44cd8",
+      "status": "success",
+      "block": "69364172",
+      "blockHash": "0xd831b106bb30e9c08b42e301fbbe9bdeb1d2af2050aa615f96bc02eeb74775b7",
+      "gasUsed": "109158",
+      "effectiveGasPrice": "110000000000",
+      "gasCostWei": "12007380000000000",
+      "contractAddress": null
+    },
+    {
+      "hash": "0x02082646cff22bdeab5b03659b2c3523bceaa470b6424c41f28d829420887684",
+      "nonce": 18,
+      "from": "0xd3392156861c922675d4859bb9c32d8ad2bad956",
+      "to": "0x77923113fd1a71ad91f81064c3c05ca1efb44cd8",
+      "status": "success",
+      "block": "69364178",
+      "blockHash": "0x4a4ad2a4fc0bf32fb80762d1df94755e24f8cb1607a2bef57ceb8cc710357715",
+      "gasUsed": "109144",
+      "effectiveGasPrice": "110000000000",
+      "gasCostWei": "12005840000000000",
+      "contractAddress": null
+    }
+  ],
+  "owners": [
+    {
+      "address": "0x0281F52d12ADbBe48DeF22a79ADef9A2308BD81b",
+      "owner": "0x77923113FD1a71Ad91F81064C3c05cA1EfB44CD8",
+      "pendingOwner": "0x0000000000000000000000000000000000000000"
+    },
+    {
+      "address": "0x9e0CE88C25f5989fd9bC79c88EdB791f9f701033",
+      "owner": "0x77923113FD1a71Ad91F81064C3c05cA1EfB44CD8",
+      "pendingOwner": "0x0000000000000000000000000000000000000000"
+    },
+    {
+      "address": "0x8E2C39f28119F21566D88ba18028B95c1F19Bb31",
+      "owner": "0x77923113FD1a71Ad91F81064C3c05cA1EfB44CD8",
+      "pendingOwner": "0x0000000000000000000000000000000000000000"
+    },
+    {
+      "address": "0x13a38Bf23B7e6F748769d54dEA0017235DD0E120",
+      "owner": "0x77923113FD1a71Ad91F81064C3c05cA1EfB44CD8",
+      "pendingOwner": "0x0000000000000000000000000000000000000000"
+    },
+    {
+      "address": "0x931DC564e1D4f768008a7965CF616Aa743B8DDa8",
+      "owner": "0x77923113FD1a71Ad91F81064C3c05cA1EfB44CD8",
+      "pendingOwner": "0x0000000000000000000000000000000000000000"
+    },
+    {
+      "address": "0x7B5e3D35B854EB8d578BdEA89C9d02EbBBA430BE",
+      "owner": "0x77923113FD1a71Ad91F81064C3c05cA1EfB44CD8",
+      "pendingOwner": "0x0000000000000000000000000000000000000000"
+    }
+  ],
+  "policy": {
+    "minimumCreatorBond": "10000000000000000000",
+    "MAX_MINIMUM_CREATOR_BOND": "1000000000000000000000",
+    "unfilledForfeitBps": 2500,
+    "MAX_FORFEIT_BPS": 5000,
+    "CANCEL_GRACE": 600,
+    "vaultIsHolding": true,
+    "treasury": "0x77923113FD1a71Ad91F81064C3c05cA1EfB44CD8",
+    "sideDecimals": 18
+  },
+  "gasCostWei": "72218520000000000",
+  "gasCostMon": "0.07221852",
+  "limits": [
+    "ABI presence and ownership readbacks; actual forfeit behavior waits for GO 14."
+  ]
+}
