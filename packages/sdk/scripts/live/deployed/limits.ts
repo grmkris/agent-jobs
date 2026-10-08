@@ -184,10 +184,28 @@ async function chainLimits(runtime: Runtime): Promise<Record<string, unknown>> {
   }
 }
 
+async function concurrentHires(runtime: Runtime, base: Record<string, unknown>): Promise<Record<string, unknown>[]> {
+  const coding = await runtime.coding()
+  const items = [
+    { label: 'a04-concurrent-a', args: { ...base, title: `${base.title} A` } },
+    { label: 'a04-concurrent-b', args: { ...base, title: `${base.title} B` } },
+  ]
+  return runtime.chain.journal.once('a04/concurrent-results', async () => {
+    // The original simultaneous calls already have durable results. Reconcile
+    // them one at a time so their retained maximums do not double reserve a mined hire.
+    if (items.some((item) => runtime.run.get(`mcp-result/${item.label}`) !== undefined)) {
+      const results: Record<string, unknown>[] = []
+      for (const item of items)
+        results.push(await runtime.write(coding, 'create_task', item.args, item.label, 2_000_000n))
+      return results
+    }
+    return Promise.all(items.map((item) => runtime.write(coding, 'create_task', item.args, item.label, 2_000_000n)))
+  })
+}
+
 export async function limits(runtime: Runtime): Promise<Proof> {
   await runtime.login()
   await ensureAllowance(runtime)
-  const coding = await runtime.coding()
   const time = await chainLimits(runtime)
   const { chain, run } = runtime
   const base =
@@ -205,10 +223,7 @@ export async function limits(runtime: Runtime): Promise<Proof> {
       windows: sdk.minimumOfferWindows(await sdk.readWindowBounds(chain.ctx)),
       deliverable: { accepts: ['onchain'] },
     })
-  const results = await Promise.all([
-    runtime.write(coding, 'create_task', { ...base, title: `${base.title} A` }, 'a04-concurrent-a', 1_500_000n),
-    runtime.write(coding, 'create_task', { ...base, title: `${base.title} B` }, 'a04-concurrent-b', 1_500_000n),
-  ])
+  const results = await concurrentHires(runtime, base)
   if (
     results.filter((result) => result.status === 'confirmed').length !== 1 ||
     results.filter((result) => result.status === 'approval').length !== 1
@@ -219,7 +234,7 @@ export async function limits(runtime: Runtime): Promise<Proof> {
   await runtime.browser.page.goto(`${ORIGIN}/agent/${runtime.agent.agent_id}?tab=approvals`)
   const section = runtime.browser.page.locator('section').filter({ hasText: text(pending.operation_id) })
   await section.getByRole('button', { name: 'Review exact budget', exact: true }).click()
-  await chain.reserve('a04/operator-approval', 1_500_000n)
+  await chain.reserve('a04/operator-approval', 2_000_000n)
   const reply = runtime.browser.page.waitForResponse(
     (response) => new URL(response.url()).pathname === `/api/approvals/${approvalId}/decide`,
   )

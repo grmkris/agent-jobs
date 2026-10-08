@@ -132,7 +132,9 @@ export class Chain {
     // Refresh retry quotes without dropping any unresolved prior maximum.
     const bound: SendBound = {
       maxGas: largest(maxGas, BigInt(previous?.maxGas ?? '0')).toString(),
-      maxFeePerGas: largest(fees.maxFeePerGas * 2n, BigInt(previous?.maxFeePerGas ?? '0')).toString(),
+      // The SDK quote already caps at twice the base fee. Keep that signed
+      // ceiling and any retained prior maximum instead of doubling it again.
+      maxFeePerGas: largest(fees.maxFeePerGas, BigInt(previous?.maxFeePerGas ?? '0')).toString(),
       nativeValueWei: largest(nativeValue, BigInt(previous?.nativeValueWei ?? '0')).toString(),
       fromBlock:
         previous?.fromBlock ?? (this.run.get<bigint>('auditBlock') ?? this.run.get<bigint>('firstBlock')!).toString(),

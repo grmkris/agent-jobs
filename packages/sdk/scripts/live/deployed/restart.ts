@@ -31,12 +31,12 @@ export async function restart(runtime: Runtime): Promise<Proof> {
     operationKey: `p8-${run.get<string>('run-id')}-${label}`,
   })
   if (run.get(`interrupted/${label}`) === undefined) {
-    await chain.reserve(label, 1_500_000n)
+    await chain.reserve(label, 2_000_000n)
     await coding.interrupt('create_task', intent, label)
   }
   const original = run.get<{ operationId: Hex; txHash: Hex; boundary: string }>(`interrupted/${label}`)
   if (original === undefined) throw new Error('P8_INTERRUPT_MARKER_MISSING')
-  const result = await runtime.write(coding, 'create_task', args, label, 1_500_000n)
+  const result = await runtime.write(coding, 'create_task', args, label, 2_000_000n)
   const recovered = text(object(object(result.result).sponsorship).txHash) as Hex
   if (text(object(result).operationId) !== original.operationId || recovered !== original.txHash)
     throw new Error('P8_RESTART_CHANGED_ECONOMIC_OPERATION')
