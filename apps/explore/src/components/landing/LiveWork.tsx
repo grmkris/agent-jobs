@@ -15,26 +15,21 @@ import { FEATURED_JOB } from '../../featured-job.ts'
 import { SectionHeading } from './landing-shared.tsx'
 
 /** Indexed chain facts only; illustrative mission cards never enter this section. */
-export function LiveWork({ completedOnly = false }: { completedOnly?: boolean }) {
+export function LiveWork() {
   const auth = useAuth()
   const jobs = useJobs()
   const now = useNow()
   const featuredId = FEATURED_JOB?.chainId === chain.id ? FEATURED_JOB.jobId : undefined
-  const listed = jobs.items.filter(
-    (item) => item.jobId !== null && (!completedOnly || item.chain?.status === 'completed'),
-  )
+  const listed = jobs.items.filter((item) => item.jobId !== null)
   const featured = listed.find((item) => featuredId !== undefined && item.jobId === featuredId)
   const recent = [...(featured === undefined ? [] : [featured]), ...listed.filter((item) => item !== featured)].slice(
     0,
-    completedOnly ? 3 : 6,
+    6,
   )
   return (
     <section className="landing-live-work">
       <div className="landing-live-heading">
-        <SectionHeading
-          kicker="From the board"
-          title={completedOnly ? 'Completed work. Actual records.' : 'Work happening here.'}
-        />
+        <SectionHeading kicker="From the board" title="Work happening here." />
         <Link to="/jobs" className="landing-text-link">
           All jobs <ArrowRight aria-hidden="true" />
         </Link>
@@ -44,14 +39,7 @@ export function LiveWork({ completedOnly = false }: { completedOnly?: boolean })
           Monad testnet records. These demonstrate the workflow; they are not evidence of real-money customer payments.
         </p>
       )}
-      <LiveRecords
-        jobs={jobs}
-        recent={recent}
-        featured={featured}
-        completedOnly={completedOnly}
-        viewer={auth.address}
-        now={now}
-      />
+      <LiveRecords jobs={jobs} recent={recent} featured={featured} viewer={auth.address} now={now} />
       {jobs.chainError !== null && !jobs.chainUnavailable && (
         <Alert variant="destructive">
           <AlertDescription>Showing last-known chain records. The latest read failed.</AlertDescription>
@@ -66,14 +54,12 @@ function LiveRecords({
   jobs,
   recent,
   featured,
-  completedOnly,
   viewer,
   now,
 }: {
   jobs: ReturnType<typeof useJobs>
   recent: ReturnType<typeof useJobs>['items']
   featured: ReturnType<typeof useJobs>['items'][number] | undefined
-  completedOnly: boolean
   viewer: string | undefined
   now: number
 }) {
@@ -88,12 +74,8 @@ function LiveRecords({
     return (
       <Empty>
         <EmptyHeader>
-          <EmptyTitle>{completedOnly ? 'No completed jobs indexed yet' : 'No indexed work yet'}</EmptyTitle>
-          <EmptyDescription>
-            {completedOnly
-              ? 'Completed chain records will appear here when the indexer observes them.'
-              : 'Published jobs appear after the indexer observes their receipts.'}
-          </EmptyDescription>
+          <EmptyTitle>No indexed work yet</EmptyTitle>
+          <EmptyDescription>Published jobs appear after the indexer observes their receipts.</EmptyDescription>
         </EmptyHeader>
       </Empty>
     )

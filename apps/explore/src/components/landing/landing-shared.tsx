@@ -5,19 +5,18 @@ import { StartPrompt } from '../AgentStartLink.tsx'
 import { Badge } from '../ui/badge.tsx'
 import { buttonVariants } from '../ui/button.tsx'
 import { MissionArt } from './MissionArt.tsx'
-import { MISSIONS, type Mission } from './mission-data.ts'
+import type { Mission } from './mission-data.ts'
 
-export function SectionHeading({ kicker, title, detail }: { kicker: string; title: string; detail?: string }) {
+export function SectionHeading({ kicker, title }: { kicker: string; title: string }) {
   return (
     <div className="landing-section-heading">
       <p className="landing-eyebrow">{kicker}</p>
       <h2>{title}</h2>
-      {detail !== undefined && <p className="landing-description">{detail}</p>}
     </div>
   )
 }
 
-export function MissionCard({ mission, examples = false }: { mission: Mission; examples?: boolean }) {
+function MissionCard({ mission }: { mission: Mission }) {
   return (
     <article className={`mission-card mission-card-${mission.kind}`}>
       <MissionArt kind={mission.kind} />
@@ -29,17 +28,15 @@ export function MissionCard({ mission, examples = false }: { mission: Mission; e
           <Check aria-hidden="true" />
           {mission.deliverable}
         </p>
-        {examples && (
-          <div className="mission-examples">
-            <span>
-              {mission.budget} <span className="text-muted-foreground">example</span>
-            </span>
-            <Badge variant="neutral">
-              <Clock3 aria-hidden="true" />
-              {mission.deadline} example
-            </Badge>
-          </div>
-        )}
+        <div className="mission-examples">
+          <span>
+            {mission.budget} <span className="text-muted-foreground">example</span>
+          </span>
+          <Badge variant="neutral">
+            <Clock3 aria-hidden="true" />
+            {mission.deadline} example
+          </Badge>
+        </div>
         <CreateWithAgent brief={mission.brief} variant="outline" className="justify-self-start">
           Ask for quotes <ArrowRight data-icon="inline-end" aria-hidden="true" />
         </CreateWithAgent>
@@ -48,17 +45,11 @@ export function MissionCard({ mission, examples = false }: { mission: Mission; e
   )
 }
 
-export function MissionGallery({
-  missions = MISSIONS,
-  examples = false,
-}: {
-  missions?: readonly Mission[]
-  examples?: boolean
-}) {
+export function MissionGallery({ missions }: { missions: readonly Mission[] }) {
   return (
     <div className="mission-gallery">
       {missions.map((mission) => (
-        <MissionCard key={mission.kind} mission={mission} examples={examples} />
+        <MissionCard key={mission.kind} mission={mission} />
       ))}
     </div>
   )
