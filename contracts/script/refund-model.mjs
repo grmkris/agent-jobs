@@ -4,7 +4,7 @@ import { decodeEventLog, getAddress, parseAbi } from 'viem'
 import { refundIdentity } from './refund-generation.mjs'
 
 export const KRIS = '0xB9970A6371358F6C74DFb15A7cB2653E3AE3E471'
-// Frozen pre-G1d ABI, independent of the freshly generated vault ABI.
+// Frozen deployed pre-G1d/G1d share-vault ABI, independent of the regenerated target ABI.
 export const oldVaultAbi = parseAbi([
   'event Delegated(address indexed account,address indexed delegator,address indexed payer,uint256 assets,uint256 shares)',
   'event UndelegateRequested(address indexed account,address indexed delegator,uint256 shares,uint256 assets,uint256 queuedShares,uint48 unlockAt)',
@@ -12,6 +12,15 @@ export const oldVaultAbi = parseAbi([
   'event Withdrawn(address indexed account,address indexed delegator,uint256 shares,uint256 assets)',
   'event PoolReset(address indexed account,uint64 generation)',
   'event Slashed(address indexed holding,address indexed account,uint256 amount)',
+  'event Reserved(address indexed holding,address indexed account,uint256 amount)',
+  'event Released(address indexed holding,address indexed account,uint256 amount)',
+  'event HoldingProposed(address indexed holding,uint48 eta)',
+  'event HoldingProposalCancelled(address indexed holding)',
+  'event HoldingAuthorized(address indexed holding,bool bootstrap)',
+  'event HoldingRevoked(address indexed holding)',
+  'event HoldingDeniedSet(address indexed account,address indexed holding,bool denied)',
+  'event OwnershipTransferStarted(address indexed previousOwner,address indexed newOwner)',
+  'event OwnershipTransferred(address indexed previousOwner,address indexed newOwner)',
   'function poolOf(address) view returns ((uint128 assets,uint128 reserved,uint256 shares,uint192 queuedShares,uint64 generation))',
   'function positionOf(address,address) view returns ((uint256 shares,uint192 queuedShares,uint48 unlockAt,uint64 generation))',
   'function convertToAssets(address,uint256) view returns (uint256)',
@@ -36,7 +45,7 @@ export function decodeVaultLogs(logs) {
     seen.add(key)
     let decoded
     try { decoded = decodeEventLog({ abi: oldVaultAbi, data: log.data, topics: [log.topic0, log.topic1, log.topic2, log.topic3].filter(Boolean), strict: true }) }
-    catch { return [] } // reservation/configuration events do not identify new positions
+    catch { throw new Error(`refund: unsupported or malformed vault log ${key}`) }
     return [{ ...log, ...decoded }]
   })
 }

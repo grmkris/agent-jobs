@@ -1,10 +1,13 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
+import { readFileSync } from 'node:fs'
+import { encodeAbiParameters, encodeEventTopics } from 'viem'
+import * as Match from 'effect/Match'
 import { parseBatchArgs } from '../../contracts/script/refund-batch.mjs'
 import { captureSnapshot, parseManifestArgs } from '../../contracts/script/refund-manifest.mjs'
 import { refundIdentity, refundPaths } from '../../contracts/script/refund-generation.mjs'
 import { bindRefundJournal, refundPlan } from '../../contracts/script/refund-batch-model.mjs'
-import { KRIS, makeManifest, validateManifest } from '../../contracts/script/refund-model.mjs'
+import { KRIS, decodeVaultLogs, makeManifest, validateManifest } from '../../contracts/script/refund-model.mjs'
 import { snapshotFixture, configFixture, addr } from '../../contracts/script/test-fixtures/refund-snapshot.mjs'
 
 void test('G1d defaults preserve the existing manifest and journal paths; G1e isolates both', () => {
@@ -110,4 +113,47 @@ void test('G1e captures the explicit 20,000 SIDE allocation without reading Kris
     false,
   )
   assert.ok(calls.every((call) => call.blockNumber === 110n))
+})
+
+void test('all 15 committed G1d vault event types decode without dropping source logs', () => {
+  // Independently frozen from G1d's generated ABI at e604c94, before the target G1e ABI changes.
+  const { events } = JSON.parse(
+    readFileSync(new URL('../../contracts/script/test-fixtures/g1d-vault-events.json', import.meta.url), 'utf8'),
+  )
+  assert.equal(events.length, 15)
+  const expected = []
+  const logs = events.map((event, index) => {
+    const args = Object.fromEntries(
+      event.inputs.map((input, i) => [
+        input.name,
+        Match.value(input.type).pipe(
+          Match.when('address', () => addr(String(i + 1))),
+          Match.when('bool', () => true),
+          Match.when('uint48', () => 600),
+          Match.orElse(() => BigInt(100 + i)),
+        ),
+      ]),
+    )
+    expected.push({ eventName: event.name, args })
+    const topics = encodeEventTopics({ abi: [event], eventName: event.name, args })
+    const inputs = event.inputs.filter((input) => !input.indexed)
+    return {
+      block_number: 100 + index,
+      log_index: index,
+      data: encodeAbiParameters(
+        inputs,
+        inputs.map((input) => args[input.name]),
+      ),
+      topic0: topics[0],
+      topic1: topics[1] ?? null,
+      topic2: topics[2] ?? null,
+      topic3: topics[3] ?? null,
+    }
+  })
+  assert.deepEqual(
+    decodeVaultLogs(logs).map(({ eventName, args }) => ({ eventName, args })),
+    expected,
+  )
+  assert.throws(() => decodeVaultLogs([{ ...logs[0], topic0: '0x' + 'ff'.repeat(32) }]), /unsupported or malformed/)
+  assert.throws(() => decodeVaultLogs([{ ...logs[0], data: '0x' }]), /unsupported or malformed/)
 })
