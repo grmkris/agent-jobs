@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-08T13:31:49.665451+00:00",
+  "chainId": 10143,
+  "generation": "g1d",
+  "sourceCommit": "993d395",
+  "safe": "0x77923113FD1a71Ad91F81064C3c05cA1EfB44CD8",
+  "receipts": [
+    {
+      "hash": "0x923d5ce23aa33df391b7920a2b3ae8a0051476d676c9d470079a8fa859887f29",
+      "block": 69267080,
+      "status": "0x1"
+    },
+    {
+      "hash": "0x35d6cea7cf8947036028ae3a9e481766a437e46d55024321bb936d09479dfc28",
+      "block": 69267086,
+      "status": "0x1"
+    },
+    {
+      "hash": "0xd85414bbf3015ae12b6344828cc7a4b38245d2aee9d8d43faef8737cfd2920ba",
+      "block": 69267093,
+      "status": "0x1"
+    },
+    {
+      "hash": "0x4a3f8be78ecf433d8af099717aa67d3c2325560bdb706a094fb8172c160b0e3d",
+      "block": 69267099,
+      "status": "0x1"
+    },
+    {
+      "hash": "0x3c0b8657e2df97b7d19d30ce5918673eed6da99d63a28a0c062768b719214456",
+      "block": 69267105,
+      "status": "0x1"
+    },
+    {
+      "hash": "0xad5d0bb4d1107352ff02202872fa019f13956af9978bb9bf8599e5d67ad638d5",
+      "block": 69267111,
+      "status": "0x1"
+    }
+  ],
+  "verification": {
+    "acceptPlanExit": 0,
+    "acceptExit": 0,
+    "verifyExit": 0,
+    "ownedTargets": 6
+  }
+}

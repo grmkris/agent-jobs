@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-08T13:35:16.342Z",
+  "chainId": 10143,
+  "generation": "g1d",
+  "sourceCommit": "993d395",
+  "faucet": "0xDB257E28bD501f19E6Df100B34491655A8D4Fe62",
+  "side": "0x239B662ACE82c0804b0bf8469918C3edBFAFf6Ed",
+  "balanceWei": "10000000000000000000000000",
+  "operations": [
+    {
+      "id": "faucet-deploy-g1d",
+      "hash": "0x280f4bd31fcbb38416aa04a0910b998a48bcab0f503eef5f467a76ef54f9915e",
+      "block": "69267561",
+      "status": "success"
+    },
+    {
+      "id": "faucet-fund-g1d",
+      "hash": "0x1798e8589fb2da1017dd5af540007a79fcae29ef22d8976a194685f054a68cc2",
+      "block": "69267576",
+      "status": "success"
+    },
+    {
+      "id": "pool-seed-musd-mint-g1d",
+      "hash": "0xf2a6ef02829ae6030aa4ad1e2778ac02514d8c65baf617eebe702647354f81bc",
+      "block": "69267878",
+      "status": "success"
+    }
+  ]
+}

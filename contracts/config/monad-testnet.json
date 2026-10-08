@@ -74,7 +74,8 @@
       "t0": 1791465352,
       "teamVesting": "0xb71896a98b63d9A8eeE477d977ABAA8779dC734c",
       "vault": "0x7F9e1eAB7472f14f8a43233e6AC82f5088f7f36a"
-    }
+    },
+    "testnetFaucet": "0xDB257E28bD501f19E6Df100B34491655A8D4Fe62"
   },
   "sidequest": {
     "clocks": {
