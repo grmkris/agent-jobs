@@ -1,0 +1,46 @@
+{
+  "observedAt": "2026-10-08T23:48:29.183Z",
+  "sourceCommit": "62a6c582e1199a6bdbb908bd8630f10f0a8c1eb3",
+  "step": 12,
+  "result": "pass",
+  "network": "monad-testnet",
+  "chainId": 10143,
+  "session": "sidequest-g1e-arbiter",
+  "pid": 3393317,
+  "arbiterProcessCount": 1,
+  "runner": "g1e-netcup",
+  "arbitrator": "0x96eE4e1660744A4dE92D9E22476C501063524716",
+  "core": "0x5914B7de3E80F1e8460901b4eBd6D19B15f9147e",
+  "holding": "0x8E2C39f28119F21566D88ba18028B95c1F19Bb31",
+  "identity": "0x8004A818BFB912233c491871b3d84c89A494BD9e",
+  "model": "meta/muse-spark-1.3",
+  "modelPlane": "local cliproxy",
+  "monBalance": "554421188998974963",
+  "boards": [
+    {
+      "origin": "https://dev.sidequest.exchange",
+      "signedIn": true,
+      "disputeCount": 0
+    },
+    {
+      "origin": "https://sidequest.exchange",
+      "signedIn": true,
+      "disputeCount": 0
+    }
+  ],
+  "heartbeat": [
+    {
+      "time": "23:47:38",
+      "address": "0x96eE4e1660744A4dE92D9E22476C501063524716"
+    },
+    {
+      "time": "23:47:40",
+      "address": "0x96eE4e1660744A4dE92D9E22476C501063524716"
+    }
+  ],
+  "receipts": [],
+  "limits": [
+    "Startup/sign-in and heartbeat are verified. No new dispute, model proposal, cancellation or ruling is proved.",
+    "The stopped G1d launcher/defunct child and logs were retained; there is only one live arbiter."
+  ]
+}
