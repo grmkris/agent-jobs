@@ -95,18 +95,38 @@ export class Chain {
     const senders = new Set(
       [this.ctx.deployment.relay, ...(this.run.get<Address[]>('actors') ?? [])].map((item) => item.toLowerCase()),
     )
-    // Keep reads in flight through network latency; the SDK's shared transport
-    // still limits this process to eight requests per second. Every numbered
-    // block and matching receipt must finish before advancing the saved cursor.
-    const batchSize = 12n
+    // Monad advances faster than one public-client request per block. A bounded
+    // JSON-RPC batch keeps the same complete block/receipt audit while avoiding
+    // a cursor that can never catch the live tip.
+    const rpcUrl = required('MONAD_TESTNET_RPC_URL')
+    const batchSize = 50n
     for (let number = start; number <= end; number += batchSize) {
       const numbers = Array.from(
         { length: Number(end - number + 1n < batchSize ? end - number + 1n : batchSize) },
         (_, index) => number + BigInt(index),
       )
-      const blocks = await Promise.all(
-        numbers.map((blockNumber) => this.ctx.publicClient.getBlock({ blockNumber, includeTransactions: true })),
-      )
+      const response = await fetch(rpcUrl, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(
+          numbers.map((blockNumber, index) => ({
+            jsonrpc: '2.0',
+            id: index + 1,
+            method: 'eth_getBlockByNumber',
+            params: [`0x${blockNumber.toString(16)}`, true],
+          })),
+        ),
+      })
+      if (!response.ok) throw new Error('P8_AUDIT_RPC_REFUSED')
+      const payload = (await response.json()) as Array<{
+        result?: { number: `0x${string}`; transactions: Array<{ from: Address; hash: Hex }> }
+        error?: unknown
+      }>
+      const blocks = payload
+        .map((item) => item.result)
+        .filter((block): block is NonNullable<typeof block> => block !== undefined)
+        .toSorted((left, right) => Number(BigInt(left.number) - BigInt(right.number)))
+      if (blocks.length !== numbers.length) throw new Error('P8_AUDIT_BLOCK_MISSING')
       for (const block of blocks) {
         for (const tx of block.transactions) {
           if (senders.has(tx.from.toLowerCase())) await this.record(tx.hash)
