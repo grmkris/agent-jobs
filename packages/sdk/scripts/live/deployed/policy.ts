@@ -4,7 +4,7 @@ import * as sdk from '../../../src/index.ts'
 import { PrivyApi } from '../../privy/client.ts'
 import { schema, signingShapes } from '../../privy/policy.ts'
 import { required } from './guards.ts'
-import { Runtime, type Proof } from './runtime.ts'
+import { Runtime, object, type Proof } from './runtime.ts'
 
 interface Denial {
   probe: string
@@ -163,11 +163,12 @@ export async function policyDenials(runtime: Runtime): Promise<Proof> {
     {
       taskId: job.taskId,
       agentId: `${BigInt(agent.agent_id!) + 1n}`,
-      operationKey: `p8:${runtime.run.runId}:a05-wrong-agent`,
+      operationKey: `p8-${runtime.run.runId}-a05-wrong-agent`,
     },
     'a05-wrong-agent',
   )
-  if (refused.item.result?.isError !== true || !JSON.stringify(refused.output).includes('registered agentId'))
+  const denial = object(refused.output)
+  if (denial.ok !== false || denial.code !== 'forbidden' || !String(denial.message).includes('registered agentId'))
     throw new Error('P8_DEPLOYED_SIGNER_SCOPE_DENIAL_NOT_PROVEN')
   results.push({
     probe: 'another registered identity',
