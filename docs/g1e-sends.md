@@ -64,8 +64,12 @@ Read `docs/stages.md`, `docs/deploy.md` and the G1e common/OPS briefs before exe
    Run `accept-plan`, then `SIDEQUEST_TESTNET_SEND=1 … accept`, then `verify`, all with `--generation g1e`.
    Require successful receipts and Safe ownership/bootstrap. Read Holding's `minimumCreatorBond()`,
    `MAX_MINIMUM_CREATOR_BOND()`, `unfilledForfeitBps()`, `MAX_FORFEIT_BPS()` and `CANCEL_GRACE()` against the values above,
-   using SIDE decimals. Read the current `FeeSchedule.treasury()` and record its Safe address.
-   Verify the deployed vault bytecode/ABI includes `forfeit(address,uint256,address)` and authorizes the new Holding.
+   Getter ABI outputs are `uint256`, `uint256`, `uint16`, `uint16` and `uint48`, respectively; SIDE amounts use
+   SIDE decimals. Read the current `FeeSchedule.treasury()` and record its Safe address.
+   Verify the deployed vault bytecode/ABI includes `forfeit(address account,uint256 amount,address to)` returning
+   `uint256 taken`, and authorizes the new Holding. Confirm both non-anonymous event ABIs:
+   `BondForfeited(uint256 indexed jobId,address indexed creator,address indexed treasury,uint256 amount)` on Holding
+   and `Forfeited(address indexed holding,address indexed account,address indexed to,uint256 amount)` on the vault.
    ABI presence alone is source evidence; receipt/bytecode matching plus the late-cancel check in step 14 proves use.
 
 6. **GO 6 — deploy and fund faucet.**
@@ -146,7 +150,8 @@ Read `docs/stages.md`, `docs/deploy.md` and the G1e common/OPS briefs before exe
     Use a fresh generation-bound G1e operation profile; retain the G1d journals without reusing their signed bytes.
     Use distinct frozen keys for a quotes-first bonded hire and a never-activated listing cancelled strictly inside
     600 seconds. Record quote selection, activation/delivery/completion and exact reward/fee/net amounts for the hire.
-    For early cancel, use the receipt block timestamp, full bond release, zero treasury delta and no `BondForfeited`.
+    For early cancel, use the receipt block timestamp, full bond release, zero treasury delta and no `BondForfeited`
+    or vault `Forfeited` event.
     A relay hire retains **three ordered calls** (reward pull, approval, publish); its creator bond is at least live floor.
     These are bounded FLOW-wallet operator checks, separate from genuine-user acceptance. Kris is away and tests
     manually later. No automated A01–A08 fixtures. Preserve all operation journals after an interrupted response.
@@ -156,8 +161,11 @@ Read `docs/stages.md`, `docs/deploy.md` and the G1e common/OPS briefs before exe
     with the current floor and recorded snapshotted rate/publish time; verify free backing before its new operation.
     Wait until the mined cancel can be at or after `publishedAt + 600` (use chain timestamps), then cancel once with
     its frozen key. With unchanged initial policy, 10 SIDE yields **2.5 SIDE to current treasury and 7.5 SIDE released**.
-    Record successful receipt, exact `BondForfeited` args, SIDE transfer to the live Safe treasury, reserved-bond release,
-    vault accounting and the indexed event for the same job/hash/block. Reconcile before retrying a lost response.
+    Record the successful receipt and exact Holding `BondForfeited(jobId,creator,treasury,amount)` and vault
+    `Forfeited(holding,account,to,amount)` args. Match their three indexed fields to the job/creator/treasury and new
+    Holding/creator/treasury, respectively, and their equal non-indexed amounts to the SIDE transfer to the live Safe.
+    Verify reserved-bond release, vault accounting and both indexed events for the same transaction hash/block;
+    correlate the vault event to the job through the Holding event. Reconcile before retrying a lost response.
     An expiry/settle test is a separate **GO 14a** if requested; it must prove the same never-activated forfeit. Activated
     jobs retain no penalty at/after expiry. Record Kris’s genuine-user manual acceptance as pending until he returns.
 
