@@ -357,7 +357,9 @@ contract SidequestInvariantsTest is Test {
         assertLe(vault.reservedOf(env.creator()), vault.poolOf(env.creator()).assets, "creator reserved <= staked");
         assertLe(vault.reservedOf(env.worker()), vault.poolOf(env.worker()).assets, "worker reserved <= staked");
 
-        assertEq(vault.totalAssets(), vault.poolOf(env.creator()).assets + vault.poolOf(env.worker()).assets, "sum of pools");
+        assertEq(
+            vault.totalAssets(), vault.poolOf(env.creator()).assets + vault.poolOf(env.worker()).assets, "sum of pools"
+        );
 
         uint256 open;
         uint256 burned;
