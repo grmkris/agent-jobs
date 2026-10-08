@@ -155,10 +155,11 @@ contract SidequestRehearsalForkTest is Test {
         uint256 agentId = c.identity.register();
         assertEq(c.identity.getAgentWallet(agentId), worker);
         vm.prank(c.admin);
-        d.factory.transfer(creator, 20_000e18);
+        d.factory.transfer(creator, 20_000e18 + c.minimumCreatorBond);
         vm.startPrank(creator);
-        d.factory.approve(address(d.vault), 20_000e18);
+        d.factory.approve(address(d.vault), 20_000e18 + c.minimumCreatorBond);
         d.vault.delegate(worker, 20_000e18);
+        d.vault.delegate(creator, c.minimumCreatorBond);
         vm.stopPrank();
         assertEq(d.vault.positionOf(worker, worker).shares, 0);
         assertEq(d.vault.positionOf(worker, creator).shares, 20_000e18);
@@ -175,7 +176,7 @@ contract SidequestRehearsalForkTest is Test {
             policyHash: keccak256("rehearsal-policy"),
             token: token,
             reward: reward,
-            creatorBond: 0,
+            creatorBond: c.minimumCreatorBond,
             workerBond: 10e18,
             deliveryDeadline: deadline,
             expiredAt: deadline + c.clocks.minReviewWindow + c.clocks.minDisputeWindow + c.clocks.minArbitrationWindow

@@ -54,6 +54,9 @@ library SidequestVerify {
         _require(d.holding.evaluator() == address(d.evaluator), "holding.evaluator");
         _require(d.holding.defaultArbitrator() == c.defaultArbitrator, "holding.defaultArbitrator");
         _require(d.holding.margin() == c.margin, "holding.margin");
+        _require(d.holding.minimumCreatorBond() == c.minimumCreatorBond, "holding.minimumCreatorBond");
+        _require(d.holding.MAX_MINIMUM_CREATOR_BOND() == c.maxMinimumCreatorBond, "holding.maxMinimumCreatorBond");
+        _require(d.holding.unfilledForfeitBps() == c.unfilledForfeitBps, "holding.unfilledForfeitBps");
         _require(address(d.evaluator.core()) == address(d.core), "evaluator.core");
         _require(address(d.evaluator.holding()) == address(d.holding), "evaluator.holding");
         _require(address(d.evaluator.reputation()) == address(c.reputation), "evaluator.reputation");

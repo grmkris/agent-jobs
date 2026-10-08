@@ -57,10 +57,10 @@ contract SidequestHoldingTest is BaseV1 {
         }
         // Exactly at the bounds is fine.
         ISidequestHolding.PublishParams memory ok = params();
-        (ok.reviewWindow, ok.disputeWindow, ok.arbitrationWindow) = (1 hours, 14 days, 12 hours);
-        ok.creatorBond = 0;
+        (ok.reviewWindow, ok.disputeWindow, ok.arbitrationWindow) = (1 hours, 1 hours, 12 hours);
+        ok.creatorBond = CREATOR_BOND;
         ok.workerBond = 0;
-        ok.expiredAt = ok.deliveryDeadline + 1 hours + 14 days + 12 hours + MARGIN;
+        ok.expiredAt = ok.deliveryDeadline + 2 hours + 12 hours + MARGIN;
         publishWith(ok);
     }
 
@@ -139,9 +139,11 @@ contract SidequestHoldingTest is BaseV1 {
     function test_publish_M3_frontRunByAnotherCreatorDoesNotBlock() public {
         ISidequestHolding.PublishParams memory p = params();
         deal(address(pay), stranger, REWARD);
+        deal(address(factory), stranger, CREATOR_BOND);
         vm.startPrank(stranger);
         pay.approve(address(holding), REWARD);
-        p.creatorBond = 0;
+        factory.approve(address(vault), CREATOR_BOND);
+        vault.delegate(stranger, CREATOR_BOND);
         holding.publish(p);
         vm.stopPrank();
         assertTrue(holding.policyListed(stranger, p.policyHash));
@@ -162,7 +164,7 @@ contract SidequestHoldingTest is BaseV1 {
         fot.mint(creator, REWARD);
         vm.prank(creator);
         fot.approve(address(holding), REWARD);
-        ISidequestHolding.PublishParams memory p = params(IERC20(address(fot)), REWARD, 0, 0);
+        ISidequestHolding.PublishParams memory p = params(IERC20(address(fot)), REWARD, CREATOR_BOND, 0);
         vm.prank(creator);
         vm.expectRevert(
             abi.encodeWithSelector(ISidequestHolding.RewardTokenShortfall.selector, REWARD, REWARD - REWARD / 100)
@@ -179,10 +181,10 @@ contract SidequestHoldingTest is BaseV1 {
         holding.publish(p);
     }
 
-    function test_publish_revokedHoldingPublishesNothingEvenUnbonded() public {
+    function test_publish_revokedHoldingPublishesNothing() public {
         vm.prank(deployer);
         vault.revokeHolding(address(holding));
-        ISidequestHolding.PublishParams memory p = params(IERC20(address(pay)), REWARD, 0, 0);
+        ISidequestHolding.PublishParams memory p = params(IERC20(address(pay)), REWARD, CREATOR_BOND, 0);
         vm.prank(creator);
         vm.expectRevert(IStakeVault.NotHolding.selector);
         holding.publish(p);
@@ -307,7 +309,7 @@ contract SidequestHoldingTest is BaseV1 {
     }
 
     function test_activate_workerBondNeedsStake() public {
-        ISidequestHolding.PublishParams memory p = params(IERC20(address(pay)), REWARD, 0, WORKER_STAKE + 1);
+        ISidequestHolding.PublishParams memory p = params(IERC20(address(pay)), REWARD, CREATOR_BOND, WORKER_STAKE + 1);
         uint256 jobId = publishWith(p);
         ISidequestHolding.Selection memory sel = selectionFor(jobId, worker, AGENT_ID);
         bytes memory sig = signSelection(creatorPk, sel);
@@ -712,8 +714,8 @@ contract SidequestHoldingTest is BaseV1 {
     function _liarCancel(uint8 mode) internal {
         LyingToken lie = _liar();
         IERC20 t = IERC20(address(lie));
-        uint256 a = publishWith(params(t, REWARD, 0, 0));
-        uint256 b = publishWith(params(t, REWARD, 0, 0));
+        uint256 a = publishWith(params(t, REWARD, CREATOR_BOND, 0));
+        uint256 b = publishWith(params(t, REWARD, CREATOR_BOND, 0));
         lie.setMode(creator, mode);
         vm.prank(creator);
         holding.cancel(a);
@@ -741,7 +743,7 @@ contract SidequestHoldingTest is BaseV1 {
     function test_C9002_workerBonusAndTreasuryFeePushes() public {
         LyingToken lie = _liar();
         IERC20 t = IERC20(address(lie));
-        uint256 jobId = publishWith(params(t, REWARD, 0, 0));
+        uint256 jobId = publishWith(params(t, REWARD, CREATOR_BOND, 0));
         activate(jobId);
         vm.prank(contributor);
         holding.topUp(jobId, 10e6);
@@ -762,7 +764,7 @@ contract SidequestHoldingTest is BaseV1 {
     function test_C9002_claimTopUpRefund() public {
         LyingToken lie = _liar();
         IERC20 t = IERC20(address(lie));
-        uint256 jobId = publishWith(params(t, REWARD, 0, 0));
+        uint256 jobId = publishWith(params(t, REWARD, CREATOR_BOND, 0));
         activate(jobId);
         vm.prank(contributor);
         holding.topUp(jobId, 10e6);
@@ -787,8 +789,8 @@ contract SidequestHoldingTest is BaseV1 {
     // ------------------------------------------------------------------------------------------
 
     function test_fee_roundsUp_neverTakesTheWholeReward() public {
-        uint256 three = publishWith(params(IERC20(address(pay)), 3, 0, 0));
-        uint256 one = publishWith(params(IERC20(address(pay)), 1, 0, 0));
+        uint256 three = publishWith(params(IERC20(address(pay)), 3, CREATOR_BOND, 0));
+        uint256 one = publishWith(params(IERC20(address(pay)), 1, CREATOR_BOND, 0));
         (uint16 bps, uint256 fee, uint256 net) = holding.quoteActivation(three, stranger);
         assertEq(bps, 3000);
         assertEq(fee, 1, "ceil(0.9)");

@@ -11,10 +11,10 @@ This document describes the only supported protocol surface. The v1 deployment i
 - `SidequestEvaluator` is the per-offer evaluator. The approver accepts or rejects, an arbitrator rules during the
   frozen appeal window, and permissionless timeouts settle silence, missed delivery, and arbitration expiry. It records
   evidence and feedback without allowing a classifier to move money.
-- `StakeVault` tracks delegated SIDE shares and reservations. `reserve` requires an admitted Holding; `release` and `slash` consume only the caller's own reservations; unstaking uses a fourteen-day production cooldown and Holding admission uses its timelock.
+- `StakeVault` tracks delegated SIDE shares and reservations. `reserve` requires an admitted Holding; `release`, `slash` and treasury `forfeit` consume only the caller's own reservations; unstaking uses a fourteen-day production cooldown and Holding admission uses its timelock.
 - `Factory` is SIDE v2: a fixed one-billion supply, ERC-20 permit support, and burn with no mint or admin hook.
 - `FeeSchedule` supplies the worker's fee rate and treasury address; schedule changes have a three-day notice.
-  `SidequestHolding` pays the treasury only when the worker earns the reward.
+  `SidequestHolding` pays earned-work fees and never-activated creator-bond forfeitures to the current treasury.
 - `TeamVesting` releases the fixed team allocation after its configured cliff and duration.
 - `EpochDistributor` and `MiningReserve` distribute posted Merkle roots into stake. Mining is a funded, permissionless
   claim path and makes no promise of earnings.
@@ -27,6 +27,14 @@ This document describes the only supported protocol surface. The v1 deployment i
 creator's EIP-712 Selection, registered ERC-8004 wallet, frozen terms, and worker bond before funding the core with the
 quoted net reward. The worker submits once. Acceptance, rejection, ruling, or a timeout records the outcome before core
 settlement. `settle` releases or burns due reservations and pays the recorded beneficiary; payout failures remain owed.
+Every publish requires at least the live creator-bond floor (initially 10 SIDE testnet / 10,000 mainnet). The Safe
+can adjust it up to the immutable 1,000 / 100,000 SIDE cap. New listings snapshot `publishedAt` and the unfilled
+forfeit rate (initially 2500 bps, owner-adjustable from 0 to the constant 5000 bps cap). Cancellation before
+`publishedAt + CANCEL_GRACE` (600 seconds) releases all backing. Never-activated cancellation after that boundary,
+or expiry regardless of grace, forfeits `creatorBond * snapshotBps / 10_000` rounded down to the current treasury.
+`BondForfeited` records the transfer; `BondReleased` records the remainder. This is the explicit exception to HR-001;
+activated jobs still release rather than burn at/after expiry. `StakeVault.forfeit` removes only this Holding's
+reservation and pool assets without reducing SIDE supply, including pro-rata queued backing and empty-pool reset.
 A core pause is recorded by `notePause` and excuses a deadline that falls inside the pause interval.
 
 Review, dispute, and arbitration windows are frozen per offer. Silence after a timely finalized submission is acceptance.
@@ -41,7 +49,8 @@ components, wires the evaluator and registries, bootstraps the Holding, funds mi
 accepts the six ownership transfers. The core's `ADMIN_ROLE` and `DEFAULT_ADMIN_ROLE` are granted to the Safe and
 renounced by the deployer in the same fresh deployment.
 
-The input includes `safe`, `defaultArbitrator`, `margin`, four fee thresholds and rates, three allocation addresses,
+The input includes `safe`, `defaultArbitrator`, `margin`, `minimumCreatorBond`, `maxMinimumCreatorBond`,
+`unfilledForfeitBps`, four fee thresholds and rates, three allocation addresses,
 vesting parameters, mining genesis, and optional clock values. Mainnet requires the production clock tuple. The output
 contains `core`, `factory`, `rewardTokens`, `sidequest` (block, safe, factory, vault, feeSchedule, distributor,
 miningReserve, teamVesting, t0, clocks), and `main` (`kind: "sidequest-v1"`, factory, holding, evaluator,

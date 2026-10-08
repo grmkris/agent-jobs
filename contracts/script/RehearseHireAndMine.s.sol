@@ -72,6 +72,7 @@ contract RehearseHire is RehearsalScript {
 
         vm.startBroadcast(deployerKey);
         factory.transfer(worker, 20_000e18);
+        factory.transfer(creator, holding.minimumCreatorBond());
         usdc.transfer(creator, reward);
         vm.stopBroadcast();
 
@@ -81,7 +82,7 @@ contract RehearseHire is RehearsalScript {
         vault.delegate(worker, 20_000e18);
         vm.stopBroadcast();
 
-        uint48 deadline = uint48(block.timestamp + 2 days);
+        uint48 deadline = uint48(block.timestamp + 1 days);
         bytes32 policy = keccak256(abi.encode("rehearsal-policy", block.timestamp));
         ISidequestHolding.PublishParams memory p = ISidequestHolding.PublishParams({
             approver: address(0),
@@ -90,7 +91,7 @@ contract RehearseHire is RehearsalScript {
             policyHash: policy,
             token: usdc,
             reward: reward,
-            creatorBond: 0,
+            creatorBond: holding.minimumCreatorBond(),
             workerBond: 10e18,
             deliveryDeadline: deadline,
             expiredAt: deadline + 1 hours + 1 hours + 12 hours + 1 days,
@@ -99,6 +100,8 @@ contract RehearseHire is RehearsalScript {
             arbitrationWindow: 12 hours
         });
         vm.startBroadcast(creatorKey);
+        factory.approve(address(vault), p.creatorBond);
+        vault.delegate(creator, p.creatorBond);
         usdc.approve(address(holding), reward);
         uint256 jobId = holding.publish(p);
         vm.stopBroadcast();

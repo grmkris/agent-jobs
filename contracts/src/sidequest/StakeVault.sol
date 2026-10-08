@@ -13,7 +13,8 @@ import {SidequestClocks} from "./SidequestClocks.sol";
 /// @title StakeVault
 /// @notice Delegated SIDE backing and every Sidequest bond (ADR-0014; the full contract is in `IStakeVault`). A bond is a
 ///         reservation of stake: no token moves when a bond is posted, a slash burns the reserved SIDE, and a Holding
-///         can only ever release or slash what it reserved itself. Holdings are authorized behind an immutable timelock
+///         can only ever release, slash or forfeit what it reserved itself. Forfeiture transfers SIDE to a recipient.
+///         Holdings are authorized behind an immutable timelock
 ///         longer than the immutable unstake cooldown (production: 15 days > 14 days), and revoked instantly; a revoked Holding still settles its live jobs.
 ///
 ///         This contract holds everyone's stake. Its only external calls are to the immutable SIDE token, which has
@@ -144,6 +145,23 @@ contract StakeVault is IStakeVault, Ownable2Step, ReentrancyGuardTransient {
         totalAssets -= burned;
         factory.burn(burned);
         emit Slashed(msg.sender, account, burned);
+        if (pool.assets == 0) {
+            pool.shares = 0;
+            pool.queuedShares = 0;
+            ++pool.generation;
+            emit PoolReset(account, pool.generation);
+        }
+    }
+
+    function forfeit(address account, uint256 amount, address to) external nonReentrant returns (uint256 taken) {
+        if (to == address(0)) revert ZeroAddress();
+        taken = _unreserve(account, amount);
+        if (taken == 0) return 0;
+        Pool storage pool = _pools[account];
+        pool.assets -= uint128(taken);
+        totalAssets -= taken;
+        factory.safeTransfer(to, taken);
+        emit Forfeited(msg.sender, account, to, taken);
         if (pool.assets == 0) {
             pool.shares = 0;
             pool.queuedShares = 0;

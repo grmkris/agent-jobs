@@ -72,6 +72,9 @@ contract RecipeTest is Test {
     SidequestRecipe.Config c;
 
     function setUp() public {
+        c.maxMinimumCreatorBond = 100_000e18;
+        c.unfilledForfeitBps = 2500;
+        c.minimumCreatorBond = 10_000e18;
         vm.warp(1_800_000_000);
         vm.etch(safe, hex"00"); // the Safe is a contract; the recipe and the promotion check it has code
         vm.createDir(SidequestOutput.candidateDir(vm), true); // gitignored: absent on a clean checkout
@@ -154,11 +157,12 @@ contract RecipeTest is Test {
     function _publishRefused(SidequestRecipe.Deployed memory d) internal {
         MockPaymentToken usd = new MockPaymentToken("USD", "USD");
         usd.mint(stranger, 1e6);
-        uint48 deadline = uint48(vm.getBlockTimestamp() + 7 days);
+        uint48 deadline = uint48(vm.getBlockTimestamp() + 1 hours);
         ISidequestHolding.PublishParams memory p;
         (p.policyHash, p.token, p.reward, p.deliveryDeadline) =
         (keccak256("early"), IERC20(address(usd)), 1e6, deadline);
         (p.reviewWindow, p.disputeWindow, p.arbitrationWindow) = (1 hours, 1 hours, 12 hours);
+        p.creatorBond = c.minimumCreatorBond;
         p.expiredAt = deadline + 1 hours + 1 hours + 12 hours + 1 days;
         vm.startPrank(stranger);
         usd.approve(address(d.holding), 1e6);
@@ -236,6 +240,12 @@ contract RecipeTest is Test {
         MockPaymentToken usd = new MockPaymentToken("USD", "USD");
         usd.mint(creator, 100e6);
         vm.prank(admin);
+        d.factory.transfer(creator, c.minimumCreatorBond);
+        vm.startPrank(creator);
+        d.factory.approve(address(d.vault), c.minimumCreatorBond);
+        d.vault.delegate(creator, c.minimumCreatorBond);
+        vm.stopPrank();
+        vm.prank(admin);
         d.factory.transfer(worker, 20_000e18);
         vm.startPrank(worker);
         d.factory.approve(address(d.vault), type(uint256).max);
@@ -250,7 +260,7 @@ contract RecipeTest is Test {
             policyHash: keccak256("p"),
             token: IERC20(address(usd)),
             reward: 100e6,
-            creatorBond: 0,
+            creatorBond: c.minimumCreatorBond,
             workerBond: 10e18,
             deliveryDeadline: deadline,
             expiredAt: deadline + 1 days + 1 days + 1 days + 1 days,
@@ -448,6 +458,11 @@ contract RecipeTest is Test {
     function _mainnetTemp(string memory name) internal returns (string memory path) {
         path = _temp(name, vm.readFile(string.concat(vm.projectRoot(), "/config/monad-mainnet.json")));
         vm.writeJson("{}", path, ".deployment");
+        vm.writeJson(
+            '{"maxMinimumCreatorBond":100000000000000000000000,"unfilledForfeitBps":2500,"minimumCreatorBond":10000000000000000000000}',
+            path,
+            ".sidequest"
+        );
     }
 
     function test_output_testnetShape_recordsFreshCoreAndPair() public {
@@ -640,7 +655,7 @@ contract RecipeTest is Test {
         string memory base = vm.readFile(string.concat(vm.projectRoot(), "/config/monad-testnet.json"));
         string memory block_ = string.concat(
             '{"safe":"0x00000000000000000000000000000000000000a1",',
-            '"defaultArbitrator":"0x00000000000000000000000000000000000000a2","margin":86400,',
+            '"defaultArbitrator":"0x00000000000000000000000000000000000000a2","margin":86400,"maxMinimumCreatorBond":100000000000000000000000,"unfilledForfeitBps":2500,"minimumCreatorBond":10000000000000000000000,',
             '"schedule":{"thresholds":[0,10000,100000,1000000],"bps":[3000,1000,300,100],',
             '"treasury":"0x00000000000000000000000000000000000000a1"},',
             '"allocation":{"treasury":"0x00000000000000000000000000000000000000a1",',

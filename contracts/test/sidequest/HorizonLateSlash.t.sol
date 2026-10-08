@@ -221,12 +221,14 @@ contract HorizonLateSlashTest is BaseV1 {
         assertEq(vault.stakeOf(creator), CREATOR_STAKE);
     }
 
-    function test_zeroBondsKeepAccountingAndSettlement() public {
+    function test_zeroWorkerBondKeepsAccountingAndSettlement() public {
         ISidequestHolding.PublishParams memory p = params();
-        p.creatorBond = 0;
         p.workerBond = 0;
         p.deliveryDeadline = uint48(block.timestamp + 1 days);
-        p.expiredAt = p.deliveryDeadline + REVIEW + DISPUTE + ARBITRATION + MARGIN;
+        p.reviewWindow = holding.MIN_REVIEW_WINDOW();
+        p.disputeWindow = holding.MIN_DISPUTE_WINDOW();
+        p.arbitrationWindow = holding.MIN_ARBITRATION_WINDOW();
+        p.expiredAt = p.deliveryDeadline + p.reviewWindow + p.disputeWindow + p.arbitrationWindow + MARGIN;
         uint256 job = publishWith(p);
         activate(job);
         vm.warp(p.expiredAt);
@@ -236,7 +238,9 @@ contract HorizonLateSlashTest is BaseV1 {
         for (uint256 i; i < logs.length; ++i) {
             if (logs[i].emitter != address(holding)) continue;
             assertTrue(logs[i].topics[0] != ISidequestHolding.BondSlashed.selector);
-            assertTrue(logs[i].topics[0] != ISidequestHolding.BondReleased.selector);
+            if (logs[i].topics[0] == ISidequestHolding.BondReleased.selector) {
+                assertEq(address(uint160(uint256(logs[i].topics[2]))), creator);
+            }
         }
         assertTrue(listing(job).workerBondBurned, "zero-amount decision flag is unchanged");
         assertEq(vault.stakeOf(worker), WORKER_STAKE);
@@ -246,7 +250,7 @@ contract HorizonLateSlashTest is BaseV1 {
         _assertRefund(job);
     }
 
-    function test_unactivatedExpiryKeepsCreatorReleaseAndRefund() public {
+    function test_unactivatedExpiryForfeitsAndRefunds() public {
         ISidequestHolding.PublishParams memory p = params();
         p.deliveryDeadline = uint48(block.timestamp + 1 days);
         p.reviewWindow = holding.MIN_REVIEW_WINDOW();
@@ -257,13 +261,14 @@ contract HorizonLateSlashTest is BaseV1 {
         vm.warp(listing(job).expiredAt);
         core.claimRefund(job);
         vm.expectEmit(true, true, false, true, address(holding));
-        emit ISidequestHolding.BondReleased(job, ISidequestHolding.Side.Creator, creator, CREATOR_BOND);
+        emit ISidequestHolding.BondReleased(job, ISidequestHolding.Side.Creator, creator, CREATOR_BOND * 3 / 4);
         holding.settle(job);
         assertTrue(listing(job).creatorBondSettled);
         assertFalse(listing(job).creatorBondBurned);
         assertFalse(listing(job).workerBondReserved);
         assertFalse(listing(job).workerBondSettled);
-        assertEq(vault.stakeOf(creator), CREATOR_STAKE);
+        assertEq(vault.stakeOf(creator), CREATOR_STAKE - CREATOR_BOND / 4);
+        assertEq(factory.balanceOf(treasury), CREATOR_BOND / 4);
         _assertRefund(job);
     }
 

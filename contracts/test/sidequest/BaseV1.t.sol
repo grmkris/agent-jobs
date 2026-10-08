@@ -30,10 +30,10 @@ abstract contract BaseV1 is Test {
     uint32 internal constant ARBITRATION = 3 days;
     uint48 internal constant MARGIN = 1 days;
     uint256 internal constant REWARD = 100e6;
-    uint256 internal constant CREATOR_BOND = 20e18;
+    uint256 internal constant CREATOR_BOND = 10_000e18;
     uint256 internal constant WORKER_BOND = 10e18;
     /// @dev Default stakes: the creator covers its bonds; the worker sits in the 30 % tier.
-    uint256 internal constant CREATOR_STAKE = 1_000e18;
+    uint256 internal constant CREATOR_STAKE = 100_000e18;
     uint256 internal constant WORKER_STAKE = 1_000e18;
     uint256 internal constant AGENT_ID = 42;
     bytes32 internal constant MANIFEST = keccak256("manifest-v1");
@@ -103,8 +103,18 @@ abstract contract BaseV1 is Test {
         reputation = new MockReputation();
         vault = new StakeVault(factory, clocks());
         fees = new FeeSchedule(defaultSchedule(treasury), clocks());
-        holding =
-            new SidequestHolding(core, vault, fees, IERC8004Identity(address(identity)), arbitrator, MARGIN, clocks());
+        holding = new SidequestHolding(
+            core,
+            vault,
+            fees,
+            IERC8004Identity(address(identity)),
+            arbitrator,
+            MARGIN,
+            CREATOR_BOND,
+            100_000e18,
+            2500,
+            clocks()
+        );
         evaluator = new SidequestEvaluator(
             core, holding, IERC8004Reputation(withReputation() ? address(reputation) : address(0))
         );

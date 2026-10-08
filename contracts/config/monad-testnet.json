@@ -92,6 +92,9 @@
     "safe": "0x77923113FD1a71Ad91F81064C3c05cA1EfB44CD8",
     "defaultArbitrator": "0x96eE4e1660744A4dE92D9E22476C501063524716",
     "margin": 3600,
+    "minimumCreatorBond": 10000000000000000000,
+    "maxMinimumCreatorBond": 1000000000000000000000,
+    "unfilledForfeitBps": 2500,
     "schedule": {
       "thresholds": [
         0,

@@ -52,10 +52,10 @@ contract V1ArbitraryTokensTest is BaseV1 {
         hook.mint(creator, 2 * REWARD);
         vm.prank(creator);
         hook.approve(address(holding), 2 * REWARD);
-        ISidequestHolding.PublishParams memory second = params(IERC20(address(hook)), REWARD, 0, 0);
+        ISidequestHolding.PublishParams memory second = params(IERC20(address(hook)), REWARD, CREATOR_BOND, 0);
         // On the reward pull, the hook tries to publish again inside publish.
         hook.arm(address(holding), abi.encodeCall(ISidequestHolding.publish, (second)));
-        publishWith(params(IERC20(address(hook)), REWARD, 0, 0));
+        publishWith(params(IERC20(address(hook)), REWARD, CREATOR_BOND, 0));
         assertTrue(hook.attempted());
         assertFalse(hook.reentered());
         assertEq(hook.balanceOf(address(holding)), REWARD);

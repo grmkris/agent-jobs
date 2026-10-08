@@ -53,6 +53,11 @@
     "maxRepairCost": 5,
     "positionOwner": "0x0000000000000000000000000000000000000000"
   },
+  "sidequest": {
+    "minimumCreatorBond": 10000000000000000000000,
+    "maxMinimumCreatorBond": 100000000000000000000000,
+    "unfilledForfeitBps": 2500
+  },
   "deployment": {},
   "boards": []
 }

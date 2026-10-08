@@ -27,7 +27,9 @@ import {IFeeSchedule} from "./IFeeSchedule.sol";
 ///         Bonds are reservations in the `IStakeVault`: a bond is slashed (burned) when the evaluator says its penalty
 ///         is due, and released otherwise. `burnBond` and `returnBonds` are the evaluator's; `settle` handles whatever
 ///         the evaluator did not. A nonzero bond's slash requested at or after the listing's `expiredAt` instead
-///         releases it, leaves its `*BondBurned` flag false, and emits `BondReleased`.
+///         releases it, leaves its `*BondBurned` flag false, and emits `BondReleased`. A never-activated listing instead
+///         forfeits its snapshotted creator-bond share to the treasury on expiry or cancellation at/after 600 seconds;
+///         earlier cancellation releases the full bond. The unfilled rule is the explicit expiry-protection exception.
 ///
 ///         Fixes against the 2 Oct review: M3 (a `policyHash` is unique per creator, so copying someone's offer hash
 ///         cannot block their publish); M1 and M2 live in the evaluator. Hostile tokens (ADR-0010): the reward and every
@@ -94,6 +96,8 @@ interface ISidequestHolding {
         uint16 feeBps;
         address worker;
         uint32 arbitrationWindow;
+        uint48 publishedAt;
+        uint16 unfilledForfeitBps;
         IERC20 token;
         /// @dev The gross reward escrowed at publish.
         uint256 reward;
@@ -132,7 +136,7 @@ interface ISidequestHolding {
         bytes32 policyHash;
         IERC20 token;
         uint256 reward;
-        /// @dev Reserved from the creator's stake now; zero for none.
+        /// @dev Reserved from the creator's stake now; at least `minimumCreatorBond()`.
         uint256 creatorBond;
         /// @dev Reserved from the worker's stake at activation; zero for none.
         uint256 workerBond;
@@ -197,6 +201,9 @@ interface ISidequestHolding {
     event OwedWithdrawn(address indexed to, address indexed token, uint256 amount);
     event BondReleased(uint256 indexed jobId, Side side, address indexed account, uint256 amount);
     event BondSlashed(uint256 indexed jobId, Side side, address indexed account, uint256 amount);
+    event BondForfeited(uint256 indexed jobId, address indexed creator, address indexed treasury, uint256 amount);
+    event MinimumCreatorBondSet(uint256 minimum);
+    event UnfilledForfeitBpsSet(uint16 bps);
     event EvaluatorSet(address indexed evaluator);
     event DefaultArbitratorSet(address indexed arbitrator);
 
@@ -205,6 +212,16 @@ interface ISidequestHolding {
     // ---------------------------------------------------------------------------------------------
 
     error ZeroAddress();
+    error InvalidBondPolicy();
+    error InvalidForfeitTreasury();
+    error CreatorBondTooLow(uint256 supplied, uint256 minimum);
+    function minimumCreatorBond() external view returns (uint256);
+    function MAX_MINIMUM_CREATOR_BOND() external view returns (uint256);
+    function unfilledForfeitBps() external view returns (uint16);
+    function MAX_FORFEIT_BPS() external view returns (uint16);
+    function CANCEL_GRACE() external view returns (uint48);
+    function setMinimumCreatorBond(uint256 minimum) external;
+    function setUnfilledForfeitBps(uint16 bps) external;
     error EvaluatorAlreadySet();
     error EvaluatorNotSet();
     error NotCreator();

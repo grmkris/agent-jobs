@@ -50,6 +50,10 @@ library SidequestRecipe {
         address safe;
         address defaultArbitrator;
         uint48 margin;
+        /// @dev Raw SIDE units.
+        uint256 minimumCreatorBond;
+        uint256 maxMinimumCreatorBond;
+        uint16 unfilledForfeitBps;
         /// @dev Fee tiers in whole SIDE (multiplied by 1e18 here) and basis points.
         uint256[4] thresholds;
         uint16[4] bps;
@@ -134,6 +138,9 @@ library SidequestRecipe {
         c.identity = IERC8004Identity(vm.parseJsonAddress(json, ".erc8004.identity"));
         c.reputation = IERC8004Reputation(vm.parseJsonAddress(json, ".erc8004.reputation"));
         c.clocks = SidequestClocks.production();
+        c.minimumCreatorBond = vm.parseJsonUint(json, ".sidequest.minimumCreatorBond");
+        c.maxMinimumCreatorBond = vm.parseJsonUint(json, ".sidequest.maxMinimumCreatorBond");
+        c.unfilledForfeitBps = SafeCast.toUint16(vm.parseJsonUint(json, ".sidequest.unfilledForfeitBps"));
     }
 
     /// @notice The full input: `loadBase` plus the `sidequest` block (schema in `contracts/SURFACE.md`).
@@ -144,6 +151,9 @@ library SidequestRecipe {
         c.defaultArbitrator = vm.parseJsonAddress(json, ".sidequest.defaultArbitrator");
         // Narrowing casts revert instead of wrapping (C9 MATH-6): a typo like 66536 bps must not load as 1000.
         c.margin = SafeCast.toUint48(vm.parseJsonUint(json, ".sidequest.margin"));
+        c.minimumCreatorBond = vm.parseJsonUint(json, ".sidequest.minimumCreatorBond");
+        c.maxMinimumCreatorBond = vm.parseJsonUint(json, ".sidequest.maxMinimumCreatorBond");
+        c.unfilledForfeitBps = SafeCast.toUint16(vm.parseJsonUint(json, ".sidequest.unfilledForfeitBps"));
         uint256[] memory thresholds = vm.parseJsonUintArray(json, ".sidequest.schedule.thresholds");
         uint256[] memory bps = vm.parseJsonUintArray(json, ".sidequest.schedule.bps");
         if (thresholds.length != 4 || bps.length != 4) revert BadConfig("schedule needs 4 tiers");
@@ -187,6 +197,10 @@ library SidequestRecipe {
     function check(Config memory c) internal view {
         if (block.chainid != c.chainId) revert WrongChain(c.chainId, block.chainid);
         SidequestClocks.validate(c.clocks);
+        if (c.minimumCreatorBond == 0 || c.maxMinimumCreatorBond < c.minimumCreatorBond || c.unfilledForfeitBps > 5000)
+        {
+            revert BadConfig("invalid creator bond policy");
+        }
         if (
             c.safe == address(0) || c.defaultArbitrator == address(0) || c.feeTreasury == address(0)
                 || c.treasury == address(0) || c.ecosystem == address(0) || c.liquidity == address(0)
@@ -286,7 +300,18 @@ library SidequestRecipe {
     }
 
     function stepHolding(Config memory c, Deployed memory d) internal {
-        d.holding = new SidequestHolding(d.core, d.vault, d.fees, c.identity, c.defaultArbitrator, c.margin, c.clocks);
+        d.holding = new SidequestHolding(
+            d.core,
+            d.vault,
+            d.fees,
+            c.identity,
+            c.defaultArbitrator,
+            c.margin,
+            c.minimumCreatorBond,
+            c.maxMinimumCreatorBond,
+            c.unfilledForfeitBps,
+            c.clocks
+        );
     }
 
     function stepEvaluator(Config memory c, Deployed memory d) internal {

@@ -130,7 +130,7 @@ contract MainnetRunbookTest is Test {
     /// holds whatever that record holds: no block before R2, R2's own block after (replaced here).
     function test_documentedSidequestInputLoads() public {
         (string memory json, uint256 rows) = _documentedSidequest("");
-        assertEq(rows, 14, "runbook: the sidequest table lists the 14 fields load reads");
+        assertEq(rows, 17, "runbook: the sidequest table lists the 17 fields load reads");
 
         string memory real = vm.readFile(string.concat(vm.projectRoot(), "/config/monad-mainnet.json"));
         string memory path_ = string.concat(vm.projectRoot(), "/config/.test-schema.json");

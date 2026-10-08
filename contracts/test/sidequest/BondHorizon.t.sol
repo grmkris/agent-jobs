@@ -37,31 +37,19 @@ contract BondHorizonTest is BaseV1 {
         assertEq(vault.reservedOf(worker), WORKER_BOND);
     }
 
-    function test_activate_refusesWorkerBondBeyondHorizonAtomically() public {
+    function test_publish_blocksUnbondedBypassOfWorkerHorizonAtomically() public {
         ISidequestHolding.PublishParams memory p = horizonParams();
         p.creatorBond = 0;
-        uint256 latest = block.timestamp + vault.UNSTAKE_DELAY();
-        p.expiredAt = uint48(latest + 1);
-        uint256 job = publishWith(p);
-        // The selection signature is valid; only the bond horizon refuses it.
-        ISidequestHolding.Selection memory sel = selectionFor(job, worker, AGENT_ID);
-        bytes memory sig = signSelection(creatorPk, sel);
-        (,, uint256 net) = holding.quoteActivation(job, worker);
-        ERC8183WithAuthorization.Authorization memory auth =
-            budgetAuth(workerPk, worker, job, address(pay), net, uint72(job));
-        vm.prank(worker);
-        vm.expectRevert(abi.encodeWithSelector(ISidequestHolding.BondOutlastsUnbonding.selector, p.expiredAt, latest));
-        holding.activate(sel, sig, auth);
+        p.expiredAt = uint48(block.timestamp + vault.UNSTAKE_DELAY() + 1);
+        vm.prank(creator);
+        vm.expectRevert(abi.encodeWithSelector(ISidequestHolding.CreatorBondTooLow.selector, 0, CREATOR_BOND));
+        holding.publish(p);
+        assertEq(vault.reservedOf(creator), 0);
         assertEq(vault.reservedOf(worker), 0);
-        assertFalse(listing(job).funded);
-        assertFalse(holding.selectionNonceUsed(creator, sel.nonce));
-        // Activation later uses its own clock and now fits exactly.
-        vm.warp(block.timestamp + 1);
-        activate(job);
-        assertTrue(listing(job).funded);
+        assertEq(pay.balanceOf(address(holding)), 0);
     }
 
-    function test_zeroBondsAllowLongExpiryAndMaximumWindows() public {
+    function test_zeroBondsCannotBypassHorizonWithMaximumWindows() public {
         ISidequestHolding.PublishParams memory p = horizonParams();
         p.creatorBond = 0;
         p.workerBond = 0;
@@ -70,9 +58,17 @@ contract BondHorizonTest is BaseV1 {
         p.disputeWindow = 14 days;
         p.arbitrationWindow = 14 days;
         p.expiredAt = p.deliveryDeadline + 42 days + MARGIN;
-        uint256 job = publishWith(p);
-        activate(job);
-        assertTrue(listing(job).funded);
+        vm.prank(creator);
+        vm.expectRevert(abi.encodeWithSelector(ISidequestHolding.CreatorBondTooLow.selector, 0, CREATOR_BOND));
+        holding.publish(p);
+        p.creatorBond = CREATOR_BOND;
+        vm.prank(creator);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ISidequestHolding.BondOutlastsUnbonding.selector, p.expiredAt, block.timestamp + vault.UNSTAKE_DELAY()
+            )
+        );
+        holding.publish(p);
     }
 
     function testFuzz_bondsReservedBeforeExitExpireByUnlock(uint48 expiryOffset, uint48 requestOffset) public {

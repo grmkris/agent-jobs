@@ -57,6 +57,8 @@ interface IStakeVault {
     event Released(address indexed holding, address indexed account, uint256 amount);
     /// @dev The slashed SIDE is burned in the same call.
     event Slashed(address indexed holding, address indexed account, uint256 amount);
+    /// @dev The forfeited SIDE is transferred to the supplied treasury recipient.
+    event Forfeited(address indexed holding, address indexed account, address indexed to, uint256 amount);
     event HoldingProposed(address indexed holding, uint48 eta);
     event HoldingProposalCancelled(address indexed holding);
     event HoldingAuthorized(address indexed holding, bool bootstrap);
@@ -136,6 +138,9 @@ interface IStakeVault {
     /// @notice Slashes up to `amount` of the reservation the caller holds on `account` and burns it.
     /// @return burned The amount burned: `min(amount, reservedBy(caller, account))`.
     function slash(address account, uint256 amount) external returns (uint256 burned);
+
+    /// @notice Removes up to `amount` from this Holding's reservation and transfers it to `to`.
+    function forfeit(address account, uint256 amount, address to) external returns (uint256 taken);
 
     // ---------------------------------------------------------------------------------------------
     // Holding authorization (owner = the Safe)

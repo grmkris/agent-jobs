@@ -34,6 +34,21 @@ export const sidequestHoldingAbi = [
         "internalType": "uint48"
       },
       {
+        "name": "minimumCreatorBond_",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "maxMinimumCreatorBond_",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "unfilledForfeitBps_",
+        "type": "uint16",
+        "internalType": "uint16"
+      },
+      {
         "name": "clocks",
         "type": "tuple",
         "internalType": "struct SidequestClocks.Config",
@@ -90,6 +105,19 @@ export const sidequestHoldingAbi = [
   },
   {
     "type": "function",
+    "name": "CANCEL_GRACE",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint48",
+        "internalType": "uint48"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "MAX_ARBITRATION_WINDOW",
     "inputs": [],
     "outputs": [
@@ -110,6 +138,32 @@ export const sidequestHoldingAbi = [
         "name": "",
         "type": "uint32",
         "internalType": "uint32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "MAX_FORFEIT_BPS",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint16",
+        "internalType": "uint16"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "MAX_MINIMUM_CREATOR_BOND",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "stateMutability": "view"
@@ -540,6 +594,16 @@ export const sidequestHoldingAbi = [
             "internalType": "uint32"
           },
           {
+            "name": "publishedAt",
+            "type": "uint48",
+            "internalType": "uint48"
+          },
+          {
+            "name": "unfilledForfeitBps",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
             "name": "token",
             "type": "address",
             "internalType": "contract IERC20"
@@ -606,6 +670,19 @@ export const sidequestHoldingAbi = [
         "name": "",
         "type": "uint48",
         "internalType": "uint48"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "minimumCreatorBond",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "stateMutability": "view"
@@ -950,6 +1027,32 @@ export const sidequestHoldingAbi = [
   },
   {
     "type": "function",
+    "name": "setMinimumCreatorBond",
+    "inputs": [
+      {
+        "name": "minimum",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setUnfilledForfeitBps",
+    "inputs": [
+      {
+        "name": "bps",
+        "type": "uint16",
+        "internalType": "uint16"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "settle",
     "inputs": [
       {
@@ -1089,6 +1192,19 @@ export const sidequestHoldingAbi = [
   },
   {
     "type": "function",
+    "name": "unfilledForfeitBps",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint16",
+        "internalType": "uint16"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "vault",
     "inputs": [],
     "outputs": [
@@ -1161,6 +1277,37 @@ export const sidequestHoldingAbi = [
       },
       {
         "name": "workerBond",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "BondForfeited",
+    "inputs": [
+      {
+        "name": "jobId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "creator",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "treasury",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
@@ -1311,6 +1458,19 @@ export const sidequestHoldingAbi = [
       },
       {
         "name": "bonusPart",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "MinimumCreatorBondSet",
+    "inputs": [
+      {
+        "name": "minimum",
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
@@ -1616,6 +1776,19 @@ export const sidequestHoldingAbi = [
     "anonymous": false
   },
   {
+    "type": "event",
+    "name": "UnfilledForfeitBpsSet",
+    "inputs": [
+      {
+        "name": "bps",
+        "type": "uint16",
+        "indexed": false,
+        "internalType": "uint16"
+      }
+    ],
+    "anonymous": false
+  },
+  {
     "type": "error",
     "name": "AgentIdRequired",
     "inputs": []
@@ -1653,6 +1826,22 @@ export const sidequestHoldingAbi = [
   },
   {
     "type": "error",
+    "name": "CreatorBondTooLow",
+    "inputs": [
+      {
+        "name": "supplied",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "minimum",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "DeadlineInPast",
     "inputs": []
   },
@@ -1684,6 +1873,11 @@ export const sidequestHoldingAbi = [
   },
   {
     "type": "error",
+    "name": "InvalidBondPolicy",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "InvalidClock",
     "inputs": [
       {
@@ -1697,6 +1891,11 @@ export const sidequestHoldingAbi = [
         "internalType": "uint256"
       }
     ]
+  },
+  {
+    "type": "error",
+    "name": "InvalidForfeitTreasury",
+    "inputs": []
   },
   {
     "type": "error",

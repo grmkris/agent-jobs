@@ -70,9 +70,9 @@ contract SidequestHandler is Test {
     function publish(uint256 tokenSeed, uint96 reward, uint96 creatorBond, uint96 workerBond, uint32 review) external {
         IERC20 token = _token(tokenSeed);
         reward = uint96(bound(reward, 1, 1_000e6));
-        creatorBond = uint96(bound(creatorBond, 0, 100e18));
+        creatorBond = uint96(bound(creatorBond, env.holding().minimumCreatorBond(), 100_000e18));
         workerBond = uint96(bound(workerBond, 0, 100e18));
-        review = uint32(bound(review, 1 hours, 14 days));
+        review = uint32(bound(review, 1 hours, 2 days));
         address creator = env.creator();
         _mint(token, creator, reward);
         _ensureAvailable(creator, creatorBond);
@@ -356,6 +356,8 @@ contract SidequestInvariantsTest is Test {
         assertLe(vault.totalReserved(), vault.totalAssets(), "totalReserved <= totalStaked");
         assertLe(vault.reservedOf(env.creator()), vault.poolOf(env.creator()).assets, "creator reserved <= staked");
         assertLe(vault.reservedOf(env.worker()), vault.poolOf(env.worker()).assets, "worker reserved <= staked");
+
+        assertEq(vault.totalAssets(), vault.poolOf(env.creator()).assets + vault.poolOf(env.worker()).assets, "sum of pools");
 
         uint256 open;
         uint256 burned;

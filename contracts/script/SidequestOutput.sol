@@ -185,6 +185,11 @@ library SidequestOutput {
             && vm.parseJsonAddress(json, ".deployment.main.evaluator") == address(d.evaluator)
             && vm.parseJsonAddress(json, ".deployment.core") == address(d.core);
         if (!same || !vm.keyExistsJson(json, ".deployment.sidequest.clocks")) revert AlreadyDeployed();
+        if (
+            d.holding.minimumCreatorBond() != vm.parseJsonUint(json, ".sidequest.minimumCreatorBond")
+                || d.holding.MAX_MINIMUM_CREATOR_BOND() != vm.parseJsonUint(json, ".sidequest.maxMinimumCreatorBond")
+                || d.holding.unfilledForfeitBps() != vm.parseJsonUint(json, ".sidequest.unfilledForfeitBps")
+        ) revert AlreadyDeployed();
         SidequestClocks.Config memory recorded = SidequestRecipe.loadClocks(vm, json, ".deployment.sidequest.clocks");
         bytes32 clockHash = keccak256(abi.encode(recorded));
         if (
