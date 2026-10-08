@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process'
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { ORIGIN, required } from './guards.ts'
+import { ORIGIN, authorizationUrl, required } from './guards.ts'
 import { RunState } from './state.ts'
 import { HostedBrowser, type ManagedAgent } from './browser.ts'
 
@@ -188,7 +188,14 @@ export class CodingClient {
   async connect(browser: HostedBrowser, agent: ManagedAgent): Promise<void> {
     if (this.run.get(`codex-connected/${this.clientId}`) === true) return
     if (this.run.get(`codex-added/${this.clientId}`) !== true) {
-      await this.#process(['mcp', 'add', 'sidequest', '--url', `${ORIGIN}/mcp`], 'add')
+      // Current Codex automatically starts OAuth during `mcp add`. This fixture
+      // must use its controlled no-browser login below, so configure only its
+      // isolated home directly, preserving credentials from any interrupted add.
+      const config = join(this.home, 'config.toml')
+      const current = readFileSync(config, 'utf8')
+      if (current.includes('[mcp_servers.sidequest]')) {
+        if (!current.includes(`url = "${ORIGIN}/mcp"`)) throw new Error('P8_CODEX_SERVER_ORIGIN_CHANGED')
+      } else writeFileSync(config, `${current}\n[mcp_servers.sidequest]\nurl = "${ORIGIN}/mcp"\n`, { mode: 0o600 })
       this.run.set(`codex-added/${this.clientId}`, true)
     }
     let opened = false
@@ -198,7 +205,9 @@ export class CodingClient {
       'login',
       async (output, input) => {
         if (opened) return
-        const candidate = output.match(/https:\/\/testnet\.sidequest\.xyz\/[^\s]+/)?.[0]
+        // OAuth must return to the exact stage under test. The old fixture host was
+        // testnet.sidequest.xyz; prod acceptance uses sidequest.exchange.
+        const candidate = authorizationUrl(output)
         if (candidate === undefined) return
         opened = true
         const url = new URL(candidate)

@@ -1,8 +1,29 @@
 import { describe, expect, it } from 'vitest'
-import { assertReleased, assertSendBound, budgetRemaining, CAP_WEI, publicFailure, stageOrigin } from './guards.ts'
+import {
+  assertReleased,
+  assertSendBound,
+  authorizationUrl,
+  budgetRemaining,
+  CAP_WEI,
+  publicFailure,
+  stageOrigin,
+} from './guards.ts'
 import { providerConfig, toolResult } from './codex.ts'
 
 describe('deployed fixture boundaries', () => {
+  it('recognizes OAuth only at the exact selected stage and authorize endpoint', () => {
+    for (const origin of ['https://dev.sidequest.exchange', 'https://sidequest.exchange'] as const) {
+      const url = `${origin}/oauth/authorize?client_id=fixture&state=fixture`
+      expect(authorizationUrl(`Authorize at:\n${url}\n`, origin)).toBe(url)
+      for (const bad of [
+        'https://testnet.sidequest.xyz/oauth/authorize',
+        `${origin}.evil.example/oauth/authorize`,
+        `${origin}/oauth/token`,
+        `https://evil.example/?next=${url}`,
+      ])
+        expect(authorizationUrl(bad, origin)).toBeUndefined()
+    }
+  })
   it('targets dev by default, prod only by name, and nothing else', () => {
     expect(stageOrigin(undefined)).toBe('https://dev.sidequest.exchange')
     expect(stageOrigin('')).toBe('https://dev.sidequest.exchange')

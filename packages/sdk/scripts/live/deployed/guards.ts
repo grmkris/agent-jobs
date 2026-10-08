@@ -13,6 +13,19 @@ export function stageOrigin(value = process.env.P8_ORIGIN): Origin {
 }
 
 export const ORIGIN = stageOrigin()
+
+/** Accept only this stage's authorize endpoint; never follow URLs from another host. */
+export function authorizationUrl(output: string, origin: Origin = ORIGIN): string | undefined {
+  for (const value of output.split(/\s+/)) {
+    try {
+      const url = new URL(value)
+      if (url.origin === origin && url.pathname === '/oauth/authorize') return url.href
+    } catch {
+      // CLI prose is not a URL.
+    }
+  }
+  return undefined
+}
 export const CAP_WEI = parseEther('2')
 export const IDS = ['A01f', 'A02f', 'A03f', 'A04f', 'A05f', 'A06f', 'A07f', 'A08f'] as const
 export type CaseId = (typeof IDS)[number]
