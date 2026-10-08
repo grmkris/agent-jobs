@@ -42,8 +42,9 @@ export function providerConfig(config: string): { toml: string; envKey?: string 
   if (tables.length === 0) throw new Error('P8_CODEX_PROVIDER_TABLE_MISSING')
   const provider = tables.join('\n')
   const envKey = /^env_key\s*=\s*"([A-Z0-9_]+)"/m.exec(provider)?.[1]
+  const model = /^model\s*=\s*"[^"\r\n]+"/m.exec(config)?.[0]
   return {
-    toml: `model_provider = "${selected}"\nmcp_oauth_credentials_store = "file"\n${provider}\n`,
+    toml: `${model === undefined ? '' : `${model}\n`}model_provider = "${selected}"\nmcp_oauth_credentials_store = "file"\n${provider}\n`,
     ...(envKey === undefined ? {} : { envKey }),
   }
 }
@@ -101,6 +102,12 @@ export class CodingClient {
     const provider = providerConfig(readFileSync(join(homedir(), '.codex/config.toml'), 'utf8'))
     const config = join(this.home, 'config.toml')
     if (!existsSync(config)) writeFileSync(config, provider.toml, { mode: 0o600 })
+    else {
+      const current = readFileSync(config, 'utf8')
+      const model = /^model\s*=.*$/m.exec(provider.toml)?.[0]
+      if (model !== undefined && !/^model\s*=/m.test(current))
+        writeFileSync(config, `${model}\n${current}`, { mode: 0o600 })
+    }
     this.env = { PATH: process.env.PATH, LANG: 'C.UTF-8', CODEX_HOME: this.home }
     if (provider.envKey !== undefined) this.env[provider.envKey] = required(provider.envKey)
   }

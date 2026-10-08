@@ -64,9 +64,10 @@ describe('deployed fixture boundaries', () => {
 
   it('copies only the selected provider tables into isolated Codex config', () => {
     const config = providerConfig(
-      'model_provider = "fixture"\n[mcp_servers.private]\nurl = "hidden"\n[model_providers.fixture]\nenv_key = "FIXTURE_KEY"\nbase_url = "http://127.0.0.1:8317/v1"\n[features]\nshell_tool = true\n',
+      'model = "fixture-model"\nmodel_provider = "fixture"\n[mcp_servers.private]\nurl = "hidden"\n[model_providers.fixture]\nenv_key = "FIXTURE_KEY"\nbase_url = "http://127.0.0.1:8317/v1"\n[features]\nshell_tool = true\n',
     )
     expect(config.envKey).toBe('FIXTURE_KEY')
+    expect(config.toml).toContain('model = "fixture-model"')
     expect(config.toml).toContain('[model_providers.fixture]')
     expect(config.toml).not.toContain('hidden')
     expect(config.toml).not.toContain('shell_tool')

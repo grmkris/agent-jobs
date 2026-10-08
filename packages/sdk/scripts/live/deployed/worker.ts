@@ -65,10 +65,11 @@ export async function worker(runtime: Runtime): Promise<Proof> {
   await ensureAllowance(runtime)
   const coding = await runtime.coding()
   const guide = await coding.call('get_instructions', { role: 'worker' }, 'a02-instructions')
+  const instructions = guide.output
   if (
     guide.item.result?.isError === true ||
-    typeof guide.output !== 'string' ||
-    !guide.output.includes('Persist a unique operationKey')
+    typeof instructions !== 'string' ||
+    !['operationKey', 'prepare_activation', 'submit_work'].every((term) => instructions.includes(term))
   )
     throw new Error('P8_WORKER_INSTRUCTIONS_MISSING')
   const { chain, run } = runtime
