@@ -1,0 +1,550 @@
+{
+  "chainId": 10143,
+  "block": 69362264,
+  "blockHash": "0x566ca9051c0ffd2f2ee3fff9cf09f0a865cd138efd318a2692e2e84febd3c56c",
+  "timestamp": 1791494932,
+  "old": {
+    "vault": "0x7F9e1eAB7472f14f8a43233e6AC82f5088f7f36a",
+    "factory": "0x239B662ACE82c0804b0bf8469918C3edBFAFf6Ed",
+    "core": "0xAa658Ff5C8A82e780A0647561E51064846bDcb54",
+    "holding": "0xBCCB896A42B3350ECdDBA3d67E5397Eb1c4421c2",
+    "block": 69264363,
+    "configChecksum": "b62a8e844a59b639544f5b5bf9fe21953a66ec73e6167a3648f6df862bc456e3"
+  },
+  "vaultLogs": [
+    {
+      "address": "0x7f9e1eab7472f14f8a43233e6ac82f5088f7f36a",
+      "block_number": 69264406,
+      "log_index": 1,
+      "transaction_hash": "0x858094039fa5680cac870c35a4f7cdb6e8bb77eda41d65750121f22e98d8187f",
+      "topic0": "0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0",
+      "topic1": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "topic2": "0x000000000000000000000000e5b7054e177e833d63f8d0548ffa9ecfc4289a71",
+      "topic3": null,
+      "data": "0x"
+    },
+    {
+      "address": "0x7f9e1eab7472f14f8a43233e6ac82f5088f7f36a",
+      "block_number": 69264436,
+      "log_index": 1,
+      "transaction_hash": "0xd378089c90caad3aab72b243ef3c516eca6316d0ce2be9f0141cf40d9cdac8da",
+      "topic0": "0xb1ea81a3ecb8db022a742a7ed3b69ee2e70086edb6919ef16467136bf7fc0069",
+      "topic1": "0x000000000000000000000000bccb896a42b3350ecddba3d67e5397eb1c4421c2",
+      "topic2": null,
+      "topic3": null,
+      "data": "0x0000000000000000000000000000000000000000000000000000000000000001"
+    },
+    {
+      "address": "0x7f9e1eab7472f14f8a43233e6ac82f5088f7f36a",
+      "block_number": 69264460,
+      "log_index": 1,
+      "transaction_hash": "0x22f802d9ad80cecc4c32099c3dffcf75eba233eaccdcf8d8452ad547c4b63b41",
+      "topic0": "0x38d16b8cac22d99fc7c124b9cd0de2d3fa1faef420bfe791d8c362d765e22700",
+      "topic1": "0x000000000000000000000000e5b7054e177e833d63f8d0548ffa9ecfc4289a71",
+      "topic2": "0x00000000000000000000000077923113fd1a71ad91f81064c3c05ca1efb44cd8",
+      "topic3": null,
+      "data": "0x"
+    },
+    {
+      "address": "0x7f9e1eab7472f14f8a43233e6ac82f5088f7f36a",
+      "block_number": 69267080,
+      "log_index": 2,
+      "transaction_hash": "0x923d5ce23aa33df391b7920a2b3ae8a0051476d676c9d470079a8fa859887f29",
+      "topic0": "0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0",
+      "topic1": "0x000000000000000000000000e5b7054e177e833d63f8d0548ffa9ecfc4289a71",
+      "topic2": "0x00000000000000000000000077923113fd1a71ad91f81064c3c05ca1efb44cd8",
+      "topic3": null,
+      "data": "0x"
+    },
+    {
+      "address": "0x7f9e1eab7472f14f8a43233e6ac82f5088f7f36a",
+      "block_number": 69270550,
+      "log_index": 4,
+      "transaction_hash": "0x2e0107b6cdee78df294c205d0f484ba3d006e68ce4419bdce4f256ca60740172",
+      "topic0": "0x490c5128356df402cae6bc56c9b55bff927877eca4f8220a5606443e06f25db9",
+      "topic1": "0x000000000000000000000000564f6384a2fe01051d58fb4583abd613d8c45ec0",
+      "topic2": "0x0000000000000000000000005f3d114a607b5bbb71a2e11ba045fc9f4f239ce7",
+      "topic3": "0x000000000000000000000000ef41b657ecc8b710e6e32c7c255b891836f060b7",
+      "data": "0x00000000000000000000000000000000000000000000000821ab0d441498000000000000000000000000000000000000000000000000000821ab0d4414980000"
+    },
+    {
+      "address": "0x7f9e1eab7472f14f8a43233e6ac82f5088f7f36a",
+      "block_number": 69270557,
+      "log_index": 9,
+      "transaction_hash": "0x75435ac3979b6b1996109790e012648150c7c4c0285305db3c1e7e4c9168b24a",
+      "topic0": "0x490c5128356df402cae6bc56c9b55bff927877eca4f8220a5606443e06f25db9",
+      "topic1": "0x0000000000000000000000005760b5e2e1314bcd7d43e259bd12485cc5a22aae",
+      "topic2": "0x0000000000000000000000005dbc93cbbefedd3b5f2e34ea2844a6383c88f95f",
+      "topic3": "0x000000000000000000000000ef41b657ecc8b710e6e32c7c255b891836f060b7",
+      "data": "0x00000000000000000000000000000000000000000000001b1ae4d6e2ef50000000000000000000000000000000000000000000000000001b1ae4d6e2ef500000"
+    },
+    {
+      "address": "0x7f9e1eab7472f14f8a43233e6ac82f5088f7f36a",
+      "block_number": 69270565,
+      "log_index": 2,
+      "transaction_hash": "0x2d2bea545d0bc008f2f336183bb8c552262a166f54da5430d29bc97b20bae5da",
+      "topic0": "0x490c5128356df402cae6bc56c9b55bff927877eca4f8220a5606443e06f25db9",
+      "topic1": "0x0000000000000000000000005f576f142ef0b2fe2fcede9a994d02e281967fc6",
+      "topic2": "0x0000000000000000000000005f3d114a607b5bbb71a2e11ba045fc9f4f239ce7",
+      "topic3": "0x000000000000000000000000ef41b657ecc8b710e6e32c7c255b891836f060b7",
+      "data": "0x00000000000000000000000000000000000000000000000821ab0d441498000000000000000000000000000000000000000000000000000821ab0d4414980000"
+    },
+    {
+      "address": "0x7f9e1eab7472f14f8a43233e6ac82f5088f7f36a",
+      "block_number": 69270573,
+      "log_index": 2,
+      "transaction_hash": "0xd6a71b41b3217520a7420768145475f36766e2d55fa6969ee0d560617daacede",
+      "topic0": "0x490c5128356df402cae6bc56c9b55bff927877eca4f8220a5606443e06f25db9",
+      "topic1": "0x00000000000000000000000063f13e384f041e3642678bb1ce1bd127e34524c1",
+      "topic2": "0x0000000000000000000000005f3d114a607b5bbb71a2e11ba045fc9f4f239ce7",
+      "topic3": "0x000000000000000000000000ef41b657ecc8b710e6e32c7c255b891836f060b7",
+      "data": "0x00000000000000000000000000000000000000000000000821ab0d441498000000000000000000000000000000000000000000000000000821ab0d4414980000"
+    },
+    {
+      "address": "0x7f9e1eab7472f14f8a43233e6ac82f5088f7f36a",
+      "block_number": 69270579,
+      "log_index": 41,
+      "transaction_hash": "0xd8991dc0b3438f8fe476b3c3aba3c288dd33802023932e15ec9cf2ffcb19603a",
+      "topic0": "0x490c5128356df402cae6bc56c9b55bff927877eca4f8220a5606443e06f25db9",
+      "topic1": "0x0000000000000000000000006f2037aae8a4eefbd4beed23b674fc05bfb45b6d",
+      "topic2": "0x0000000000000000000000005f3d114a607b5bbb71a2e11ba045fc9f4f239ce7",
+      "topic3": "0x000000000000000000000000ef41b657ecc8b710e6e32c7c255b891836f060b7",
+      "data": "0x00000000000000000000000000000000000000000000000821ab0d441498000000000000000000000000000000000000000000000000000821ab0d4414980000"
+    },
+    {
+      "address": "0x7f9e1eab7472f14f8a43233e6ac82f5088f7f36a",
+      "block_number": 69270587,
+      "log_index": 32,
+      "transaction_hash": "0x7b8e69dd94250882c470647a570a73b7a90eaffbe0d7ce523d6f689193fd776e",
+      "topic0": "0x490c5128356df402cae6bc56c9b55bff927877eca4f8220a5606443e06f25db9",
+      "topic1": "0x00000000000000000000000077899d992e137f2616dfaf5e832a1bd462ace1c1",
+      "topic2": "0x0000000000000000000000005f3d114a607b5bbb71a2e11ba045fc9f4f239ce7",
+      "topic3": "0x000000000000000000000000ef41b657ecc8b710e6e32c7c255b891836f060b7",
+      "data": "0x00000000000000000000000000000000000000000000000821ab0d441498000000000000000000000000000000000000000000000000000821ab0d4414980000"
+    },
+    {
+      "address": "0x7f9e1eab7472f14f8a43233e6ac82f5088f7f36a",
+      "block_number": 69270594,
+      "log_index": 43,
+      "transaction_hash": "0x5e228cbda90d1abdd2c90fafc85a504f39f9e33f4985873fb4a71c05935456d6",
+      "topic0": "0x490c5128356df402cae6bc56c9b55bff927877eca4f8220a5606443e06f25db9",
+      "topic1": "0x0000000000000000000000008d94deead75d06730694106dd0108f5eea523472",
+      "topic2": "0x000000000000000000000000b856ca0e80ba0f804ecff75d0abe4a49ffacc583",
+      "topic3": "0x000000000000000000000000ef41b657ecc8b710e6e32c7c255b891836f060b7",
+      "data": "0x00000000000000000000000000000000000000000000001b1ae4d6e2ef50000000000000000000000000000000000000000000000000001b1ae4d6e2ef500000"
+    },
+    {
+      "address": "0x7f9e1eab7472f14f8a43233e6ac82f5088f7f36a",
+      "block_number": 69270600,
+      "log_index": 39,
+      "transaction_hash": "0x518757866e38062fcc7737731c5da597ee6da4d478ea484e9c0b94ff5b3f350d",
+      "topic0": "0x490c5128356df402cae6bc56c9b55bff927877eca4f8220a5606443e06f25db9",
+      "topic1": "0x000000000000000000000000d41a2741bae475242e114bd87a63a58ac7669618",
+      "topic2": "0x0000000000000000000000005f3d114a607b5bbb71a2e11ba045fc9f4f239ce7",
+      "topic3": "0x000000000000000000000000ef41b657ecc8b710e6e32c7c255b891836f060b7",
+      "data": "0x00000000000000000000000000000000000000000000000821ab0d441498000000000000000000000000000000000000000000000000000821ab0d4414980000"
+    },
+    {
+      "address": "0x7f9e1eab7472f14f8a43233e6ac82f5088f7f36a",
+      "block_number": 69270606,
+      "log_index": 2,
+      "transaction_hash": "0x4a4e5b2f91bd16e1184d5437d5a9a0a714a607e6cf0092f8b8c6d37817884df8",
+      "topic0": "0x490c5128356df402cae6bc56c9b55bff927877eca4f8220a5606443e06f25db9",
+      "topic1": "0x000000000000000000000000d41a2741bae475242e114bd87a63a58ac7669618",
+      "topic2": "0x000000000000000000000000ef41b657ecc8b710e6e32c7c255b891836f060b7",
+      "topic3": "0x000000000000000000000000ef41b657ecc8b710e6e32c7c255b891836f060b7",
+      "data": "0x00000000000000000000000000000000000000000000021e19e0c9bab240000000000000000000000000000000000000000000000000021e19e0c9bab2400000"
+    },
+    {
+      "address": "0x7f9e1eab7472f14f8a43233e6ac82f5088f7f36a",
+      "block_number": 69270612,
+      "log_index": 101,
+      "transaction_hash": "0xdfe09796f7189fe58fdd8ecb73f02739343825b955cc37aba57911bdea2c35d6",
+      "topic0": "0x490c5128356df402cae6bc56c9b55bff927877eca4f8220a5606443e06f25db9",
+      "topic1": "0x000000000000000000000000dc1fe125d77486bac3ec0a6f731c60a04db70bb7",
+      "topic2": "0x000000000000000000000000b9970a6371358f6c74dfb15a7cb2653e3ae3e471",
+      "topic3": "0x000000000000000000000000ef41b657ecc8b710e6e32c7c255b891836f060b7",
+      "data": "0x0000000000000000000000000000000000000000000010f0cf064dd5920000000000000000000000000000000000000000000000000010f0cf064dd592000000"
+    },
+    {
+      "address": "0x7f9e1eab7472f14f8a43233e6ac82f5088f7f36a",
+      "block_number": 69270619,
+      "log_index": 7,
+      "transaction_hash": "0x4e7d8b2b1909ddd14bcdb0566844e23c75a0e818756cf673f329ef27e7ea7908",
+      "topic0": "0x490c5128356df402cae6bc56c9b55bff927877eca4f8220a5606443e06f25db9",
+      "topic1": "0x000000000000000000000000e89f284d22a9280b3bab3f1c135bd7629d1a3587",
+      "topic2": "0x000000000000000000000000e89f284d22a9280b3bab3f1c135bd7629d1a3587",
+      "topic3": "0x000000000000000000000000ef41b657ecc8b710e6e32c7c255b891836f060b7",
+      "data": "0x000000000000000000000000000000000000000000000004e1003b28d9280000000000000000000000000000000000000000000000000004e1003b28d9280000"
+    },
+    {
+      "address": "0x7f9e1eab7472f14f8a43233e6ac82f5088f7f36a",
+      "block_number": 69270626,
+      "log_index": 2,
+      "transaction_hash": "0x971df093503383591e2aff711492b3c0823d542345cb05633a27439cdbd1f093",
+      "topic0": "0x490c5128356df402cae6bc56c9b55bff927877eca4f8220a5606443e06f25db9",
+      "topic1": "0x000000000000000000000000ef41b657ecc8b710e6e32c7c255b891836f060b7",
+      "topic2": "0x000000000000000000000000ef41b657ecc8b710e6e32c7c255b891836f060b7",
+      "topic3": "0x000000000000000000000000ef41b657ecc8b710e6e32c7c255b891836f060b7",
+      "data": "0x0000000000000000000000000000000000000000000000056bc75e2d631000000000000000000000000000000000000000000000000000056bc75e2d63100000"
+    },
+    {
+      "address": "0x7f9e1eab7472f14f8a43233e6ac82f5088f7f36a",
+      "block_number": 69282240,
+      "log_index": 44,
+      "transaction_hash": "0xf9fc902694a99d58c1fc8218f34354f25171b4f971a48e6fd0b477c8eb060673",
+      "topic0": "0x490c5128356df402cae6bc56c9b55bff927877eca4f8220a5606443e06f25db9",
+      "topic1": "0x0000000000000000000000009819c243702dd06e8d793987f0f46f793996c71c",
+      "topic2": "0x0000000000000000000000009819c243702dd06e8d793987f0f46f793996c71c",
+      "topic3": "0x0000000000000000000000009819c243702dd06e8d793987f0f46f793996c71c",
+      "data": "0x0000000000000000000000000000000000000000000000056bc75e2d631000000000000000000000000000000000000000000000000000056bc75e2d63100000"
+    },
+    {
+      "address": "0x7f9e1eab7472f14f8a43233e6ac82f5088f7f36a",
+      "block_number": 69282254,
+      "log_index": 183,
+      "transaction_hash": "0xf76d5418fab6ef0050cac01fe5a9e49b3a8a31b06bcb2d5cac3479bcbd0ae13e",
+      "topic0": "0x490c5128356df402cae6bc56c9b55bff927877eca4f8220a5606443e06f25db9",
+      "topic1": "0x000000000000000000000000d7e3b7b7229196b8b65f97fc5544231dd4a7e571",
+      "topic2": "0x000000000000000000000000d7e3b7b7229196b8b65f97fc5544231dd4a7e571",
+      "topic3": "0x000000000000000000000000d7e3b7b7229196b8b65f97fc5544231dd4a7e571",
+      "data": "0x0000000000000000000000000000000000000000000000056bc75e2d631000000000000000000000000000000000000000000000000000056bc75e2d63100000"
+    },
+    {
+      "address": "0x7f9e1eab7472f14f8a43233e6ac82f5088f7f36a",
+      "block_number": 69282309,
+      "log_index": 80,
+      "transaction_hash": "0x3414a18a5f8e96ffc07bafb213a176c197b3fede5725551ab69909a3b8891eb9",
+      "topic0": "0x7c2e21a275247b08274b8f4e84d1a374bceaa1d0fe17270b407f07494059f60c",
+      "topic1": "0x000000000000000000000000bccb896a42b3350ecddba3d67e5397eb1c4421c2",
+      "topic2": "0x0000000000000000000000009819c243702dd06e8d793987f0f46f793996c71c",
+      "topic3": null,
+      "data": "0x0000000000000000000000000000000000000000000000008ac7230489e80000"
+    },
+    {
+      "address": "0x7f9e1eab7472f14f8a43233e6ac82f5088f7f36a",
+      "block_number": 69282349,
+      "log_index": 77,
+      "transaction_hash": "0x8c374f4242f79a05475da012a46836acfe596229c445f897124fd54667f0fdae",
+      "topic0": "0x7c2e21a275247b08274b8f4e84d1a374bceaa1d0fe17270b407f07494059f60c",
+      "topic1": "0x000000000000000000000000bccb896a42b3350ecddba3d67e5397eb1c4421c2",
+      "topic2": "0x000000000000000000000000d7e3b7b7229196b8b65f97fc5544231dd4a7e571",
+      "topic3": null,
+      "data": "0x0000000000000000000000000000000000000000000000008ac7230489e80000"
+    },
+    {
+      "address": "0x7f9e1eab7472f14f8a43233e6ac82f5088f7f36a",
+      "block_number": 69282380,
+      "log_index": 2,
+      "transaction_hash": "0x8a6341651cac69dd3b9cf5610e761d73962cbfd529ad00d6cd098d47207758f4",
+      "topic0": "0x2d87480f50083e2b2759522a8fdda59802650a8055e609a7772cf70c07748f52",
+      "topic1": "0x000000000000000000000000bccb896a42b3350ecddba3d67e5397eb1c4421c2",
+      "topic2": "0x0000000000000000000000009819c243702dd06e8d793987f0f46f793996c71c",
+      "topic3": null,
+      "data": "0x0000000000000000000000000000000000000000000000008ac7230489e80000"
+    },
+    {
+      "address": "0x7f9e1eab7472f14f8a43233e6ac82f5088f7f36a",
+      "block_number": 69282380,
+      "log_index": 4,
+      "transaction_hash": "0x8a6341651cac69dd3b9cf5610e761d73962cbfd529ad00d6cd098d47207758f4",
+      "topic0": "0x2d87480f50083e2b2759522a8fdda59802650a8055e609a7772cf70c07748f52",
+      "topic1": "0x000000000000000000000000bccb896a42b3350ecddba3d67e5397eb1c4421c2",
+      "topic2": "0x000000000000000000000000d7e3b7b7229196b8b65f97fc5544231dd4a7e571",
+      "topic3": null,
+      "data": "0x0000000000000000000000000000000000000000000000008ac7230489e80000"
+    }
+  ],
+  "accounts": [
+    {
+      "account": "0x564F6384a2fE01051D58FB4583aBd613d8c45eC0",
+      "pool": {
+        "assets": "150000000000000000000",
+        "reserved": "0",
+        "shares": "150000000000000000000",
+        "queuedShares": "0",
+        "generation": "0"
+      },
+      "positions": [
+        {
+          "delegator": "0x5f3D114a607b5bBB71a2E11Ba045fC9f4F239Ce7",
+          "shares": "150000000000000000000",
+          "queuedShares": "0",
+          "unlockAt": "0",
+          "generation": "0",
+          "assets": "150000000000000000000"
+        }
+      ]
+    },
+    {
+      "account": "0x5760b5e2E1314BCd7d43E259Bd12485cc5A22aAE",
+      "pool": {
+        "assets": "500000000000000000000",
+        "reserved": "0",
+        "shares": "500000000000000000000",
+        "queuedShares": "0",
+        "generation": "0"
+      },
+      "positions": [
+        {
+          "delegator": "0x5dbC93cbbeFedd3b5f2E34ea2844a6383c88f95F",
+          "shares": "500000000000000000000",
+          "queuedShares": "0",
+          "unlockAt": "0",
+          "generation": "0",
+          "assets": "500000000000000000000"
+        }
+      ]
+    },
+    {
+      "account": "0x5f576f142Ef0b2fE2FceDE9a994d02E281967fC6",
+      "pool": {
+        "assets": "150000000000000000000",
+        "reserved": "0",
+        "shares": "150000000000000000000",
+        "queuedShares": "0",
+        "generation": "0"
+      },
+      "positions": [
+        {
+          "delegator": "0x5f3D114a607b5bBB71a2E11Ba045fC9f4F239Ce7",
+          "shares": "150000000000000000000",
+          "queuedShares": "0",
+          "unlockAt": "0",
+          "generation": "0",
+          "assets": "150000000000000000000"
+        }
+      ]
+    },
+    {
+      "account": "0x63F13E384f041E3642678bb1ce1bD127E34524C1",
+      "pool": {
+        "assets": "150000000000000000000",
+        "reserved": "0",
+        "shares": "150000000000000000000",
+        "queuedShares": "0",
+        "generation": "0"
+      },
+      "positions": [
+        {
+          "delegator": "0x5f3D114a607b5bBB71a2E11Ba045fC9f4F239Ce7",
+          "shares": "150000000000000000000",
+          "queuedShares": "0",
+          "unlockAt": "0",
+          "generation": "0",
+          "assets": "150000000000000000000"
+        }
+      ]
+    },
+    {
+      "account": "0x6f2037aaE8a4EEfbD4BEED23b674fc05BfB45B6D",
+      "pool": {
+        "assets": "150000000000000000000",
+        "reserved": "0",
+        "shares": "150000000000000000000",
+        "queuedShares": "0",
+        "generation": "0"
+      },
+      "positions": [
+        {
+          "delegator": "0x5f3D114a607b5bBB71a2E11Ba045fC9f4F239Ce7",
+          "shares": "150000000000000000000",
+          "queuedShares": "0",
+          "unlockAt": "0",
+          "generation": "0",
+          "assets": "150000000000000000000"
+        }
+      ]
+    },
+    {
+      "account": "0x77899d992e137F2616dfaF5e832A1BD462AcE1c1",
+      "pool": {
+        "assets": "150000000000000000000",
+        "reserved": "0",
+        "shares": "150000000000000000000",
+        "queuedShares": "0",
+        "generation": "0"
+      },
+      "positions": [
+        {
+          "delegator": "0x5f3D114a607b5bBB71a2E11Ba045fC9f4F239Ce7",
+          "shares": "150000000000000000000",
+          "queuedShares": "0",
+          "unlockAt": "0",
+          "generation": "0",
+          "assets": "150000000000000000000"
+        }
+      ]
+    },
+    {
+      "account": "0x8D94DeeaD75D06730694106Dd0108f5eea523472",
+      "pool": {
+        "assets": "500000000000000000000",
+        "reserved": "0",
+        "shares": "500000000000000000000",
+        "queuedShares": "0",
+        "generation": "0"
+      },
+      "positions": [
+        {
+          "delegator": "0xB856CA0E80BA0f804EcFf75d0ABe4a49FFACC583",
+          "shares": "500000000000000000000",
+          "queuedShares": "0",
+          "unlockAt": "0",
+          "generation": "0",
+          "assets": "500000000000000000000"
+        }
+      ]
+    },
+    {
+      "account": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+      "pool": {
+        "assets": "100000000000000000000",
+        "reserved": "0",
+        "shares": "100000000000000000000",
+        "queuedShares": "0",
+        "generation": "0"
+      },
+      "positions": [
+        {
+          "delegator": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+          "shares": "100000000000000000000",
+          "queuedShares": "0",
+          "unlockAt": "0",
+          "generation": "0",
+          "assets": "100000000000000000000"
+        }
+      ]
+    },
+    {
+      "account": "0xd41a2741baE475242e114BD87A63A58aC7669618",
+      "pool": {
+        "assets": "10150000000000000000000",
+        "reserved": "0",
+        "shares": "10150000000000000000000",
+        "queuedShares": "0",
+        "generation": "0"
+      },
+      "positions": [
+        {
+          "delegator": "0x5f3D114a607b5bBB71a2E11Ba045fC9f4F239Ce7",
+          "shares": "150000000000000000000",
+          "queuedShares": "0",
+          "unlockAt": "0",
+          "generation": "0",
+          "assets": "150000000000000000000"
+        },
+        {
+          "delegator": "0xeF41b657Ecc8b710e6e32c7c255B891836F060b7",
+          "shares": "10000000000000000000000",
+          "queuedShares": "0",
+          "unlockAt": "0",
+          "generation": "0",
+          "assets": "10000000000000000000000"
+        }
+      ]
+    },
+    {
+      "account": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571",
+      "pool": {
+        "assets": "100000000000000000000",
+        "reserved": "0",
+        "shares": "100000000000000000000",
+        "queuedShares": "0",
+        "generation": "0"
+      },
+      "positions": [
+        {
+          "delegator": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571",
+          "shares": "100000000000000000000",
+          "queuedShares": "0",
+          "unlockAt": "0",
+          "generation": "0",
+          "assets": "100000000000000000000"
+        }
+      ]
+    },
+    {
+      "account": "0xdc1fE125d77486Bac3ec0a6f731c60A04DB70bb7",
+      "pool": {
+        "assets": "80000000000000000000000",
+        "reserved": "0",
+        "shares": "80000000000000000000000",
+        "queuedShares": "0",
+        "generation": "0"
+      },
+      "positions": [
+        {
+          "delegator": "0xB9970A6371358F6C74DFb15A7cB2653E3AE3E471",
+          "shares": "80000000000000000000000",
+          "queuedShares": "0",
+          "unlockAt": "0",
+          "generation": "0",
+          "assets": "80000000000000000000000"
+        }
+      ]
+    },
+    {
+      "account": "0xe89F284d22a9280b3bab3F1c135bd7629D1a3587",
+      "pool": {
+        "assets": "90000000000000000000",
+        "reserved": "0",
+        "shares": "90000000000000000000",
+        "queuedShares": "0",
+        "generation": "0"
+      },
+      "positions": [
+        {
+          "delegator": "0xe89F284d22a9280b3bab3F1c135bd7629D1a3587",
+          "shares": "90000000000000000000",
+          "queuedShares": "0",
+          "unlockAt": "0",
+          "generation": "0",
+          "assets": "90000000000000000000"
+        }
+      ]
+    },
+    {
+      "account": "0xeF41b657Ecc8b710e6e32c7c255B891836F060b7",
+      "pool": {
+        "assets": "100000000000000000000",
+        "reserved": "0",
+        "shares": "100000000000000000000",
+        "queuedShares": "0",
+        "generation": "0"
+      },
+      "positions": [
+        {
+          "delegator": "0xeF41b657Ecc8b710e6e32c7c255B891836F060b7",
+          "shares": "100000000000000000000",
+          "queuedShares": "0",
+          "unlockAt": "0",
+          "generation": "0",
+          "assets": "100000000000000000000"
+        }
+      ]
+    }
+  ],
+  "looseBalances": [
+    {
+      "wallet": "0xB9970A6371358F6C74DFb15A7cB2653E3AE3E471",
+      "amount": "20000000000000000000000",
+      "sources": [
+        "Explicit Kris cutover allocation; liquid balances are not migrated"
+      ]
+    }
+  ],
+  "excluded": [
+    {
+      "wallet": "0xDB257E28bD501f19E6Df100B34491655A8D4Fe62",
+      "amount": "9998000000000000000000000",
+      "reason": "old faucet balance is not refunded"
+    },
+    {
+      "wallet": "0xeF41b657Ecc8b710e6e32c7c255B891836F060b7",
+      "amount": "89887910000000000000000000",
+      "reason": "ecosystem allocation is recreated"
+    }
+  ],
+  "totalAssets": "92290000000000000000000"
+}

@@ -1,0 +1,500 @@
+{
+  "step": 8,
+  "observedAt": "2026-10-08T21:54:21.652Z",
+  "chainId": 10143,
+  "manifestChecksum": "a28f77892706c0e54a12c889b3831d038d1f0766f2b1265cdcac23529547a94d",
+  "cutoff": {
+    "block": 69362264,
+    "blockHash": "0x566ca9051c0ffd2f2ee3fff9cf09f0a865cd138efd318a2692e2e84febd3c56c",
+    "timestamp": 1791494932,
+    "checksum": "4803aeba6bb20fc93bc6c7a513fe1e85e5db9ff95f5b1fc77d29c0dc1f303819"
+  },
+  "snapshotVaultTotalAssets": "92290000000000000000000",
+  "positionsTotal": "92290000000000000000000",
+  "roundingDust": "0",
+  "sourceEvents": {
+    "OwnershipTransferred": 2,
+    "HoldingAuthorized": 1,
+    "OwnershipTransferStarted": 1,
+    "Delegated": 14,
+    "Reserved": 2,
+    "Released": 2
+  },
+  "newVault": "0x0281F52d12ADbBe48DeF22a79ADef9A2308BD81b",
+  "newFactory": "0xbf0A7336d774729af63d415b5A6bDae8731b2e9B",
+  "positions": [
+    {
+      "account": "0x564F6384a2fE01051D58FB4583aBd613d8c45eC0",
+      "delegator": "0x5f3D114a607b5bBB71a2E11Ba045fC9f4F239Ce7",
+      "amount": "150000000000000000000",
+      "active": "150000000000000000000",
+      "unstaking": "0",
+      "shares": "150000000000000000000",
+      "queuedShares": "0",
+      "generation": "0",
+      "unlockAt": 0,
+      "newPosition": {
+        "shares": "150000000000000000000",
+        "queuedShares": "0",
+        "unlockAt": 0,
+        "generation": "0"
+      },
+      "newAssets": "150000000000000000000"
+    },
+    {
+      "account": "0x5760b5e2E1314BCd7d43E259Bd12485cc5A22aAE",
+      "delegator": "0x5dbC93cbbeFedd3b5f2E34ea2844a6383c88f95F",
+      "amount": "500000000000000000000",
+      "active": "500000000000000000000",
+      "unstaking": "0",
+      "shares": "500000000000000000000",
+      "queuedShares": "0",
+      "generation": "0",
+      "unlockAt": 0,
+      "newPosition": {
+        "shares": "500000000000000000000",
+        "queuedShares": "0",
+        "unlockAt": 0,
+        "generation": "0"
+      },
+      "newAssets": "500000000000000000000"
+    },
+    {
+      "account": "0x5f576f142Ef0b2fE2FceDE9a994d02E281967fC6",
+      "delegator": "0x5f3D114a607b5bBB71a2E11Ba045fC9f4F239Ce7",
+      "amount": "150000000000000000000",
+      "active": "150000000000000000000",
+      "unstaking": "0",
+      "shares": "150000000000000000000",
+      "queuedShares": "0",
+      "generation": "0",
+      "unlockAt": 0,
+      "newPosition": {
+        "shares": "150000000000000000000",
+        "queuedShares": "0",
+        "unlockAt": 0,
+        "generation": "0"
+      },
+      "newAssets": "150000000000000000000"
+    },
+    {
+      "account": "0x63F13E384f041E3642678bb1ce1bD127E34524C1",
+      "delegator": "0x5f3D114a607b5bBB71a2E11Ba045fC9f4F239Ce7",
+      "amount": "150000000000000000000",
+      "active": "150000000000000000000",
+      "unstaking": "0",
+      "shares": "150000000000000000000",
+      "queuedShares": "0",
+      "generation": "0",
+      "unlockAt": 0,
+      "newPosition": {
+        "shares": "150000000000000000000",
+        "queuedShares": "0",
+        "unlockAt": 0,
+        "generation": "0"
+      },
+      "newAssets": "150000000000000000000"
+    },
+    {
+      "account": "0x6f2037aaE8a4EEfbD4BEED23b674fc05BfB45B6D",
+      "delegator": "0x5f3D114a607b5bBB71a2E11Ba045fC9f4F239Ce7",
+      "amount": "150000000000000000000",
+      "active": "150000000000000000000",
+      "unstaking": "0",
+      "shares": "150000000000000000000",
+      "queuedShares": "0",
+      "generation": "0",
+      "unlockAt": 0,
+      "newPosition": {
+        "shares": "150000000000000000000",
+        "queuedShares": "0",
+        "unlockAt": 0,
+        "generation": "0"
+      },
+      "newAssets": "150000000000000000000"
+    },
+    {
+      "account": "0x77899d992e137F2616dfaF5e832A1BD462AcE1c1",
+      "delegator": "0x5f3D114a607b5bBB71a2E11Ba045fC9f4F239Ce7",
+      "amount": "150000000000000000000",
+      "active": "150000000000000000000",
+      "unstaking": "0",
+      "shares": "150000000000000000000",
+      "queuedShares": "0",
+      "generation": "0",
+      "unlockAt": 0,
+      "newPosition": {
+        "shares": "150000000000000000000",
+        "queuedShares": "0",
+        "unlockAt": 0,
+        "generation": "0"
+      },
+      "newAssets": "150000000000000000000"
+    },
+    {
+      "account": "0x8D94DeeaD75D06730694106Dd0108f5eea523472",
+      "delegator": "0xB856CA0E80BA0f804EcFf75d0ABe4a49FFACC583",
+      "amount": "500000000000000000000",
+      "active": "500000000000000000000",
+      "unstaking": "0",
+      "shares": "500000000000000000000",
+      "queuedShares": "0",
+      "generation": "0",
+      "unlockAt": 0,
+      "newPosition": {
+        "shares": "500000000000000000000",
+        "queuedShares": "0",
+        "unlockAt": 0,
+        "generation": "0"
+      },
+      "newAssets": "500000000000000000000"
+    },
+    {
+      "account": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+      "delegator": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+      "amount": "100000000000000000000",
+      "active": "100000000000000000000",
+      "unstaking": "0",
+      "shares": "100000000000000000000",
+      "queuedShares": "0",
+      "generation": "0",
+      "unlockAt": 0,
+      "newPosition": {
+        "shares": "100000000000000000000",
+        "queuedShares": "0",
+        "unlockAt": 0,
+        "generation": "0"
+      },
+      "newAssets": "100000000000000000000"
+    },
+    {
+      "account": "0xd41a2741baE475242e114BD87A63A58aC7669618",
+      "delegator": "0x5f3D114a607b5bBB71a2E11Ba045fC9f4F239Ce7",
+      "amount": "150000000000000000000",
+      "active": "150000000000000000000",
+      "unstaking": "0",
+      "shares": "150000000000000000000",
+      "queuedShares": "0",
+      "generation": "0",
+      "unlockAt": 0,
+      "newPosition": {
+        "shares": "150000000000000000000",
+        "queuedShares": "0",
+        "unlockAt": 0,
+        "generation": "0"
+      },
+      "newAssets": "150000000000000000000"
+    },
+    {
+      "account": "0xd41a2741baE475242e114BD87A63A58aC7669618",
+      "delegator": "0xeF41b657Ecc8b710e6e32c7c255B891836F060b7",
+      "amount": "10000000000000000000000",
+      "active": "10000000000000000000000",
+      "unstaking": "0",
+      "shares": "10000000000000000000000",
+      "queuedShares": "0",
+      "generation": "0",
+      "unlockAt": 0,
+      "newPosition": {
+        "shares": "10000000000000000000000",
+        "queuedShares": "0",
+        "unlockAt": 0,
+        "generation": "0"
+      },
+      "newAssets": "10000000000000000000000"
+    },
+    {
+      "account": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571",
+      "delegator": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571",
+      "amount": "100000000000000000000",
+      "active": "100000000000000000000",
+      "unstaking": "0",
+      "shares": "100000000000000000000",
+      "queuedShares": "0",
+      "generation": "0",
+      "unlockAt": 0,
+      "newPosition": {
+        "shares": "100000000000000000000",
+        "queuedShares": "0",
+        "unlockAt": 0,
+        "generation": "0"
+      },
+      "newAssets": "100000000000000000000"
+    },
+    {
+      "account": "0xdc1fE125d77486Bac3ec0a6f731c60A04DB70bb7",
+      "delegator": "0xB9970A6371358F6C74DFb15A7cB2653E3AE3E471",
+      "amount": "80000000000000000000000",
+      "active": "80000000000000000000000",
+      "unstaking": "0",
+      "shares": "80000000000000000000000",
+      "queuedShares": "0",
+      "generation": "0",
+      "unlockAt": 0,
+      "newPosition": {
+        "shares": "80000000000000000000000",
+        "queuedShares": "0",
+        "unlockAt": 0,
+        "generation": "0"
+      },
+      "newAssets": "80000000000000000000000"
+    },
+    {
+      "account": "0xe89F284d22a9280b3bab3F1c135bd7629D1a3587",
+      "delegator": "0xe89F284d22a9280b3bab3F1c135bd7629D1a3587",
+      "amount": "90000000000000000000",
+      "active": "90000000000000000000",
+      "unstaking": "0",
+      "shares": "90000000000000000000",
+      "queuedShares": "0",
+      "generation": "0",
+      "unlockAt": 0,
+      "newPosition": {
+        "shares": "90000000000000000000",
+        "queuedShares": "0",
+        "unlockAt": 0,
+        "generation": "0"
+      },
+      "newAssets": "90000000000000000000"
+    },
+    {
+      "account": "0xeF41b657Ecc8b710e6e32c7c255B891836F060b7",
+      "delegator": "0xeF41b657Ecc8b710e6e32c7c255B891836F060b7",
+      "amount": "100000000000000000000",
+      "active": "100000000000000000000",
+      "unstaking": "0",
+      "shares": "100000000000000000000",
+      "queuedShares": "0",
+      "generation": "0",
+      "unlockAt": 0,
+      "newPosition": {
+        "shares": "100000000000000000000",
+        "queuedShares": "0",
+        "unlockAt": 0,
+        "generation": "0"
+      },
+      "newAssets": "100000000000000000000"
+    }
+  ],
+  "vaultTotalAssets": "92290000000000000000000",
+  "krisAddress": "0xB9970A6371358F6C74DFb15A7cB2653E3AE3E471",
+  "krisLiquidSide": "20000000000000000000000",
+  "funding": "0xeF41b657Ecc8b710e6e32c7c255B891836F060b7",
+  "confirmedNonce": 48,
+  "pendingNonce": 48,
+  "finalizedBlock": "69367322",
+  "receipts": [
+    {
+      "key": "approval",
+      "hash": "0x905757bdf0fb1ec6295dcc1437d78678af553ab7483aa8a267a496217b7ca97d",
+      "nonce": 32,
+      "from": "0xef41b657ecc8b710e6e32c7c255b891836f060b7",
+      "to": "0xbf0a7336d774729af63d415b5a6bdae8731b2e9b",
+      "status": "success",
+      "block": "69367056",
+      "gasUsed": "75754",
+      "effectiveGasPrice": "102000000000",
+      "gasCostWei": "7726908000000000",
+      "inputHash": "0xaf595144859dc973ac2a65f29b352a86fdc3d8f0ddc42046e5e5b51fead8c25b"
+    },
+    {
+      "key": "position/0x564f6384a2fe01051d58fb4583abd613d8c45ec0/0x5f3d114a607b5bbb71a2e11ba045fc9f4f239ce7",
+      "hash": "0x82e441cb9ccede86ac1ab0f1254904b5c45c0a3b45f3cfbf055642e7794d265a",
+      "nonce": 33,
+      "from": "0xef41b657ecc8b710e6e32c7c255b891836f060b7",
+      "to": "0x0281f52d12adbbe48def22a79adef9a2308bd81b",
+      "status": "success",
+      "block": "69367063",
+      "gasUsed": "253682",
+      "effectiveGasPrice": "102000000000",
+      "gasCostWei": "25875564000000000",
+      "inputHash": "0x5ebdf6c5f62d6cd217a5d848849fc57fe14b042acc63e51adc2657f58473b347"
+    },
+    {
+      "key": "position/0x5760b5e2e1314bcd7d43e259bd12485cc5a22aae/0x5dbc93cbbefedd3b5f2e34ea2844a6383c88f95f",
+      "hash": "0xf5e4eb96d1b9172049d0463639eabaa6c07d439fce6243befba9f4a8717f1549",
+      "nonce": 34,
+      "from": "0xef41b657ecc8b710e6e32c7c255b891836f060b7",
+      "to": "0x0281f52d12adbbe48def22a79adef9a2308bd81b",
+      "status": "success",
+      "block": "69367071",
+      "gasUsed": "209329",
+      "effectiveGasPrice": "102000000000",
+      "gasCostWei": "21351558000000000",
+      "inputHash": "0x1923e81a836ea22c32ef846cc9311a45146f730cc367a62e5cb6c20fd5d721da"
+    },
+    {
+      "key": "position/0x5f576f142ef0b2fe2fcede9a994d02e281967fc6/0x5f3d114a607b5bbb71a2e11ba045fc9f4f239ce7",
+      "hash": "0xe34125cef32f578a8afbb29065b795f767001b5d37d7e350131302de01557462",
+      "nonce": 35,
+      "from": "0xef41b657ecc8b710e6e32c7c255b891836f060b7",
+      "to": "0x0281f52d12adbbe48def22a79adef9a2308bd81b",
+      "status": "success",
+      "block": "69367077",
+      "gasUsed": "209329",
+      "effectiveGasPrice": "102000000000",
+      "gasCostWei": "21351558000000000",
+      "inputHash": "0x7445e8a3d1a38c556fd0f3601e247daac2043e0851f3815e7c9cf40c1f6dd483"
+    },
+    {
+      "key": "position/0x63f13e384f041e3642678bb1ce1bd127e34524c1/0x5f3d114a607b5bbb71a2e11ba045fc9f4f239ce7",
+      "hash": "0x49e669481e095eadbf9101141ab85c6c807709de91239e6863b9a1d3178d413b",
+      "nonce": 36,
+      "from": "0xef41b657ecc8b710e6e32c7c255b891836f060b7",
+      "to": "0x0281f52d12adbbe48def22a79adef9a2308bd81b",
+      "status": "success",
+      "block": "69367084",
+      "gasUsed": "209329",
+      "effectiveGasPrice": "102000000000",
+      "gasCostWei": "21351558000000000",
+      "inputHash": "0xea7a71b9fa32f085d4550f4b9ea31c3117e67b85a592c542220e38084aeecdf7"
+    },
+    {
+      "key": "position/0x6f2037aae8a4eefbd4beed23b674fc05bfb45b6d/0x5f3d114a607b5bbb71a2e11ba045fc9f4f239ce7",
+      "hash": "0xacfe2564e5f166d2deb0b4fc141ef1683da2ca0c823042adbcfce8de5bdece9e",
+      "nonce": 37,
+      "from": "0xef41b657ecc8b710e6e32c7c255b891836f060b7",
+      "to": "0x0281f52d12adbbe48def22a79adef9a2308bd81b",
+      "status": "success",
+      "block": "69367090",
+      "gasUsed": "209329",
+      "effectiveGasPrice": "102000000000",
+      "gasCostWei": "21351558000000000",
+      "inputHash": "0x95a80fa218ad79e7cc502412f75b08a97ae144add5eeea414abe24fc78f0871e"
+    },
+    {
+      "key": "position/0x77899d992e137f2616dfaf5e832a1bd462ace1c1/0x5f3d114a607b5bbb71a2e11ba045fc9f4f239ce7",
+      "hash": "0xb395a9571edd6713bc04f9b829ce7b6edf7112bb8c2dfabd639509dbac5ef636",
+      "nonce": 38,
+      "from": "0xef41b657ecc8b710e6e32c7c255b891836f060b7",
+      "to": "0x0281f52d12adbbe48def22a79adef9a2308bd81b",
+      "status": "success",
+      "block": "69367097",
+      "gasUsed": "209329",
+      "effectiveGasPrice": "102000000000",
+      "gasCostWei": "21351558000000000",
+      "inputHash": "0x4ec22ebdc91568fbb67d9901e5e142312992f3cfa0a3dd48b8a0400a76e552b7"
+    },
+    {
+      "key": "position/0x8d94deead75d06730694106dd0108f5eea523472/0xb856ca0e80ba0f804ecff75d0abe4a49ffacc583",
+      "hash": "0x7eb3da7dc1f36619f315a643fd61a104bc92800ae00e3992855eebf8e1c08bf2",
+      "nonce": 39,
+      "from": "0xef41b657ecc8b710e6e32c7c255b891836f060b7",
+      "to": "0x0281f52d12adbbe48def22a79adef9a2308bd81b",
+      "status": "success",
+      "block": "69367104",
+      "gasUsed": "209329",
+      "effectiveGasPrice": "102000000000",
+      "gasCostWei": "21351558000000000",
+      "inputHash": "0x16cdc5697e74dceda4c0c65b8d326f90196b1ebe569d6ce923b6bad395caf0f4"
+    },
+    {
+      "key": "position/0x9819c243702dd06e8d793987f0f46f793996c71c/0x9819c243702dd06e8d793987f0f46f793996c71c",
+      "hash": "0x18c59989a68c626e0558be32e281fa6f6bb9fa02afc1a50e4b08f997cd0c8f30",
+      "nonce": 40,
+      "from": "0xef41b657ecc8b710e6e32c7c255b891836f060b7",
+      "to": "0x0281f52d12adbbe48def22a79adef9a2308bd81b",
+      "status": "success",
+      "block": "69367112",
+      "gasUsed": "209329",
+      "effectiveGasPrice": "102000000000",
+      "gasCostWei": "21351558000000000",
+      "inputHash": "0xe42dffc2f42a2b28e275c555756dc313410474507b35884f8fe43ab49a326c1e"
+    },
+    {
+      "key": "position/0xd41a2741bae475242e114bd87a63a58ac7669618/0x5f3d114a607b5bbb71a2e11ba045fc9f4f239ce7",
+      "hash": "0x4a0cb4e188450f90c52fbfb48e59b6a784418482b0b57888cc95499591a80d04",
+      "nonce": 41,
+      "from": "0xef41b657ecc8b710e6e32c7c255b891836f060b7",
+      "to": "0x0281f52d12adbbe48def22a79adef9a2308bd81b",
+      "status": "success",
+      "block": "69367118",
+      "gasUsed": "209329",
+      "effectiveGasPrice": "102000000000",
+      "gasCostWei": "21351558000000000",
+      "inputHash": "0x0e542b86c319657103dcad80013262ca929ee879002c76873c8f8772552590c0"
+    },
+    {
+      "key": "position/0xd41a2741bae475242e114bd87a63a58ac7669618/0xef41b657ecc8b710e6e32c7c255b891836f060b7",
+      "hash": "0x3556c9d84dc787b42ef05feddfc99a3488ecf46e2e44a83fa1b2d7b24aefd0a7",
+      "nonce": 42,
+      "from": "0xef41b657ecc8b710e6e32c7c255b891836f060b7",
+      "to": "0x0281f52d12adbbe48def22a79adef9a2308bd81b",
+      "status": "success",
+      "block": "69367124",
+      "gasUsed": "166864",
+      "effectiveGasPrice": "102000000000",
+      "gasCostWei": "17020128000000000",
+      "inputHash": "0xf53bffa7bd9a673aff0e03163165fe68bdf0adaf51b7cef11e56e5a06647dd0b"
+    },
+    {
+      "key": "position/0xd7e3b7b7229196b8b65f97fc5544231dd4a7e571/0xd7e3b7b7229196b8b65f97fc5544231dd4a7e571",
+      "hash": "0x88fea06c6847b295afc5a4d776f7459f2f697a8e02b77e248a93a1ba292ca4aa",
+      "nonce": 43,
+      "from": "0xef41b657ecc8b710e6e32c7c255b891836f060b7",
+      "to": "0x0281f52d12adbbe48def22a79adef9a2308bd81b",
+      "status": "success",
+      "block": "69367132",
+      "gasUsed": "209329",
+      "effectiveGasPrice": "102000000000",
+      "gasCostWei": "21351558000000000",
+      "inputHash": "0x9f02f0cc96fdb234a7af39974f81b1225e01b2e39a927930e1d5177780af8378"
+    },
+    {
+      "key": "position/0xdc1fe125d77486bac3ec0a6f731c60a04db70bb7/0xb9970a6371358f6c74dfb15a7cb2653e3ae3e471",
+      "hash": "0x71934b8573f00d903d38abd65b442b58c57518e180692486425817cbeb9215a8",
+      "nonce": 44,
+      "from": "0xef41b657ecc8b710e6e32c7c255b891836f060b7",
+      "to": "0x0281f52d12adbbe48def22a79adef9a2308bd81b",
+      "status": "success",
+      "block": "69367138",
+      "gasUsed": "209329",
+      "effectiveGasPrice": "102000000000",
+      "gasCostWei": "21351558000000000",
+      "inputHash": "0x4c43eb672d4b9d41bec19fcb69e3f244c1bbcb85fcde29cf642c9dc21167df66"
+    },
+    {
+      "key": "position/0xe89f284d22a9280b3bab3f1c135bd7629d1a3587/0xe89f284d22a9280b3bab3f1c135bd7629d1a3587",
+      "hash": "0x4d733f876ef00c90442ff39e554e2394a330ad2264534211620ce52412741830",
+      "nonce": 45,
+      "from": "0xef41b657ecc8b710e6e32c7c255b891836f060b7",
+      "to": "0x0281f52d12adbbe48def22a79adef9a2308bd81b",
+      "status": "success",
+      "block": "69367144",
+      "gasUsed": "209314",
+      "effectiveGasPrice": "102000000000",
+      "gasCostWei": "21350028000000000",
+      "inputHash": "0x6bd1e58477694bf2639a654a3bad9b2746938fbb32ad064037d1e1cc3cde079a"
+    },
+    {
+      "key": "position/0xef41b657ecc8b710e6e32c7c255b891836f060b7/0xef41b657ecc8b710e6e32c7c255b891836f060b7",
+      "hash": "0x62d558c7f585d744e52fc9382b00553fed64bb2326da33592e4badc046132a6a",
+      "nonce": 46,
+      "from": "0xef41b657ecc8b710e6e32c7c255b891836f060b7",
+      "to": "0x0281f52d12adbbe48def22a79adef9a2308bd81b",
+      "status": "success",
+      "block": "69367152",
+      "gasUsed": "209329",
+      "effectiveGasPrice": "102000000000",
+      "gasCostWei": "21351558000000000",
+      "inputHash": "0x058682b5490af5b1ea9e5512d2ee6a326f3dd1bef48645f2891c91d7eedf5061"
+    },
+    {
+      "key": "transfer/0xb9970a6371358f6c74dfb15a7cb2653e3ae3e471",
+      "hash": "0xade55f3e8c60995a3f008cb05dbe2747f4cbdf1fbc821065e41ed8aa42de7663",
+      "nonce": 47,
+      "from": "0xef41b657ecc8b710e6e32c7c255b891836f060b7",
+      "to": "0xbf0a7336d774729af63d415b5a6bdae8731b2e9b",
+      "status": "success",
+      "block": "69367159",
+      "gasUsed": "90119",
+      "effectiveGasPrice": "102000000000",
+      "gasCostWei": "9192138000000000",
+      "inputHash": "0x02e3606ba4a4ff63b842b81f408eff18d1db4a7c3da66c08b748b258581ee66e"
+    }
+  ],
+  "gasCostWei": "316031904000000000",
+  "limits": [
+    "G1d liquid balances were not migrated. Snapshot entitlements are fixed at cutoff; later old-generation events are reported separately."
+  ]
+}

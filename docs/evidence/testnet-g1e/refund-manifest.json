@@ -1,0 +1,203 @@
+{
+  "schemaVersion": 2,
+  "chainId": 10143,
+  "from": "g1d",
+  "to": "g1e",
+  "snapshot": {
+    "block": 69362264,
+    "blockHash": "0x566ca9051c0ffd2f2ee3fff9cf09f0a865cd138efd318a2692e2e84febd3c56c",
+    "timestamp": 1791494932,
+    "checksum": "4803aeba6bb20fc93bc6c7a513fe1e85e5db9ff95f5b1fc77d29c0dc1f303819"
+  },
+  "old": {
+    "vault": "0x7F9e1eAB7472f14f8a43233e6AC82f5088f7f36a",
+    "factory": "0x239B662ACE82c0804b0bf8469918C3edBFAFf6Ed",
+    "core": "0xAa658Ff5C8A82e780A0647561E51064846bDcb54",
+    "holding": "0xBCCB896A42B3350ECdDBA3d67E5397Eb1c4421c2",
+    "block": 69264363,
+    "configChecksum": "b62a8e844a59b639544f5b5bf9fe21953a66ec73e6167a3648f6df862bc456e3"
+  },
+  "positions": [
+    {
+      "account": "0x564F6384a2fE01051D58FB4583aBd613d8c45eC0",
+      "delegator": "0x5f3D114a607b5bBB71a2E11Ba045fC9f4F239Ce7",
+      "amount": "150000000000000000000",
+      "active": "150000000000000000000",
+      "unstaking": "0",
+      "shares": "150000000000000000000",
+      "queuedShares": "0",
+      "generation": "0",
+      "unlockAt": 0
+    },
+    {
+      "account": "0x5760b5e2E1314BCd7d43E259Bd12485cc5A22aAE",
+      "delegator": "0x5dbC93cbbeFedd3b5f2E34ea2844a6383c88f95F",
+      "amount": "500000000000000000000",
+      "active": "500000000000000000000",
+      "unstaking": "0",
+      "shares": "500000000000000000000",
+      "queuedShares": "0",
+      "generation": "0",
+      "unlockAt": 0
+    },
+    {
+      "account": "0x5f576f142Ef0b2fE2FceDE9a994d02E281967fC6",
+      "delegator": "0x5f3D114a607b5bBB71a2E11Ba045fC9f4F239Ce7",
+      "amount": "150000000000000000000",
+      "active": "150000000000000000000",
+      "unstaking": "0",
+      "shares": "150000000000000000000",
+      "queuedShares": "0",
+      "generation": "0",
+      "unlockAt": 0
+    },
+    {
+      "account": "0x63F13E384f041E3642678bb1ce1bD127E34524C1",
+      "delegator": "0x5f3D114a607b5bBB71a2E11Ba045fC9f4F239Ce7",
+      "amount": "150000000000000000000",
+      "active": "150000000000000000000",
+      "unstaking": "0",
+      "shares": "150000000000000000000",
+      "queuedShares": "0",
+      "generation": "0",
+      "unlockAt": 0
+    },
+    {
+      "account": "0x6f2037aaE8a4EEfbD4BEED23b674fc05BfB45B6D",
+      "delegator": "0x5f3D114a607b5bBB71a2E11Ba045fC9f4F239Ce7",
+      "amount": "150000000000000000000",
+      "active": "150000000000000000000",
+      "unstaking": "0",
+      "shares": "150000000000000000000",
+      "queuedShares": "0",
+      "generation": "0",
+      "unlockAt": 0
+    },
+    {
+      "account": "0x77899d992e137F2616dfaF5e832A1BD462AcE1c1",
+      "delegator": "0x5f3D114a607b5bBB71a2E11Ba045fC9f4F239Ce7",
+      "amount": "150000000000000000000",
+      "active": "150000000000000000000",
+      "unstaking": "0",
+      "shares": "150000000000000000000",
+      "queuedShares": "0",
+      "generation": "0",
+      "unlockAt": 0
+    },
+    {
+      "account": "0x8D94DeeaD75D06730694106Dd0108f5eea523472",
+      "delegator": "0xB856CA0E80BA0f804EcFf75d0ABe4a49FFACC583",
+      "amount": "500000000000000000000",
+      "active": "500000000000000000000",
+      "unstaking": "0",
+      "shares": "500000000000000000000",
+      "queuedShares": "0",
+      "generation": "0",
+      "unlockAt": 0
+    },
+    {
+      "account": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+      "delegator": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+      "amount": "100000000000000000000",
+      "active": "100000000000000000000",
+      "unstaking": "0",
+      "shares": "100000000000000000000",
+      "queuedShares": "0",
+      "generation": "0",
+      "unlockAt": 0
+    },
+    {
+      "account": "0xd41a2741baE475242e114BD87A63A58aC7669618",
+      "delegator": "0x5f3D114a607b5bBB71a2E11Ba045fC9f4F239Ce7",
+      "amount": "150000000000000000000",
+      "active": "150000000000000000000",
+      "unstaking": "0",
+      "shares": "150000000000000000000",
+      "queuedShares": "0",
+      "generation": "0",
+      "unlockAt": 0
+    },
+    {
+      "account": "0xd41a2741baE475242e114BD87A63A58aC7669618",
+      "delegator": "0xeF41b657Ecc8b710e6e32c7c255B891836F060b7",
+      "amount": "10000000000000000000000",
+      "active": "10000000000000000000000",
+      "unstaking": "0",
+      "shares": "10000000000000000000000",
+      "queuedShares": "0",
+      "generation": "0",
+      "unlockAt": 0
+    },
+    {
+      "account": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571",
+      "delegator": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571",
+      "amount": "100000000000000000000",
+      "active": "100000000000000000000",
+      "unstaking": "0",
+      "shares": "100000000000000000000",
+      "queuedShares": "0",
+      "generation": "0",
+      "unlockAt": 0
+    },
+    {
+      "account": "0xdc1fE125d77486Bac3ec0a6f731c60A04DB70bb7",
+      "delegator": "0xB9970A6371358F6C74DFb15A7cB2653E3AE3E471",
+      "amount": "80000000000000000000000",
+      "active": "80000000000000000000000",
+      "unstaking": "0",
+      "shares": "80000000000000000000000",
+      "queuedShares": "0",
+      "generation": "0",
+      "unlockAt": 0
+    },
+    {
+      "account": "0xe89F284d22a9280b3bab3F1c135bd7629D1a3587",
+      "delegator": "0xe89F284d22a9280b3bab3F1c135bd7629D1a3587",
+      "amount": "90000000000000000000",
+      "active": "90000000000000000000",
+      "unstaking": "0",
+      "shares": "90000000000000000000",
+      "queuedShares": "0",
+      "generation": "0",
+      "unlockAt": 0
+    },
+    {
+      "account": "0xeF41b657Ecc8b710e6e32c7c255B891836F060b7",
+      "delegator": "0xeF41b657Ecc8b710e6e32c7c255B891836F060b7",
+      "amount": "100000000000000000000",
+      "active": "100000000000000000000",
+      "unstaking": "0",
+      "shares": "100000000000000000000",
+      "queuedShares": "0",
+      "generation": "0",
+      "unlockAt": 0
+    }
+  ],
+  "transfers": [
+    {
+      "wallet": "0xB9970A6371358F6C74DFb15A7cB2653E3AE3E471",
+      "amount": "20000000000000000000000",
+      "sources": [
+        "Explicit Kris cutover allocation; liquid balances are not migrated"
+      ]
+    }
+  ],
+  "excluded": [
+    {
+      "wallet": "0xDB257E28bD501f19E6Df100B34491655A8D4Fe62",
+      "amount": "9998000000000000000000000",
+      "reason": "old faucet balance is not refunded"
+    },
+    {
+      "wallet": "0xeF41b657Ecc8b710e6e32c7c255B891836F060b7",
+      "amount": "89887910000000000000000000",
+      "reason": "ecosystem allocation is recreated"
+    }
+  ],
+  "totals": {
+    "positions": "92290000000000000000000",
+    "transfers": "20000000000000000000000",
+    "roundingDust": "0"
+  },
+  "checksum": "a28f77892706c0e54a12c889b3831d038d1f0766f2b1265cdcac23529547a94d"
+}

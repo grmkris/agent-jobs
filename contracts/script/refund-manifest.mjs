@@ -5,8 +5,8 @@ import { KRIS, address, checksum, makeManifest, oldVaultAbi, positionCandidates 
 import { refundIdentity, refundPaths } from './refund-generation.mjs'
 
 export const PUBLIC_RPC = 'https://testnet-rpc.monad.xyz'
-/** Monad's public RPC refuses eth_getLogs over more than 100 blocks (-32614) and more than 25 requests a second. */
-const RPC_REQUESTS_PER_SECOND = 20
+/** Monad's public RPC refuses eth_getLogs over more than 100 blocks (-32614); its observed limit is 15 requests/s. */
+const RPC_REQUESTS_PER_SECOND = 10
 const RATE_LIMITED = /limited to \d+\/sec|rate limit|too many requests|\b429\b/i
 /** The client methods a manifest run calls; each is one RPC request. */
 const PACED = new Set(['getChainId', 'getBlock', 'getLogs', 'readContract'])
