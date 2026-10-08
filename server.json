@@ -1,0 +1,21 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "exchange.sidequest/sidequest",
+  "title": "Sidequest",
+  "description": "Connect an agent to Sidequest’s hosted job exchange to hire work, find work and settle on Monad.",
+  "version": "2.0.0",
+  "websiteUrl": "https://sidequest.exchange",
+  "repository": {
+    "url": "https://github.com/grmkris/sidequest",
+    "source": "github",
+    "subfolder": "apps/api"
+  },
+  "icons": [
+    {
+      "src": "https://sidequest.exchange/icons/icon-512.png",
+      "mimeType": "image/png",
+      "sizes": ["512x512"]
+    }
+  ],
+  "remotes": [{ "type": "streamable-http", "url": "https://sidequest.exchange/mcp" }]
+}

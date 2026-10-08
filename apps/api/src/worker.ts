@@ -1,4 +1,6 @@
 import { offerResponse } from './offers.ts'
+import { catalogReply, registryProofReply, serverCardReply, type McpMetadataReply } from './mcp-metadata.ts'
+import registryProof from './mcp-registry-proof.json' with { type: 'json' }
 import { erc20Abi } from 'viem'
 import * as Cloudflare from 'alchemy/Cloudflare'
 import type { RuntimeContext } from 'alchemy/RuntimeContext'
@@ -199,6 +201,41 @@ export default class Api extends Cloudflare.Worker<Api>()(
         if (routed !== null) {
           boardId = routed[1] as string
           path = routed[2] ?? '/'
+        }
+
+        // Discovery is public static metadata; it must not depend on OAuth, signing or token RPC reads.
+        const isCard = path === '/mcp/server-card'
+        const isCatalog = url.pathname === '/.well-known/ai-catalog.json'
+        const isRegistryProof = url.pathname === '/.well-known/mcp-registry-auth'
+        if (isCard || isCatalog || isRegistryProof) {
+          if (request.method === 'OPTIONS')
+            return HttpServerResponse.empty({
+              status: 204,
+              headers: {
+                'access-control-allow-origin': '*',
+                'access-control-allow-methods': 'GET, HEAD, OPTIONS',
+                'access-control-allow-headers': 'Content-Type, If-None-Match',
+              },
+            })
+          if (request.method !== 'GET' && request.method !== 'HEAD')
+            return HttpServerResponse.text('method not allowed', {
+              status: 405,
+              headers: { allow: 'GET, HEAD, OPTIONS' },
+            })
+          if (isCard && boardId !== PUBLIC_BOARD_ID) {
+            yield* Effect.promise(() => migrateRegistry(sql))
+            const board = yield* Effect.promise(() => getBoard(sql, boardId))
+            if (board === undefined)
+              return HttpServerResponse.jsonUnsafe({ ok: false, code: 'not-found' }, { status: 404 })
+          }
+          const reply: McpMetadataReply = isCard
+            ? serverCardReply(url.origin, routed === null ? '' : `/b/${boardId}`, request.headers)
+            : isCatalog
+              ? catalogReply(url.origin, request.headers)
+              : registryProofReply(registryProof.proof)
+          return request.method === 'HEAD' || reply.status === 304
+            ? HttpServerResponse.empty({ status: reply.status, headers: reply.headers })
+            : HttpServerResponse.text(reply.body, { status: reply.status, headers: reply.headers })
         }
 
         const reads = rpcUrl === '' ? undefined : sdk.context(network, 'main', rpcUrl).publicClient

@@ -7,10 +7,11 @@ import { EventRpcError } from './webhooks.ts'
 import { renderedSkillManifests } from './generated/skills.ts'
 import { hiringTools, hiringResource, renderHiring } from './mcp-hiring.ts'
 import { docsResources, readDoc, searchDocs } from './mcp-docs.ts'
+import { MCP_LEGACY_PROTOCOL_VERSIONS, MCP_PROTOCOL_VERSION, MCP_SERVER_INFO } from './mcp-metadata.ts'
 
-const PROTOCOLS = ['2025-06-18', '2025-03-26', '2024-11-05'] as const
+const PROTOCOLS = MCP_LEGACY_PROTOCOL_VERSIONS
 export const MODERN_LANE = true
-const MODERN_VERSION = '2026-07-28'
+const MODERN_VERSION = MCP_PROTOCOL_VERSION
 
 export interface McpReply {
   readonly status: number
@@ -240,7 +241,7 @@ export async function mcpRoute(input: {
       instructions: connectorInstructions(origin),
       ttlMs: 0,
       cacheScope: 'private',
-      _meta: { 'io.modelcontextprotocol/serverInfo': { name: 'sidequest', version: '2.0.0' } },
+      _meta: { 'io.modelcontextprotocol/serverInfo': MCP_SERVER_INFO },
     })
   if (methodName === 'initialize') {
     return respond({
@@ -251,7 +252,7 @@ export async function mcpRoute(input: {
           ? (body.params as { protocolVersion: (typeof PROTOCOLS)[number] }).protocolVersion
           : PROTOCOLS[0],
       capabilities,
-      serverInfo: { name: 'sidequest', version: '2.0.0' },
+      serverInfo: MCP_SERVER_INFO,
       instructions: connectorInstructions(origin),
     })
   }

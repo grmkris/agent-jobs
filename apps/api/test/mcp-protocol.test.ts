@@ -69,7 +69,13 @@ describe('2026-07-28 MCP lane', () => {
       instructions: connectorInstructions(origin),
       ttlMs: 0,
       cacheScope: 'private',
-      _meta: { 'io.modelcontextprotocol/serverInfo': { name: 'sidequest', version: '2.0.0' } },
+      _meta: {
+        'io.modelcontextprotocol/serverInfo': {
+          name: 'exchange.sidequest/sidequest',
+          title: 'Sidequest',
+          version: '2.0.0',
+        },
+      },
     })
     expect(result(await route('server/discover'))).not.toHaveProperty('serverInfo')
   })
@@ -161,12 +167,12 @@ describe('2026-07-28 MCP lane', () => {
 })
 
 describe('legacy wire snapshots and rollback', () => {
-  // Captured pre-WS5 response shape; only the initialize events capability changes.
+  // Wire shape remains stable across lanes; canonical identity is shared with public discovery.
   it.each([true, false])('keeps initialize/tools responses byte-identical with modernLane=%s', async (modernLane) => {
     const initialize = {
       protocolVersion: '2025-03-26',
       capabilities: { tools: { listChanged: false }, prompts: {}, resources: {} },
-      serverInfo: { name: 'sidequest', version: '2.0.0' },
+      serverInfo: { name: 'exchange.sidequest/sidequest', title: 'Sidequest', version: '2.0.0' },
       instructions: connectorInstructions(origin),
     }
     const reply = await route('initialize', { protocolVersion: '2025-03-26' }, { modernLane })

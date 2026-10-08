@@ -1,5 +1,12 @@
 import { expect, test } from 'bun:test'
 import { smoke } from './smoke.ts'
+import {
+  catalogReply,
+  serverCardReply,
+  registryProofReply,
+  type McpMetadataReply,
+} from '../../apps/api/src/mcp-metadata.ts'
+import registryProof from '../../apps/api/src/mcp-registry-proof.json' with { type: 'json' }
 
 const origin = 'https://dev.sidequest.exchange'
 const NOW = 1_791_400_000_000
@@ -25,6 +32,26 @@ const docsResponses = (): Record<string, (accept: string | null) => Response> =>
   '/docs/search.json': () => Response.json({ type: 'advanced' }),
   '/docs/not-a-page': () => new Response('not found', { status: 404 }),
 })
+
+const metadataReplies: Record<string, (headers: Record<string, string>) => McpMetadataReply> = {
+  '/mcp/server-card': (headers) => serverCardReply(origin, '', headers),
+  '/b/public/mcp/server-card': (headers) => serverCardReply(origin, '/b/public', headers),
+  '/.well-known/ai-catalog.json': (headers) => catalogReply(origin, headers),
+  '/.well-known/mcp-registry-auth': () => registryProofReply(registryProof.proof),
+}
+
+const metadataFixture = (
+  pathname: string,
+  init: RequestInit | undefined,
+  badPath: string | undefined,
+  override: object | undefined,
+) => {
+  const reply = metadataReplies[pathname]?.(Object.fromEntries(new Headers(init?.headers)))
+  if (reply === undefined) return undefined
+  if (pathname === badPath) return Response.json(override)
+  return new Response(reply.status === 304 ? null : reply.body, { status: reply.status, headers: reply.headers })
+}
+
 const transport = (
   badPath?: string,
   override?: object,
@@ -35,6 +62,10 @@ const transport = (
     const pathname = new URL(String(input)).pathname
     const doc = docs[pathname]
     if (doc !== undefined) return doc(new Headers(init?.headers).get('accept'))
+    if (pathname === '/icons/icon-512.png')
+      return new Response(new Uint8Array([137, 80, 78, 71]), { headers: { 'content-type': 'image/png' } })
+    const metadata = metadataFixture(pathname, init, badPath, override)
+    if (metadata !== undefined) return metadata
     if (pathname === '/mcp') {
       expect(init?.method).toBe('POST')
       const request = JSON.parse(String(init?.body)) as { method: string }
@@ -60,6 +91,16 @@ test('smoke checks both anonymous method-specific MCP requests', async () => {
   const fake = transport()
   await smoke('dev', fake.fetcher, () => NOW)
   expect(fake.methods).toEqual(['initialize', 'tools/list'])
+})
+
+test('smoke rejects cards replaced by HTML, invalid catalog and missing public proof', async () => {
+  for (const [path, message] of [
+    ['/mcp/server-card', 'MCP Server Card missing'],
+    ['/b/public/mcp/server-card', 'MCP Server Card missing'],
+    ['/.well-known/ai-catalog.json', 'AI Catalog missing'],
+    ['/.well-known/mcp-registry-auth', 'MCP Registry public proof missing'],
+  ] as const)
+    expect(await failure(smoke('dev', transport(path, {}).fetcher, () => NOW))).toBe(message)
 })
 
 test('smoke refuses an unexpected runtime, closed writes, foreign issuer or missing bearer challenge', async () => {

@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import { resolve } from 'node:path'
+import { serverCard, catalogReply } from '../../apps/api/src/mcp-metadata.ts'
 
 type Stage = 'dev' | 'prod'
 interface StageFile {
@@ -97,6 +98,49 @@ const smokeDocs = async (origin: string, fetcher: typeof fetch): Promise<void> =
   await checkDocsIndexes(origin, get)
 }
 
+type MetadataGet = (path: string, headers?: Record<string, string>) => Promise<Response>
+
+const smokeCard = async (origin: string, prefix: string, get: MetadataGet): Promise<void> => {
+  const card = await get(`${prefix}/mcp/server-card`, { accept: 'application/mcp-server-card+json' })
+  if (card.status !== 200 || !startsWith(card, 'application/mcp-server-card+json'))
+    throw new Error('MCP Server Card missing')
+  if (JSON.stringify(await body(card)) !== JSON.stringify(serverCard(origin, prefix)))
+    throw new Error('MCP Server Card metadata mismatch')
+  const etag = card.headers.get('etag')
+  if (
+    etag === null ||
+    card.headers.get('access-control-allow-origin') !== '*' ||
+    card.headers.get('cache-control') !== 'public, max-age=3600'
+  )
+    throw new Error('MCP Server Card cache or CORS mismatch')
+  const cached = await get(`${prefix}/mcp/server-card`, { 'if-none-match': etag })
+  await cached.body?.cancel()
+  if (cached.status !== 304) throw new Error('MCP Server Card revalidation mismatch')
+}
+
+/** Discovery must be real public metadata, rather than a successful HTML SPA fallback. */
+const smokeMcpMetadata = async (origin: string, fetcher: typeof fetch): Promise<void> => {
+  const get: MetadataGet = (path, headers) =>
+    fetcher(new URL(path, origin), {
+      redirect: 'error',
+      signal: AbortSignal.timeout(20_000),
+      ...(headers === undefined ? {} : { headers }),
+    })
+  for (const prefix of ['', '/b/public']) await smokeCard(origin, prefix, get)
+  const catalog = await get('/.well-known/ai-catalog.json')
+  if (catalog.status !== 200 || !startsWith(catalog, 'application/ai-catalog+json'))
+    throw new Error('AI Catalog missing')
+  if (JSON.stringify(await body(catalog)) !== catalogReply(origin, {}).body)
+    throw new Error('AI Catalog metadata mismatch')
+  const proof = await get('/.well-known/mcp-registry-auth')
+  if (proof.status !== 200 || !/^v=MCPv1; k=ed25519; p=[A-Za-z0-9+/]{43}=\n$/.test(await proof.text()))
+    throw new Error('MCP Registry public proof missing')
+  const icon = await get('/icons/icon-512.png')
+  const bytes = new Uint8Array(await icon.arrayBuffer())
+  if (icon.status !== 200 || !startsWith(icon, 'image/png') || bytes[0] !== 137 || bytes[1] !== 80)
+    throw new Error('MCP icon missing')
+}
+
 export const smoke = async (
   stage: Stage,
   fetcher: typeof fetch = fetch,
@@ -159,6 +203,7 @@ export const smoke = async (
     throw new Error('indexer checkpoint missing')
   const age = Math.floor(now() / 1000) - updatedAt
   if (age > INDEX_MAX_AGE_SECONDS) throw new Error(`indexer checkpoint is ${age} s old`)
+  await smokeMcpMetadata(infra.origin, fetcher)
   await smokeDocs(infra.origin, fetcher)
   console.log(`ok ${stage} ${infra.origin}`)
 }

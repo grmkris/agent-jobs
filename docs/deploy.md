@@ -96,6 +96,32 @@ resources, or drop schema to roll back. Applied migrations remain additive; inco
 forward correction. After deployment, run smoke and drift and record new receipts. Public readback alone does not prove
 authenticated host or money-moving acceptance.
 
+## MCP discovery and registry publication
+
+[`server.json`](../server.json) is the official registry manifest for `exchange.sidequest/sidequest`. It advertises only
+`https://sidequest.exchange/mcp`. The API's shared metadata keeps its identity aligned with runtime discovery and the
+public/tenant Server Cards. Explore routes these requests to the API; the domain AI Catalog lists only the public card.
+`bun run smoke <stage>` checks the cards, media types, CORS, cache validators, catalog, public proof and icon, alongside
+OAuth discovery and anonymous authentication refusal. These checks do not prove authenticated host use.
+
+The HTTPS namespace proof is served at `/.well-known/mcp-registry-auth`. Only the Ed25519 public key is checked in at
+`apps/api/src/mcp-registry-proof.json`. The private 32-byte seed is stored as `MCP_REGISTRY_PRIVATE_SEED` in mode-600
+`~/.config/sidequest/mcp-registry.env`; it is never bound to a Worker. Keep the existing key for repeat publication.
+
+Before an authorized publication, validate `server.json` with the official `mcp-publisher validate server.json`, accept
+the exact dev SHA, promote it to prod, and verify prod smoke/drift plus the public proof. Check the registry's exact
+name/version before a retry: an already matching active entry needs no write, and a conflicting entry needs review.
+Authenticate using the registry's HTTP proof flow, signing the current RFC3339 timestamp with Ed25519 and exchanging it
+at `/v0.1/auth/http`. Keep the seed and returned token in process memory, out of command arguments and logs. Publish the
+manifest to `/v0.1/publish`, then read `/v0.1/servers/exchange.sidequest%2Fsidequest/versions/2.0.0` and record the public
+entry, active status and production endpoint. Record sanitized receipts in `docs/evidence/mcp-metadata/` and link them
+from the reality check.
+
+Server Cards follow the official [extension schema](https://github.com/modelcontextprotocol/ext-server-card). Their
+schema URI is the specification's versioned `https://static.modelcontextprotocol.io/schemas/v1/server-card.schema.json`.
+If that static URL is unavailable, validate against the extension schema at a recorded commit with URI formats enabled;
+do not silently substitute the registry schema for a card.
+
 ## Troubleshooting
 
 | Symptom | Cause or evidence | Resolution |

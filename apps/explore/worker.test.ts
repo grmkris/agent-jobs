@@ -60,6 +60,17 @@ describe('explore worker routing', () => {
     expect(e.api).toEqual(['/x402/demo'])
   })
 
+  it('proxies public and tenant MCP cards instead of the SPA, without swallowing similar page paths', async () => {
+    const e = env()
+    for (const path of ['/mcp/server-card', '/b/monad-pet/mcp/server-card']) {
+      expect(isApiPath(path)).toBe(true)
+      expect((await get(path, e)).headers.get('content-type')).toBe('application/json')
+    }
+    expect(e.api).toEqual(['/mcp/server-card', '/b/monad-pet/mcp/server-card'])
+    expect(isApiPath('/mcp/server-card-extra')).toBe(false)
+    expect(isApiPath('/b/monad-pet/mcp/server-card-extra')).toBe(false)
+  })
+
   it("serves a board's pages from the app", () => {
     for (const p of [
       '/b/monad-pet',

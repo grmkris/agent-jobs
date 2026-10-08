@@ -62,6 +62,38 @@ test(
 )
 
 test(
+  'public and board metadata works through real workerd without MCP authentication',
+  Effect.gen(function* () {
+    const { apiUrl } = yield* stack
+    for (const path of ['/mcp/server-card', '/b/public/mcp/server-card']) {
+      const response = yield* HttpClient.get(`${apiUrl}${path}`)
+      expect(response.status).toBe(200)
+      expect(response.headers['content-type']).toBe('application/mcp-server-card+json')
+      expect(response.headers['access-control-allow-origin']).toBe('*')
+      expect(yield* response.json).toMatchObject({
+        name: 'exchange.sidequest/sidequest',
+        version: '2.0.0',
+        remotes: [{ url: `${apiUrl}${path.slice(0, -'/server-card'.length)}` }],
+      })
+      const cached = yield* HttpClient.get(`${apiUrl}${path}`, { headers: { 'if-none-match': response.headers.etag! } })
+      expect(cached.status).toBe(304)
+      const head = yield* HttpClient.head(`${apiUrl}${path}`)
+      expect(head.status).toBe(200)
+    }
+    const missing = yield* HttpClient.get(`${apiUrl}/b/no-such-board/mcp/server-card`)
+    expect(missing.status).toBe(404)
+    const post = yield* postJson(`${apiUrl}/mcp/server-card`, {})
+    expect(post.status).toBe(405)
+    const catalog = yield* HttpClient.get(`${apiUrl}/.well-known/ai-catalog.json`)
+    expect(catalog.status).toBe(200)
+    expect(catalog.headers['content-type']).toBe('application/ai-catalog+json')
+    const proof = yield* HttpClient.get(`${apiUrl}/.well-known/mcp-registry-auth`)
+    expect(proof.status).toBe(200)
+    expect(yield* proof.text).toMatch(/^v=MCPv1; k=ed25519; p=[A-Za-z0-9+/]{43}=\n$/)
+  }),
+)
+
+test(
   'there is no unauthenticated manifest write (the S0 PUT is gone)',
   Effect.gen(function* () {
     const { apiUrl } = yield* stack
@@ -186,6 +218,10 @@ test.skipIf(!rpcSet)(
     expect(created.ok).toBe(true)
     expect(created.result.board.owner).toBe(account.address)
     expect(created.result.board.tokens.map((t) => t.symbol)).toEqual(['mUSD'])
+    const card = yield* HttpClient.get(`${apiUrl}/b/${slug}/mcp/server-card`)
+    expect(card.status).toBe(200)
+    expect(card.headers['access-control-allow-origin']).toBe('*')
+    expect(yield* card.json).toMatchObject({ remotes: [{ url: `${apiUrl}/b/${slug}/mcp` }] })
     const info = yield* postJson(`${apiUrl}/b/${slug}/api/protocol_info`, {}, { origin: 'https://host.example' })
     expect(info.status).toBe(200)
     expect(info.headers['access-control-allow-origin']).toBe('https://host.example')

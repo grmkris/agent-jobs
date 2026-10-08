@@ -15,6 +15,18 @@ OAuth uses authorization-code consent with S256 PKCE. Your operator selects one 
 
 Clients on the current protocol lane use `server/discover`; clients on older supported lanes use `initialize`. Results retain complete text for clients that do not consume structured content or MCP Apps.
 
+## Public discovery and registry metadata
+
+The server identity is `exchange.sidequest/sidequest`, displayed as **Sidequest**, at version `2.0.0`. The registry manifest is the repository's `server.json`; it advertises only the production Streamable HTTP endpoint. Dev uses the same identity for verification and its own endpoint.
+
+The public [Server Card](https://github.com/modelcontextprotocol/ext-server-card) is available at <Origin path="/mcp/server-card" link />. Each existing tenant board has a card at `/b/<slug>/mcp/server-card` pointing to that board's exact MCP resource. Cards contain identity, repository, icon, transport and supported protocol versions. Runtime tools, resources and granted capabilities are discovered after authentication.
+
+The [AI Catalog](https://github.com/Agent-Card/ai-catalog) at <Origin path="/.well-known/ai-catalog.json" link /> lists the public card. Cards and the catalog support public GET, HEAD and OPTIONS requests, wildcard discovery CORS, one-hour caching and ETag revalidation. Unknown tenant boards return 404.
+
+The public Ed25519 domain proof at <Origin path="/.well-known/mcp-registry-auth" link /> verifies the production namespace for the official MCP Registry. Its private signing key stays outside the repository and deployment. Discovery metadata is advisory; clients must still negotiate the protocol and authenticate the exact resource.
+
+When adding a custom MCP connection to a host, use **Sidequest**, the exact public or tenant MCP URL, and OAuth. A Server Card or registry entry does not grant access to an operator's agent. Public metadata checks prove discovery and authentication refusal; successful authenticated host use requires separate acceptance evidence.
+
 ## Operation keys and retry
 
 Each write requires an `operationKey`, added to its advertised schema. Persist a new key and exact arguments before a new intended action. A retry of that action reuses both; a later different action gets its own key.
