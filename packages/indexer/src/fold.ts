@@ -6,6 +6,11 @@ import { type Contracts, type IndexedEvent } from './events.ts'
 import { type Statement, DERIVED_TABLES, stmt } from './store.ts'
 import { hexToString, type Hex } from 'viem'
 
+const BOND_OUTCOMES: Record<string, string> = {
+  BondReleased: 'returned',
+  BondSlashed: 'burned',
+  BondForfeited: 'forfeited',
+}
 const SIDES = ['creator', 'worker'] as const
 const VIOLATIONS = ['None', 'Quality', 'Falsified'] as const
 const SETTLEMENT_OUTCOMES = ['None', 'Paid', 'Refunded'] as const
@@ -288,6 +293,7 @@ export function foldJob(
         break
       case 'BondReleased':
       case 'BondSlashed':
+      case 'BondForfeited':
         out.push(
           stmt(
             'INSERT INTO bond_outcomes (chain_id, job_id, block, log_index, side, outcome, recipient, amount, tx_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
@@ -295,9 +301,9 @@ export function foldJob(
             jobId,
             e.block,
             e.logIndex,
-            SIDES[Number(a.side)] ?? String(a.side),
-            e.name === 'BondSlashed' ? 'burned' : 'returned',
-            a.account as string,
+            e.name === 'BondForfeited' ? 'creator' : (SIDES[Number(a.side)] ?? String(a.side)),
+            BOND_OUTCOMES[e.name]!,
+            (e.name === 'BondForfeited' ? a.treasury : a.account) as string,
             a.amount as string,
             e.txHash,
           ),

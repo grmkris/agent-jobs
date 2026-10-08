@@ -207,6 +207,38 @@ async function snapshot(sql: AsyncSql) {
 }
 
 describe('Sidequest event indexing', () => {
+  it('replays unfilled bond forfeitures without including them in success fees or mining accounting', async () => {
+    const sql = await db()
+    const paid = log(
+      holding,
+      addr(2),
+      'BondForfeited',
+      { jobId: 1000n, creator, treasury: addr(9), amount: 25n },
+      100,
+      1,
+    )
+    expect(decode(contracts, paid)).toMatchObject({
+      jobId: '1000',
+      name: 'BondForfeited',
+      args: { amount: 25n.toString(), treasury: addr(9) },
+    })
+    await runOnce(sql, cfg([published(), paid]))
+    const detail = await jobDetail(sql, contracts.chainId, '1000', 0)
+    expect(detail?.timeline.filter((event) => event.name === 'BondForfeited')).toHaveLength(1)
+    expect(detail?.bonds).toEqual([
+      expect.objectContaining({ side: 'creator', outcome: 'forfeited', recipient: addr(9), amount: '25' }),
+    ])
+    expect(detail?.fees).toEqual([])
+    expect(detail?.job.charged_fee).toBe('0')
+    expect(await sql.all('SELECT * FROM fee_charges')).toEqual([])
+    expect(await protocolEvents(sql, contracts.chainId)).toEqual([])
+    const before = await snapshot(sql)
+    const accounting = (await networkStats(sql, contracts.chainId)).accounting
+    await sql.batch([stmt('UPDATE checkpoint SET next_block = 100, block_hash = NULL')])
+    await runOnce(sql, cfg([published(), paid, paid], 1))
+    expect(await snapshot(sql)).toEqual(before)
+    expect((await networkStats(sql, contracts.chainId)).accounting).toEqual(accounting)
+  })
   it('uses the emitted release after a late penalty finding instead of the evaluator outcome', async () => {
     const sql = await db()
     const late = [
