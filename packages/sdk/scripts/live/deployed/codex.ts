@@ -121,7 +121,9 @@ export class CodingClient {
     const child = spawn('codex', args, {
       env: this.env,
       cwd: this.workdir,
-      stdio: ['pipe', 'pipe', 'pipe'],
+      // exec appends piped stdin to the prompt and waits for EOF. Only OAuth
+      // login needs writable input; observed exec calls still need EOF.
+      stdio: [args[0] === 'exec' ? 'ignore' : 'pipe', 'pipe', 'pipe'],
       detached: true,
     })
     let stdout = ''
@@ -137,27 +139,27 @@ export class CodingClient {
         }
       }
     }
-    child.stdout.on('data', (chunk) => {
+    child.stdout?.on('data', (chunk) => {
       stdout += String(chunk)
       writeFileSync(path, JSON.stringify({ stream: 'stdout', bytes: Buffer.byteLength(stdout) }), {
         mode: 0o600,
       })
       if (observe !== undefined)
         observation = observation
-          .then(() => observe(stdout, (text) => child.stdin.write(text), kill))
+          .then(() => observe(stdout, (text) => child.stdin?.write(text), kill))
           .catch((error) => {
             observationError = error
             kill()
           })
     })
-    child.stderr.on('data', (chunk) => {
+    child.stderr?.on('data', (chunk) => {
       stderr += String(chunk)
       writeFileSync(`${path}.stderr`, JSON.stringify({ stream: 'stderr', bytes: Buffer.byteLength(stderr) }), {
         mode: 0o600,
       })
       if (observe !== undefined)
         observation = observation
-          .then(() => observe(`${stdout}\n${stderr}`, (text) => child.stdin.write(text), kill))
+          .then(() => observe(`${stdout}\n${stderr}`, (text) => child.stdin?.write(text), kill))
           .catch((error) => {
             observationError = error
             kill()
@@ -178,7 +180,8 @@ export class CodingClient {
     try {
       const code = await new Promise<number | null>((resolve, reject) => {
         child.once('error', reject)
-        child.once('exit', resolve)
+        // Drain both streams before parsing completed MCP events.
+        child.once('close', resolve)
       })
       await observation
       if (observationError !== undefined) throw observationError
@@ -245,7 +248,17 @@ export class CodingClient {
     this.run.freeze(`mcp-intent/${label}`, { name, args })
     const prompt = `You are a bounded acceptance client. Call only the sidequest MCP tool ${name} exactly once with these exact JSON arguments: ${JSON.stringify(args)}. Do not execute shell commands, search the web, edit files, schedule work, call other tools, or add arguments. Return the tool result; do not claim completion from your own prose. If the call fails, stop. Never alter a brief or spend to work around a refusal.`
     const output = await this.#process(
-      ['exec', '--json', '--ephemeral', '--skip-git-repo-check', '--sandbox', 'read-only', prompt],
+      [
+        'exec',
+        '-c',
+        'mcp_servers.sidequest.required=true',
+        '--json',
+        '--ephemeral',
+        '--skip-git-repo-check',
+        '--sandbox',
+        'read-only',
+        prompt,
+      ],
       label,
     )
     const result = toolResult(output, name, args)
@@ -292,6 +305,8 @@ export class CodingClient {
       await this.#process(
         [
           'exec',
+          '-c',
+          'mcp_servers.sidequest.required=true',
           '--json',
           '--ephemeral',
           '--skip-git-repo-check',
