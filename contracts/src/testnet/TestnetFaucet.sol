@@ -33,9 +33,13 @@ contract TestnetFaucet is Ownable {
     error FaucetEmpty(uint256 balance);
     error MainnetRefused();
 
-    constructor(address owner_, IERC20 stakeToken_, address[] memory paymentTokens_, uint256 stakeAmount_, uint256 paymentAmount_)
-        Ownable(owner_)
-    {
+    constructor(
+        address owner_,
+        IERC20 stakeToken_,
+        address[] memory paymentTokens_,
+        uint256 stakeAmount_,
+        uint256 paymentAmount_
+    ) Ownable(owner_) {
         if (block.chainid == 143) revert MainnetRefused();
         stakeToken = stakeToken_;
         _paymentTokens = paymentTokens_;

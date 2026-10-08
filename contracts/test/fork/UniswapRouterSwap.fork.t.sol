@@ -57,11 +57,16 @@ contract UniswapRouterSwapForkTest is Test {
     address constant PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
     address buyer = makeAddr("buyer");
 
-    function _swap(address router, PoolKey memory key, bool zeroForOne, uint128 amountIn, uint128 minOut, bytes memory single)
-        internal
-        returns (bool ok)
-    {
-        (address currencyIn, address currencyOut) = zeroForOne ? (key.currency0, key.currency1) : (key.currency1, key.currency0);
+    function _swap(
+        address router,
+        PoolKey memory key,
+        bool zeroForOne,
+        uint128 amountIn,
+        uint128 minOut,
+        bytes memory single
+    ) internal returns (bool ok) {
+        (address currencyIn, address currencyOut) =
+            zeroForOne ? (key.currency0, key.currency1) : (key.currency1, key.currency0);
         bytes[] memory params = new bytes[](3);
         params[0] = single;
         params[1] = abi.encode(currencyIn, uint256(amountIn));
@@ -75,8 +80,12 @@ contract UniswapRouterSwapForkTest is Test {
         vm.stopPrank();
     }
 
-    function _quote(address quoter, PoolKey memory key, bool zeroForOne, uint128 amountIn) internal returns (uint256 out) {
-        (out,) = IV4Quoter(quoter).quoteExactInputSingle(IV4Quoter.QuoteExactSingleParams(key, zeroForOne, amountIn, ""));
+    function _quote(address quoter, PoolKey memory key, bool zeroForOne, uint128 amountIn)
+        internal
+        returns (uint256 out)
+    {
+        (out,) = IV4Quoter(quoter)
+            .quoteExactInputSingle(IV4Quoter.QuoteExactSingleParams(key, zeroForOne, amountIn, ""));
     }
 
     /// @dev The live seeded SIDE/mUSD pool (position #78) through the testnet router: only the min-hop layout works.
@@ -99,7 +108,14 @@ contract UniswapRouterSwapForkTest is Test {
             "the original layout is refused"
         );
         assertTrue(
-            _swap(router, key, zeroForOne, 2e6, uint128(quoted), abi.encode(ExactInputSingleMinHop(key, zeroForOne, 2e6, uint128(quoted), 0, "")))
+            _swap(
+                router,
+                key,
+                zeroForOne,
+                2e6,
+                uint128(quoted),
+                abi.encode(ExactInputSingleMinHop(key, zeroForOne, 2e6, uint128(quoted), 0, ""))
+            )
         );
         assertEq(IERC20(side).balanceOf(buyer), quoted);
         assertEq(IERC20(usd).balanceOf(buyer), 8e6);
@@ -147,14 +163,32 @@ contract UniswapRouterSwapForkTest is Test {
         assertGt(quoted, 19_500e18);
         assertLt(quoted, 19_940e18);
         assertFalse(
-            _swap(router, p.key, zeroForOne, 2e6, 1, abi.encode(ExactInputSingleMinHop(p.key, zeroForOne, 2e6, 1, 0, ""))),
+            _swap(
+                router, p.key, zeroForOne, 2e6, 1, abi.encode(ExactInputSingleMinHop(p.key, zeroForOne, 2e6, 1, 0, ""))
+            ),
             "the min-hop layout is refused"
         );
         assertFalse(
-            _swap(router, p.key, zeroForOne, 2e6, uint128(quoted + 1), abi.encode(ExactInputSingle(p.key, zeroForOne, 2e6, uint128(quoted + 1), ""))),
+            _swap(
+                router,
+                p.key,
+                zeroForOne,
+                2e6,
+                uint128(quoted + 1),
+                abi.encode(ExactInputSingle(p.key, zeroForOne, 2e6, uint128(quoted + 1), ""))
+            ),
             "minOut above the quote is refused"
         );
-        assertTrue(_swap(router, p.key, zeroForOne, 2e6, uint128(quoted), abi.encode(ExactInputSingle(p.key, zeroForOne, 2e6, uint128(quoted), ""))));
+        assertTrue(
+            _swap(
+                router,
+                p.key,
+                zeroForOne,
+                2e6,
+                uint128(quoted),
+                abi.encode(ExactInputSingle(p.key, zeroForOne, 2e6, uint128(quoted), ""))
+            )
+        );
         assertEq(side.balanceOf(buyer), quoted);
         assertEq(IERC20(usdc).balanceOf(buyer), 8e6);
     }

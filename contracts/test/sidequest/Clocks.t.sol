@@ -21,10 +21,9 @@ contract ClocksTest is BaseV1 {
         if (which == 0) return address(new StakeVault(factory, c));
         if (which == 1) return address(new FeeSchedule(defaultSchedule(treasury), c));
         if (which == 2) {
-            return
-                address(
-                    new SidequestHolding(core, vault, fees, IERC8004Identity(address(identity)), arbitrator, MARGIN, c)
-                );
+            return address(
+                new SidequestHolding(core, vault, fees, IERC8004Identity(address(identity)), arbitrator, MARGIN, c)
+            );
         }
         if (which == 3) return address(new MiningReserve(factory, address(holding), 1, c));
         return address(new EpochDistributor(factory, vault, 1, c));

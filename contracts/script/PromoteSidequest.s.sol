@@ -33,7 +33,8 @@ contract PromoteSidequest is Script {
             return;
         }
         SidequestVerify.verify(c, d);
-        (uint256 coreBlock, uint256 sidequestBlock) = SidequestVerify.blocks(vm, SidequestVerify.runPath(vm, chainId), d);
+        (uint256 coreBlock, uint256 sidequestBlock) =
+            SidequestVerify.blocks(vm, SidequestVerify.runPath(vm, chainId), d);
         SidequestOutput.write(vm, path, d, safe, coreBlock, sidequestBlock);
         console2.log("promoted:", path);
         console2.log("sidequest.block", sidequestBlock);

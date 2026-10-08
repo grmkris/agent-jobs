@@ -98,10 +98,12 @@ contract ERC8183WithAuthorization is ERC8183 {
         emit AuthorizationCanceled(msg.sender, packedNonce);
     }
 
-    function createJobWithAuthorization(
-        CreateJobAuthorizationParams calldata params,
-        Authorization calldata auth
-    ) external whenNotPaused nonReentrant returns (uint256) {
+    function createJobWithAuthorization(CreateJobAuthorizationParams calldata params, Authorization calldata auth)
+        external
+        whenNotPaused
+        nonReentrant
+        returns (uint256)
+    {
         _verifyAuthorization(
             auth.signer,
             auth.nonce,
@@ -133,11 +135,11 @@ contract ERC8183WithAuthorization is ERC8183 {
         );
     }
 
-    function setPayoutReceiverWithAuthorization(
-        uint256 jobId,
-        address payoutReceiver,
-        Authorization calldata auth
-    ) external whenNotPaused nonReentrant {
+    function setPayoutReceiverWithAuthorization(uint256 jobId, address payoutReceiver, Authorization calldata auth)
+        external
+        whenNotPaused
+        nonReentrant
+    {
         _verifyAuthorization(
             auth.signer,
             auth.nonce,
@@ -168,7 +170,15 @@ contract ERC8183WithAuthorization is ERC8183 {
             auth.nonce,
             auth.deadline,
             keccak256(
-                abi.encode(SET_PROVIDER_AUTHORIZATION_TYPEHASH, auth.signer, jobId, provider_, agentId, auth.nonce, auth.deadline)
+                abi.encode(
+                    SET_PROVIDER_AUTHORIZATION_TYPEHASH,
+                    auth.signer,
+                    jobId,
+                    provider_,
+                    agentId,
+                    auth.nonce,
+                    auth.deadline
+                )
             ),
             auth.sig
         );
@@ -242,7 +252,15 @@ contract ERC8183WithAuthorization is ERC8183 {
             auth.nonce,
             auth.deadline,
             keccak256(
-                abi.encode(SUBMIT_AUTHORIZATION_TYPEHASH, auth.signer, jobId, deliverable, keccak256(optParams), auth.nonce, auth.deadline)
+                abi.encode(
+                    SUBMIT_AUTHORIZATION_TYPEHASH,
+                    auth.signer,
+                    jobId,
+                    deliverable,
+                    keccak256(optParams),
+                    auth.nonce,
+                    auth.deadline
+                )
             ),
             auth.sig
         );
@@ -261,7 +279,16 @@ contract ERC8183WithAuthorization is ERC8183 {
             auth.nonce,
             auth.deadline,
             keccak256(
-                abi.encode(COMPLETE_AUTHORIZATION_TYPEHASH, auth.signer, jobId, submittedAt, reason, keccak256(optParams), auth.nonce, auth.deadline)
+                abi.encode(
+                    COMPLETE_AUTHORIZATION_TYPEHASH,
+                    auth.signer,
+                    jobId,
+                    submittedAt,
+                    reason,
+                    keccak256(optParams),
+                    auth.nonce,
+                    auth.deadline
+                )
             ),
             auth.sig
         );
@@ -280,7 +307,16 @@ contract ERC8183WithAuthorization is ERC8183 {
             auth.nonce,
             auth.deadline,
             keccak256(
-                abi.encode(REJECT_AUTHORIZATION_TYPEHASH, auth.signer, jobId, submittedAt, reason, keccak256(optParams), auth.nonce, auth.deadline)
+                abi.encode(
+                    REJECT_AUTHORIZATION_TYPEHASH,
+                    auth.signer,
+                    jobId,
+                    submittedAt,
+                    reason,
+                    keccak256(optParams),
+                    auth.nonce,
+                    auth.deadline
+                )
             ),
             auth.sig
         );

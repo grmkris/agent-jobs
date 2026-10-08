@@ -39,7 +39,9 @@ contract MockReputation {
             while (true) {}
         }
         if (mode == Mode.Expensive) {
-            for (uint256 i = 0; i < 6; i++) sink[uint256(keccak256(abi.encode(calls, i)))] = i + 1;
+            for (uint256 i = 0; i < 6; i++) {
+                sink[uint256(keccak256(abi.encode(calls, i)))] = i + 1;
+            }
         }
         calls++;
         lastAgentId = agentId;

@@ -512,9 +512,8 @@ contract SidequestEvaluatorTest is BaseV1 {
     }
 
     function _relayRuling(uint256 jobId, bool forWorker, bool slashLoser, uint256 nonce) internal {
-        ISidequestEvaluator.Ruling memory r = ISidequestEvaluator.Ruling(
-            jobId, forWorker, slashLoser, REASON, vm.getBlockTimestamp() + 1 hours, nonce
-        );
+        ISidequestEvaluator.Ruling memory r =
+            ISidequestEvaluator.Ruling(jobId, forWorker, slashLoser, REASON, vm.getBlockTimestamp() + 1 hours, nonce);
         bytes memory sig = signRuling(arbitratorPk, r);
         vm.prank(relayer);
         evaluator.ruleWithSignature{gas: DECISION_GAS}(r, sig);

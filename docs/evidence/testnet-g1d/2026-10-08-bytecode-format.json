@@ -1,0 +1,315 @@
+{
+  "sourceCommit": "fb5d2696021cccd86fd5cd9b207fb6e20ae21c79",
+  "workingTreeHead": "faf30f1929129e2121e97cb2087abf34fc5e194b",
+  "observedAt": "2026-10-08T15:18:34Z",
+  "compiler": "Solc 0.8.28",
+  "formatCommand": "forge fmt",
+  "rebuildCommand": "heavy forge build --force",
+  "bytecodeHashCommand": "bin/bytecode.sh (forge inspect SHA256 prefixes)",
+  "formattedFiles": [
+    "contracts/script/PromoteSidequest.s.sol",
+    "contracts/src/testnet/TestnetFaucet.sol",
+    "contracts/src/vendor/erc8183/ERC8183.sol",
+    "contracts/src/vendor/erc8183/ERC8183WithAuthorization.sol",
+    "contracts/test/fork/Erc8004RolesFork.t.sol",
+    "contracts/test/fork/UniswapRouterSwap.fork.t.sol",
+    "contracts/test/mocks/MockReputation.sol",
+    "contracts/test/sidequest/BondHorizon.t.sol",
+    "contracts/test/sidequest/Clocks.t.sol",
+    "contracts/test/sidequest/Invariants.t.sol",
+    "contracts/test/sidequest/SidequestEvaluator.t.sol"
+  ],
+  "bytecodeBefore": [
+    "MiningReserve bytecode fd1b561cc5b119f0",
+    "MiningReserve deployedBytecode 88c97f6cb034689f",
+    "EpochDistributor bytecode 0f833c3150413dd1",
+    "EpochDistributor deployedBytecode c072eee886859ca0",
+    "Factory bytecode d2be73d75e2cdc27",
+    "Factory deployedBytecode 2ad451461e519679",
+    "TestnetFaucet bytecode 8f61fcca147ab565",
+    "TestnetFaucet deployedBytecode 6c5c57ec5efae259",
+    "SidequestHolding bytecode 47644a55f24dce68",
+    "SidequestHolding deployedBytecode b065ae0a236fe0eb",
+    "SeedHelper bytecode b25f9e729b060e4d",
+    "SeedHelper deployedBytecode 7f8759e4416f22e3",
+    "StakeVault bytecode 73eec546a385c2dd",
+    "StakeVault deployedBytecode ee6348049b8b27ab",
+    "BlocklistUSD bytecode b103024036e44fa0",
+    "BlocklistUSD deployedBytecode 67da5cdf42676f01",
+    "GasBurnerUSD bytecode 48e19e69a138ab34",
+    "GasBurnerUSD deployedBytecode dff2a402493198e2",
+    "TeamVesting bytecode 3015e80fe3094fd3",
+    "TeamVesting deployedBytecode 211439c08be1f8b1",
+    "FeeSchedule bytecode 1416e8e4d589c1e0",
+    "FeeSchedule deployedBytecode 083305225a00cca7",
+    "MockPaymentToken bytecode 2c79b9f59721f98a",
+    "MockPaymentToken deployedBytecode 78c46e3ee3cc1250",
+    "SidequestEvaluator bytecode 244a2ae1bef6ee1c",
+    "SidequestEvaluator deployedBytecode 00665c06d52f7771"
+  ],
+  "bytecodeAfter": [
+    "MiningReserve bytecode fd1b561cc5b119f0",
+    "MiningReserve deployedBytecode 88c97f6cb034689f",
+    "EpochDistributor bytecode 0f833c3150413dd1",
+    "EpochDistributor deployedBytecode c072eee886859ca0",
+    "Factory bytecode d2be73d75e2cdc27",
+    "Factory deployedBytecode 2ad451461e519679",
+    "TestnetFaucet bytecode 8f61fcca147ab565",
+    "TestnetFaucet deployedBytecode 6c5c57ec5efae259",
+    "SidequestHolding bytecode 47644a55f24dce68",
+    "SidequestHolding deployedBytecode b065ae0a236fe0eb",
+    "SeedHelper bytecode b25f9e729b060e4d",
+    "SeedHelper deployedBytecode 7f8759e4416f22e3",
+    "StakeVault bytecode 73eec546a385c2dd",
+    "StakeVault deployedBytecode ee6348049b8b27ab",
+    "BlocklistUSD bytecode b103024036e44fa0",
+    "BlocklistUSD deployedBytecode 67da5cdf42676f01",
+    "GasBurnerUSD bytecode 48e19e69a138ab34",
+    "GasBurnerUSD deployedBytecode dff2a402493198e2",
+    "TeamVesting bytecode 3015e80fe3094fd3",
+    "TeamVesting deployedBytecode 211439c08be1f8b1",
+    "FeeSchedule bytecode 1416e8e4d589c1e0",
+    "FeeSchedule deployedBytecode 083305225a00cca7",
+    "MockPaymentToken bytecode 2c79b9f59721f98a",
+    "MockPaymentToken deployedBytecode 78c46e3ee3cc1250",
+    "SidequestEvaluator bytecode 244a2ae1bef6ee1c",
+    "SidequestEvaluator deployedBytecode 00665c06d52f7771"
+  ],
+  "identical": true,
+  "limits": [
+    "Creation/runtime artifact hashes prove formatting did not alter compiled artifacts; this is not independent deployed-bytecode verification."
+  ],
+  "allSourceContractArtifacts": [
+    {
+      "source": "src/vendor/erc8183/ERC8183.sol",
+      "contract": "ERC8183",
+      "bytecode": {
+        "sha256": "6dbfeaebd3c4a1d6b60ddb16a946835cf5bf1ea8e78cebde25ca88710c459457",
+        "bytes": 19923
+      },
+      "deployedBytecode": {
+        "sha256": "8ddf759b97c52be52d64bd6ffca2e8fbf4e890008c38d69e10d2e173aee10edf",
+        "bytes": 19692
+      }
+    },
+    {
+      "source": "src/vendor/erc8183/ERC8183WithAuthorization.sol",
+      "contract": "ERC8183WithAuthorization",
+      "bytecode": {
+        "sha256": "79ad5e426030a234b226747e9fda45e863dee76712ca91a46a03b4deef941a15",
+        "bytes": 26154
+      },
+      "deployedBytecode": {
+        "sha256": "56137fb14dfc3d415d822117fcdaddb8cd8748fad6c8086c9fb3d4e3821ad514",
+        "bytes": 25923
+      }
+    },
+    {
+      "source": "src/sidequest/EpochDistributor.sol",
+      "contract": "EpochDistributor",
+      "bytecode": {
+        "sha256": "043c28f42fce2e854eea40d28d6431e8fbcb7e4f38fbf7f0f9cc1a9cfe8b483b",
+        "bytes": 5778
+      },
+      "deployedBytecode": {
+        "sha256": "2d37c4aa8ac3a11530904a0cca09cf7cea1f8ede254b228f4dcef2afef0fee32",
+        "bytes": 3739
+      }
+    },
+    {
+      "source": "src/sidequest/Factory.sol",
+      "contract": "Factory",
+      "bytecode": {
+        "sha256": "a9fa8b5f3cc493119c29ce78eb291734f141906ca5666c124a4d583b078355b5",
+        "bytes": 5811
+      },
+      "deployedBytecode": {
+        "sha256": "f4b9e602fbdde34b8441a33bb99a4024d7cd118edeefeec3971196c2ebbe1c73",
+        "bytes": 3307
+      }
+    },
+    {
+      "source": "src/sidequest/FeeSchedule.sol",
+      "contract": "FeeSchedule",
+      "bytecode": {
+        "sha256": "42824ec6922f851a351b08f7cbff560cf5d38ba92e840b278e639229ef5dac7f",
+        "bytes": 5686
+      },
+      "deployedBytecode": {
+        "sha256": "68cba583c5510499d28a80007f4fbb1184c275a6c10946492ffdb67e557bd9c2",
+        "bytes": 3236
+      }
+    },
+    {
+      "source": "src/sidequest/MiningReserve.sol",
+      "contract": "MiningReserve",
+      "bytecode": {
+        "sha256": "c271af3db731f7d8a0fd0a50346cd95ccc468515c9f484e02ecf11024eac927e",
+        "bytes": 4418
+      },
+      "deployedBytecode": {
+        "sha256": "011d2ca6af8e80c4c1aa49a9fcc510855bae9e8faf273375e814c137200f56be",
+        "bytes": 2631
+      }
+    },
+    {
+      "source": "src/sidequest/MiningSchedule.sol",
+      "contract": "MiningSchedule",
+      "bytecode": {
+        "sha256": "ec13b0a8d6d846fa4356f2b3bbcd99fd2041032c3fe8325195afa8b760994b32",
+        "bytes": 44
+      },
+      "deployedBytecode": {
+        "sha256": "3972642afca88788137b9c432ec514e074e82c3b7939094e5c0e2a6d10dc33dd",
+        "bytes": 16
+      }
+    },
+    {
+      "source": "src/MockPaymentToken.sol",
+      "contract": "MockPaymentToken",
+      "bytecode": {
+        "sha256": "a00c7fd83f107427961c8e1cd9aa27284554e0eab4a7426470a87e77077d73cc",
+        "bytes": 2696
+      },
+      "deployedBytecode": {
+        "sha256": "f35da1c3eec52c37b01c23e9b8d1b5868df96c3401a8e3477a4d5813a4a7f632",
+        "bytes": 1789
+      }
+    },
+    {
+      "source": "src/testnet/OddTokens.sol",
+      "contract": "BlocklistUSD",
+      "bytecode": {
+        "sha256": "0c43de232e7f73f57b7fa009594a470e6ac237daedc9c36b68a146c49a95e020",
+        "bytes": 3339
+      },
+      "deployedBytecode": {
+        "sha256": "ae042c13950b4ec282d916e6b2b1edd48da1a7a1814aa957c25360db31e4740a",
+        "bytes": 2376
+      }
+    },
+    {
+      "source": "src/testnet/OddTokens.sol",
+      "contract": "GasBurnerUSD",
+      "bytecode": {
+        "sha256": "dbf738ff986701f1962aacca175ca42a5f2ea35bc33395105c20a2ad8565d5ae",
+        "bytes": 3509
+      },
+      "deployedBytecode": {
+        "sha256": "cbb46c39b4608fe78d5f62c0168443e7ab90752e2c16d57c07316e7fe0f16209",
+        "bytes": 2546
+      }
+    },
+    {
+      "source": "src/sidequest/SeedHelper.sol",
+      "contract": "SeedHelper",
+      "bytecode": {
+        "sha256": "9306b0890d17673d56215cea405c0d0493e5dc7d4c87a4653750df0709aed541",
+        "bytes": 9692
+      },
+      "deployedBytecode": {
+        "sha256": "9e9c1c0d1683c9b675fbe633f1c0a1a0afd1297c73c88d0551cb434a2941cdb3",
+        "bytes": 8069
+      }
+    },
+    {
+      "source": "src/sidequest/SidequestClocks.sol",
+      "contract": "SidequestClocks",
+      "bytecode": {
+        "sha256": "ec13b0a8d6d846fa4356f2b3bbcd99fd2041032c3fe8325195afa8b760994b32",
+        "bytes": 44
+      },
+      "deployedBytecode": {
+        "sha256": "3972642afca88788137b9c432ec514e074e82c3b7939094e5c0e2a6d10dc33dd",
+        "bytes": 16
+      }
+    },
+    {
+      "source": "src/sidequest/interfaces/SidequestConstants.sol",
+      "contract": "SidequestConstants",
+      "bytecode": {
+        "sha256": "ec13b0a8d6d846fa4356f2b3bbcd99fd2041032c3fe8325195afa8b760994b32",
+        "bytes": 44
+      },
+      "deployedBytecode": {
+        "sha256": "3972642afca88788137b9c432ec514e074e82c3b7939094e5c0e2a6d10dc33dd",
+        "bytes": 16
+      }
+    },
+    {
+      "source": "src/sidequest/SidequestEvaluator.sol",
+      "contract": "SidequestEvaluator",
+      "bytecode": {
+        "sha256": "f8440a76ff71839ddea46dd1a6d1b512bf447bcb280901e90f0a5fd812877fb6",
+        "bytes": 20629
+      },
+      "deployedBytecode": {
+        "sha256": "c557d6673747715d4f7751e61ef55f459ddd9fab9f70f8c3e3e63e08975debf4",
+        "bytes": 19050
+      }
+    },
+    {
+      "source": "src/sidequest/SidequestHolding.sol",
+      "contract": "SidequestHolding",
+      "bytecode": {
+        "sha256": "7975c0e012fead3c472ddef825aa839080e40709f88f79121a1466d88035251b",
+        "bytes": 21069
+      },
+      "deployedBytecode": {
+        "sha256": "4213c1a5c0b0365127f0620f58bafe360abb4fdf43116b7de476cac0c4acbbfb",
+        "bytes": 17992
+      }
+    },
+    {
+      "source": "src/Signatures.sol",
+      "contract": "Signatures",
+      "bytecode": {
+        "sha256": "ec13b0a8d6d846fa4356f2b3bbcd99fd2041032c3fe8325195afa8b760994b32",
+        "bytes": 44
+      },
+      "deployedBytecode": {
+        "sha256": "3972642afca88788137b9c432ec514e074e82c3b7939094e5c0e2a6d10dc33dd",
+        "bytes": 16
+      }
+    },
+    {
+      "source": "src/sidequest/StakeVault.sol",
+      "contract": "StakeVault",
+      "bytecode": {
+        "sha256": "056134c9ab945eb42e8005cab98a62cf9f05b4b141155985f99d16293587bc60",
+        "bytes": 9729
+      },
+      "deployedBytecode": {
+        "sha256": "3605b3f9d3b44769042e6295bc977b3e54ce2d25536f2618eac229eb7264ee96",
+        "bytes": 7988
+      }
+    },
+    {
+      "source": "src/sidequest/TeamVesting.sol",
+      "contract": "TeamVesting",
+      "bytecode": {
+        "sha256": "2077d3aa396e914d4b0259c687c5abb3577b3df1e508d8ae2536c1576914553f",
+        "bytes": 2691
+      },
+      "deployedBytecode": {
+        "sha256": "905034ddfe68111b70da431615020ecd884c9bdd18a292255836be10a9e2aea8",
+        "bytes": 2176
+      }
+    },
+    {
+      "source": "src/testnet/TestnetFaucet.sol",
+      "contract": "TestnetFaucet",
+      "bytecode": {
+        "sha256": "be8483158680169e12fd98ae35dafde19127118d0cdf6f69d639fe57abb6a0aa",
+        "bytes": 2582
+      },
+      "deployedBytecode": {
+        "sha256": "b0fa16a1399232914373d0c12391d89204233069ca746f20b245b845c3e5b3b4",
+        "bytes": 1905
+      }
+    }
+  ],
+  "allSourceContractArtifactsIdentical": true,
+  "beforeObservedAt": "2026-10-08T15:03:10Z",
+  "afterObservedAt": "2026-10-08T15:14:02Z"
+}

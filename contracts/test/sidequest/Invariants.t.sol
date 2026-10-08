@@ -249,7 +249,8 @@ contract SidequestHandler is Test {
         uint48 unlockAt = vault.positionOf(account, account).unlockAt;
         for (uint256 i; i < jobs.length; ++i) {
             ISidequestHolding.Listing memory l = env.holding().getListing(jobs[i]);
-            bool open = creatorSide ? l.creatorBond != 0 && !l.creatorBondSettled
+            bool open = creatorSide
+                ? l.creatorBond != 0 && !l.creatorBondSettled
                 : l.workerBond != 0 && l.workerBondReserved && !l.workerBondSettled;
             if (open && l.expiredAt > unlockAt) bondOutlastedExit = true;
         }

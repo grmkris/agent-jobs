@@ -47,7 +47,8 @@ contract BondHorizonTest is BaseV1 {
         ISidequestHolding.Selection memory sel = selectionFor(job, worker, AGENT_ID);
         bytes memory sig = signSelection(creatorPk, sel);
         (,, uint256 net) = holding.quoteActivation(job, worker);
-        ERC8183WithAuthorization.Authorization memory auth = budgetAuth(workerPk, worker, job, address(pay), net, uint72(job));
+        ERC8183WithAuthorization.Authorization memory auth =
+            budgetAuth(workerPk, worker, job, address(pay), net, uint72(job));
         vm.prank(worker);
         vm.expectRevert(abi.encodeWithSelector(ISidequestHolding.BondOutlastsUnbonding.selector, p.expiredAt, latest));
         holding.activate(sel, sig, auth);
