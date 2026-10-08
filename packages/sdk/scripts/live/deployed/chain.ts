@@ -100,7 +100,7 @@ export class Chain {
     // JSON-RPC batch keeps the same complete block/receipt audit while avoiding
     // a cursor that can never catch the live tip.
     const rpcUrl = required('MONAD_TESTNET_RPC_URL')
-    const batchSize = 12n
+    const batchSize = 25n
     const batchFetch = sdk.throttledFetch(1)
     for (let number = start; number <= end; number += batchSize) {
       const numbers = Array.from(
