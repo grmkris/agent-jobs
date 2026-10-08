@@ -234,8 +234,10 @@ export const tools: Record<string, Tool> = {
           'Reward token: a known symbol (testnet: mUSD or mEUR) or any ERC-20 address (on a stack with openTokens in protocol_info).',
         ),
         reward: str('Reward in token units, e.g. "25".'),
-        creatorBond: str('Your SIDE bond, e.g. "5".'),
-        workerBond: str('The worker SIDE bond, e.g. "3".'),
+        creatorBond: str(
+          'Optional creator SIDE bond; defaults to the live minimum. Never-activated listings may forfeit part of it.',
+        ),
+        workerBond: str('Optional worker SIDE bond; defaults to zero.'),
         deliveryDeadline: deadlineSchema('When delivery is due.'),
         requiredChecks: {
           type: 'array',
@@ -265,16 +267,7 @@ export const tools: Record<string, Tool> = {
         deliverable: deliverableSpecSchema,
         idempotencyKey: str('Stable retry key. Reusing it returns the original preparation after a lost response.'),
       },
-      required: [
-        'title',
-        'brief',
-        'acceptanceCriteria',
-        'token',
-        'reward',
-        'creatorBond',
-        'workerBond',
-        'deliveryDeadline',
-      ],
+      required: ['title', 'brief', 'acceptanceCriteria', 'token', 'reward', 'deliveryDeadline'],
     },
     run: async (board, caller, a) => {
       const d = deadlineArgs(a, ['deliveryDeadline'])
@@ -287,8 +280,8 @@ export const tools: Record<string, Tool> = {
           ...(a.tags === undefined ? {} : { tags: a.tags as sdk.JobTag[] }),
           token: s(a, 'token'),
           reward: s(a, 'reward'),
-          creatorBond: s(a, 'creatorBond'),
-          workerBond: s(a, 'workerBond'),
+          ...(a.creatorBond === undefined ? {} : { creatorBond: s(a, 'creatorBond') }),
+          ...(a.workerBond === undefined ? {} : { workerBond: s(a, 'workerBond') }),
           deliveryDeadline: d.values.deliveryDeadline!,
           ...(a.approver === undefined ? {} : { approver: s(a, 'approver') }),
           ...(a.windows === undefined
@@ -334,8 +327,10 @@ export const tools: Record<string, Tool> = {
           required: ['token', 'max'],
           additionalProperties: false,
         },
-        creatorBond: str('Your SIDE bond, e.g. "5".'),
-        workerBond: str('The worker SIDE bond, e.g. "3".'),
+        creatorBond: str(
+          'Optional creator SIDE bond; defaults to the live minimum. Never-activated listings may forfeit part of it.',
+        ),
+        workerBond: str('Optional worker SIDE bond; defaults to zero.'),
         deliveryDeadline: deadlineSchema('When delivery is due.'),
         quoteDeadline: deadlineSchema('Quotes close then; before the delivery deadline.'),
         requiredChecks: {
@@ -359,15 +354,7 @@ export const tools: Record<string, Tool> = {
         deliverable: deliverableSpecSchema,
         idempotencyKey: str('Stable retry key. Reusing it returns the original quote request after a lost response.'),
       },
-      required: [
-        'title',
-        'brief',
-        'acceptanceCriteria',
-        'creatorBond',
-        'workerBond',
-        'deliveryDeadline',
-        'quoteDeadline',
-      ],
+      required: ['title', 'brief', 'acceptanceCriteria', 'deliveryDeadline', 'quoteDeadline'],
     },
     run: async (board, caller, a) => {
       const d = deadlineArgs(a, ['deliveryDeadline', 'quoteDeadline'])
@@ -379,8 +366,8 @@ export const tools: Record<string, Tool> = {
           ...(a.tags === undefined ? {} : { tags: a.tags as sdk.JobTag[] }),
           tokens: (a.tokens as string[] | undefined) ?? [],
           ...(a.budget === undefined ? {} : { budget: a.budget as { token: string; max: string } }),
-          creatorBond: s(a, 'creatorBond'),
-          workerBond: s(a, 'workerBond'),
+          ...(a.creatorBond === undefined ? {} : { creatorBond: s(a, 'creatorBond') }),
+          ...(a.workerBond === undefined ? {} : { workerBond: s(a, 'workerBond') }),
           deliveryDeadline: d.values.deliveryDeadline!,
           quoteDeadline: d.values.quoteDeadline!,
           ...(a.approver === undefined ? {} : { approver: s(a, 'approver') }),
@@ -681,7 +668,7 @@ export const tools: Record<string, Tool> = {
 
   cancel_task: {
     description:
-      'Creator: the hosted executor cancels and settles an open hire nobody has activated, returning the reward and releasing the creator bond. The hosted result is confirmed|rejected|approval|pending|reverted|dropped; approval carries approveUrl for the operator. Reuse the same operationKey and identical arguments after an uncertain response.',
+      'Creator: cancel and settle a hire nobody has activated. The reward returns; cancel strictly within ten minutes of publish releases the full bond, while later cancellation forfeits the snapshotted share to the treasury. The hosted result is confirmed|rejected|approval|pending|reverted|dropped; approval carries approveUrl for the operator. Reuse the same operationKey and identical arguments after an uncertain response.',
     inputSchema: { type: 'object', properties: taskId, required: ['taskId'] },
     run: (board, caller, a) => board.cancelTask(caller, { taskId: s(a, 'taskId') }),
   },

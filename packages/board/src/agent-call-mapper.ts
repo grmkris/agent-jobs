@@ -5,6 +5,7 @@ import { GrantStore, type GrantRow } from './grants.ts'
 import { checkGrantCall, type GrantCall } from './grant-calls.ts'
 import type { NamedSponsorEntry } from './sponsor.ts'
 import { AgentFailure } from './agent-failure.ts'
+import { requireBacking, requireCreatorBond } from './sidequest.ts'
 
 const periodAvailableAbi = parseAbi([
   'function getAvailableAmount(bytes32 hash,address manager,bytes terms) view returns (uint256,bool,uint256)',
@@ -24,7 +25,10 @@ export interface ApprovedAgentAction {
   unstakeHash?: Hex
 }
 
-function publishedReward(ctx: sdk.GrantContext, call: GrantCall): { token: Address; reward: bigint } | undefined {
+function publishedReward(
+  ctx: sdk.GrantContext,
+  call: GrantCall,
+): { token: Address; reward: bigint; creatorBond: bigint; workerBond: bigint } | undefined {
   if (!same(call.to, ctx.stack.holding)) return undefined
   try {
     const decoded = decodeFunctionData({ abi: sdk.sidequestHoldingAbi, data: call.data as Hex })
@@ -128,6 +132,8 @@ async function hireEntries(
   now: number,
 ): Promise<{ entries: NamedSponsorEntry[]; approval?: HireApprovalRequest }> {
   const publish = publishedReward(ctx, call)!
+  await requireCreatorBond(ctx, publish.creatorBond)
+  await requireBacking(ctx, agent.address, publish.creatorBond, 'creator')
   const work = oneGrant(rows, 'agent-work')
   const checkedPublish = canonical(ctx, grants.spec(work.delegation_hash), call)
   const known = ctx.deployment.rewardTokens.some((token) => same(token, publish.token))

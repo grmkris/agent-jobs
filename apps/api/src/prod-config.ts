@@ -1,7 +1,7 @@
 import { decodeFunctionResult, encodeFunctionData, parseAbi, parseEther } from 'viem'
 
 import { prodSecretSources } from '@sidequest/board/runtime'
-import { PRODUCTION_CLOCKS } from '@sidequest/sdk'
+import { PRODUCTION_CLOCKS, type SidequestClocks } from '@sidequest/sdk'
 export { prodSecretSources, runtimeSecret } from '@sidequest/board/runtime'
 
 interface ProdStack {
@@ -53,17 +53,8 @@ export interface ProdArtifact {
 }
 
 /** D24 deploy-time clocks, in seconds; recipe constructors enforce the same bounds. */
-export interface LaunchClocks {
-  minReviewWindow: number
-  minDisputeWindow: number
-  minArbitrationWindow: number
-  unstakeDelay: number
-  holdingDelay: number
-  feeDelay: number
-  proposalGrace: number
-  epochZeroDuration: number
-  epochDuration: number
-}
+export type LaunchClocks = SidequestClocks
+
 /** The compiled production clocks (SidequestConstants), from the one SDK copy so the launch gate cannot drift. */
 export const productionLaunchClocks: LaunchClocks = { ...PRODUCTION_CLOCKS }
 
@@ -75,7 +66,13 @@ export interface ChainConfig {
   x402: { usdc: string }
   knownTokens: string[]
   /** SidequestRecipe's input; the preflight reads the default arbitrator and clocks from it (LAUNCH-AUDIT-FIX-001). */
-  sidequest?: { defaultArbitrator?: string | null; clocks?: LaunchClocks } | null
+  sidequest?: {
+    defaultArbitrator?: string | null
+    clocks?: LaunchClocks
+    minimumCreatorBond?: number
+    maxMinimumCreatorBond?: number
+    unfilledForfeitBps?: number
+  } | null
   deployment: {
     network?: string
     block?: number

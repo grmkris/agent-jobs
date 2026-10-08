@@ -32,8 +32,17 @@ async function fixture() {
   const operator = privateKeyToAccount(generatePrivateKey())
   const agent = privateKeyToAccount(generatePrivateKey())
   const clock = { now: 1_800_000_000 }
+  const backing = { available: 10n ** 18n }
   const token = context.deployment.rewardTokens[0]!
   vi.spyOn(context.publicClient, 'readContract').mockImplementation(async (request) => {
+    if (request.functionName === 'minimumCreatorBond') return 10n ** 18n
+    if (request.functionName === 'unfilledForfeitBps') return 2500
+    if (request.functionName === 'CANCEL_GRACE') return 600
+    if (request.functionName === 'treasury') return context.deployment.sidequest!.safe
+    if (request.functionName === 'availableOf')
+      return request.args?.[0]?.toString().toLowerCase() === agent.address.toLowerCase()
+        ? backing.available
+        : 100n * 10n ** 18n
     if (request.functionName === 'disabledDelegations') return false
     if (request.functionName === 'callCounts') return 0n
     if (request.functionName === 'getAvailableAmount') return [220_000_000n, true, 0n]
@@ -121,7 +130,7 @@ async function fixture() {
         arbitrator: operator.address,
         manifestHash: sdk.EMPTY_HASH,
         policyHash: sdk.EMPTY_HASH,
-        creatorBond: 0n,
+        creatorBond: 10n ** 18n,
         workerBond: 0n,
         deliveryDeadline: clock.now + 86400,
         expiredAt: clock.now + 172800,
@@ -165,6 +174,7 @@ async function fixture() {
       execute,
     })
   return {
+    backing,
     sql,
     executor,
     input,
@@ -181,6 +191,19 @@ async function fixture() {
     publish,
   }
 }
+
+it('requires backing behind the hosted publishing wallet even when the operator has stake', async () => {
+  const f = await fixture()
+  f.backing.available = 0n
+  const error = await f.executor.execute(f.input).catch((failure: unknown) => failure)
+  expect(error).toBeInstanceOf(BoardError)
+  expect(agentFailureReply(error, 'Agent hire failed')).toMatchObject({
+    reason: 'insufficient-backing',
+    retry: 'after-operator',
+    message: expect.stringContaining(f.agent.address.toLowerCase()),
+  })
+  expect(f.submit).not.toHaveBeenCalled()
+})
 
 it('publishes an over-budget hire after the exact operator signature and retries without another publish', async () => {
   const f = await fixture()
@@ -286,6 +309,11 @@ it.each([
     )
   } else {
     vi.mocked(f.executor.deps.context.publicClient.readContract).mockImplementation(async (request) => {
+      if (request.functionName === 'minimumCreatorBond') return 10n ** 18n
+      if (request.functionName === 'unfilledForfeitBps') return 2500
+      if (request.functionName === 'CANCEL_GRACE') return 600
+      if (request.functionName === 'treasury') return f.executor.deps.context.deployment.sidequest!.safe
+      if (request.functionName === 'availableOf') return 10n ** 18n
       if (request.functionName === 'disabledDelegations') return false
       if (request.functionName === 'callCounts') return request.args?.includes(prepared.hash) ? 1n : 0n
       throw new Error(`Unexpected chain read: ${request.functionName}`)

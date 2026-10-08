@@ -52,6 +52,11 @@ beforeAll(async () => {
   const base = sdk.context('monad-testnet', 'main', 'http://127.0.0.1:1')
   const readContract = vi.fn(async ({ functionName }: { functionName: string }) => {
     if (functionName === 'paused' || functionName === 'policyListed') return false
+    if (functionName === 'minimumCreatorBond') return 10n ** 18n
+    if (functionName === 'unfilledForfeitBps') return 2500
+    if (functionName === 'CANCEL_GRACE') return 600
+    if (functionName === 'treasury') return base.deployment.sidequest!.safe
+    if (functionName === 'UNSTAKE_DELAY') return 259200
     if (functionName === 'decimals') return 0
     if (functionName === 'symbol') return 'mUSD'
     if (functionName === 'allowance') return 0n
@@ -63,7 +68,12 @@ beforeAll(async () => {
   })
   const context = {
     ...base,
-    publicClient: { ...base.publicClient, readContract, getBlockNumber: async () => 100n },
+    publicClient: {
+      ...base.publicClient,
+      readContract,
+      getBlockNumber: async () => 100n,
+      getBlock: async () => ({ timestamp: BigInt(Math.floor(Date.now() / 1000)) }),
+    },
   } as unknown as sdk.Ctx
   const now = Math.floor(Date.now() / 1000)
   const board = new Board(fromNodeSqlite(database()), {
@@ -80,7 +90,7 @@ beforeAll(async () => {
     title: 'Schema fixture hire',
     brief: 'Brief',
     acceptanceCriteria: ['works'],
-    creatorBond: '0',
+    creatorBond: '1',
     workerBond: '0',
     deliveryDeadline: now + 86_400,
     windows: { reviewSeconds: 120, disputeSeconds: 120, arbitrationSeconds: 300 },

@@ -102,8 +102,8 @@ export async function publishSidequest(ctx: sdk.Ctx, terms: OfferTerms, hash: He
     arbitrationWindow: terms.windows.arbitrationSeconds,
   }
   const expiredAt = await sdk.minExpiry(ctx, terms.deliveryDeadline, windows)
+  await requireCreatorBond(ctx, terms.creatorBond)
   await requireBondHorizon(ctx, expiredAt, terms.creatorBond, terms.workerBond)
-  await requireBacking(ctx, terms.creator, terms.creatorBond, 'creator')
   const allowance = await ctx.publicClient.readContract({
     address: terms.token,
     abi: erc20Abi,
@@ -168,13 +168,22 @@ export async function requireOfferHorizon(
   ctx: sdk.Ctx,
   terms: Pick<OfferTerms, 'deliveryDeadline' | 'windows' | 'creatorBond' | 'workerBond'>,
 ): Promise<void> {
-  if (terms.creatorBond === 0n && terms.workerBond === 0n) return
+  await requireCreatorBond(ctx, terms.creatorBond)
   const expiredAt = await sdk.minExpiry(ctx, terms.deliveryDeadline, {
     reviewWindow: terms.windows.reviewSeconds,
     disputeWindow: terms.windows.disputeSeconds,
     arbitrationWindow: terms.windows.arbitrationSeconds,
   })
   await requireBondHorizon(ctx, expiredAt, terms.creatorBond, terms.workerBond)
+}
+
+export async function requireCreatorBond(ctx: sdk.Ctx, amount: bigint): Promise<void> {
+  const policy = await sdk.readBondPolicy(ctx)
+  if (amount < policy.minimumCreatorBond)
+    throw new BoardError(
+      'invalid',
+      `Creator bond must be at least ${formatEther(policy.minimumCreatorBond)} SIDE. Create a new offer; frozen terms cannot be changed.`,
+    )
 }
 
 function acceptedActivationTerms(terms: OfferTerms): sdk.ActivationTerms {

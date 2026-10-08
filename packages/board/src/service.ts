@@ -851,8 +851,8 @@ export class Board {
       token: string
       /** Decimal amounts in the token's and SIDE's own units ("25" = 25 mEUR). */
       reward: string
-      creatorBond: string
-      workerBond: string
+      creatorBond?: string
+      workerBond?: string
       /** Unix seconds. */
       deliveryDeadline: number
       approver?: string
@@ -893,13 +893,17 @@ export class Board {
     const stack = input.stack ?? 'main'
     const ctx = this.#ctx(stack)
     await this.#requireUnpaused(stack)
+    const bondPolicy = await sdk.readBondPolicy(ctx)
+    const creatorBond = input.creatorBond ?? formatUnits(bondPolicy.minimumCreatorBond, 18)
+    const workerBond = input.workerBond ?? '0'
+    await sidequest.requireCreatorBond(ctx, parseUnits(creatorBond, 18))
     const token = await this.#resolveToken(ctx, input.token)
     const decimals = await ctx.publicClient.readContract({ address: token, abi: erc20Abi, functionName: 'decimals' })
     const [windows, arbitrator, block] = await Promise.all([
       sidequest.offerWindows(ctx, input.windows, {
         deliveryDeadline: input.deliveryDeadline,
-        creatorBond: parseUnits(input.creatorBond, 18),
-        workerBond: parseUnits(input.workerBond, 18),
+        creatorBond: parseUnits(creatorBond, 18),
+        workerBond: parseUnits(workerBond, 18),
       }),
       sidequest.offerArbitrator(ctx, input.arbitrator),
       ctx.publicClient.getBlockNumber(),
@@ -928,8 +932,8 @@ export class Board {
       ...(tags.length === 0 ? {} : { tags }),
       token,
       reward: parseUnits(input.reward, decimals),
-      creatorBond: parseUnits(input.creatorBond, 18),
-      workerBond: parseUnits(input.workerBond, 18),
+      creatorBond: parseUnits(creatorBond, 18),
+      workerBond: parseUnits(workerBond, 18),
       deliveryDeadline: input.deliveryDeadline,
       creator,
       approver: input.approver === undefined ? creator : getAddress(input.approver),
@@ -1509,7 +1513,7 @@ export class Board {
 
   /**
    * Creator: withdraw an open hire nobody has activated. Holding's `cancel` ends it on-chain; `settle` in the same
-   * call returns the reward and unlocks the creator bond.
+   * call returns the reward and applies the listing's ten-minute grace-period bond-forfeit rule.
    */
   async cancelTask(caller: Caller, input: { taskId: string }) {
     const me = this.#requireCaller(caller)
@@ -1615,8 +1619,8 @@ export class Board {
       acceptanceCriteria: string[]
       tags?: readonly sdk.JobTag[]
       tokens: string[]
-      creatorBond: string
-      workerBond: string
+      creatorBond?: string
+      workerBond?: string
       deliveryDeadline: number
       quoteDeadline: number
       stack?: sdk.StackName
@@ -1637,6 +1641,10 @@ export class Board {
     const tags = input.tags === undefined ? [] : normalizeTags(input.tags)
     const stack = input.stack ?? 'main'
     const ctx = this.#ctx(stack)
+    const bondPolicy = await sdk.readBondPolicy(ctx)
+    const creatorBond = input.creatorBond ?? formatUnits(bondPolicy.minimumCreatorBond, 18)
+    const workerBond = input.workerBond ?? '0'
+    await sidequest.requireCreatorBond(ctx, parseUnits(creatorBond, 18))
     const budget = input.budget === undefined ? undefined : await this.#requestBudget(ctx, input.budget)
     if (budget !== undefined && input.tokens.length > 0) {
       const named = await Promise.all(input.tokens.map((t) => this.#resolveToken(ctx, t)))
@@ -1667,15 +1675,15 @@ export class Board {
       ...(tags.length === 0 ? {} : { tags }),
       tokens,
       ...(budget === undefined ? {} : { budget: { token: budget.token, max: budget.max.toString() } }),
-      creatorBond: input.creatorBond,
-      workerBond: input.workerBond,
+      creatorBond,
+      workerBond,
       deliveryDeadline: input.deliveryDeadline,
       quoteDeadline: input.quoteDeadline,
       requiredChecks: input.requiredChecks ?? [],
       windows: await sidequest.offerWindows(ctx, input.windows, {
         deliveryDeadline: input.deliveryDeadline,
-        creatorBond: parseUnits(input.creatorBond, 18),
-        workerBond: parseUnits(input.workerBond, 18),
+        creatorBond: parseUnits(creatorBond, 18),
+        workerBond: parseUnits(workerBond, 18),
       }),
       arbitrator: await sidequest.offerArbitrator(ctx, input.arbitrator),
       ...(input.deliverable === undefined ? {} : { deliverable: normalSpec(input.deliverable) }),
@@ -1692,8 +1700,8 @@ export class Board {
             creator,
             approver: request.approver,
             reward: 1n,
-            creatorBond: parseUnits(input.creatorBond, 18),
-            workerBond: parseUnits(input.workerBond, 18),
+            creatorBond: parseUnits(creatorBond, 18),
+            workerBond: parseUnits(workerBond, 18),
             deliveryDeadline: input.deliveryDeadline,
           } as OfferTerms,
           request.windows!,
@@ -1705,6 +1713,12 @@ export class Board {
         throw invalidTerms(e)
       }
     }
+    await sidequest.requireOfferHorizon(ctx, {
+      deliveryDeadline: request.deliveryDeadline,
+      windows: request.windows,
+      creatorBond: parseUnits(creatorBond, 18),
+      workerBond: parseUnits(workerBond, 18),
+    })
     const requestJson = canonicalJson(request)
     const requestHash = sdk.hashText(requestJson)
     const id = randomId(8)

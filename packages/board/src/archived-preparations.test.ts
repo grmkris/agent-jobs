@@ -15,7 +15,15 @@ afterEach(() => {
 
 async function fixture(kind: sdk.StackKind) {
   const base = sdk.context('monad-testnet', 'main', 'http://127.0.0.1:1')
+  const policyReads: Record<string, bigint | number | string> = {
+    minimumCreatorBond: 10n ** 18n,
+    unfilledForfeitBps: 2500,
+    CANCEL_GRACE: 600,
+    treasury: creator,
+    UNSTAKE_DELAY: 259200,
+  }
   const read = vi.fn(async ({ functionName }: { functionName: string }) => {
+    if (functionName in policyReads) return policyReads[functionName]
     if (functionName === 'paused') return false
     if (functionName === 'decimals') return 0
     if (functionName === 'symbol') return 'mUSD'
@@ -35,7 +43,9 @@ async function fixture(kind: sdk.StackKind) {
     throw new Error(`unexpected chain read: ${functionName}`)
   })
   const blockNumber = vi.fn(async () => 100n)
-  const client = { ...base.publicClient, readContract: read, getBlockNumber: blockNumber }
+  // SAFETY: preparation uses only the block timestamp in this partial RPC fixture.
+  const getBlock = vi.fn().mockResolvedValue({ timestamp: 1000n })
+  const client = { ...base.publicClient, readContract: read, getBlockNumber: blockNumber, getBlock }
   const oldPair: sdk.Stack = { ...base.stack, holding: retired, kind }
   const oldCtx = {
     ...base,
@@ -60,7 +70,7 @@ async function fixture(kind: sdk.StackKind) {
     mode: 'hire' as const,
     token: base.deployment.rewardTokens[0]!,
     reward: '1',
-    creatorBond: '0',
+    creatorBond: '1',
     workerBond: '0',
     deliveryDeadline: 2000,
     windows: { reviewSeconds: 120, disputeSeconds: 120, arbitrationSeconds: 300 },

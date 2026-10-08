@@ -15,12 +15,19 @@ afterEach(() => {
 
 function fixture(failBounds: boolean) {
   const base = sdk.context('monad-testnet', 'main', 'http://127.0.0.1:1')
+  const policyReads: Record<string, bigint | number | string> = {
+    minimumCreatorBond: 10n ** 18n,
+    unfilledForfeitBps: 2500,
+    CANCEL_GRACE: 600,
+    treasury: creator,
+    UNSTAKE_DELAY: 259200,
+  }
   const read = vi.fn(async ({ functionName }: { functionName: string }) => {
+    if (functionName in policyReads) return policyReads[functionName]
     if (functionName === 'paused') return false
     if (functionName === 'decimals') return 0
     if (functionName === 'symbol') return 'mUSD'
     if (functionName === 'margin') return 120
-    if (functionName === 'UNSTAKE_DELAY') return 259200
     if (functionName === 'allowance') return 0n
     if (functionName === 'availableOf') return 1_000_000_000_000_000_000n
     if (failBounds && functionName.startsWith('MIN_')) {
@@ -59,7 +66,7 @@ function fixture(failBounds: boolean) {
     acceptanceCriteria: ['works'],
     token: base.deployment.rewardTokens[0]!,
     reward: '1',
-    creatorBond: '0',
+    creatorBond: '1',
     workerBond: '0',
     deliveryDeadline: 200_000,
     windows: { reviewSeconds: 120, disputeSeconds: 120, arbitrationSeconds: 300 },
@@ -98,15 +105,14 @@ it('a local validation failure is still an invalid refusal with its own text', a
 
 it.each([
   { creatorBond: '1', workerBond: '0' },
-  { creatorBond: '0', workerBond: '1' },
+  { creatorBond: '1', workerBond: '1' },
 ])('create_task refuses a long bonded expiry before persistence for $creatorBond/$workerBond', async (bonds) => {
   const f = fixture(false)
   await expect(
     f.board.createTask({ address: creator }, { ...f.input, ...bonds, deliveryDeadline: 1000 + 259200 - 540 - 120 + 1 }),
   ).rejects.toMatchObject({
     code: 'invalid',
-    message:
-      'A job with a bond must end within 3 days (the unstake period). Shorten the deadline or windows, or set the bond to 0.',
+    message: 'A job with a bond must end within 3 days (the unstake period). Shorten the deadline or windows.',
   })
   expect(f.sql.all('SELECT * FROM tasks')).toHaveLength(0)
   expect(f.sql.all('SELECT * FROM operations')).toHaveLength(0)
@@ -115,7 +121,7 @@ it.each([
   )
 })
 
-it('create_task accepts a worker-only bond exactly at the horizon including every window and margin', async () => {
+it('create_task accepts both bonds exactly at the horizon including every window and margin', async () => {
   const f = fixture(false)
   const prepared = await f.board.createTask(
     { address: creator },
@@ -125,16 +131,18 @@ it('create_task accepts a worker-only bond exactly at the horizon including ever
   expect(f.sql.all('SELECT * FROM tasks')).toHaveLength(1)
 })
 
-it('create_task permits a long zero-bond job without reading the unstake clock', async () => {
+it('create_task rejects a zero creator bond before persistence', async () => {
   const f = fixture(false)
-  await f.board.createTask({ address: creator }, { ...f.input, deliveryDeadline: 1000 + 90 * 86400 })
-  expect(f.sql.all('SELECT * FROM tasks')).toHaveLength(1)
-  expect(f.read.mock.calls.some(([call]) => call.functionName === 'UNSTAKE_DELAY')).toBe(false)
+  await expect(f.board.createTask({ address: creator }, { ...f.input, creatorBond: '0' })).rejects.toMatchObject({
+    code: 'invalid',
+    message: expect.stringContaining('at least 1 SIDE'),
+  })
+  expect(f.sql.all('SELECT * FROM tasks')).toHaveLength(0)
 })
 
 it.each([
   { creatorBond: '1', workerBond: '0' },
-  { creatorBond: '0', workerBond: '1' },
+  { creatorBond: '1', workerBond: '1' },
 ])('create_task fits omitted defaults for a two-day bonded delivery $creatorBond/$workerBond', async (bonds) => {
   const f = fixture(false)
   const { windows: _windows, ...withoutWindows } = f.input
@@ -194,15 +202,19 @@ it('refuses omitted defaults when the minimum windows and inclusion slack cannot
   expect(f.sql.all('SELECT * FROM quote_requests')).toHaveLength(0)
 })
 
-it('keeps standard defaults on a zero-bond offer', async () => {
+it('defaults an omitted creator bond to the live floor and fits windows within the horizon', async () => {
   const f = fixture(false)
-  const { windows: _windows, ...withoutWindows } = f.input
-  await f.board.createTask({ address: creator }, withoutWindows)
+  const { windows: _windows, creatorBond: _creatorBond, ...withoutDefaults } = f.input
+  await f.board.createTask({ address: creator }, withoutDefaults)
   const [row] = f.sql.all<{ terms_json: string }>('SELECT terms_json FROM tasks')
-  expect(JSON.parse(row!.terms_json).windows).toEqual({
-    reviewSeconds: 86400,
-    disputeSeconds: 86400,
-    arbitrationSeconds: 172800,
-  })
-  expect(f.read.mock.calls.some(([call]) => call.functionName === 'UNSTAKE_DELAY')).toBe(false)
+  const terms = JSON.parse(row!.terms_json)
+  expect(terms.creatorBond).toBe('1000000000000000000')
+  expect(
+    terms.deliveryDeadline +
+      terms.windows.reviewSeconds +
+      terms.windows.disputeSeconds +
+      terms.windows.arbitrationSeconds +
+      120,
+  ).toBeLessThanOrEqual(1000 + 259200 - 600)
+  expect(f.read.mock.calls.some(([call]) => call.functionName === 'UNSTAKE_DELAY')).toBe(true)
 })
