@@ -13,7 +13,7 @@ import {
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Board, BoardError } from './service.ts'
-import { SPONSOR_LIMITS, SponsorDesk } from './sponsor.ts'
+import { SPONSOR_LIMITS, SponsorDesk, sponsorBudget } from './sponsor.ts'
 import { sponsorRelayFloor } from './sponsor-policy.ts'
 import { fromNodeSqlite } from './store.ts'
 import { delegationManagerAbi } from '@sidequest/sdk'
@@ -469,7 +469,11 @@ describe('ERC-7710 sponsorship boundaries and recovery', () => {
     f.client.call.mockResolvedValue({ data: '0x' })
     expect(f.sql.all('SELECT * FROM sponsor_operations')).toHaveLength(0)
     const op = await f.desk.submit(f.owner.address, f.entries([f.cancel()], f.owner.address), 'initial')
-    f.sql.run('UPDATE sponsor_operations SET cost=? WHERE id=?', SPONSOR_LIMITS.dailyWei.toString(), op.operationId)
+    f.sql.run(
+      'UPDATE sponsor_operations SET cost=? WHERE id=?',
+      sponsorBudget(f.ctx.deployment.network).dailyWei.toString(),
+      op.operationId,
+    )
     await expect(
       f.desk.submit(f.relay.address, f.entries([f.cancel()], f.relay.address), 'other-wallet'),
     ).rejects.toThrow('belong to this wallet')
@@ -479,7 +483,7 @@ describe('ERC-7710 sponsorship boundaries and recovery', () => {
     f.sql.run('UPDATE sponsor_operations SET cost=? WHERE id=?', '1', op.operationId)
     f.sql.run(
       'UPDATE sponsor_operator_usage SET calls=? WHERE operation_id=?',
-      SPONSOR_LIMITS.walletCalls,
+      sponsorBudget(f.ctx.deployment.network).walletCalls,
       op.operationId,
     )
     await expect(
@@ -618,7 +622,7 @@ describe('ERC-7710 sponsorship boundaries and recovery', () => {
       // The cap fills after reservation; recovery must remain possible and may exceed the old reservation.
       f.sql.run(
         'UPDATE sponsor_operations SET cost=? WHERE id=?',
-        SPONSOR_LIMITS.dailyWei.toString(),
+        sponsorBudget(f.ctx.deployment.network).dailyWei.toString(),
         charged.operationId,
       )
       await f.desk.revoke(f.owner.address)
@@ -859,5 +863,12 @@ describe('ERC-7710 sponsorship boundaries and recovery', () => {
     expect(() => board.sponsorPrepare({ address: f.relay.address }, { wallet: f.owner.address })).toThrow(
       'authenticated wallet',
     )
+  })
+})
+
+describe('sponsorship budget by network', () => {
+  it('gives testnet room for multi-bot runs and keeps the mainnet launch budget', () => {
+    expect(sponsorBudget('monad-testnet')).toEqual({ dailyWei: 50n * 10n ** 18n, walletCalls: 150 })
+    expect(sponsorBudget('monad-mainnet')).toEqual({ dailyWei: 10n * 10n ** 18n, walletCalls: 20 })
   })
 })

@@ -7,14 +7,20 @@ const SPONSOR_RELAY_FLOORS: Readonly<Record<Network, bigint>> = {
 }
 export const sponsorRelayFloor = (network: Network): bigint => SPONSOR_RELAY_FLOORS[network]
 
+/** The relay's daily spend and each operator's calls per window. Testnet MON has no value, so multi-bot test runs get
+ * room (Kris, 8 Oct); mainnet keeps the launch budget until launch funding decides it. */
+const SPONSOR_BUDGETS: Readonly<Record<Network, { readonly dailyWei: bigint; readonly walletCalls: number }>> = {
+  'monad-mainnet': { dailyWei: 10n * 10n ** 18n, walletCalls: 20 },
+  'monad-testnet': { dailyWei: 50n * 10n ** 18n, walletCalls: 150 },
+}
+export const sponsorBudget = (network: Network) => SPONSOR_BUDGETS[network]
+
 export const SPONSOR_LIMITS = {
   calls: 100,
   validity: 86400,
   batch: 8,
-  walletCalls: 20,
   walletWindow: 3600,
   operatorPublishes: 100,
-  dailyWei: 10n * 10n ** 18n,
   relayFloorWei: RELAY_FLOOR_MAINNET,
   gas: 6_000_000n,
   // Relay sends' gas limit as a percentage of the estimate (plus 10k): Monad bills the whole limit, and transactionGas's

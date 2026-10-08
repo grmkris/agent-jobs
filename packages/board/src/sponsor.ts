@@ -24,11 +24,11 @@ import type { Sql } from './store.ts'
 import { migrateAgentSchema } from './agent-schema.ts'
 import { RelaySender, withRelayNonce } from './relay.ts'
 import { type SponsorOperation as Operation, type SponsorResult, SponsorRecovery } from './sponsor-recovery.ts'
-import { SPONSOR_LIMITS, sponsorRelayFloor } from './sponsor-policy.ts'
+import { SPONSOR_LIMITS, sponsorBudget, sponsorRelayFloor } from './sponsor-policy.ts'
 import { GrantStore, type GrantRow } from './grants.ts'
 import { checkGrantCall, checkHireFunding, type GrantCall, type CheckedGrantCall } from './grant-calls.ts'
 import { redeemGrantBatch } from './hire-batch.ts'
-export { SPONSOR_LIMITS } from './sponsor-policy.ts'
+export { SPONSOR_LIMITS, sponsorBudget } from './sponsor-policy.ts'
 export type { SponsorResult } from './sponsor-recovery.ts'
 
 /** One object in the existing Board namespace, shared by every tenant and both transports. */
@@ -450,14 +450,16 @@ export class SponsorDesk {
           day,
         )
         // Charge only receipts. All unresolved sends were reconciled above; this send reserves its maximum cost.
-        if (daily.reduce((sum, op) => sum + BigInt(op.cost!), cost) > SPONSOR_LIMITS.dailyWei)
+        if (daily.reduce((sum, op) => sum + BigInt(op.cost!), cost) > sponsorBudget(ctx.deployment.network).dailyWei)
           throw this.#refuse('cap', 'the relay’s daily sponsorship budget is exhausted')
         const recent = this.#d.sql.all<{ calls: number }>(
           'SELECT calls FROM sponsor_operator_usage WHERE owner=? AND created_at > ?',
           owner.toLowerCase(),
           this.#d.now() - SPONSOR_LIMITS.walletWindow,
         )
-        if (recent.reduce((sum, op) => sum + op.calls, parsed.length) > SPONSOR_LIMITS.walletCalls)
+        if (
+          recent.reduce((sum, op) => sum + op.calls, parsed.length) > sponsorBudget(ctx.deployment.network).walletCalls
+        )
           throw this.#refuse('rate', 'the operator sponsorship rate limit is exhausted')
         const dailyPublishes = this.#d.sql.all<{ publishes: number }>(
           'SELECT coalesce(sum(publishes),0) publishes FROM sponsor_operator_usage WHERE owner=? AND created_at>=?',

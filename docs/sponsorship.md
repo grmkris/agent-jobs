@@ -77,7 +77,9 @@ so further sponsorships refuse until the budget is available again. Fresh operat
 The reserved management object `__hosted_sponsor_v1__` in the existing Board binding stores grants and operation records for all boards. Before
 broadcast, it validates canonical calldata against D15, simulates the whole redemption, reserves caps, and persists
 its signed bytes and hash. An unresolved operation blocks another sponsored nonce. Limits are keyed by the operator:
-20 calls per rolling hour and 100 publishes per day. The relay's daily budget is 10 MON: mined charges are `gasUsed * effectiveGasPrice` from receipts,
+20 calls per rolling hour on mainnet (150 on testnet) and 100 publishes per day. The relay's daily budget is 10 MON
+on mainnet and 50 MON on testnet (`sponsorBudget` in `packages/board/src/sponsor-policy.ts`; testnet MON has no value,
+widened on 8 Oct for multi-bot runs): mined charges are `gasUsed * effectiveGasPrice` from receipts,
 and unresolved sends reserve their worst-case cost. The gas limit is the estimate × 1.10 + 10k
 (`SPONSOR_LIMITS.gasMargin`), simulated at exactly that limit; when estimation or that simulation fails, the summed
 ADR-0011 floors plus 100k overhead are used instead, with a 6M transaction cap.
