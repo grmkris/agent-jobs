@@ -1,34 +1,25 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
+  createPublicClient,
   decodeAbiParameters,
   decodeFunctionData,
   erc20Abi,
   getAddress,
+  http,
   parseAbiParameters,
   type Address,
   type Hex,
 } from 'viem'
 import type { Ctx } from './actions.ts'
-import { deployment } from './deployment.ts'
+import archived from '../../../contracts/config/archive/pre-g1d-monad-testnet.json' with { type: 'json' }
+import { deployment, deploymentFromConfig, stack } from './deployment.ts'
 import { minOutFor, permit2Abi, sidePrice, swapTransactions, universalRouterAbi } from './market.ts'
 
-const owner = '0x00000000000000000000000000000000000000aa' as Address
-const d = deployment('monad-testnet')
-const m = d.market!
-
-function ctx(reads: { tokenAllowance?: bigint; permit?: [bigint, number]; sqrtPriceX96?: bigint }): Ctx {
-  return {
-    deployment: d,
-    publicClient: {
-      readContract: async ({ functionName, address }: { functionName: string; address: Address }) =>
-        functionName === 'allowance' && address === m.permit2
-          ? [reads.permit?.[0] ?? 0n, reads.permit?.[1] ?? 0, 0]
-          : functionName === 'allowance'
-            ? (reads.tokenAllowance ?? 0n)
-            : [reads.sqrtPriceX96 ?? 0n, 0, 0, 3000],
-    },
-  } as unknown as Ctx
-}
+const owner: Address = '0x00000000000000000000000000000000000000aa'
+const previous = deploymentFromConfig('monad-testnet', {
+  ...archived,
+  deployment: { ...archived.deployment, main: { ...archived.deployment.main, kind: 'sidequest-v1' } },
+})
 
 function decodeSwap(data: Hex) {
   const { args } = decodeFunctionData({ abi: universalRouterAbi, data })
@@ -45,13 +36,45 @@ function decodeSwap(data: Hex) {
   return { commands, deadline, actions, single, settle, take, count: inputs.length }
 }
 
-describe('the SIDE market', () => {
+describe.each([
+  {
+    generation: 'pre-G1d',
+    d: previous,
+    poolId: '0xac80f2a6407197a621073182fa2c4b60d754c05513ee424b59b6905b9a66e8af',
+    quoteIs0: true,
+    sqrtPriceX96: 7922816251426433759354395033600000000n,
+  },
+  {
+    generation: 'G1d',
+    d: deployment('monad-testnet'),
+    poolId: '0x58d464a271a5828f4d092c3df6169f18766c8de18a09efda5a53f91a12fbc17d',
+    quoteIs0: false,
+    sqrtPriceX96: 792281625142643375935n,
+  },
+])('the $generation SIDE market', ({ d, poolId, quoteIs0, sqrtPriceX96 }) => {
+  const m = d.market!
+
+  function ctx(reads: { tokenAllowance?: bigint; permit?: [bigint, number]; sqrtPriceX96?: bigint }): Ctx {
+    const publicClient = createPublicClient({ transport: http('http://unit.invalid') })
+    vi.spyOn(publicClient, 'readContract').mockImplementation(async ({ functionName, address }) =>
+      functionName === 'allowance' && address === m.permit2
+        ? [reads.permit?.[0] ?? 0n, reads.permit?.[1] ?? 0, 0]
+        : functionName === 'allowance'
+          ? (reads.tokenAllowance ?? 0n)
+          : [reads.sqrtPriceX96 ?? 0n, 0, 0, 3000],
+    )
+    return {
+      deployment: d,
+      stack: stack(d, 'main'),
+      publicClient,
+    }
+  }
   it("is the seeded testnet SIDE/mUSD pool, traded through Uniswap's router and quoter", () => {
     expect(m.side).toBe(d.factory)
     expect(m.quote).toBe(d.rewardTokens[0])
     expect(m.key).toMatchObject({ fee: 3000, tickSpacing: 60, hooks: '0x0000000000000000000000000000000000000000' })
     expect(m.key.currency0.toLowerCase() < m.key.currency1.toLowerCase()).toBe(true)
-    expect(m.poolId).toBe('0xac80f2a6407197a621073182fa2c4b60d754c05513ee424b59b6905b9a66e8af')
+    expect(m.poolId).toBe(poolId)
     expect(m.universalRouter).toBe('0x1b7bFCd2870329B987191910D85c22C7287f3c22')
     expect(m.quoter).toBe('0x869834d127b230283fe63E0d0A9bEB67216a94C7')
     expect(m.minHopPrice).toBe(true)
@@ -71,9 +94,9 @@ describe('the SIDE market', () => {
     expect(permit.args.slice(0, 3)).toEqual([m.quote, m.universalRouter, 10_000_000n])
     const s = decodeSwap(txs[2]!.data)
     expect([s.commands, s.count, s.actions, s.deadline]).toEqual(['0x10', 1, '0x060c0f', 2_000_000_000n])
-    // mUSD sorts first on testnet, so buying SIDE with it is zero-for-one; no per-hop floor, minOut binds.
+    // G1d reverses the token ordering; the same limits must hold in both directions.
     expect(s.single).toMatchObject({
-      zeroForOne: true,
+      zeroForOne: quoteIs0,
       amountIn: 10_000_000n,
       amountOutMinimum: 97_000n * 10n ** 18n,
       minHopPriceX36: 0n,
@@ -83,14 +106,14 @@ describe('the SIDE market', () => {
     expect(s.take).toEqual([getAddress(m.side), 97_000n * 10n ** 18n])
   })
 
-  it('skips approvals that already cover the swap, and selling SIDE is one-for-zero', async () => {
+  it('skips covered approvals and sells SIDE in the opposite direction', async () => {
     const covered = await swapTransactions(
       ctx({ tokenAllowance: 10n ** 30n, permit: [10n ** 30n, 2_100_000_000] }),
       m,
       { owner, tokenIn: m.side, amountIn: 5n * 10n ** 18n, minOut: 1n, deadline: 2_000_000_000 },
     )
     expect(covered.map((t) => t.description)).toEqual(['Swap'])
-    expect(decodeSwap(covered[0]!.data).single.zeroForOne).toBe(false)
+    expect(decodeSwap(covered[0]!.data).single.zeroForOne).toBe(!quoteIs0)
     const expired = await swapTransactions(ctx({ tokenAllowance: 10n ** 30n, permit: [10n ** 30n, 1] }), m, {
       owner,
       tokenIn: m.side,
@@ -116,7 +139,7 @@ describe('the SIDE market', () => {
       ),
       params[0]!,
     )
-    expect(single).toMatchObject({ zeroForOne: true, amountIn: 2_000_000n, amountOutMinimum: 7n, hookData: '0x' })
+    expect(single).toMatchObject({ zeroForOne: quoteIs0, amountIn: 2_000_000n, amountOutMinimum: 7n, hookData: '0x' })
     // Five fields: key (5 words), zeroForOne, amountIn, amountOutMinimum, hookData offset; then the empty hookData.
     expect((params[0]!.length - 2) / 64).toBe(1 + 5 + 3 + 1 + 1)
   })
@@ -128,7 +151,7 @@ describe('the SIDE market', () => {
     expect(minOutFor(10_000n)).toBe(9_900n)
     expect(minOutFor(10_000n, 50)).toBe(9_950n)
     // The seeded price: 10M SIDE for 1,000 mUSD.
-    expect(await sidePrice(ctx({ sqrtPriceX96: 7922816251426433759354395033600000000n }), m, 6)).toBeCloseTo(0.0001, 10)
+    expect(await sidePrice(ctx({ sqrtPriceX96 }), m, 6)).toBeCloseTo(0.0001, 10)
     expect(await sidePrice(ctx({}), m, 6)).toBe(0)
   })
 })
