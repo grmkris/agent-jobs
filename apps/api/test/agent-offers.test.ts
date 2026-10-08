@@ -4,7 +4,7 @@ import * as Cloudflare from 'alchemy/Cloudflare'
 import * as Test from 'alchemy/Test/Vitest'
 import * as Effect from 'effect/Effect'
 import { expect } from 'vitest'
-import { type LocalAccount, erc20Abi, keccak256, stringToHex } from 'viem'
+import { type LocalAccount, erc20Abi, formatEther, keccak256, stringToHex } from 'viem'
 import * as sdk from '@sidequest/sdk'
 import {
   AgentExecutor,
@@ -88,6 +88,8 @@ test.skipIf(!forkEnabled)(
         const grants = new GrantStore(sql, ctx)
         const agent = fixture.contributor
         const operator = fixture.creator
+        const creatorBond = (await sdk.readBondPolicy(ctx)).minimumCreatorBond
+        await sdk.delegate(ctx, operator, creatorBond, agent.account.address)
         const token = ctx.deployment.rewardTokens[0]!
         const workerId = await sdk.registerAgent(ctx, fixture.worker, 'https://fixture.invalid/worker')
         for (const wallet of [agent, operator]) {
@@ -201,7 +203,7 @@ test.skipIf(!forkEnabled)(
             acceptanceCriteria: [],
             token,
             reward: '1',
-            creatorBond: '0',
+            creatorBond: formatEther(creatorBond),
             workerBond: '0',
             deliveryDeadline: now + 86400,
             invite: { agentId: workerId.toString() },

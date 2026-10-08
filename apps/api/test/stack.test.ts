@@ -145,7 +145,6 @@ test.skipIf(!rpcSet)(
         acceptanceCriteria: [],
         token: 'mUSD',
         reward: '1',
-        creatorBond: '0',
         workerBond: '0',
         deliveryDeadline: Math.floor(Date.now() / 1000) + 3600,
         stack: 'main',
