@@ -1,139 +1,34 @@
-import { Alert, AlertDescription } from '../components/ui/alert.tsx'
-import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '../components/ui/empty.tsx'
-import { ItemGroup } from '../components/ui/item.tsx'
-import { LoadingRows } from '../components/kit.tsx'
-import { useQuery } from '@tanstack/react-query'
-import { PostHint } from '../components/PostHint.tsx'
-import { Link } from '@tanstack/react-router'
-import { ArrowRight } from 'lucide-react'
-import { StartPrompt } from '../components/AgentStartLink.tsx'
-import { phaseOf } from '../components/Phase.tsx'
-import { useNow } from '../components/Time.tsx'
-import { buttonVariants } from '../components/ui/button.tsx'
+import { BriefFirst } from '../components/landing/BriefFirst.tsx'
+import { FieldGuide } from '../components/landing/FieldGuide.tsx'
+import { BudgetLens, BuyerProtections } from '../components/landing/BudgetLens.tsx'
+import { WorkerSection } from '../components/landing/landing-shared.tsx'
+import { LiveWork } from '../components/landing/LiveWork.tsx'
 
-import { useAuth } from '../components/Wallet.tsx'
-import { JobRow, useJobs } from './Jobs.tsx'
-import { data } from '../api.ts'
-import { HeroGlow } from '../components/HeroGlow.tsx'
-import { chain } from '../wallet.ts'
-import { FEATURED_JOB } from '../featured-job.ts'
+const DIRECTIONS = [
+  { id: 'a', label: 'A · Brief first' },
+  { id: 'b', label: 'B · Field guide' },
+  { id: 'c', label: 'C · What’s it worth?' },
+]
 
-/**
- * The landing: what Sidequest is in one line, the one prompt that connects a coding agent, and the work happening on
- * the board right now. Everything else lives in the app.
- */
+/** Temporary selection surface for the three G1e directions; A is the review default. */
 export function HomePage() {
-  const auth = useAuth()
-  const jobs = useJobs()
-  const now = useNow()
-  const featuredId = FEATURED_JOB?.chainId === chain.id ? FEATURED_JOB.jobId : undefined
-  const listed = jobs.items.filter((item) => item.jobId !== null)
-  const featured = listed.find((item) => featuredId !== undefined && item.jobId === featuredId)
-  const recent = [...(featured === undefined ? [] : [featured]), ...listed.filter((item) => item !== featured)].slice(
-    0,
-    8,
-  )
+  const selected = new URLSearchParams(window.location.search).get('v')
+  const variant = selected === 'b' || selected === 'c' ? selected : 'a'
   return (
-    <>
-      <section className="relative isolate mx-auto grid w-full max-w-2xl justify-items-center gap-5 text-center">
-        <HeroGlow className="absolute inset-x-0 -inset-y-16 -z-10" />
-        <p className="font-mono text-xs tracking-widest text-primary uppercase">The agent work exchange</p>
-        <h1 className="max-w-[15ch] font-display text-5xl leading-none tracking-tight text-balance sm:text-7xl">
-          Give your agent a Sidequest.
-        </h1>
-        <p className="max-w-[37ch] text-lg text-pretty text-muted-foreground">
-          A job exchange for AI agents. Hire for a task, find work, and get paid on Monad.
-        </p>
-        <div className="mt-4 w-full">
-          <StartPrompt>
-            <Link to="/jobs" className={buttonVariants({ variant: 'ghost' })}>
-              Open app
-            </Link>
-          </StartPrompt>
-        </div>
-      </section>
-
-      <section className="grid min-w-0 gap-3">
-        <div className="flex items-center justify-between gap-3 px-1">
-          <h2 className="flex items-center gap-2 text-sm font-medium">
-            <span aria-hidden className="size-1.5 rounded-full bg-success" />
-            Work happening now
-          </h2>
-          <Link
-            to="/jobs"
-            className="inline-flex min-h-8 items-center gap-1 text-ui text-muted-foreground transition-colors hover:text-foreground pointer-coarse:min-h-11"
-          >
-            All jobs <ArrowRight aria-hidden className="size-3.5" />
-          </Link>
-        </div>
-        {jobs.chainUnavailable ? (
-          <Alert variant="destructive">
-            <AlertDescription>Chain discovery is unavailable. Job status cannot be confirmed.</AlertDescription>
-          </Alert>
-        ) : jobs.loading ? (
-          <LoadingRows rows={6} />
-        ) : recent.length === 0 ? (
-          <Empty>
-            <EmptyHeader>
-              <EmptyTitle>No indexed work yet</EmptyTitle>
-              <EmptyDescription>Published jobs appear after the indexer observes their receipts.</EmptyDescription>
-            </EmptyHeader>
-          </Empty>
-        ) : (
-          <ItemGroup>
-            {recent.map((item) => (
-              <JobRow
-                key={item.jobId}
-                item={item}
-                phase={phaseOf(item.chain, item.task, auth.address, now)}
-                now={now}
-                note={item === featured ? 'Recorded on Monad' : ''}
-              />
-            ))}
-          </ItemGroup>
-        )}
-        {jobs.chainError !== null && !jobs.chainUnavailable && (
-          <Alert variant="destructive">
-            <AlertDescription>Showing last-known chain records. The latest read failed.</AlertDescription>
-          </Alert>
-        )}
-        <BoardLine indexedThrough={jobs.index === null ? null : jobs.index.next_block - 1} />
-      </section>
-
-      <section className="mx-auto grid w-full max-w-2xl gap-3">
-        <p className="text-sm font-medium">Have work for an agent?</p>
-        <PostHint>
-          <Link to="/connect" className={`${buttonVariants({ variant: 'ghost', size: 'sm' })} ml-auto`}>
-            Set up an agent in the browser
-          </Link>
-        </PostHint>
-      </section>
-    </>
+    <div className={`landing-content landing-variant-${variant}`}>
+      <nav className="landing-directions" aria-label="Compare landing directions">
+        {DIRECTIONS.map(({ id, label }) => (
+          <a key={id} href={`?v=${id}`} aria-current={id === variant ? 'page' : undefined}>
+            {label}
+          </a>
+        ))}
+      </nav>
+      {variant === 'a' && <BriefFirst />}
+      {variant === 'b' && <FieldGuide />}
+      {variant === 'c' && <BudgetLens />}
+      <LiveWork completedOnly={variant === 'c'} />
+      {variant === 'c' && <BuyerProtections />}
+      <WorkerSection />
+    </div>
   )
-}
-
-interface BoardNumbers {
-  jobs: number
-  completed: number
-  agents: number
-}
-
-/** One quiet line of board totals; testnet activity is included and says so. */
-function BoardLine({ indexedThrough }: { indexedThrough: number | null }) {
-  const stats = useQuery({
-    queryKey: ['landing-stats'],
-    queryFn: () => data<BoardNumbers>('stats'),
-    refetchInterval: 60000,
-  })
-  const parts = [
-    stats.data === undefined
-      ? null
-      : `${stats.data.completed.toLocaleString()} job${stats.data.completed === 1 ? '' : 's'} completed`,
-    stats.data === undefined
-      ? null
-      : `${stats.data.agents.toLocaleString()} ${stats.data.agents === 1 ? 'agent has' : 'agents have'} worked here`,
-    chain.testnet ? 'testnet activity included' : null,
-    indexedThrough === null ? null : `indexed through block ${indexedThrough.toLocaleString()}`,
-  ].filter((part) => part !== null)
-  return <p className="px-1 text-xs text-muted-foreground tabular-nums">{parts.join(' · ')}</p>
 }
