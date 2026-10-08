@@ -1,0 +1,126 @@
+{
+  "checkedAt": "2026-10-08T15:58:43.294868+00:00",
+  "releaseCommit": "a234a7f28d6d5263cdb3492117bb2c6b6fc38dd0",
+  "identity": "exchange.sidequest/sidequest",
+  "version": "2.0.0",
+  "network": "monad-testnet",
+  "registryRemote": "https://sidequest.exchange/mcp",
+  "localValidation": {
+    "fullCheck": "passed",
+    "build": "passed",
+    "api": {
+      "passed": 483,
+      "skipped": 15,
+      "passingFiles": 50
+    },
+    "explore": {
+      "passed": 249,
+      "passingFiles": 45
+    },
+    "docs": {
+      "passed": 52,
+      "passingFiles": 7
+    },
+    "docsHttpSmoke": {
+      "requests": 133,
+      "parsedHtml": 24
+    },
+    "cardSchema": {
+      "commit": "526201bbc80231daa40ffcdecfc9da4e54e5dc93",
+      "sha256": "2c772b51edb367f154771d84ddbae87ddba00a624422c8e46f218a9ac03bf042",
+      "syntheticStageTenantCards": 6,
+      "uriFormats": true,
+      "publishedUri": {
+        "url": "https://static.modelcontextprotocol.io/schemas/v1/server-card.schema.json",
+        "status": 404
+      }
+    }
+  },
+  "ci": {
+    "dev": {
+      "runId": 37801898433,
+      "url": "https://github.com/grmkris/sidequest/actions/runs/37801898433",
+      "headSha": "a234a7f28d6d5263cdb3492117bb2c6b6fc38dd0",
+      "attempt": 1,
+      "conclusion": "success",
+      "jobs": [
+        {
+          "name": "verify",
+          "conclusion": "success",
+          "completedAt": "2026-10-08T15:39:22Z",
+          "url": "https://github.com/grmkris/sidequest/actions/runs/37801898433/job/113395970505"
+        },
+        {
+          "name": "deploy-dev",
+          "conclusion": "success",
+          "completedAt": "2026-10-08T15:41:36Z",
+          "url": "https://github.com/grmkris/sidequest/actions/runs/37801898433/job/113398213751"
+        },
+        {
+          "name": "deploy-prod",
+          "conclusion": "skipped",
+          "completedAt": "2026-10-08T15:39:22Z",
+          "url": "https://github.com/grmkris/sidequest/actions/runs/37801898433/job/113398215359"
+        }
+      ],
+      "releaseLines": [
+        "Sidequest deploy stage=dev commit=a234a7f28d6d5263cdb3492117bb2c6b6fc38dd0 create=0 update=2 adopted=0 replace=0 delete=0 orphaned=0 noop=3",
+        "Sidequest deploy verified stage=dev commit=a234a7f28d6d5263cdb3492117bb2c6b6fc38dd0 create=0 update=0 adopted=0 replace=0 delete=0 orphaned=0 noop=5 workers=Api:84cefd9a-1ec8-459a-91bd-db1ed92407f4,Indexer:d783b3e7-e571-4e04-b697-a3c6774c717c,Explore:dcb700f4-20aa-4abb-91da-351070e83912",
+        "ok dev https://dev.sidequest.exchange",
+        "Sidequest drift clean stage=dev commit=a234a7f28d6d5263cdb3492117bb2c6b6fc38dd0"
+      ]
+    },
+    "prod": {
+      "runId": 37803002673,
+      "url": "https://github.com/grmkris/sidequest/actions/runs/37803002673",
+      "headSha": "a234a7f28d6d5263cdb3492117bb2c6b6fc38dd0",
+      "attempt": 2,
+      "conclusion": "success",
+      "jobs": [
+        {
+          "name": "deploy-dev",
+          "conclusion": "skipped",
+          "completedAt": "2026-10-08T15:44:01Z",
+          "url": "https://github.com/grmkris/sidequest/actions/runs/37803002673/job/113403289990"
+        },
+        {
+          "name": "deploy-prod",
+          "conclusion": "success",
+          "completedAt": "2026-10-08T15:51:47Z",
+          "url": "https://github.com/grmkris/sidequest/actions/runs/37803002673/job/113403290932"
+        },
+        {
+          "name": "verify",
+          "conclusion": "success",
+          "completedAt": "2026-10-08T15:44:00Z",
+          "url": "https://github.com/grmkris/sidequest/actions/runs/37803002673/job/113403329845"
+        }
+      ],
+      "releaseLines": [
+        "Sidequest deploy stage=prod commit=a234a7f28d6d5263cdb3492117bb2c6b6fc38dd0 create=0 update=0 adopted=0 replace=0 delete=0 orphaned=0 noop=5",
+        "Sidequest deploy verified stage=prod commit=a234a7f28d6d5263cdb3492117bb2c6b6fc38dd0 create=0 update=0 adopted=0 replace=0 delete=0 orphaned=0 noop=5 workers=Api:c113576a-bb6d-47c3-8dfb-30e631676a88,Indexer:c770ffaf-30d7-4331-a7f6-f5b4f27d70c7,Explore:0766fa01-d43b-4add-8b5f-cf0515eb7306",
+        "ok prod https://sidequest.exchange",
+        "Sidequest drift clean stage=prod commit=a234a7f28d6d5263cdb3492117bb2c6b6fc38dd0"
+      ]
+    }
+  },
+  "productionFirstAttempt": {
+    "runId": 37803002673,
+    "jobId": 113400403630,
+    "deploy": "verified no-op",
+    "smoke": "failed: MCP Server Card missing",
+    "drift": "skipped",
+    "resolution": "Same SHA failed-job retry passed deploy, smoke and drift. Independent public metadata readbacks passed before and after the retry. The failing response bytes were not retained, so its cause is not independently established."
+  },
+  "publicReadbacks": {
+    "dev": "2026-10-08-dev-live.json",
+    "prod": "2026-10-08-prod-live.json",
+    "registry": "2026-10-08-registry.json"
+  },
+  "limits": [
+    "Authenticated host use was outside the agreed acceptance scope.",
+    "No non-public tenant board appeared in either public board listing; live tenant checks covered /b/public and unknown-board refusal.",
+    "The prescribed static Server Card schema URI returned HTTP 404; validation used the exact official extension schema commit with URI formats enabled.",
+    "No chain transactions or mainnet operations were performed."
+  ]
+}

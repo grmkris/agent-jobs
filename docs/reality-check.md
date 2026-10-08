@@ -517,3 +517,26 @@ during these startup passes, so a model proposal and new ruling are not establis
 
 This proves deployment and the self-run fixture hire, faucet, stake and pool quote. Managed-signer acceptance,
 Kris's genuine consent/revoke/client session and the broader A01–A08 gate remain separate. No mainnet transaction occurred.
+
+## Hosted MCP discovery release (8 Oct 2026)
+
+Commit `a234a7f28d6d5263cdb3492117bb2c6b6fc38dd0` passed the full CI verify/build gates and the guarded release on both
+stages. Dev CI [37801898433](https://github.com/grmkris/sidequest/actions/runs/37801898433) recorded deploy no-op,
+`ok dev https://dev.sidequest.exchange` smoke and clean drift. The same SHA was promoted to prod; the retried prod job
+in CI [37803002673](https://github.com/grmkris/sidequest/actions/runs/37803002673) recorded deploy no-op,
+`ok prod https://sidequest.exchange` smoke and clean drift. Both stages remain on Monad testnet
+(10143); no chain transaction was made for this metadata release.
+
+The public and `/b/public` Server Cards returned 200 with the MCP card media type, wildcard CORS, one-hour caching,
+ETags, conditional 304 and HEAD 200. Both cards validate with URI formats enabled against the pinned
+[Server Card schema](https://github.com/modelcontextprotocol/ext-server-card/tree/526201bbc80231daa40ffcdecfc9da4e54e5dc93)
+(SHA-256 `2c772b51edb367f154771d84ddbae87ddba00a624422c8e46f218a9ac03bf042`). Unknown tenant routing returned 404;
+OPTIONS returned 204 and POST returned 405. The AI Catalog lists only the public card. The HTTPS Ed25519 proof and
+512x512 PNG icon matched the checked-in public values. Six anonymous MCP requests (initialize, tools/list and
+server/discover on public and `/b/public`) returned 401 with bearer challenges. Authenticated host acceptance remains
+outside this receipt.
+
+The official publisher validated `server.json`; the registry accepted `exchange.sidequest/sidequest` version `2.0.0`. The
+[registry readback](https://registry.modelcontextprotocol.io/v0.1/servers/exchange.sidequest%2Fsidequest/versions/2.0.0)
+is active and contains the exact production endpoint, title, description, repository and icon. Sanitized request
+receipts are in [the MCP evidence directory](evidence/mcp-metadata/2026-10-08-a234a7f-release.json).

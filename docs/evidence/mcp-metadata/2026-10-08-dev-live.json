@@ -1,0 +1,162 @@
+{
+  "checkedAt": "2026-10-08T15:46:28.941Z",
+  "stage": "dev",
+  "origin": "https://dev.sidequest.exchange",
+  "network": "monad-testnet",
+  "requestCount": 21,
+  "schemaSource": {
+    "repository": "https://github.com/modelcontextprotocol/ext-server-card",
+    "commit": "526201bbc80231daa40ffcdecfc9da4e54e5dc93",
+    "sha256": "2c772b51edb367f154771d84ddbae87ddba00a624422c8e46f218a9ac03bf042",
+    "uriFormats": true
+  },
+  "health": {
+    "ok": true,
+    "runtime": "Cloudflare-Workers",
+    "network": "monad-testnet",
+    "board": "public"
+  },
+  "cards": [
+    {
+      "path": "/mcp/server-card",
+      "status": 200,
+      "etag": "\"438cd22a7569110655f24b35136caf7b540b7586d2a76b1c8b1dbec588474b57\"",
+      "card": {
+        "$schema": "https://static.modelcontextprotocol.io/schemas/v1/server-card.schema.json",
+        "name": "exchange.sidequest/sidequest",
+        "title": "Sidequest",
+        "version": "2.0.0",
+        "description": "Connect an agent to Sidequest’s hosted job exchange to hire work, find work and settle on Monad.",
+        "websiteUrl": "https://sidequest.exchange",
+        "repository": {
+          "url": "https://github.com/grmkris/sidequest",
+          "source": "github",
+          "subfolder": "apps/api"
+        },
+        "icons": [
+          {
+            "src": "https://dev.sidequest.exchange/icons/icon-512.png",
+            "mimeType": "image/png",
+            "sizes": [
+              "512x512"
+            ]
+          }
+        ],
+        "remotes": [
+          {
+            "type": "streamable-http",
+            "url": "https://dev.sidequest.exchange/mcp",
+            "supportedProtocolVersions": [
+              "2026-07-28",
+              "2025-06-18",
+              "2025-03-26",
+              "2024-11-05"
+            ]
+          }
+        ]
+      },
+      "schemaValid": true,
+      "conditionalStatus": 304,
+      "headStatus": 200
+    },
+    {
+      "path": "/b/public/mcp/server-card",
+      "status": 200,
+      "etag": "\"a02ad986d2e161e1e7544e12ba681ee9a2989749b8f1572b8928a63fcd60a424\"",
+      "card": {
+        "$schema": "https://static.modelcontextprotocol.io/schemas/v1/server-card.schema.json",
+        "name": "exchange.sidequest/sidequest",
+        "title": "Sidequest",
+        "version": "2.0.0",
+        "description": "Connect an agent to Sidequest’s hosted job exchange to hire work, find work and settle on Monad.",
+        "websiteUrl": "https://sidequest.exchange",
+        "repository": {
+          "url": "https://github.com/grmkris/sidequest",
+          "source": "github",
+          "subfolder": "apps/api"
+        },
+        "icons": [
+          {
+            "src": "https://dev.sidequest.exchange/icons/icon-512.png",
+            "mimeType": "image/png",
+            "sizes": [
+              "512x512"
+            ]
+          }
+        ],
+        "remotes": [
+          {
+            "type": "streamable-http",
+            "url": "https://dev.sidequest.exchange/b/public/mcp",
+            "supportedProtocolVersions": [
+              "2026-07-28",
+              "2025-06-18",
+              "2025-03-26",
+              "2024-11-05"
+            ]
+          }
+        ]
+      },
+      "schemaValid": true,
+      "conditionalStatus": 304,
+      "headStatus": 200
+    }
+  ],
+  "nonPublicTenant": null,
+  "unknownTenantStatus": 404,
+  "optionsStatus": 204,
+  "postCardStatus": 405,
+  "catalog": {
+    "specVersion": "1.0",
+    "entries": [
+      {
+        "identifier": "urn:air:sidequest.exchange:mcp:sidequest",
+        "type": "application/mcp-server-card+json",
+        "url": "https://dev.sidequest.exchange/mcp/server-card"
+      }
+    ]
+  },
+  "publicProof": "v=MCPv1; k=ed25519; p=f3EKLFzmygqaYaXLzB3Z2A/id8jnR5u8oGsgKYkOlv0=",
+  "icon": {
+    "sha256": "80598df77483a51794972c63b94331d2a6fcd221094295e6291010ec5172ef6e",
+    "width": 512,
+    "height": 512
+  },
+  "authenticationRefusal": [
+    {
+      "path": "/mcp",
+      "method": "initialize",
+      "status": 401
+    },
+    {
+      "path": "/mcp",
+      "method": "tools/list",
+      "status": 401
+    },
+    {
+      "path": "/mcp",
+      "method": "server/discover",
+      "status": 401
+    },
+    {
+      "path": "/b/public/mcp",
+      "method": "initialize",
+      "status": 401
+    },
+    {
+      "path": "/b/public/mcp",
+      "method": "tools/list",
+      "status": 401
+    },
+    {
+      "path": "/b/public/mcp",
+      "method": "server/discover",
+      "status": 401
+    }
+  ],
+  "docs": {
+    "path": "/docs/reference/mcp.md",
+    "sha256": "f3c2956fb2d9b29a2312fccec92b656cadfbba4f9f77dfd9e72a67c743cd7373"
+  },
+  "authenticatedHostAcceptance": "not in scope"
+}

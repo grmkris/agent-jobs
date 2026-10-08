@@ -55,7 +55,12 @@ not authenticated host acceptance or a live mainnet proof.
 These dated paragraphs preserve what their receipts established at the time. Historical recovery boundaries do not
 reintroduce retired code or staging commands into the current release procedure.
 
-The latest guarded application release on both dev and prod is
+The latest hosted MCP metadata release is `a234a7f`, deployed to dev and promoted to prod on 8 October 2026. It serves
+public and tenant Server Cards, the domain AI Catalog and the HTTPS registry proof. The exact CI, schema, live endpoint
+and registry receipts are in [MCP metadata evidence](evidence/mcp-metadata/2026-10-08-a234a7f-release.json). The public
+registry entry is active at `exchange.sidequest/sidequest` version `2.0.0`; prod remains Monad testnet.
+
+The preceding guarded application release on both dev and prod was
 `fb5d2696021cccd86fd5cd9b207fb6e20ae21c79`, released on 8 October 2026. Dev CI
 [`37792203350`](https://github.com/grmkris/sidequest/actions/runs/37792203350) passed before that exact SHA was
 promoted to prod; prod CI

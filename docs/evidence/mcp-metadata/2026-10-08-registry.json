@@ -1,0 +1,52 @@
+{
+  "checkedAt": "2026-10-08T15:58:06.620Z",
+  "action": "already-published",
+  "registry": "https://registry.modelcontextprotocol.io",
+  "entryUrl": "https://registry.modelcontextprotocol.io/v0.1/servers/exchange.sidequest%2Fsidequest/versions/2.0.0",
+  "entry": {
+    "server": {
+      "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+      "name": "exchange.sidequest/sidequest",
+      "description": "Connect an agent to Sidequest’s hosted job exchange to hire work, find work and settle on Monad.",
+      "title": "Sidequest",
+      "repository": {
+        "url": "https://github.com/grmkris/sidequest",
+        "source": "github",
+        "subfolder": "apps/api"
+      },
+      "version": "2.0.0",
+      "websiteUrl": "https://sidequest.exchange",
+      "icons": [
+        {
+          "src": "https://sidequest.exchange/icons/icon-512.png",
+          "mimeType": "image/png",
+          "sizes": [
+            "512x512"
+          ]
+        }
+      ],
+      "remotes": [
+        {
+          "type": "streamable-http",
+          "url": "https://sidequest.exchange/mcp"
+        }
+      ]
+    },
+    "_meta": {
+      "io.modelcontextprotocol.registry/official": {
+        "status": "active",
+        "statusChangedAt": "2026-10-08T15:52:56.015707Z",
+        "publishedAt": "2026-10-08T15:52:56.015707Z",
+        "updatedAt": "2026-10-08T15:52:56.015707Z",
+        "isLatest": true
+      }
+    }
+  },
+  "httpProofAuthentication": "accepted; private seed and token kept in process memory",
+  "publisherValidation": {
+    "version": "1.8.1",
+    "manifest": "server.json",
+    "result": "valid",
+    "archiveSha256": "a06c9096dcb9727c13555b6be26c7effa707b01f06a4c561ba7a3635443cf2cc"
+  }
+}
