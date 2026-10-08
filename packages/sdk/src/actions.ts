@@ -33,6 +33,7 @@ import {
 } from './abi/index.ts'
 import type { Deployment, Stack } from './deployment.ts'
 import { requireBondHorizon, readWindowBounds, validateOfferWindows } from './clocks.ts'
+import { readBondPolicy, requireCreatorBond } from './bond-policy.ts'
 import {
   type Authorization,
   type Ruling,
@@ -190,7 +191,7 @@ export function agentWallet(ctx: Ctx, agentId: bigint) {
 export interface PublishInput {
   readonly token: Address
   readonly reward: bigint
-  readonly creatorBond: bigint
+  readonly creatorBond?: bigint
   readonly workerBond: bigint
   readonly manifestHash: Hex
   /** The offer's `termsHash`; Holding refuses one it has already listed. */
@@ -224,6 +225,9 @@ export async function minExpiry(
 export async function publish(ctx: Ctx, wallet: Wallet, p: PublishInput) {
   if (p.arbitrator === undefined || p.arbitrator.toLowerCase() === zeroAddress)
     throw new Error('v1 publish needs an explicit arbitrator')
+  const policy = await readBondPolicy(ctx)
+  const creatorBond = p.creatorBond ?? policy.minimumCreatorBond
+  requireCreatorBond(policy, creatorBond)
   const windows = {
     reviewWindow: p.reviewWindow,
     disputeWindow: p.disputeWindow,
@@ -240,8 +244,8 @@ export async function publish(ctx: Ctx, wallet: Wallet, p: PublishInput) {
     p.deliveryDeadline,
     windows as { reviewWindow: number; disputeWindow: number; arbitrationWindow: number },
   )
-  await requireBondHorizon(ctx, expiry, p.creatorBond, p.workerBond)
-  await requireStake(ctx, wallet.account.address, p.creatorBond)
+  await requireBondHorizon(ctx, expiry, creatorBond, p.workerBond)
+  await requireStake(ctx, wallet.account.address, creatorBond)
   await ensureAllowance(ctx, wallet, p.token, ctx.stack.holding, p.reward)
   const receipt = await write(ctx, wallet, ctx.stack.holding, sidequestHoldingAbi, 'publish', [
     {
@@ -251,7 +255,7 @@ export async function publish(ctx: Ctx, wallet: Wallet, p: PublishInput) {
       policyHash: p.termsHash,
       token: p.token,
       reward: p.reward,
-      creatorBond: p.creatorBond,
+      creatorBond,
       workerBond: p.workerBond,
       deliveryDeadline: p.deliveryDeadline,
       expiredAt: expiry,

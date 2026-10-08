@@ -14,6 +14,7 @@ import {
   type Wallet,
   V1_GAS,
 } from './actions.ts'
+const MINIMUM_CREATOR_BOND = 10n * 10n ** 18n
 import { deployment } from './deployment.ts'
 import type { Selection } from './typed-data.ts'
 
@@ -104,6 +105,14 @@ function fixture(
             return 0n
           case 'allowance':
             return 0n
+          case 'unfilledForfeitBps':
+            return 2500
+          case 'CANCEL_GRACE':
+            return 600
+          case 'minimumCreatorBond':
+            return MINIMUM_CREATOR_BOND
+          case 'treasury':
+            return evaluator
           default:
             throw new Error(`unexpected read ${name}`)
         }
@@ -196,8 +205,8 @@ describe('kind-aware activation', () => {
   })
 
   it.each([
-    { creatorBond: 1n, workerBond: 0n },
-    { creatorBond: 0n, workerBond: 1n },
+    { creatorBond: MINIMUM_CREATOR_BOND, workerBond: 0n },
+    { creatorBond: MINIMUM_CREATOR_BOND, workerBond: 1n },
   ])('refuses a long publish with bonds $creatorBond/$workerBond before approvals', async (bonds) => {
     const f = fixture()
     await expect(

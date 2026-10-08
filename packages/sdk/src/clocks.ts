@@ -166,7 +166,7 @@ export function readUnstakeDelay(ctx: Ctx): Promise<number> {
 export function bondHorizonMessage(delay: number): string {
   const days = delay / 86400
   const label = Number.isInteger(days) ? `${days} day${days === 1 ? '' : 's'}` : `${delay} seconds`
-  return `A job with a bond must end within ${label} (the unstake period). Shorten the deadline or windows, or set the bond to 0.`
+  return `A job with a bond must end within ${label} (the unstake period). Shorten the deadline or windows.`
 }
 
 export class BondHorizonError extends Error {}
