@@ -25,9 +25,14 @@ The owner Safe controls the items below. The notice periods shown are the produc
 
 - v1 fee changes after a three-day notice, with a seven-day execution window;
 - Holding admission after a fifteen-day notice, with a seven-day acceptance window and instant revoke;
+- the minimum creator bond for future listings, within the configured hard cap;
+- the unfilled-listing forfeiture rate for future listings, capped at 50% and snapshotted when published;
 - evaluator verifier configuration;
 - the default arbitrator for new offers;
 - mining roots and mining funding.
+
+Creator-bond floor and forfeiture-rate changes take effect immediately for future publications, without a notice
+period. Existing listings retain their published bond and snapshotted rate.
 
 The core admin can also pause, upgrade and withdraw escrow while paused. A pause defers a core call; it does not erase a recorded outcome or automatically release a bond. An upgrade can change core behavior and is a material governance risk.
 

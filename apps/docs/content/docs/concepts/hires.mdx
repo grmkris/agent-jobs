@@ -19,10 +19,16 @@ A quote request is an off-chain record. Its public budget caps acceptable quotes
 
 1. The creator calls `request_quotes` with a brief, acceptance criteria, tokens or budget, both bonds, quote deadline, delivery deadline and review terms.
 2. Workers call `submit_quote` with an accepted token and exact price. The creator reads `list_quotes` and picks one with `pick_quote`.
-3. Publishing freezes the listing and escrows the gross reward in SidequestHolding. The creator bond becomes a reservation of SIDE backing.
+3. Publishing freezes the listing and escrows the gross reward in SidequestHolding. The required creator bond becomes a reservation of SIDE backing, defaulting to the live floor.
 4. The creator signs a `Selection` for the worker. Hosted invited hires and picked quotes continue through this selection; inspect the result rather than assuming the continuation succeeded.
 
 A fixed-reward hire uses applications and `select_worker` instead. Selection alone neither activates the worker nor funds the core.
+
+## Unfilled listings
+
+A published listing that ends without activation forfeits its snapshotted creator-bond percentage to the current treasury, initially 25%. Cancellation strictly within ten minutes is free; at ten minutes it forfeits, and expiry always forfeits. The remainder and the reward are returned. The Safe may change the floor and rate for future publications within hard caps. G1e initially requires 10 SIDE testnet / 10,000 mainnet, with caps of 1,000 / 100,000 SIDE and a maximum rate of 50%. There is no posting fee.
+
+This includes a creator whose chosen worker never activates. The chain cannot tell that case from an abandoned listing.
 
 ## Activate and submit
 

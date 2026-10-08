@@ -24,16 +24,24 @@ Source, unit tests and local Monad fork rehearsals establish implemented behavio
 `docs/reality-check.md` establish a live deployment or live flow; never infer those from a fork.
 
 - New v1 jobs are hires: fixed reward, quote-to-hire, or a named worker through `invite: {agentId}`.
+- Every publish reserves a required creator bond from available SIDE backing: initially **10 SIDE on testnet** and
+  **10,000 SIDE on mainnet**. The Safe can change the floor for new publications within immutable caps of 1,000 and
+  100,000 SIDE respectively. There is no posting fee or swap requirement; the reward and worker bond remain separate.
+- A listing that ends without ever activating forfeits its snapshotted bond percentage (initially **25%**) to the current
+  `FeeSchedule.treasury()`, with the rest released. Cancellation strictly before 600 seconds after publication is free;
+  expiry always forfeits, even inside that window. The Safe may change the rate for future publications from 0 to 50%.
+  A chosen worker who never activates has the same result: the chain cannot distinguish it from an abandoned listing.
+  See [ADR-0017](adr/0017-required-creator-bond.md).
 - The creator signs a `Selection`; the worker's `activate` confirms the frozen listing, sets provider and
   budget, reserves the worker bond and funds the core. No delivery liability before activation.
 - Review/dispute windows (1 h–14 d), arbitration (12 h–14 d), and the arbitrator are fixed per v1 offer.
   Publish resolves the default arbitrator into an explicit address. The worker verifies those terms before activation.
 - Bonds are reservations of available SIDE v2 stake in `StakeVault`, for both creator and worker. Release
   unlocks stake; slash burns the reservation with `Factory.burn`. Unstaking starts a fourteen-day production cooldown.
-  A nonzero creator bond at publish or worker bond at activation requires expiry within that cooldown from reservation,
-  including delivery, all windows and the core margin; longer jobs run unbonded.
+  Every creator bond at publish, and a nonzero worker bond at activation, requires expiry within that cooldown from reservation,
+  including delivery, all windows and the core margin; every published job therefore fits the unbonding horizon.
   A slash requested at or after the listing's `expiredAt` releases its nonzero bond instead, leaves the burn flag false,
-  and emits `BondReleased`; penalties must execute strictly before expiry.
+  and emits `BondReleased`; activated-job penalties must execute strictly before expiry. Never-activated creator-bond forfeiture is the explicit HR-001 exception and may settle after expiry.
 - Slashable: funded no-show, poor work against published criteria, falsified evidence. A rejection penalty
   needs an undisputed window or a ruling; missing delivery can settle permissionlessly after its deadline.
   Silence and arbitrator inactivity never burn. A v1 deadline inside a recorded core pause excuses the no-show burn;
@@ -65,6 +73,6 @@ Source, unit tests and local Monad fork rehearsals establish implemented behavio
   tokens, aggregates one leaf per account/epoch, and claims stake directly into the vault. A posted root and valid
   proof are required; the computation is not a promise of earnings.
 - The owner Safe controls v1 fees (three-day notice), Holding admission (fifteen-day notice, instant revoke),
-  verifier/arbitrator configuration and mining roots/funding. The core admin can still pause, upgrade and withdraw
+  capped creator-bond floors and unfilled rates for future listings, verifier/arbitrator configuration and mining roots/funding. The core admin can still pause, upgrade and withdraw
   escrow while paused. Disclose those powers; do not describe the protocol as trustless.
 - Never put secrets in notes, commits, branch names, logs or artifacts.

@@ -60,13 +60,16 @@ remote state and resources; both use Monad testnet until the mainnet gate descri
    enforces this). `SafeAccept.s.sol` needs a **threshold-1** Safe. With a higher threshold, do §3.5 in Safe{Wallet}.
 2. **`contracts/config/monad-mainnet.json`** (the coordinator commits it). The complete `sidequest` object:
    `SidequestRecipe.load` reads every row below, so DeploySidequest refuses if any is missing. Numbers are whole SIDE or
-   seconds. Leave the generated `deployment` fields absent: PromoteSidequest writes them from the receipts.
+   seconds unless marked as raw token units or basis points. Leave the generated `deployment` fields absent: PromoteSidequest writes them from the receipts.
 
    | field | type | on chain 143 |
    | --- | --- | --- |
    | `sidequest.safe` | address | the Safe |
    | `sidequest.defaultArbitrator` | address | the fresh v1 arbitrator, = `roles.arbitrator` (enforced); per-offer arbitrators override it |
    | `sidequest.margin` | uint | seconds added to the windows when checking `expiredAt`; the reviewed default is 3600 |
+   | `sidequest.minimumCreatorBond` | uint | raw SIDE units: 10000000000000000000000 (10,000 SIDE) |
+   | `sidequest.maxMinimumCreatorBond` | uint | immutable cap in raw SIDE units: 100000000000000000000000 (100,000 SIDE) |
+   | `sidequest.unfilledForfeitBps` | uint | initial never-activated forfeiture: 2500 bps, capped at 5000 |
    | `sidequest.schedule.thresholds` | uint[4] | fee tiers in whole SIDE: `[0, 10000, 100000, 1000000]` |
    | `sidequest.schedule.bps` | uint[4] | fee per tier: `[3000, 1000, 300, 100]` |
    | `sidequest.schedule.treasury` | address | the Safe |

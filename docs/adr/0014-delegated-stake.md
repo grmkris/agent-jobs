@@ -58,7 +58,7 @@ The accepted testnet edges are:
    has `unlockAt >= expiredAt`. Delivery, all three windows and the core expiry
    margin must fit. This is the standard approach used by EigenLayer, Cosmos
    and the Aave Safety Module: bonded jobs fit inside the unstake period, while
-   longer jobs run unbonded. A newcomer shares open-bond penalty exposure pro-rata
+   every published job carries the creator floor bond and therefore fits the horizon. A newcomer shares open-bond penalty exposure pro-rata
    before expiry, which is standard pooled staking behavior and disclosed
    before backing. Queued shares share timely slashes pro-rata; `withdraw` retains
    its existing collateral check. A delayed settlement can still require
@@ -99,3 +99,7 @@ Future profit-sharing epochs can integrate each delegator's active shares over
 time from this ledger, produce a per-wallet Merkle distribution, and publish it
 through a separately approved design. These events establish ownership and
 exposure; they neither distribute job revenue nor promise earnings today.
+
+## G1e required bonds and unfilled forfeiture
+
+[ADR-0017](0017-required-creator-bond.md) adds treasury forfeiture for never-activated listings. Like a burn, `forfeit` reduces pool assets and reservations, shares the loss across all positions including queued backing, and resets the generation at zero assets. It transfers SIDE instead of burning it. The reservation blocks withdrawal until settlement. Activated-job penalties retain the expiry protection; unfilled forfeiture is its explicit exception.
