@@ -22,6 +22,7 @@ function fixture(failBounds: boolean) {
     if (functionName === 'margin') return 120
     if (functionName === 'UNSTAKE_DELAY') return 259200
     if (functionName === 'allowance') return 0n
+    if (functionName === 'availableOf') return 1_000_000_000_000_000_000n
     if (failBounds && functionName.startsWith('MIN_')) {
       throw Object.assign(
         new Error(
@@ -128,5 +129,80 @@ it('create_task permits a long zero-bond job without reading the unstake clock',
   const f = fixture(false)
   await f.board.createTask({ address: creator }, { ...f.input, deliveryDeadline: 1000 + 90 * 86400 })
   expect(f.sql.all('SELECT * FROM tasks')).toHaveLength(1)
+  expect(f.read.mock.calls.some(([call]) => call.functionName === 'UNSTAKE_DELAY')).toBe(false)
+})
+
+it.each([
+  { creatorBond: '1', workerBond: '0' },
+  { creatorBond: '0', workerBond: '1' },
+])('create_task fits omitted defaults for a two-day bonded delivery $creatorBond/$workerBond', async (bonds) => {
+  const f = fixture(false)
+  const { windows: _windows, ...withoutWindows } = f.input
+  const prepared = await f.board.createTask(
+    { address: creator },
+    { ...withoutWindows, ...bonds, deliveryDeadline: 1000 + 2 * 86400 },
+  )
+  expect(prepared.transactions).toHaveLength(2)
+  const [row] = f.sql.all<{ terms_json: string }>('SELECT terms_json FROM tasks')
+  const { windows } = JSON.parse(row!.terms_json)
+  expect(windows).toEqual({ reviewSeconds: 21420, disputeSeconds: 21420, arbitrationSeconds: 42840 })
+  expect(1000 + 2 * 86400 + windows.reviewSeconds + windows.disputeSeconds + windows.arbitrationSeconds + 120).toBe(
+    1000 + 259200 - 600,
+  )
+})
+
+it('request_quotes fits the same defaults before freezing the request, and retains explicit windows', async () => {
+  const f = fixture(false)
+  const { windows: _windows, ...withoutWindows } = f.input
+  for (const request of [withoutWindows, f.input]) {
+    await f.board.requestQuotes(
+      { address: creator },
+      {
+        ...request,
+        workerBond: '1',
+        tokens: [f.input.token],
+        quoteDeadline: 100_000,
+        deliveryDeadline: 1000 + 2 * 86400,
+      },
+    )
+  }
+  const rows = f.sql.all<{ request_json: string }>('SELECT request_json FROM quote_requests ORDER BY rowid')
+  expect(JSON.parse(rows[0]!.request_json).windows).toEqual({
+    reviewSeconds: 21420,
+    disputeSeconds: 21420,
+    arbitrationSeconds: 42840,
+  })
+  expect(JSON.parse(rows[1]!.request_json).windows).toEqual(f.input.windows)
+})
+
+it('refuses omitted defaults when the minimum windows and inclusion slack cannot fit, without persisting', async () => {
+  const f = fixture(false)
+  const { windows: _windows, ...withoutWindows } = f.input
+  const input = {
+    ...withoutWindows,
+    workerBond: '1',
+    deliveryDeadline: 1000 + 259200 - 120 - 600 - 540 + 1,
+  }
+  await expect(f.board.createTask({ address: creator }, input)).rejects.toMatchObject({
+    code: 'invalid',
+    message: expect.stringContaining('3 days'),
+  })
+  await expect(
+    f.board.requestQuotes({ address: creator }, { ...input, tokens: [f.input.token], quoteDeadline: 100_000 }),
+  ).rejects.toMatchObject({ code: 'invalid', message: expect.stringContaining('3 days') })
+  expect(f.sql.all('SELECT * FROM tasks')).toHaveLength(0)
+  expect(f.sql.all('SELECT * FROM quote_requests')).toHaveLength(0)
+})
+
+it('keeps standard defaults on a zero-bond offer', async () => {
+  const f = fixture(false)
+  const { windows: _windows, ...withoutWindows } = f.input
+  await f.board.createTask({ address: creator }, withoutWindows)
+  const [row] = f.sql.all<{ terms_json: string }>('SELECT terms_json FROM tasks')
+  expect(JSON.parse(row!.terms_json).windows).toEqual({
+    reviewSeconds: 86400,
+    disputeSeconds: 86400,
+    arbitrationSeconds: 172800,
+  })
   expect(f.read.mock.calls.some(([call]) => call.functionName === 'UNSTAKE_DELAY')).toBe(false)
 })

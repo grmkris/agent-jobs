@@ -208,3 +208,43 @@ export function standardOfferWindows(bounds: WindowBounds): OfferWindows {
     arbitrationSeconds: clamp(172800, bounds.arbitration),
   }
 }
+
+/** Fit omitted bonded defaults inside the unbonding horizon, leaving ten minutes for signing and inclusion. */
+export function fitBondedOfferWindows(
+  windows: OfferWindows | undefined,
+  bounds: WindowBounds,
+  input: { now: number; deliveryDeadline: number; unstakeDelay: number; margin: number; bond: bigint },
+): OfferWindows {
+  if (windows !== undefined) return windows
+  const standard = standardOfferWindows(bounds)
+  if (input.bond === 0n) return standard
+  const budget = input.now + input.unstakeDelay - input.deliveryDeadline - input.margin - 600
+  if (windowSeconds(standard) <= budget) return standard
+  const minimum = minimumOfferWindows(bounds)
+  const scaled = (ratio: number): OfferWindows => ({
+    reviewSeconds: minuteWindow(standard.reviewSeconds, minimum.reviewSeconds, ratio),
+    disputeSeconds: minuteWindow(standard.disputeSeconds, minimum.disputeSeconds, ratio),
+    arbitrationSeconds: minuteWindow(standard.arbitrationSeconds, minimum.arbitrationSeconds, ratio),
+  })
+  let fitted = scaled(0)
+  if (windowSeconds(fitted) > budget) throw new BondHorizonError(bondHorizonMessage(input.unstakeDelay))
+  let low = 0,
+    high = budget / windowSeconds(standard)
+  const proportional = scaled(high)
+  if (windowSeconds(proportional) <= budget) return proportional
+  // If a minimum binds, reduce the common ratio until the other windows also fit alongside it.
+  for (let i = 0; i < 48; i++) {
+    const ratio = (low + high) / 2
+    const candidate = scaled(ratio)
+    if (windowSeconds(candidate) <= budget) {
+      low = ratio
+      fitted = candidate
+    } else high = ratio
+  }
+  return fitted
+}
+
+const windowSeconds = (windows: OfferWindows) =>
+  windows.reviewSeconds + windows.disputeSeconds + windows.arbitrationSeconds
+const minuteWindow = (standard: number, minimum: number, ratio: number) =>
+  Math.max(Math.ceil(minimum / 60), Math.floor((standard * ratio) / 60)) * 60

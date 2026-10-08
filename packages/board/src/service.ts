@@ -896,7 +896,11 @@ export class Board {
     const token = await this.#resolveToken(ctx, input.token)
     const decimals = await ctx.publicClient.readContract({ address: token, abi: erc20Abi, functionName: 'decimals' })
     const [windows, arbitrator, block] = await Promise.all([
-      sidequest.offerWindows(ctx, input.windows),
+      sidequest.offerWindows(ctx, input.windows, {
+        deliveryDeadline: input.deliveryDeadline,
+        creatorBond: parseUnits(input.creatorBond, 18),
+        workerBond: parseUnits(input.workerBond, 18),
+      }),
       sidequest.offerArbitrator(ctx, input.arbitrator),
       ctx.publicClient.getBlockNumber(),
     ])
@@ -1668,7 +1672,11 @@ export class Board {
       deliveryDeadline: input.deliveryDeadline,
       quoteDeadline: input.quoteDeadline,
       requiredChecks: input.requiredChecks ?? [],
-      windows: await sidequest.offerWindows(ctx, input.windows),
+      windows: await sidequest.offerWindows(ctx, input.windows, {
+        deliveryDeadline: input.deliveryDeadline,
+        creatorBond: parseUnits(input.creatorBond, 18),
+        workerBond: parseUnits(input.workerBond, 18),
+      }),
       arbitrator: await sidequest.offerArbitrator(ctx, input.arbitrator),
       ...(input.deliverable === undefined ? {} : { deliverable: normalSpec(input.deliverable) }),
       salt: `0x${randomId(32)}`,

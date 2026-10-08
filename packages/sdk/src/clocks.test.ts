@@ -11,6 +11,7 @@ import {
   readSidequestClocks,
   readWindowBounds,
   standardOfferWindows,
+  fitBondedOfferWindows,
   validateOfferWindows,
   windowBounds,
 } from './clocks.ts'
@@ -27,6 +28,8 @@ const FAST = {
   epochZeroDuration: 1800,
   epochDuration: 3600,
 }
+const windowSum = (windows: ReturnType<typeof standardOfferWindows>) =>
+  windows.reviewSeconds + windows.disputeSeconds + windows.arbitrationSeconds
 
 function fixture() {
   const d = deployment('monad-testnet'),
@@ -214,4 +217,88 @@ describe('bond horizon', () => {
     f.values.UNSTAKE_DELAY = FAST.unstakeDelay
     expect(await readUnstakeDelay(f.ctx)).toBe(FAST.unstakeDelay)
   })
+})
+
+describe.each([
+  { label: '3-day testnet', clocks: FAST, margin: 120 },
+  { label: '14-day production', clocks: PRODUCTION_CLOCKS, margin: 3600 },
+])('bonded default windows on $label', ({ clocks, margin }) => {
+  const bounds = windowBounds(clocks)
+  const standard = standardOfferWindows(bounds)
+  const base = { now: 1000, unstakeDelay: clocks.unstakeDelay, margin, bond: 1n }
+
+  it('keeps the standard when it fits a short delivery, otherwise fits the three-day stack', () => {
+    const deliveryDeadline = base.now + 60
+    const fitted = fitBondedOfferWindows(undefined, bounds, { ...base, deliveryDeadline })
+    if (clocks.unstakeDelay === PRODUCTION_CLOCKS.unstakeDelay) expect(fitted).toEqual(standard)
+    else expect(windowSum(fitted)).toBeLessThan(windowSum(standard))
+    expect(deliveryDeadline + windowSum(fitted) + margin + 600).toBeLessThanOrEqual(base.now + base.unstakeDelay)
+  })
+
+  it('fits a two-day delivery proportionally, rounding down to whole minutes', () => {
+    const deliveryDeadline = base.now + 2 * 86400
+    const fitted = fitBondedOfferWindows(undefined, bounds, { ...base, deliveryDeadline })
+    expect(fitted.reviewSeconds).toBe(fitted.disputeSeconds)
+    expect(Math.abs(fitted.arbitrationSeconds - 2 * fitted.reviewSeconds)).toBeLessThanOrEqual(60)
+    expect(Object.values(fitted).every((value) => value % 60 === 0)).toBe(true)
+    expect(deliveryDeadline + windowSum(fitted) + margin + 600).toBeLessThanOrEqual(base.now + base.unstakeDelay)
+    if (clocks.unstakeDelay === FAST.unstakeDelay)
+      expect(fitted).toEqual({ reviewSeconds: 21420, disputeSeconds: 21420, arbitrationSeconds: 42840 })
+    else expect(fitted).toEqual(standard)
+  })
+
+  it('refuses a delivery filling the horizon', () => {
+    expect(() =>
+      fitBondedOfferWindows(undefined, bounds, { ...base, deliveryDeadline: base.now + base.unstakeDelay }),
+    ).toThrow(bondHorizonMessage(base.unstakeDelay))
+  })
+
+  it('leaves explicit windows untouched even beyond the horizon', () => {
+    expect(fitBondedOfferWindows(standard, bounds, { ...base, deliveryDeadline: base.now + base.unstakeDelay })).toBe(
+      standard,
+    )
+  })
+
+  it('keeps the standard for an unbonded long delivery', () => {
+    expect(
+      fitBondedOfferWindows(undefined, bounds, { ...base, bond: 0n, deliveryDeadline: base.now + 90 * 86400 }),
+    ).toEqual(standard)
+  })
+
+  it('fits the exact minimum budget and refuses one second less', () => {
+    const minimum = minimumOfferWindows(bounds)
+    const deliveryDeadline = base.now + base.unstakeDelay - margin - 600 - windowSum(minimum)
+    expect(fitBondedOfferWindows(undefined, bounds, { ...base, deliveryDeadline })).toEqual(minimum)
+    expect(() => fitBondedOfferWindows(undefined, bounds, { ...base, deliveryDeadline: deliveryDeadline + 1 })).toThrow(
+      bondHorizonMessage(base.unstakeDelay),
+    )
+  })
+})
+
+it('fits proportionally with a binding arbitration minimum and a non-minute deployment minimum', () => {
+  const bounds = windowBounds(PRODUCTION_CLOCKS)
+  const now = 1000,
+    deliveryDeadline = now + 13 * 86400
+  const fitted = fitBondedOfferWindows(undefined, bounds, {
+    now,
+    deliveryDeadline,
+    unstakeDelay: PRODUCTION_CLOCKS.unstakeDelay,
+    margin: 3600,
+    bond: 1n,
+  })
+  expect(fitted.arbitrationSeconds).toBe(bounds.arbitration.min)
+  expect(fitted.reviewSeconds).toBeGreaterThanOrEqual(bounds.review.min)
+  expect(fitted.disputeSeconds).toBeGreaterThanOrEqual(bounds.dispute.min)
+  expect(
+    deliveryDeadline + fitted.reviewSeconds + fitted.disputeSeconds + fitted.arbitrationSeconds + 3600 + 600,
+  ).toBeLessThanOrEqual(now + PRODUCTION_CLOCKS.unstakeDelay)
+  const odd = { ...windowBounds(FAST), review: { min: 121, max: MAX_SIDEQUEST_WINDOW } }
+  const oddFitted = fitBondedOfferWindows(undefined, odd, {
+    now,
+    deliveryDeadline: now + FAST.unstakeDelay - 120 - 600 - 600,
+    unstakeDelay: FAST.unstakeDelay,
+    margin: 120,
+    bond: 1n,
+  })
+  expect(oddFitted).toEqual({ reviewSeconds: 180, disputeSeconds: 120, arbitrationSeconds: 300 })
 })

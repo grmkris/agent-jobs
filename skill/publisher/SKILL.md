@@ -38,6 +38,7 @@ Queued shares stop counting toward the fee tier and new bonds immediately, but
 remain slashable until successful withdrawal. Leaving starts a three-day wait with
 fresh testnet clocks (fourteen days in production); existing deployments keep their
 immutable delay. Open bonds can delay withdrawal further.
+Bonded jobs must fit the deployed unstake period; omitted windows are fitted automatically.
 
 ## Publish within the allowance
 

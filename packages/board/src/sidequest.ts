@@ -18,8 +18,32 @@ export function rulingNonceUsed(ctx: sdk.Ctx, arbitrator: Address, nonce: bigint
   })
 }
 
-export async function offerWindows(ctx: sdk.Ctx, input?: EvaluatorWindows): Promise<EvaluatorWindows> {
-  return input ?? sdk.standardOfferWindows(await sdk.readWindowBounds(ctx))
+export async function offerWindows(
+  ctx: sdk.Ctx,
+  input: EvaluatorWindows | undefined,
+  options: { deliveryDeadline?: number; creatorBond?: bigint; workerBond?: bigint } = {},
+): Promise<EvaluatorWindows> {
+  if (input !== undefined) return input
+  const bounds = await sdk.readWindowBounds(ctx)
+  const bond = (options.creatorBond ?? 0n) + (options.workerBond ?? 0n)
+  if (options.deliveryDeadline === undefined || bond === 0n) return sdk.standardOfferWindows(bounds)
+  const [block, delay, margin] = await Promise.all([
+    ctx.publicClient.getBlock(),
+    sdk.readUnstakeDelay(ctx),
+    ctx.publicClient.readContract({ address: ctx.stack.holding, abi: sdk.sidequestHoldingAbi, functionName: 'margin' }),
+  ])
+  try {
+    return sdk.fitBondedOfferWindows(undefined, bounds, {
+      now: Number(block.timestamp),
+      deliveryDeadline: options.deliveryDeadline,
+      unstakeDelay: delay,
+      margin,
+      bond,
+    })
+  } catch (error) {
+    if (error instanceof sdk.BondHorizonError) throw new BoardError('invalid', error.message)
+    throw error
+  }
 }
 
 export async function offerArbitrator(ctx: sdk.Ctx, requested?: string): Promise<Address | undefined> {
