@@ -1,7 +1,8 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
-import { createPublicClient, http, erc20Abi } from 'viem'
+import { createPublicClient, http, erc20Abi, parseUnits } from 'viem'
 import { KRIS, address, checksum, makeManifest, oldVaultAbi, positionCandidates } from './refund-model.mjs'
+import { refundIdentity, refundPaths } from './refund-generation.mjs'
 
 export const PUBLIC_RPC = 'https://testnet-rpc.monad.xyz'
 /** Monad's public RPC refuses eth_getLogs over more than 100 blocks (-32614) and more than 25 requests a second. */
@@ -64,7 +65,7 @@ export async function readLogs(from, through, addresses, client, pageSize = LOG_
 }
 
 /** Only public RPC reads. All reads and candidate enumeration are pinned to the requested finalized block. */
-export async function captureSnapshot(config, block, rpc = PUBLIC_RPC, dependencies = {}) {
+export async function captureSnapshot(config, block, rpc = PUBLIC_RPC, dependencies = {}, krisSide) {
   const h = config.deployment?.sidequest
   if (config.chainId !== 10143 || config.network !== 'monad-testnet' || !Number.isSafeInteger(h?.block) || !Number.isSafeInteger(block) || block < h.block) throw new Error('refund: requires an archived testnet deployment and explicit snapshot block')
   const client = dependencies.client ?? paced(createPublicClient({ transport: http(rpc, { timeout: 20_000, retryCount: 2 }) }))
@@ -80,20 +81,28 @@ export async function captureSnapshot(config, block, rpc = PUBLIC_RPC, dependenc
   if (exclusions.some(([wallet]) => address(wallet) === KRIS)) throw new Error('refund: Kris overlaps an excluded allocation')
   const excluded = []
   for (const [wallet, reason] of exclusions) excluded.push({ wallet: address(wallet), amount: String(await read(h.factory, erc20Abi, 'balanceOf', [address(wallet)])), reason })
-  const looseBalances = [{ wallet: KRIS, amount: String(await read(h.factory, erc20Abi, 'balanceOf', [KRIS])), sources: ['Kris loose old SIDE at snapshot'] }]
+  const amount = krisSide === undefined
+    ? await read(h.factory, erc20Abi, 'balanceOf', [KRIS])
+    : parseUnits(krisSide, Number(await read(h.factory, erc20Abi, 'decimals')))
+  const looseBalances = [{ wallet: KRIS, amount: String(amount), sources: [krisSide === undefined ? 'Kris loose old SIDE at snapshot' : 'Explicit Kris cutover allocation; liquid balances are not migrated'] }]
   const totalAssets = String(await read(h.vault, oldVaultAbi, 'totalAssets'))
   if ((await client.getBlock({ blockNumber: BigInt(block) })).hash !== fixed.hash) throw new Error('refund: snapshot block hash changed')
   return { chainId: 10143, block, blockHash: fixed.hash, timestamp: Number(fixed.timestamp), old: { vault: address(h.vault), factory: address(h.factory), core: address(config.deployment.core), holding: address(config.deployment.main.holding), block: h.block, configChecksum: checksum(config) }, vaultLogs, accounts, looseBalances, excluded, totalAssets }
 }
 
 export function parseManifestArgs(args) {
-  const options = { out: 'docs/evidence/testnet-g1d/refund-manifest.json' }
+  const options = {}
   for (let i = 0; i < args.length; i += 2) {
-    if (!['--out', '--config', '--block'].includes(args[i]) || args[i + 1] === undefined || options[args[i].slice(2)] !== undefined && args[i] !== '--out') throw new Error('refund: usage refund-manifest.mjs --config ARCHIVE --block N [--out FILE]')
-    options[args[i].slice(2)] = args[i + 1]
+    const key = args[i]?.slice(2)
+    if (!['--out', '--config', '--block', '--generation', '--source', '--kris-side'].includes(args[i]) || args[i + 1] === undefined || options[key] !== undefined)
+      throw new Error('refund: usage refund-manifest.mjs --config ARCHIVE --block N [--generation LABEL --source LABEL --kris-side AMOUNT --out FILE]')
+    options[key] = args[i + 1]
   }
-  if (!options.config || !/^[1-9][0-9]*$/u.test(options.block ?? '') || !options.config.startsWith('contracts/config/archive/')) throw new Error('refund: --config must name an archived config and --block is required')
-  return { ...options, block: Number(options.block) }
+  const identity = refundIdentity(options.generation, options.source)
+  if (!options.config || !/^[1-9][0-9]*$/u.test(options.block ?? '') || !options.config.startsWith('contracts/config/archive/') || !Number.isSafeInteger(Number(options.block)))
+    throw new Error('refund: --config must name an archived config and --block is required')
+  if (options['kris-side'] !== undefined && !/^[1-9][0-9]*(?:\.[0-9]+)?$/u.test(options['kris-side'])) throw new Error('refund: invalid Kris allocation')
+  return { ...options, ...identity, out: options.out ?? refundPaths(identity.generation).manifest, block: Number(options.block), krisSide: options['kris-side'] }
 }
 
 async function main() {
@@ -103,8 +112,8 @@ async function main() {
   // The batch verifies --block against the promoted new deployment before any send.
   const target = resolve(options.out), evidence = target.replace(/\.json$/u, '.snapshot.json')
   if (target === evidence || existsSync(target) || existsSync(evidence)) throw new Error('refund: outputs already exist or path does not end in .json')
-  const snapshot = await captureSnapshot(config, options.block, process.env.MONAD_RPC_URL || process.env.MONAD_TESTNET_RPC_URL || PUBLIC_RPC)
-  const manifest = makeManifest(snapshot)
+  const snapshot = await captureSnapshot(config, options.block, process.env.MONAD_RPC_URL || process.env.MONAD_TESTNET_RPC_URL || PUBLIC_RPC, {}, options.krisSide)
+  const manifest = makeManifest(snapshot, options)
   mkdirSync(dirname(target), { recursive: true })
   writeFileSync(evidence, JSON.stringify(snapshot, null, 2) + '\n', { flag: 'wx' })
   writeFileSync(target, JSON.stringify(manifest, null, 2) + '\n', { flag: 'wx' })

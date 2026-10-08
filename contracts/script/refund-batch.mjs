@@ -3,25 +3,26 @@ import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { createPublicClient, decodeEventLog, http, erc20Abi, TransactionReceiptNotFoundError } from 'viem'
 import { KRIS, address, canonical, makeManifest, checksum } from './refund-model.mjs'
+import { refundIdentity, refundPaths } from './refund-generation.mjs'
 import { PUBLIC_RPC, paced, readLogs } from './refund-manifest.mjs'
 import { refundPlan, bindRefundJournal, validateSavedRefunds, resumeDecision, refundVaultAbi, refundSendMode } from './refund-batch-model.mjs'
 
 async function main() {
   const options = parseBatchArgs(process.argv.slice(2))
   const send = refundSendMode(options.yes, process.env)
-  if (!existsSync('/proc/self/fd/9') || process.env.G1D_REFUND_LOCKED !== '1') throw new Error('refund: use refund-batch.sh to hold the kernel journal lock')
+  if (!existsSync('/proc/self/fd/9') || process.env.SIDEQUEST_REFUND_LOCKED !== options.generation) throw new Error('refund: use refund-batch.sh to hold the kernel journal lock')
   const configPath = 'contracts/config/monad-testnet.json'
   const configBytes = readFileSync(configPath, 'utf8')
   const manifestBytes = readFileSync(options.manifest, 'utf8')
   const config = JSON.parse(configBytes)
   const manifest = JSON.parse(manifestBytes)
   const snapshot = JSON.parse(readFileSync(options.manifest.replace(/\.json$/, '.snapshot.json'), 'utf8'))
-  if (checksum(snapshot) !== manifest.snapshot.checksum || canonical(makeManifest(snapshot)) !== canonical(manifest)) throw new Error('refund: manifest does not match the replayed snapshot')
-  const plan = refundPlan(manifest, config)
+  if (checksum(snapshot) !== manifest.snapshot.checksum || canonical(makeManifest(snapshot, options)) !== canonical(manifest)) throw new Error('refund: manifest does not match the replayed snapshot')
+  const plan = refundPlan(manifest, config, options)
   const rpc = process.env.MONAD_RPC_URL || process.env.MONAD_TESTNET_RPC_URL || PUBLIC_RPC
   const client = paced(createPublicClient({ transport: http(rpc, { timeout: 20_000, retryCount: 2 }) }))
   if (await client.getChainId() !== 10143) throw new Error('refund: RPC must be Monad testnet (10143)')
-  const directory = pathToFileURL(resolve('.g1d-refunds') + '/')
+  const directory = pathToFileURL(resolve(refundPaths(options.generation).directory) + '/')
   const journalPath = new URL('journal.json', directory)
   // Bun is used by the wrapper; reuse the SDK's durable-before-send journal and filesystem barrier.
   const { FlowJournal, parseFlowJson } = await import('../../packages/sdk/src/flow-journal.ts')
@@ -59,18 +60,22 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(new URL(import.meta.
 })
 
 export function parseBatchArgs(args) {
-  const options = { yes: false, manifest: 'docs/evidence/testnet-g1d/refund-manifest.json', keyEnv: 'CREATOR_PRIVATE_KEY' }
+  const options = { yes: false, keyEnv: 'CREATOR_PRIVATE_KEY' }
+  const seen = new Set()
   for (let i = 0; i < args.length; i++) {
     const key = args[i]
+    if (seen.has(key)) throw new Error('refund: duplicate option')
+    seen.add(key)
     if (key === '--yes') options.yes = true
-    else if (['--manifest', '--key-env'].includes(key) && args[i + 1]) {
+    else if (['--manifest', '--key-env', '--generation', '--source'].includes(key) && args[i + 1]) {
       const value = args[++i]
-      if (key === '--manifest') options.manifest = value
-      else options.keyEnv = value
-    } else throw new Error('refund: usage refund-batch.sh [--manifest FILE] [--yes] [--key-env NAME]')
+      if (key === '--key-env') options.keyEnv = value
+      else options[key.slice(2)] = value
+    } else throw new Error('refund: usage refund-batch.sh [--generation LABEL --source LABEL --manifest FILE --yes --key-env NAME]')
   }
+  const identity = refundIdentity(options.generation, options.source)
   if (!/^[A-Z][A-Z0-9_]*$/.test(options.keyEnv)) throw new Error('refund: invalid key environment name')
-  return options
+  return { ...options, ...identity, manifest: options.manifest ?? refundPaths(identity.generation).manifest }
 }
 
 function loadJournal(journalPath, parseFlowJson) {
@@ -134,7 +139,7 @@ async function verifyNewVault(client, plan, remaining) {
   if (balance < remaining) throw new Error('refund: funding wallet lacks remaining new SIDE')
   const vaultFactory = await client.readContract({ address: plan.vault, abi: refundVaultAbi, functionName: 'factory' })
   const holdingAuthorized = await client.readContract({ address: plan.vault, abi: refundVaultAbi, functionName: 'isHolding', args: [plan.holding] })
-  if (address(vaultFactory) !== plan.factory || !holdingAuthorized) throw new Error('refund: G1d vault factory/bootstrap mismatch')
+  if (address(vaultFactory) !== plan.factory || !holdingAuthorized) throw new Error('refund: new vault factory/bootstrap mismatch')
 }
 
 async function savedReceipt(client, saved, funding) {

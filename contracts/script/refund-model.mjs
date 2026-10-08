@@ -1,6 +1,7 @@
 // Adapted from 714b45b^: deterministic manifests and fail-closed refund ownership.
 import { createHash } from 'node:crypto'
 import { decodeEventLog, getAddress, parseAbi } from 'viem'
+import { refundIdentity } from './refund-generation.mjs'
 
 export const KRIS = '0xB9970A6371358F6C74DFb15A7cB2653E3AE3E471'
 // Frozen pre-G1d ABI, independent of the freshly generated vault ABI.
@@ -89,20 +90,22 @@ export function positionsFromSnapshot(snapshot) {
   return pools.flatMap(pool => pool.positions).toSorted((a, b) => a.account.localeCompare(b.account) || a.delegator.localeCompare(b.delegator))
 }
 
-export function makeManifest(snapshot) {
+export function makeManifest(snapshot, { generation = 'g1d', source = `pre-${generation}` } = {}) {
+  refundIdentity(generation, source)
   if (snapshot.chainId !== 10143 || !Number.isSafeInteger(snapshot.block) || snapshot.block < snapshot.old.block) throw new Error('refund: snapshot identity mismatch')
   const positions = positionsFromSnapshot(snapshot)
   if (snapshot.looseBalances.length !== 1 || address(snapshot.looseBalances[0].wallet) !== KRIS) throw new Error('refund: loose balance must be Kris only')
   const transfers = snapshot.looseBalances.filter(row => uint(row.amount) > 0n).map(row => ({ wallet: address(row.wallet), amount: uint(row.amount).toString(), sources: row.sources }))
   const positionAssets = positions.reduce((n, row) => n + BigInt(row.amount), 0n)
-  const body = { schemaVersion: 2, chainId: 10143, from: 'pre-g1d', to: 'g1d', snapshot: { block: snapshot.block, blockHash: snapshot.blockHash, timestamp: snapshot.timestamp, checksum: checksum(snapshot) }, old: snapshot.old, positions, transfers, excluded: snapshot.excluded,
+  const body = { schemaVersion: 2, chainId: 10143, from: source, to: generation, snapshot: { block: snapshot.block, blockHash: snapshot.blockHash, timestamp: snapshot.timestamp, checksum: checksum(snapshot) }, old: snapshot.old, positions, transfers, excluded: snapshot.excluded,
     totals: { positions: positionAssets.toString(), transfers: transfers.reduce((n, row) => n + BigInt(row.amount), 0n).toString(), roundingDust: (uint(snapshot.totalAssets) - positionAssets).toString() } }
   return { ...body, checksum: checksum(body) }
 }
 
-export function validateManifest(manifest) {
+export function validateManifest(manifest, { generation = manifest.to, source = manifest.from } = {}) {
+  refundIdentity(generation, source)
   const { checksum: digest, ...body } = manifest
-  if (manifest.schemaVersion !== 2 || manifest.chainId !== 10143 || manifest.from !== 'pre-g1d' || manifest.to !== 'g1d' || checksum(body) !== digest) throw new Error('refund: manifest identity/checksum mismatch')
+  if (manifest.schemaVersion !== 2 || manifest.chainId !== 10143 || manifest.from !== source || manifest.to !== generation || checksum(body) !== digest) throw new Error('refund: manifest identity/checksum mismatch')
   const keys = new Set()
   for (const row of manifest.positions) {
     const key = `${address(row.account)}:${address(row.delegator)}`

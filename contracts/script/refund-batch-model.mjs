@@ -7,12 +7,12 @@ export const refundVaultAbi = parseAbi([
   'function isHolding(address) view returns(bool)',
 ])
 
-export function refundPlan(manifest, config) {
-  validateManifest(manifest)
+export function refundPlan(manifest, config, identity) {
+  validateManifest(manifest, identity)
   const h = config?.deployment?.sidequest
   if (config.chainId !== 10143 || config.network !== 'monad-testnet' || !Number.isSafeInteger(h?.block)
     || h.block <= manifest.snapshot.block || address(h.vault) === address(manifest.old.vault)
-    || address(h.factory) === address(manifest.old.factory)) throw new Error('refund: requires promoted G1d testnet contracts')
+    || address(h.factory) === address(manifest.old.factory)) throw new Error('refund: requires promoted replacement testnet contracts')
   if (h.block !== manifest.snapshot.block + 1) throw new Error('refund: snapshot must precede the new deployment by one block')
   const funding = address(config.sidequest.allocation.ecosystem)
   const totalPositions = manifest.positions.reduce((n, row) => n + BigInt(row.amount), 0n)
@@ -25,7 +25,7 @@ export function refundPlan(manifest, config) {
     ...manifest.transfers.map(row => ({ key: `transfer/${row.wallet.toLowerCase()}`, to: address(h.factory), amount: row.amount,
       data: encodeFunctionData({ abi: erc20Abi, functionName: 'transfer', args: [address(row.wallet), BigInt(row.amount)] }) })),
   ]
-  const binding = canonical({ purpose: 'g1d-refunds-v1', chainId: 10143, manifest: manifest.checksum, funding,
+  const binding = canonical({ purpose: `${manifest.to}-refunds-v1`, chainId: 10143, manifest: manifest.checksum, funding,
     deployment: checksum(config), factory: address(h.factory), vault: address(h.vault) })
   return { funding, factory: address(h.factory), vault: address(h.vault), holding: address(config.deployment.main.holding), operations, binding }
 }

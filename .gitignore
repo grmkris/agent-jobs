@@ -15,6 +15,7 @@ packages/sdk/scripts/.state.json
 .crew/
 .sidequest/
 .g1d-refunds/
+.g*-refunds/
 packages/sdk/scripts/privy/.local/
 packages/sdk/scripts/live/.local/
 .turbo/
