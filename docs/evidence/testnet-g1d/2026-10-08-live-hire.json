@@ -1,0 +1,362 @@
+{
+  "sourceCommit": "fb5d2696021cccd86fd5cd9b207fb6e20ae21c79",
+  "observedAt": "2026-10-08T14:53:40.123Z",
+  "origin": "https://sidequest.exchange",
+  "network": "monad-testnet",
+  "chainId": 10143,
+  "layer": "fixture",
+  "result": "pass",
+  "flow": "quotes",
+  "taskId": "446757c086f21ecf",
+  "requestId": "ad01bf36723b4e34",
+  "jobId": "1",
+  "agentId": "2081",
+  "creator": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+  "worker": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571",
+  "arbitrator": "0x96eE4e1660744A4dE92D9E22476C501063524716",
+  "listing": {
+    "creator": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+    "outcome": 1,
+    "funded": true,
+    "rewardSettled": true,
+    "creatorBondSettled": true,
+    "workerBondSettled": true,
+    "creatorBondBurned": false,
+    "workerBondBurned": false,
+    "workerBondReserved": true,
+    "approver": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+    "deliveryDeadline": 1791492361,
+    "expiredAt": 1791496501,
+    "arbitrator": "0x96eE4e1660744A4dE92D9E22476C501063524716",
+    "reviewWindow": 120,
+    "disputeWindow": 120,
+    "feeBps": 3000,
+    "worker": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571",
+    "arbitrationWindow": 300,
+    "token": "0x6B56D64150818f91f5112B285e806ec6C78EADe8",
+    "reward": "1000000",
+    "fee": "300000",
+    "bonus": "0",
+    "creatorBond": "10000000000000000000",
+    "workerBond": "10000000000000000000",
+    "manifestHash": "0x253d3c793cc98b429f5e4e0d1e1d09989a6d0259cf6ad5e4413cf01e2d764c03",
+    "policyHash": "0x253d3c793cc98b429f5e4e0d1e1d09989a6d0259cf6ad5e4413cf01e2d764c03"
+  },
+  "operations": [
+    {
+      "kind": "publish",
+      "status": "confirmed"
+    },
+    {
+      "kind": "activate",
+      "status": "confirmed"
+    },
+    {
+      "kind": "submit",
+      "status": "confirmed"
+    },
+    {
+      "kind": "accept",
+      "status": "confirmed"
+    }
+  ],
+  "receipts": [
+    {
+      "step": "setup/register",
+      "hash": "0x1af0f1e199cdf5eb6432f072021fb38308720b245e91cb2fae7f8d0ffa575f35",
+      "status": "success",
+      "block": "69282221"
+    },
+    {
+      "step": "setup/creator/approve",
+      "hash": "0x1a22ddf861c0adea5560328d4a953aa19d8654d246b14f6ed18946fcccf13756",
+      "status": "success",
+      "block": "69282231"
+    },
+    {
+      "step": "setup/creator/stake",
+      "hash": "0xf9fc902694a99d58c1fc8218f34354f25171b4f971a48e6fd0b477c8eb060673",
+      "status": "success",
+      "block": "69282240"
+    },
+    {
+      "step": "setup/worker/approve",
+      "hash": "0xea5e2ba3bda5495133b3969fa886c9be04cd670b59e23a062bfc9633844dc478",
+      "status": "success",
+      "block": "69282248"
+    },
+    {
+      "step": "setup/worker/stake",
+      "hash": "0xf76d5418fab6ef0050cac01fe5a9e49b3a8a31b06bcb2d5cac3479bcbd0ae13e",
+      "status": "success",
+      "block": "69282254"
+    },
+    {
+      "step": "quotes/publish/0",
+      "hash": "0x2fcbb79d62f8e04c230f565455c8c3142aff70ff98a0e8025a2008f944f694a4",
+      "status": "success",
+      "block": "69282301"
+    },
+    {
+      "step": "quotes/publish/1",
+      "hash": "0x3414a18a5f8e96ffc07bafb213a176c197b3fede5725551ab69909a3b8891eb9",
+      "status": "success",
+      "block": "69282309"
+    },
+    {
+      "step": "quotes/activate/0",
+      "hash": "0x8c374f4242f79a05475da012a46836acfe596229c445f897124fd54667f0fdae",
+      "status": "success",
+      "block": "69282349"
+    },
+    {
+      "step": "quotes/submit/0",
+      "hash": "0x525cba72efd48ee88869be083f5a541a04a36b576e063065cf33b93c88a56898",
+      "status": "success",
+      "block": "69282364"
+    },
+    {
+      "step": "quotes/accept/0",
+      "hash": "0x8a6341651cac69dd3b9cf5610e761d73962cbfd529ad00d6cd098d47207758f4",
+      "status": "success",
+      "block": "69282380"
+    },
+    {
+      "step": "quotes/settle/0",
+      "hash": "0x4445e9c737b74ce9d1324fb0c9c1b8515d935e3d91ad89d1742bcd2a14882115",
+      "status": "success",
+      "block": "69282398"
+    }
+  ],
+  "backing": {
+    "creator": {
+      "account": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+      "blockNumber": "69283762",
+      "assets": "100000000000000000000",
+      "reserved": "0",
+      "shares": "100000000000000000000",
+      "queuedShares": "0",
+      "generation": "0",
+      "active": "100000000000000000000",
+      "queued": "0",
+      "available": "100000000000000000000",
+      "tier": {
+        "index": 0,
+        "threshold": "0",
+        "feeBps": 3000,
+        "nextThreshold": "10000000000000000000000",
+        "nextFeeBps": 1000,
+        "needed": "9900000000000000000000"
+      }
+    },
+    "worker": {
+      "account": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571",
+      "blockNumber": "69283764",
+      "assets": "100000000000000000000",
+      "reserved": "0",
+      "shares": "100000000000000000000",
+      "queuedShares": "0",
+      "generation": "0",
+      "active": "100000000000000000000",
+      "queued": "0",
+      "available": "100000000000000000000",
+      "tier": {
+        "index": 0,
+        "threshold": "0",
+        "feeBps": 3000,
+        "nextThreshold": "10000000000000000000000",
+        "nextFeeBps": 1000,
+        "needed": "9900000000000000000000"
+      }
+    }
+  },
+  "market": {
+    "poolId": "0x58d464a271a5828f4d092c3df6169f18766c8de18a09efda5a53f91a12fbc17d",
+    "quoteToken": "0x6B56D64150818f91f5112B285e806ec6C78EADe8",
+    "side": "0x239B662ACE82c0804b0bf8469918C3edBFAFf6Ed",
+    "quoteForOneRewardToken": {
+      "amountIn": "1000000",
+      "amountOut": "9960068818270011790465"
+    },
+    "quoteForOneSIDE": {
+      "amountIn": "1000000000000000000",
+      "amountOut": "99"
+    },
+    "sidePriceInQuote": 0.0001
+  },
+  "publicJobs": [
+    {
+      "origin": "https://sidequest.exchange",
+      "index": {
+        "next_block": 69283641,
+        "updated_at": 1791471180
+      },
+      "job": {
+        "chain_id": 10143,
+        "job_id": "1",
+        "stack": "main",
+        "mode": "hire",
+        "creator": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+        "approver": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+        "token": "0x6B56D64150818f91f5112B285e806ec6C78EADe8",
+        "reward": "1000000",
+        "creator_bond": "10000000000000000000",
+        "worker_bond": "10000000000000000000",
+        "policy_hash": "0x253d3c793cc98b429f5e4e0d1e1d09989a6d0259cf6ad5e4413cf01e2d764c03",
+        "manifest_hash": "0x253d3c793cc98b429f5e4e0d1e1d09989a6d0259cf6ad5e4413cf01e2d764c03",
+        "delivery_deadline": 1791492361,
+        "selection_deadline": null,
+        "worker": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571",
+        "agent_id": "2081",
+        "status": "completed",
+        "deliverable": "0xb78e02c822ba33d9397a82d352d9525c988c1af5a488a2e3bb31f7c3a3abaea5",
+        "violation": null,
+        "rejection_reason_hash": null,
+        "kind": "sidequest-v1",
+        "arbitrator": "0x96eE4e1660744A4dE92D9E22476C501063524716",
+        "expired_at": 1791496501,
+        "review_window": 120,
+        "dispute_window": 120,
+        "arbitration_window": 300,
+        "fee_bps": 3000,
+        "fee": "300000",
+        "net": "700000",
+        "bonus": "0",
+        "outcome": "Accepted",
+        "settlement_outcome": "Paid",
+        "charged_fee": "300000",
+        "bonus_fee": "0",
+        "payout_deferred": 0,
+        "refund_deferred": 0,
+        "refunded_to_holding": null,
+        "published_block": 69282309,
+        "published_tx": "0x3414a18a5f8e96ffc07bafb213a176c197b3fede5725551ab69909a3b8891eb9",
+        "updated_block": 69282398,
+        "board_id": "public"
+      }
+    },
+    {
+      "origin": "https://dev.sidequest.exchange",
+      "index": {
+        "next_block": 69283645,
+        "updated_at": 1791471180
+      },
+      "job": {
+        "chain_id": 10143,
+        "job_id": "1",
+        "stack": "main",
+        "mode": "hire",
+        "creator": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+        "approver": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+        "token": "0x6B56D64150818f91f5112B285e806ec6C78EADe8",
+        "reward": "1000000",
+        "creator_bond": "10000000000000000000",
+        "worker_bond": "10000000000000000000",
+        "policy_hash": "0x253d3c793cc98b429f5e4e0d1e1d09989a6d0259cf6ad5e4413cf01e2d764c03",
+        "delivery_deadline": 1791492361,
+        "selection_deadline": null,
+        "worker": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571",
+        "agent_id": "2081",
+        "status": "completed",
+        "deliverable": "0xb78e02c822ba33d9397a82d352d9525c988c1af5a488a2e3bb31f7c3a3abaea5",
+        "violation": null,
+        "rejection_reason_hash": null,
+        "kind": "sidequest-v1",
+        "arbitrator": "0x96eE4e1660744A4dE92D9E22476C501063524716",
+        "expired_at": 1791496501,
+        "review_window": 120,
+        "dispute_window": 120,
+        "arbitration_window": 300,
+        "fee_bps": 3000,
+        "fee": "300000",
+        "net": "700000",
+        "bonus": "0",
+        "outcome": "Accepted",
+        "settlement_outcome": "Paid",
+        "charged_fee": "300000",
+        "bonus_fee": "0",
+        "payout_deferred": 0,
+        "refund_deferred": 0,
+        "refunded_to_holding": null,
+        "published_block": 69282309,
+        "published_tx": "0x3414a18a5f8e96ffc07bafb213a176c197b3fede5725551ab69909a3b8891eb9",
+        "updated_block": 69282398,
+        "manifest_hash": "0x253d3c793cc98b429f5e4e0d1e1d09989a6d0259cf6ad5e4413cf01e2d764c03",
+        "board_id": null,
+        "foreign_offer": {
+          "termsHash": "0x253d3c793cc98b429f5e4e0d1e1d09989a6d0259cf6ad5e4413cf01e2d764c03",
+          "origin": "https://sidequest.exchange",
+          "terms": {
+            "acceptanceCriteria": [
+              "A confirmed on-chain result"
+            ],
+            "approver": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+            "arbitrator": "0x96eE4e1660744A4dE92D9E22476C501063524716",
+            "brief": "Testnet verification of the published v1 protocol flow.",
+            "creator": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+            "creatorBond": "10000000000000000000",
+            "deliverable": {
+              "accepts": [
+                "onchain"
+              ]
+            },
+            "deliveryDeadline": 1791492361,
+            "deployment": {
+              "chainId": 10143,
+              "core": "0xAa658Ff5C8A82e780A0647561E51064846bDcb54",
+              "evaluator": "0x087a20C70f38942Eb16Ea8d55E9549495098E125",
+              "holding": "0xBCCB896A42B3350ECdDBA3d67E5397Eb1c4421c2",
+              "identity": "0x8004A818BFB912233c491871b3d84c89A494BD9e"
+            },
+            "eligibility": null,
+            "evidencePolicy": null,
+            "mode": "hire",
+            "policyVersion": null,
+            "projectId": null,
+            "quote": {
+              "quoteHash": "0xeadbdfd6b00659d045a9697aa32fc8282f963b2a9f77ca12f4909755e6ecf5cd",
+              "requestHash": "0xcaee4a50a60ed75ae75d34bb6dde882d093a73187aaff17bb49a7f0de5ad5c33"
+            },
+            "reward": "1000000",
+            "salt": "0xda3d85baa3fa6d99d67f04501809ba40e610a2a2b443db2315af78abd4320446",
+            "taskId": "446757c086f21ecf",
+            "title": "Live v1 quotes",
+            "token": "0x6B56D64150818f91f5112B285e806ec6C78EADe8",
+            "v": 2,
+            "windows": {
+              "arbitrationSeconds": 300,
+              "disputeSeconds": 120,
+              "reviewSeconds": 120
+            },
+            "workerBond": "10000000000000000000"
+          }
+        }
+      }
+    }
+  ],
+  "balances": {
+    "creatorMON": "4736934248999225535",
+    "workerMON": "4819481285499287833",
+    "relayMON": "3050519095241854331",
+    "arbitratorMON": "54421188998974963",
+    "workerReward": "1000700000",
+    "faucetSIDE": "9998000000000000000000000"
+  },
+  "arbiter": {
+    "session": "sidequest-g1d-arbiter",
+    "runner": "g1d-netcup",
+    "model": "meta/muse-spark-1.3",
+    "modelPlane": "local cliproxy",
+    "boards": [
+      "https://dev.sidequest.exchange",
+      "https://sidequest.exchange"
+    ],
+    "onceExit": 0,
+    "signInPassesObserved": 4,
+    "disputeRulingTested": false
+  },
+  "limits": [
+    "A fixture hire, stake and pool quote do not establish managed signer, genuine-user consent or mainnet acceptance.",
+    "No new dispute existed during the arbiter startup passes; model inference and a new ruling remain unexercised."
+  ]
+}

@@ -1,0 +1,305 @@
+{
+  "sourceCommit": "fb5d2696021cccd86fd5cd9b207fb6e20ae21c79",
+  "sourceTree": "cc117a5bbc5b7a12dcac18f4cc41e44755663d75",
+  "observedAt": "2026-10-08T14:44:15.717Z",
+  "chainId": 10143,
+  "evidenceTier": "live-hosted-testnet-release",
+  "ci": [
+    {
+      "stage": "dev",
+      "run": "37792203350",
+      "url": "https://github.com/grmkris/sidequest/actions/runs/37792203350",
+      "sourceCommit": "fb5d2696021cccd86fd5cd9b207fb6e20ae21c79",
+      "status": "completed",
+      "conclusion": "success",
+      "jobs": [
+        {
+          "name": "verify",
+          "status": "completed",
+          "conclusion": "success",
+          "startedAt": "2026-10-08T14:24:40Z",
+          "completedAt": "2026-10-08T14:31:10Z",
+          "steps": [
+            {
+              "name": "Run bun run check",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run bun run build",
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "deploy-dev",
+          "status": "completed",
+          "conclusion": "success",
+          "startedAt": "2026-10-08T14:31:16Z",
+          "completedAt": "2026-10-08T14:33:21Z",
+          "steps": [
+            {
+              "name": "Deploy dev",
+              "conclusion": "success"
+            },
+            {
+              "name": "Smoke dev",
+              "conclusion": "success"
+            },
+            {
+              "name": "Drift dev",
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "deploy-prod",
+          "status": "completed",
+          "conclusion": "skipped",
+          "startedAt": "2026-10-08T14:31:11Z",
+          "completedAt": "2026-10-08T14:31:11Z",
+          "steps": []
+        }
+      ]
+    },
+    {
+      "stage": "prod",
+      "run": "37793608897",
+      "url": "https://github.com/grmkris/sidequest/actions/runs/37793608897",
+      "sourceCommit": "fb5d2696021cccd86fd5cd9b207fb6e20ae21c79",
+      "status": "completed",
+      "conclusion": "success",
+      "jobs": [
+        {
+          "name": "verify",
+          "status": "completed",
+          "conclusion": "success",
+          "startedAt": "2026-10-08T14:34:44Z",
+          "completedAt": "2026-10-08T14:36:24Z",
+          "steps": [
+            {
+              "name": "Run bun run check",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run bun run build",
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "deploy-prod",
+          "status": "completed",
+          "conclusion": "success",
+          "startedAt": "2026-10-08T14:36:27Z",
+          "completedAt": "2026-10-08T14:38:14Z",
+          "steps": [
+            {
+              "name": "Deploy prod",
+              "conclusion": "success"
+            },
+            {
+              "name": "Smoke prod",
+              "conclusion": "success"
+            },
+            {
+              "name": "Drift prod",
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "deploy-dev",
+          "status": "completed",
+          "conclusion": "skipped",
+          "startedAt": "2026-10-08T14:36:24Z",
+          "completedAt": "2026-10-08T14:36:24Z",
+          "steps": []
+        }
+      ]
+    }
+  ],
+  "plans": {
+    "dev": {
+      "create": 0,
+      "update": 4,
+      "adopted": 0,
+      "replace": 0,
+      "delete": 0,
+      "orphan": 0,
+      "noop": 1
+    },
+    "prod": {
+      "create": 0,
+      "update": 4,
+      "adopted": 0,
+      "replace": 0,
+      "delete": 0,
+      "orphan": 0,
+      "noop": 1
+    }
+  },
+  "devCutoverFirstObserved": {
+    "checkpoint": [
+      {
+        "chain_id": 10143,
+        "next_block": 69279716,
+        "core_address": "0xaa658ff5c8a82e780a0647561e51064846bdcb54",
+        "deployment_block": 69264369,
+        "updated_at": 1791469995
+      }
+    ],
+    "jobs": [
+      {
+        "n": 0
+      }
+    ],
+    "lastRun": [
+      {
+        "at": 1791469996,
+        "ok": 1,
+        "detail": "{\"lease\":true,\"pages\":1,\"events\":0,\"protocolEvents\":45,\"jobs\":0,\"nextBlock\":69279716,\"caughtUp\":true,\"rewound\":false,\"backfilled\":0,\"cutover\":true}"
+      }
+    ]
+  },
+  "prodPrevious": {
+    "observedAt": "2026-10-08T14:40:06Z",
+    "checkpoint": [
+      {
+        "chain_id": 10143,
+        "next_block": 69281059,
+        "core_address": "0xaa658ff5c8a82e780a0647561e51064846bdcb54",
+        "deployment_block": 69264369,
+        "updated_at": 1791470400
+      }
+    ],
+    "jobs": [
+      {
+        "n": 0
+      }
+    ],
+    "lastRun": [
+      {
+        "at": 1791470406,
+        "ok": 1,
+        "detail": "{\"lease\":true,\"pages\":1,\"events\":0,\"protocolEvents\":0,\"jobs\":0,\"nextBlock\":69281059,\"caughtUp\":true,\"rewound\":false,\"backfilled\":0,\"cutover\":false}"
+      }
+    ]
+  },
+  "stages": [
+    {
+      "stage": "dev",
+      "origin": "https://dev.sidequest.exchange",
+      "observedAt": "2026-10-08T14:44:12.252Z",
+      "health": {
+        "status": 200,
+        "body": {
+          "ok": true,
+          "runtime": "Cloudflare-Workers",
+          "network": "monad-testnet",
+          "board": "public"
+        }
+      },
+      "release": {
+        "status": 200,
+        "body": {
+          "network": "monad-testnet",
+          "mainnetLive": false,
+          "writesOpen": true
+        }
+      },
+      "indexerUrl": "https://sidequest-indexer-dev.kristjan-grm11775.workers.dev/",
+      "indexer": {
+        "ok": true,
+        "checkpoint": [
+          {
+            "chain_id": 10143,
+            "next_block": 69281876,
+            "core_address": "0xaa658ff5c8a82e780a0647561e51064846bdcb54",
+            "deployment_block": 69264369,
+            "updated_at": 1791470640
+          }
+        ],
+        "jobs": [
+          {
+            "n": 0
+          }
+        ],
+        "lastRun": [
+          {
+            "at": 1791470588,
+            "ok": 1,
+            "detail": "{\"lease\":true,\"pages\":1,\"events\":0,\"protocolEvents\":0,\"jobs\":0,\"nextBlock\":69281658,\"caughtUp\":true,\"rewound\":false,\"backfilled\":0,\"cutover\":false}"
+          }
+        ]
+      },
+      "jobsBeforeFixture": {
+        "status": 200,
+        "count": 0,
+        "index": {
+          "next_block": 69281876,
+          "updated_at": 1791470640
+        }
+      }
+    },
+    {
+      "stage": "prod",
+      "origin": "https://sidequest.exchange",
+      "observedAt": "2026-10-08T14:44:15.711Z",
+      "health": {
+        "status": 200,
+        "body": {
+          "ok": true,
+          "runtime": "Cloudflare-Workers",
+          "network": "monad-testnet",
+          "board": "public"
+        }
+      },
+      "release": {
+        "status": 200,
+        "body": {
+          "network": "monad-testnet",
+          "mainnetLive": false,
+          "writesOpen": true
+        }
+      },
+      "indexerUrl": "https://sidequest-indexer-prod.kristjan-grm11775.workers.dev/",
+      "indexer": {
+        "ok": true,
+        "checkpoint": [
+          {
+            "chain_id": 10143,
+            "next_block": 69281854,
+            "core_address": "0xaa658ff5c8a82e780a0647561e51064846bdcb54",
+            "deployment_block": 69264369,
+            "updated_at": 1791470640
+          }
+        ],
+        "jobs": [
+          {
+            "n": 0
+          }
+        ],
+        "lastRun": [
+          {
+            "at": 1791470645,
+            "ok": 1,
+            "detail": "{\"lease\":true,\"pages\":1,\"events\":0,\"protocolEvents\":0,\"jobs\":0,\"nextBlock\":69281854,\"caughtUp\":true,\"rewound\":false,\"backfilled\":0,\"cutover\":false}"
+          }
+        ]
+      },
+      "jobsBeforeFixture": {
+        "status": 200,
+        "count": 0,
+        "index": {
+          "next_block": 69281854,
+          "updated_at": 1791470640
+        }
+      }
+    }
+  ],
+  "limits": [
+    "Prod first cutover:true invocation was not captured; the new-core checkpoint and two progressing successful cron invocations prove its current generation.",
+    "Public release.json carries network flags, not a SHA; exact source identity comes from CI.",
+    "Authenticated host acceptance and genuine-user consent are separate from these read-only deployment checks."
+  ]
+}

@@ -55,7 +55,20 @@ not authenticated host acceptance or a live mainnet proof.
 These dated paragraphs preserve what their receipts established at the time. Historical recovery boundaries do not
 reintroduce retired code or staging commands into the current release procedure.
 
-The latest guarded dev application release is `d40d4f0`, deployed on 7 October 2026
+The latest guarded application release on both dev and prod is
+`fb5d2696021cccd86fd5cd9b207fb6e20ae21c79`, released on 8 October 2026. Dev CI
+[`37792203350`](https://github.com/grmkris/sidequest/actions/runs/37792203350) passed before that exact SHA was
+promoted to prod; prod CI
+[`37793608897`](https://github.com/grmkris/sidequest/actions/runs/37793608897) completed at 14:38:14 UTC.
+Both runs passed verification, build, guarded deploy, smoke and drift. Both stages remain on Monad testnet (10143).
+The indexers use G1d core `0xAa658Ff5C8A82e780A0647561E51064846bDcb54` from deployment block 69264369,
+with fresh progressing cron checkpoints. The
+[hosted receipt](evidence/testnet-g1d/2026-10-08-hosted-release.json) distinguishes CI source identity from public
+network readback. The [fixture receipt](evidence/testnet-g1d/2026-10-08-live-hire.json) verifies the first paid
+G1d prod quote-to-hire, both wallets' stake, both public indexes and live pool quotes. Genuine-user acceptance
+remains open.
+
+The previous guarded dev application release was `d40d4f0`, deployed on 7 October 2026
 at 13:13:46 UTC. It ships the public docs at `/docs`: 20 prerendered pages served by
 Explore, Markdown for the same URL on `Accept: text/markdown`, `/llms.txt`,
 `/llms-full.txt` and search, plus MCP docs resources and `search_docs`. It also ships
@@ -148,4 +161,3 @@ The indexer retains its minute cron and progressing checkpoints; one completed
 testnet hire is now indexed. V11 verified chain events entering the feed and a
 paid request to the public `/x402/demo` endpoint. Its local test-wallet signature
 does not establish acceptance of the hosted managed signer.
-

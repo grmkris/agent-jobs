@@ -1,0 +1,51 @@
+{
+  "sourceCommit": "fb5d269",
+  "observedAt": "2026-10-08T14:38:02.189Z",
+  "chainId": 10143,
+  "layer": "fixture",
+  "faucet": "0xDB257E28bD501f19E6Df100B34491655A8D4Fe62",
+  "proof": [
+    {
+      "name": "CREATOR",
+      "recipient": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+      "hash": "0x97baedb41cb1d39ea6c1af420a11e8f12421f864e691d37ea7ab55e503adf125",
+      "block": "69280637",
+      "status": "success",
+      "balances": [
+        {
+          "token": "0x239B662ACE82c0804b0bf8469918C3edBFAFf6Ed",
+          "raw": "1000000000000000000000"
+        },
+        {
+          "token": "0x6B56D64150818f91f5112B285e806ec6C78EADe8",
+          "raw": "1000000000"
+        },
+        {
+          "token": "0x7523106F742B1445b14b0992eE2eA41A3691dc24",
+          "raw": "1000000000"
+        }
+      ]
+    },
+    {
+      "name": "WORKER",
+      "recipient": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571",
+      "hash": "0x7ada7c8907e3d2c9102846b15e5fee4bd14cfb3dee71c6848ed9e8c6a2699dcf",
+      "block": "69280653",
+      "status": "success",
+      "balances": [
+        {
+          "token": "0x239B662ACE82c0804b0bf8469918C3edBFAFf6Ed",
+          "raw": "1000000000000000000000"
+        },
+        {
+          "token": "0x6B56D64150818f91f5112B285e806ec6C78EADe8",
+          "raw": "1000000000"
+        },
+        {
+          "token": "0x7523106F742B1445b14b0992eE2eA41A3691dc24",
+          "raw": "1000000000"
+        }
+      ]
+    }
+  ]
+}

@@ -481,3 +481,39 @@ ordering, exact pool ID, prices and swap limits. All ten focused cases and scope
 
 Hosted dev/prod deployment and indexer cutover are pending at this checkpoint. Mainnet and genuine-user acceptance
 remain unverified. No chain-143 transaction occurred.
+
+## G1d hosted release and fixture hire (8 Oct 2026)
+
+**Live hosted release:** dev and prod both run exact source
+`fb5d2696021cccd86fd5cd9b207fb6e20ae21c79`. Dev CI
+[`37792203350`](https://github.com/grmkris/sidequest/actions/runs/37792203350) passed before promotion;
+prod CI [`37793608897`](https://github.com/grmkris/sidequest/actions/runs/37793608897) completed successfully at
+**14:38:14 UTC**. Both include verification, build, guarded deploy, smoke and drift. The local full check also passed.
+Both guarded plans contained four updates and one no-op, with zero creates, replacements, deletes or orphans.
+
+Both stages' health and release readbacks passed, with `monad-testnet`, `mainnetLive: false` and writes open.
+Dev's first observed cron recorded `cutover: true`; prod's first cutover invocation was not captured. Prod's new-core
+checkpoint independently advanced from **69281059 to 69281854** across successful fresh cron runs, with deployment
+block **69264369**. Both job indexes were empty before the new fixture. The
+[hosted release receipt](evidence/testnet-g1d/2026-10-08-hosted-release.json) contains these observations.
+`/release.json` does not carry a SHA; exact source identity is established by CI and the promoted refs.
+
+**Live fixture:** two [faucet drips](evidence/testnet-g1d/2026-10-08-faucet-drips.json) each delivered
+**1,000 SIDE, 1,000 mUSD and 1,000 mEUR**. The prod `quotes` flow completed request, quote, pick, publish,
+selection, activation, delivery, approval and settlement. Task `446757c086f21ecf`, job **1**, worker agent **2081**
+has paid outcome **1**. All **11** setup/hire receipts were independently read back as successful; the worker
+received **0.7 mUSD** net from the **1 mUSD** reward. Creator and worker each hold **100 SIDE** of active backing,
+with zero remaining reservations after settlement. Both dev and prod public indexes show the fresh job.
+
+Live Uniswap v4 quotes succeeded in both directions: **1 mUSD → 9,960.068818270011790465 SIDE**, and
+**1 SIDE → 0.000099 mUSD**, through the configured G1d pool. These are read-only quotes, not a swap receipt.
+The mid price was **0.0001 mUSD per SIDE**. See the
+[hire, stake and quote receipt](evidence/testnet-g1d/2026-10-08-live-hire.json).
+
+The shared testnet arbiter runs in the isolated `sidequest-g1d-arbiter` tmux session as configured arbitrator
+`0x96eE4e1660744A4dE92D9E22476C501063524716`, using local cliproxy model `meta/muse-spark-1.3`.
+Its initial single pass exited zero and repeated sign-ins to both boards were observed. No fresh dispute existed
+during these startup passes, so a model proposal and new ruling are not established by this evidence.
+
+This proves deployment and the self-run fixture hire, faucet, stake and pool quote. Managed-signer acceptance,
+Kris's genuine consent/revoke/client session and the broader A01–A08 gate remain separate. No mainnet transaction occurred.
