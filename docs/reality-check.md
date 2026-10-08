@@ -580,3 +580,45 @@ Receipts: [fixture closeout and ledger](evidence/sidequest-prod/2026-10-08-g1d-f
 [A03](evidence/sidequest-prod/p8-A03f.json), [A04](evidence/sidequest-prod/p8-A04f.json),
 [A05](evidence/sidequest-prod/p8-A05f.json), [A06 cleanup](evidence/sidequest-prod/p8-A06f.json),
 [A07](evidence/sidequest-prod/p8-A07f.json), [A08 blocked](evidence/sidequest-prod/p8-A08f.json).
+
+## G1e testnet source and receipt evidence (8 Oct 2026)
+
+This is source and receipt evidence for the G1e testnet cutover on Monad 10143. It is **not** a hosted dev/prod
+release: the application source still requires the orchestrator's push, CI verification and hosted deployment receipts.
+The candidate source was `8dcf19cdf0faf4bc4e38b6551d9089340def3eaf` (short SHA `8dcf19c`), and the promoted contract
+configuration was committed in `488a941`.
+
+The times below are UTC receipt observation times.
+
+- **Deploy, 21:32:07 UTC:** 26 successful deployment/configuration receipts ran from the deployer. The fresh pair
+  records Sidequest block **69362265**, core block **69362272**, core `0x5914…f9147e`, Holding
+  `0x8E2C…Bb31`, Factory `0xbf0A…b2e9B` and vault `0x0281…BD81b`.
+- **Safe acceptance, 21:41:13 UTC:** six Safe owner-acceptance calls (nonces **13–18**) reconciled successfully.
+  The Safe owns the vault, fee schedule, Holding, Evaluator, distributor and mining reserve; readbacks show a
+  **10 SIDE** minimum creator bond, **1,000 SIDE** cap,
+  **2,500 bps** unfilled forfeit, **5,000 bps** cap, **600 seconds** cancel grace, Holding-authorized vault and
+  Safe treasury.
+- **Faucet, 21:44:42 UTC:** the new faucet was deployed at `0x553b…4399` (deployer nonce **93**) and funded with
+  **10,000,000 SIDE** (ecosystem nonce **31**). Its exact drip is **1,000 SIDE** per claim.
+- **mUSD and pool, 21:46:17–21:47:41 UTC:** the deployer minted **1,100 mUSD** (nonce **94**) and the four pool
+  seed calls (nonces **95–98**) succeeded. `SeedPool.verify()` read back Safe position **94**, liquidity
+  `99990000000000000` and pool ID `0x4eb903…e09a4d`.
+- **Refund migration, 21:54:21 UTC:** the frozen G1d-vault snapshot at block **69362264** (one block before the
+  G1e deployment block) decoded **14 positions totaling 92,290 SIDE**, with zero rounding dust. The explicit Kris
+  allocation was **20,000 SIDE**. The manifest checksum is
+  `a28f77892706c0e54a12c889b3831d038d1f0766f2b1265cdcac23529547a94d`; all 16 ecosystem operations (nonces
+  **32–47**) succeeded and reconciled to the new vault and token balances.
+- **Privy policy, 21:56:40 UTC:** the existing routine policy was updated and verified with **11 rules**, policy
+  hash `eccbb87bb383ced89eaa1da402b8b5445cee2b1a17ac5a700b9870c580773f9f`, fresh G1e Holding/core pins and both
+  dev/prod relay addresses. The existing authority was preserved; this is provider-policy evidence, not hosted
+  managed-signer acceptance.
+
+Receipts: [deployment](evidence/testnet-g1e/2026-10-08-contracts.json),
+[Safe acceptance](evidence/testnet-g1e/2026-10-08-ownership.json),
+[faucet](evidence/testnet-g1e/2026-10-08-faucet.json), [pool](evidence/testnet-g1e/2026-10-08-pool.json),
+[refunds](evidence/testnet-g1e/2026-10-08-refunds.json),
+[refund manifest](evidence/testnet-g1e/refund-manifest.json), and
+[Privy policy](evidence/testnet-g1e/2026-10-08-privy.json).
+
+No hosted release, authenticated host acceptance, mainnet transaction or later live hire check is established by
+these receipts. Those remain separate, explicitly authorized release and acceptance steps.

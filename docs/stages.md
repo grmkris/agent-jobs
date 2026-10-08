@@ -55,6 +55,31 @@ not authenticated host acceptance or a live mainnet proof.
 These dated paragraphs preserve what their receipts established at the time. Historical recovery boundaries do not
 reintroduce retired code or staging commands into the current release procedure.
 
+### G1e testnet source and receipt evidence — 8 October 2026
+
+The G1e contract cutover is recorded as **source and receipt evidence**, not a hosted release. Candidate source
+`8dcf19cdf0faf4bc4e38b6551d9089340def3eaf` was promoted with config commit `488a941`; the orchestrator still owns
+the push to `dev`, CI verification and hosted dev/prod deployment.
+
+On Monad testnet (10143), deployment receipt evidence records 26 successful receipts at Sidequest block 69362265 and
+core block 69362272. Safe acceptance then reconciled six owner calls at nonces 13–18: all six contracts are owned by
+the Safe, with a 10 SIDE creator-bond floor, 1,000 SIDE cap, 2,500 bps unfilled forfeit, 5,000 bps maximum, 600-second
+cancel grace, Holding-authorized vault and Safe treasury. The new faucet deployed at nonce 93 and received 10,000,000
+SIDE from ecosystem nonce 31; its exact drip is 1,000 SIDE. The deployer minted 1,100 mUSD at nonce 94 and seeded the
+pool with nonces 95–98; `SeedPool.verify()` read back Safe position 94, liquidity `99990000000000000` and pool ID
+`0x4eb903f29419f209c25c85a75aafad8f5f3dd0a79f4a6f5cba11f4d854e09a4d`.
+
+The refund receipt fixes the G1d-vault snapshot at block 69362264: 14 positions totaling 92,290 SIDE, zero dust and
+20,000 SIDE explicitly allocated to Kris. Sixteen ecosystem operations (nonces 32–47) reconciled successfully. The
+existing Privy routine policy was then updated and verified with 11 rules, the fresh G1e Holding/core pins and both
+dev/prod relays, while preserving the existing authority. These are chain/provider receipts only; they do not establish
+hosted application health, authenticated managed signing or genuine-user acceptance.
+
+Receipts: [contracts](evidence/testnet-g1e/2026-10-08-contracts.json),
+[Safe acceptance](evidence/testnet-g1e/2026-10-08-ownership.json), [faucet](evidence/testnet-g1e/2026-10-08-faucet.json),
+[pool](evidence/testnet-g1e/2026-10-08-pool.json), [refunds](evidence/testnet-g1e/2026-10-08-refunds.json),
+[manifest](evidence/testnet-g1e/refund-manifest.json), and [Privy](evidence/testnet-g1e/2026-10-08-privy.json).
+
 The latest hosted MCP metadata release is `a234a7f`, deployed to dev and promoted to prod on 8 October 2026. It serves
 public and tenant Server Cards, the domain AI Catalog and the HTTPS registry proof. The exact CI, schema, live endpoint
 and registry receipts are in [MCP metadata evidence](evidence/mcp-metadata/2026-10-08-a234a7f-release.json). The public
