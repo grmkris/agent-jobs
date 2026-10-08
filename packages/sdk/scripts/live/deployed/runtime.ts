@@ -68,7 +68,7 @@ export class Runtime {
     label: string,
     gas: bigint,
   ): Promise<Record<string, unknown>> {
-    const operationKey = `p8:${this.run.get<string>('run-id')}:${label}`
+    const operationKey = `p8-${this.run.get<string>('run-id')}-${label}`
     const intent = this.run.freeze(`intent/${label}`, { ...args, operationKey })
     if (gas > 0n) await this.chain.reserve(label, gas)
     const result = success(await client.call(name, intent, label))

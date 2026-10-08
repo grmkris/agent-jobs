@@ -113,7 +113,7 @@ export async function worker(runtime: Runtime): Promise<Proof> {
       agentId: runtime.agent.agent_id,
       note: 'P8 fixture: deployed Holding address verification',
     },
-    'a02-apply',
+    'a02-apply-v2',
     0n,
   )
   const applicationId = text(object(applied.result).applicationId)

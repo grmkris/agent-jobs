@@ -28,7 +28,7 @@ export async function restart(runtime: Runtime): Promise<Proof> {
     })
   const intent = run.freeze(`intent/${label}`, {
     ...args,
-    operationKey: `p8:${run.get<string>('run-id')}:${label}`,
+    operationKey: `p8-${run.get<string>('run-id')}-${label}`,
   })
   if (run.get(`interrupted/${label}`) === undefined) {
     await chain.reserve(label, 1_500_000n)

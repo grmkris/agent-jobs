@@ -1561,8 +1561,7 @@
   },
   "packages/sdk/scripts/live/deployed/chain.ts": {
     "anti-slop(require-safety-comment-for-type-assertion)": 5,
-    "complexity(complexity)": 1,
-    "typescript(no-unnecessary-type-assertion)": 1
+    "complexity(complexity)": 1
   },
   "packages/sdk/scripts/live/deployed/clients.ts": {
     "anti-slop(no-runtime-typeof)": 1
