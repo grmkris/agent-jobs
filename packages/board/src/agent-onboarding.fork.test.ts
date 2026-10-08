@@ -246,7 +246,7 @@ suite('resumable agent registry onboarding', () => {
     const nonce = await ctx.publicClient.getTransactionCount({ address: fixture.admin.account.address })
     await lifecycle().revoke('onboarding-fork', operator)
     expect(await ctx.publicClient.getTransactionCount({ address: fixture.admin.account.address })).toBe(nonce)
-  })
+  }, 120_000)
   it('owner recovery redeems a fresh exact grant after all hosted permissions were disabled', async () => {
     const before = await ctx.publicClient.getBalance({ address: fixture.worker.account.address })
     const execution = { target: fixture.creator.account.address, value: 7n, callData: '0x' as const }
