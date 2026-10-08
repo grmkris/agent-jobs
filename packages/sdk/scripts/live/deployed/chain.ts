@@ -21,6 +21,41 @@ function largest(left: bigint, right: bigint): bigint {
   return left > right ? left : right
 }
 
+async function readAuditBlocks(
+  numbers: readonly bigint[],
+  rpcUrl: string,
+  batchFetch: typeof fetch,
+): Promise<ReturnType<typeof auditBlocks>> {
+  const response = await batchFetch(rpcUrl, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(
+      numbers.map((blockNumber, index) => ({
+        jsonrpc: '2.0',
+        id: index + 1,
+        method: 'eth_getBlockByNumber',
+        params: [`0x${blockNumber.toString(16)}`, true],
+      })),
+    ),
+    signal: AbortSignal.timeout(60_000),
+  })
+  if (!response.ok) throw new Error('P8_AUDIT_RPC_REFUSED')
+  try {
+    return auditBlocks(await response.json(), numbers)
+  } catch (error) {
+    // Some public RPCs return an incomplete batch when one full transaction block
+    // exceeds an internal response limit. Retry the same range in smaller batches;
+    // every response is still decoded before its cursor can advance.
+    if (!(error instanceof Error) || error.message !== 'P8_AUDIT_BLOCK_MISSING' || numbers.length < 2) throw error
+    const middle = Math.ceil(numbers.length / 2)
+    const [left, right] = await Promise.all([
+      readAuditBlocks(numbers.slice(0, middle), rpcUrl, batchFetch),
+      readAuditBlocks(numbers.slice(middle), rpcUrl, batchFetch),
+    ])
+    return [...left, ...right]
+  }
+}
+
 export class Chain {
   readonly ctx = sdk.context('monad-testnet', 'main', required('MONAD_TESTNET_RPC_URL'))
   readonly journal: sdk.FlowJournal
@@ -107,21 +142,7 @@ export class Chain {
         { length: Number(end - number + 1n < batchSize ? end - number + 1n : batchSize) },
         (_, index) => number + BigInt(index),
       )
-      const response = await batchFetch(rpcUrl, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(
-          numbers.map((blockNumber, index) => ({
-            jsonrpc: '2.0',
-            id: index + 1,
-            method: 'eth_getBlockByNumber',
-            params: [`0x${blockNumber.toString(16)}`, true],
-          })),
-        ),
-        signal: AbortSignal.timeout(60_000),
-      })
-      if (!response.ok) throw new Error('P8_AUDIT_RPC_REFUSED')
-      const blocks = auditBlocks(await response.json(), numbers)
+      const blocks = await readAuditBlocks(numbers, rpcUrl, batchFetch)
       for (const block of blocks) {
         for (const tx of block.transactions) {
           if (senders.has(tx.from.toLowerCase())) await this.record(tx.hash)
