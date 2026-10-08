@@ -10,6 +10,7 @@ describe.skipIf(!forkEnabled)('atomic S1 hire against real delegation enforcers'
   let fixture: Awaited<ReturnType<typeof startSidequestFork>>
   let ctx: sdk.Ctx
   let start: number
+  let creatorBond: bigint
   let allowance: sdk.Delegation
   let work: sdk.Delegation
   let approval: sdk.Delegation
@@ -43,10 +44,10 @@ describe.skipIf(!forkEnabled)('atomic S1 hire against real delegation enforcers'
           policyHash: keccak256(stringToHex(`policy-${index}`)),
           token,
           reward: amount,
-          creatorBond: 0n,
+          creatorBond,
           workerBond: 0n,
-          deliveryDeadline: invalid ? start - 1 : start + 32 * 86400,
-          expiredAt: start + 40 * 86400,
+          deliveryDeadline: invalid ? start - 1 : start + 86400,
+          expiredAt: start + 2 * 86400,
           reviewWindow: 3600,
           disputeWindow: 3600,
           arbitrationWindow: 43200,
@@ -77,6 +78,9 @@ describe.skipIf(!forkEnabled)('atomic S1 hire against real delegation enforcers'
   beforeAll(async () => {
     fixture = await startSidequestFork()
     ctx = { ...fixture.ctx, deployment: { ...fixture.ctx.deployment, relay: fixture.admin.account.address } }
+    creatorBond = (await sdk.readBondPolicy(ctx)).minimumCreatorBond
+    // Back the five successful publishes without funding the agent's reward-token balance.
+    await sdk.delegate(ctx, fixture.creator, creatorBond * 5n, fixture.contributor.account.address)
     for (const wallet of [fixture.creator, fixture.contributor]) {
       const authorization = await wallet.signAuthorization({
         contractAddress: ctx.deployment.delegation.delegator,
@@ -125,9 +129,10 @@ describe.skipIf(!forkEnabled)('atomic S1 hire against real delegation enforcers'
   }, forkSetupTimeout())
   afterAll(() => fixture?.close())
 
-  it('publishes with zero agent funds and matches every transfer and approval to the exact reward', async () => {
+  it('publishes with zero agent reward funds and a backed bond, matching transfers and approvals to the exact reward', async () => {
     const data = batch(1)
     const entries = decodeGrantBatch(data)
+    expect(entries).toHaveLength(3)
     const checked = entries.map((entry, index) => ({
       spec: index === 1 ? approvalSpec : workSpec,
       checked: checkGrantCall(ctx, index === 1 ? approvalSpec : workSpec, {
@@ -145,6 +150,7 @@ describe.skipIf(!forkEnabled)('atomic S1 hire against real delegation enforcers'
     expect((await send(data)).status).toBe('success')
     expect(await balance(fixture.creator)).toBe(before - amount)
     expect(await balance(fixture.contributor)).toBe(0n)
+    expect((await sdk.getBacking(ctx, fixture.contributor.account.address)).reserved).toBe(creatorBond)
     expect(
       await ctx.publicClient.readContract({
         address: token,
@@ -159,11 +165,13 @@ describe.skipIf(!forkEnabled)('atomic S1 hire against real delegation enforcers'
 
   it('rolls back the transfer, approval and all grant counters when publish fails', async () => {
     const before = await balance(fixture.creator)
+    const backingBefore = await sdk.getBacking(ctx, fixture.contributor.account.address)
     const workBefore = await sdk.callsMade(ctx, sdk.delegationHash(work))
     const approvalBefore = await sdk.callsMade(ctx, sdk.delegationHash(approval))
     expect((await send(batch(2, true))).status).toBe('reverted')
     expect(await balance(fixture.creator)).toBe(before)
     expect(await balance(fixture.contributor)).toBe(0n)
+    expect((await sdk.getBacking(ctx, fixture.contributor.account.address)).reserved).toBe(backingBefore.reserved)
     expect(await sdk.callsMade(ctx, sdk.delegationHash(work))).toBe(workBefore)
     expect(await sdk.callsMade(ctx, sdk.delegationHash(approval))).toBe(approvalBefore)
     expect(
@@ -186,6 +194,7 @@ describe.skipIf(!forkEnabled)('atomic S1 hire against real delegation enforcers'
     const nextStart = Number((await ctx.publicClient.getBlock()).timestamp)
     work = await signed(fixture.contributor, { ...workSpec, salt: 4n, start: nextStart })
     approval = await signed(fixture.contributor, { ...approvalSpec, salt: 5n, start: nextStart })
+    start = nextStart
     expect((await send(batch(5))).status).toBe('success')
     expect(await balance(fixture.creator)).toBe(before - amount)
   }, 120_000)

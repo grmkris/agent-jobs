@@ -1,7 +1,15 @@
 /** Cryptographic fixture signers, real SQLite and real delegation/Sidequest contracts on a Monad fork. */
 import { DatabaseSync } from 'node:sqlite'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { type Hex, type LocalAccount, decodeFunctionData, encodeFunctionData, erc20Abi, parseEther } from 'viem'
+import {
+  type Hex,
+  type LocalAccount,
+  decodeFunctionData,
+  encodeFunctionData,
+  erc20Abi,
+  formatEther,
+  parseEther,
+} from 'viem'
 import * as sdk from '@sidequest/sdk'
 import { startSidequestFork, forkEnabled, forkSetupTimeout } from '../../sdk/test/sidequest-fixture.ts'
 import { Board, BoardError } from './service.ts'
@@ -30,6 +38,7 @@ suite('agent executor through real contracts', () => {
   let signing: AgentSigning
   let now: number
   let workerId: bigint
+  let creatorBond: bigint
   let allowanceHash: Hex
   const token = sdk.deployment('monad-testnet').rewardTokens[0]!
   const bootSponsor = () =>
@@ -124,7 +133,7 @@ suite('agent executor through real contracts', () => {
     acceptanceCriteria: ['finished'],
     token,
     reward,
-    creatorBond: '0',
+    creatorBond: formatEther(creatorBond),
     workerBond: '0',
     deliveryDeadline: now + 86400,
     windows: { reviewSeconds: 3600, disputeSeconds: 3600, arbitrationSeconds: 43200 },
@@ -140,6 +149,9 @@ suite('agent executor through real contracts', () => {
   beforeAll(async () => {
     fixture = await startSidequestFork()
     ctx = { ...fixture.ctx, deployment: { ...fixture.ctx.deployment, relay: fixture.admin.account.address } }
+    creatorBond = (await sdk.readBondPolicy(ctx)).minimumCreatorBond
+    // The operator backs all six hires; their rewards still come from the spending allowance.
+    await sdk.delegate(ctx, fixture.creator, creatorBond * 6n, fixture.contributor.account.address)
     now = Number((await ctx.publicClient.getBlock()).timestamp)
     db = new DatabaseSync(':memory:')
     boardDb = new DatabaseSync(':memory:')
@@ -535,7 +547,7 @@ suite('agent executor through real contracts', () => {
       boardId: 'public',
       operationKey: 'unsent-expired-mapping',
       tool: 'create_task',
-      args: { ...offer('1', 'Frozen mapping fixture'), deliveryDeadline: now + 7 * 86400 },
+      args: { ...offer('1', 'Frozen mapping fixture'), deliveryDeadline: now + 2 * 86400 },
     }
     const operation = agents.begin(input.agentId, input.operationKey, input.boardId, input.tool, input.args)
     const relay = fixture.admin.account.address

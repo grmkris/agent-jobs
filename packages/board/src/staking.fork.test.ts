@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite'
 import * as sdk from '@sidequest/sdk'
-import { formatUnits, parseEther } from 'viem'
+import { formatUnits } from 'viem'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { forkEnabled, forkSetupTimeout, startSidequestFork } from '../../sdk/test/sidequest-fixture.ts'
 import { Board } from './service.ts'
@@ -10,11 +10,13 @@ const fork = forkEnabled ? describe : describe.skip
 fork('vault operation receipts against real delegated vault bytecode', () => {
   let f: Awaited<ReturnType<typeof startSidequestFork>>
   let agentId: bigint
+  let creatorBond: bigint
   let seq = 0
   beforeAll(async () => {
     f = await startSidequestFork()
+    creatorBond = (await sdk.readBondPolicy(f.ctx)).minimumCreatorBond
     agentId = await sdk.registerAgent(f.ctx, f.worker, 'https://sidequest.exchange/receipt-regression')
-    await sdk.delegate(f.ctx, f.creator, parseEther('100'))
+    await sdk.delegate(f.ctx, f.creator, creatorBond * 2n)
     await sdk.delegate(f.ctx, f.creator, 10n, f.worker.account.address)
   }, forkSetupTimeout())
   afterAll(() => f?.close())
@@ -26,7 +28,7 @@ fork('vault operation receipts against real delegated vault bytecode', () => {
       approver: f.creator.account.address,
       token: f.ctx.stack.factory,
       reward: 101n,
-      creatorBond: 0n,
+      creatorBond,
       workerBond: amount,
       arbitrator: f.arbitrator.account.address,
       reviewWindow: 3600,
