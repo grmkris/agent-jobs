@@ -95,9 +95,13 @@ export class Chain {
     const senders = new Set(
       [this.ctx.deployment.relay, ...(this.run.get<Address[]>('actors') ?? [])].map((item) => item.toLowerCase()),
     )
-    for (let number = start; number <= end; number += 4n) {
+    // Keep reads in flight through network latency; the SDK's shared transport
+    // still limits this process to eight requests per second. Every numbered
+    // block and matching receipt must finish before advancing the saved cursor.
+    const batchSize = 12n
+    for (let number = start; number <= end; number += batchSize) {
       const numbers = Array.from(
-        { length: Number(end - number + 1n < 4n ? end - number + 1n : 4n) },
+        { length: Number(end - number + 1n < batchSize ? end - number + 1n : batchSize) },
         (_, index) => number + BigInt(index),
       )
       const blocks = await Promise.all(
