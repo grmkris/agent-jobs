@@ -131,11 +131,12 @@ budget_hashes "1. Safe (1-of-2, SafeProxyFactory)" "$TX"
 [[ "$(cast call --rpc-url "$LOCAL" "$SAFE" "VERSION()(string)")" == '"1.4.1"' ]] || fail "Safe version"
 ok "Safe $SAFE (1.4.1, owners $OWNER1 $OWNER2, threshold 1)"
 
-# The scratch config: mainnet's, with the fork's roles, the Safe and a v1 sidequest block.
+# The scratch config: mainnet's, with the fork's roles, the Safe and a v1 sidequest block. Mainnet's own sidequest keys
+# (the creator-bond policy) are kept, so R7 deploys the launch values.
 jq --arg safe "$SAFE" --arg admin "$DEPLOYER" --arg relay "$RELAY" --arg attester "$ATTESTER" \
   --arg arbitrator "$ARBITRATOR" --arg team "$TEAM" '
   .roles = { admin: $admin, relay: $relay, attester: $attester, arbitrator: $arbitrator }
-  | .sidequest = {
+  | .sidequest = (.sidequest // {}) + {
       safe: $safe, defaultArbitrator: $arbitrator, margin: 3600,
       schedule: { thresholds: [0, 10000, 100000, 1000000], bps: [3000, 1000, 300, 100], treasury: $safe },
       allocation: { treasury: $safe, ecosystem: $safe, liquidity: $admin },
