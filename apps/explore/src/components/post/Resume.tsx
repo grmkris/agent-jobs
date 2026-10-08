@@ -14,7 +14,7 @@ import { useToken } from '../../useTokens.ts'
 import { BoardLink, boardRoutes, useBoardNavigate } from '../BoardLink.tsx'
 import { useToast } from '../Sheet.tsx'
 import { When, useNow } from '../Time.tsx'
-import { TxSteps } from '../TxSteps.tsx'
+import { PostingSteps } from './PostingSteps.tsx'
 
 import type { useSignedIn } from '../Wallet.tsx'
 import { KV } from '../controls.tsx'
@@ -285,7 +285,7 @@ export function ResumeOffer({
             note="Your wallet sends the reward approval and the publish transaction in order; your deposit at risk is reserved from your backing. Only the wallet confirmation is an overlay."
           >
             {txs !== null ? (
-              <TxSteps
+              <PostingSteps
                 boardId={boardId}
                 key={taskId}
                 taskId={taskId}

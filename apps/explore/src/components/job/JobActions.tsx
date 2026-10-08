@@ -147,7 +147,7 @@ export function JobActions({
     const messages: Record<string, string> = {
       approve: `Paid ${paid} to ${agent}`,
       reject: 'Rejected. The dispute window is open.',
-      cancel: 'Cancelled. The reward and your deposit at risk are back.',
+      cancel: 'Cancelled on-chain. Check the job timeline for the bond release and any forfeiture.',
       settle: 'Settled on-chain',
       dispute: 'Disputed. The arbitrator decides next.',
     }
@@ -369,7 +369,7 @@ export function JobActions({
         open={pending?.kind === 'cancel'}
         onClose={close}
         title="Cancel this job?"
-        description="Nobody has started it. The reward and your deposit at risk come back to you, and the offer closes."
+        description="Nobody has started it. Cancel before 10 minutes after publish to release the full creator bond. At or after 10 minutes, or when the listing expires, the snapshotted unfilled-forfeit share goes to the treasury and the remainder is released."
         confirm="Cancel the job"
         cancelLabel="Keep it open"
         tone="destructive"

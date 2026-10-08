@@ -5,6 +5,8 @@ import * as sdk from '@sidequest/sdk'
 import { Link } from '@tanstack/react-router'
 import { erc20Abi, zeroAddress } from 'viem'
 import { useBalance, useReadContract } from 'wagmi'
+import { useQuery } from '@tanstack/react-query'
+import { stakeContext } from '../../stake-context.ts'
 import { formatNumber, tokenInfo } from '../../format.ts'
 import { sidequest } from '../../sidequest.ts'
 import { useToken } from '../../useTokens.ts'
@@ -54,6 +56,36 @@ export function Preflight({
     args: [who],
     chainId: chain.id,
     query: { ...q, enabled: on && token !== undefined && token !== '' },
+  })
+  const funding = useQuery({
+    queryKey: ['posting-preflight', who, token, reward?.toString(), bond?.toString()],
+    enabled: on,
+    refetchInterval: 15_000,
+    retry: false,
+    queryFn: async () => {
+      const ctx = stakeContext()
+      const policy = await sdk.readBondPolicy(ctx)
+      await sdk.requireFundingAdmission(ctx, who)
+      const [pool, liquid] = await Promise.all([
+        ctx.publicClient.readContract({
+          address: sidequest.vault,
+          abi: sdk.stakeVaultAbi,
+          functionName: 'poolOf',
+          args: [who],
+        }),
+        ctx.publicClient.readContract({
+          address: ctx.deployment.sidequest!.factory,
+          abi: erc20Abi,
+          functionName: 'balanceOf',
+          args: [who],
+        }),
+      ])
+      const need = bond !== null && bond > policy.minimumCreatorBond ? bond : policy.minimumCreatorBond
+      const deposit = sdk.backingDeposit(pool, need)
+      const required =
+        deposit + (token?.toLowerCase() === ctx.deployment.sidequest!.factory.toLowerCase() ? (reward ?? 0n) : 0n)
+      return { policy, deposit, liquid, shortfall: required > liquid ? required - liquid : 0n, need }
+    },
   })
 
   const note = isMainnet
@@ -137,7 +169,52 @@ export function Preflight({
             </ItemActions>
           </Item>
         )}
-        <StakeRow prefix={prefix} need={bond ?? 0n} free={free.data} unavailable={free.isError} />
+        <Item className="before:left-14">
+          <ItemMedia>
+            <Mark
+              tone={
+                funding.isError
+                  ? 'bad'
+                  : funding.data === undefined
+                    ? 'wait'
+                    : funding.data.shortfall === 0n
+                      ? 'ok'
+                      : 'warn'
+              }
+            />
+          </ItemMedia>
+          <ItemContent className="min-w-0 flex-1">
+            <span className="block">{prefix}SIDE backing needed</span>
+            {funding.data !== undefined && funding.data.shortfall > 0n && (
+              <span className="block text-ui text-warning-text">
+                You need {formatNumber(funding.data.shortfall, 18)} more liquid SIDE for backing and any SIDE reward.
+                Review can include a backing deposit.
+              </span>
+            )}
+            {funding.isError && (
+              <span className="block text-ui text-warning-text">
+                Bond policy or funding could not be read. Refresh before publishing.
+              </span>
+            )}
+          </ItemContent>
+          <ItemActions className="tabular-nums text-muted-foreground">
+            {funding.data === undefined ? '…' : `${formatNumber(funding.data.liquid, 18)} liquid SIDE`}
+          </ItemActions>
+        </Item>
+        {bond !== null && funding.data !== undefined && bond < funding.data.policy.minimumCreatorBond && (
+          <p className="text-sm text-warning-text">
+            The creator bond must be at least {formatNumber(funding.data?.policy.minimumCreatorBond ?? 0n, 18)} SIDE.
+            Create a new offer before publishing.
+          </p>
+        )}
+        {funding.data !== undefined && (
+          <p className="text-sm text-muted-foreground">
+            If nobody activates this job, {funding.data.policy.unfilledForfeitBps / 100}% (
+            {formatNumber((funding.data.need * BigInt(funding.data.policy.unfilledForfeitBps)) / 10_000n, 18)} SIDE)
+            goes to the treasury. Free cancel within {funding.data.policy.cancelGrace / 60} minutes.
+          </p>
+        )}
+        <StakeRow prefix={prefix} need={funding.data?.need ?? bond ?? 0n} free={free.data} unavailable={free.isError} />
       </ItemGroup>
     </Section>
   )

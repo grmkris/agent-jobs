@@ -38,12 +38,14 @@ import {
   retryAction,
   walletRefused,
   walletStepRequest,
+  withWalletAccountLock,
   withWalletStepLock,
 } from './txOperation.ts'
 
 import {
   JOURNAL_CORRUPT,
   emptyJournal,
+  sequentialJournal,
   readTxJournal,
   readTxJournalDurable,
   txJournalKey,
@@ -539,7 +541,7 @@ export function TxSteps({
     let notSent = 0
     for (const wait of RECHECK_MS) {
       await sleep(wait)
-      outcome = await reconcileSend(chainReads(from), snapshot, from, call)
+      outcome = await reconcileSend(chainReads(from), snapshot, from, { ...call, nonce: snapshot.nonce })
       notSent = outcome.at === 'not-sent' ? notSent + 1 : 0
       // Twice in a row: a step the wallet broadcast just before failing would be pending or mined by then.
       if (outcome.at === 'found' || notSent === 2) break
@@ -681,8 +683,10 @@ export function TxSteps({
     const from = address as Hex
     let snapshot: SendSnapshot
     try {
+      // EIP-7702 authorization consumes an account nonce even when a relay sends it.
+      // Capture the funding attempt only after the upgrade is confirmed.
       const reads = chainReads(from)
-      snapshot = await guardedSnapshot(reads, sendGuard)
+      snapshot = await guardedSnapshot(reads, sendGuard, authoritative.batch ? batch?.prepare : undefined)
     } catch (e) {
       set(i, {
         at: 'failed',
@@ -722,12 +726,12 @@ export function TxSteps({
     try {
       if (authoritative.batch) {
         if (batch === null) throw new Error('This wallet cannot send a batch; send them one at a time.')
-        hash = await batch(boardSteps, batchGasLimit(txs, sidequest))
+        hash = await batch(boardSteps, batchGasLimit(txs, sidequest), snapshot.nonce)
       } else {
         const tx = txs[i]!
         const gas = gasLimit(tx, sidequest)
         hash = await sendTransactionAsync({
-          ...walletStepRequest(tx, from, chain.id),
+          ...walletStepRequest(tx, from, chain.id, snapshot.nonce),
           ...(gas === undefined ? {} : { gas }),
         })
       }
@@ -760,9 +764,27 @@ export function TxSteps({
     sending.current = false
   }
 
+  const chooseSequential = async () => {
+    if (!record.batch || sending.current || status.some((entry) => retryAction(entry) !== 'send')) return
+    try {
+      await withWalletStepLock(navigator.locks, key, async () => {
+        const latest = (await loadDurable(requireJournal)) ?? record
+        const next = sequentialJournal(latest)
+        await commit(next)
+        setStatus(txs.map((): Status => ({ at: 'idle' })))
+      })
+    } catch (failure) {
+      journalFailure(failure)
+    }
+  }
+
   const run = async (i: number) => {
     try {
-      await withWalletStepLock(navigator.locks, key, () => runLocked(i))
+      await withWalletStepLock(navigator.locks, key, () =>
+        address === undefined
+          ? runLocked(i)
+          : withWalletAccountLock(navigator.locks, chain.id, address, () => runLocked(i)),
+      )
     } catch (failure) {
       sending.current = false
       setJournalError(friendlyError(failure))
@@ -1002,16 +1024,8 @@ export function TxSteps({
           Pay the gas yourself instead
         </Button>
       )}
-      {record.batch && !started && (
-        <Button
-          variant="link"
-          size="sm"
-          onClick={() => {
-            setRecord({ ...record, batch: false })
-            setStatus(txs.map((): Status => ({ at: 'idle' })))
-          }}
-          className="justify-self-center"
-        >
+      {record.batch && status.every((entry) => retryAction(entry) === 'send') && (
+        <Button variant="link" size="sm" onClick={() => void chooseSequential()} className="justify-self-center">
           Send them one at a time instead
         </Button>
       )}

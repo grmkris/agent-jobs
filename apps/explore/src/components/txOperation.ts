@@ -3,10 +3,19 @@ import type { TxRequest } from '../api.ts'
 
 /** Board calls remain zero-value; reviewed wallet funding may also send native MON. */
 export type WalletStep = Omit<TxRequest, 'value'> & { value: string }
-export function walletStepRequest(tx: WalletStep, account: Hex, chainId: number) {
+export function walletStepRequest(tx: WalletStep, account: Hex, chainId: number, nonce?: number) {
   if (tx.chainId !== chainId || !/^\d+$/.test(tx.value) || BigInt(tx.value) >= 2n ** 256n)
     throw new Error('Invalid transaction value or network. Nothing was sent.')
-  return { account, to: tx.to, data: tx.data, value: BigInt(tx.value), chainId }
+  if (nonce !== undefined && (!Number.isSafeInteger(nonce) || nonce < 0))
+    throw new Error('Invalid transaction nonce. Nothing was sent.')
+  return {
+    account,
+    to: tx.to,
+    data: tx.data,
+    value: BigInt(tx.value),
+    chainId,
+    ...(nonce === undefined ? {} : { nonce }),
+  }
 }
 
 export interface StepLocks {
@@ -24,6 +33,16 @@ export async function withWalletStepLock<T>(
       'This browser cannot safely coordinate wallet operations across tabs. Use a browser with Web Locks.',
     )
   return locks.request(`sidequest.wallet-step:${key}`, operation)
+}
+
+/** Different operations must not capture the same account nonce while another tab is confirming a send. */
+export function withWalletAccountLock<T>(
+  locks: StepLocks | undefined,
+  chainId: number,
+  account: string,
+  operation: () => Promise<T>,
+): Promise<T> {
+  return withWalletStepLock(locks, `account:${chainId}:${account.toLowerCase()}`, operation)
 }
 
 export type TxStatus =
@@ -66,11 +85,14 @@ export interface SendSnapshot {
 export async function guardedSnapshot(
   reads: Pick<ChainReads, 'nonce' | 'blockNumber'>,
   guard?: () => string | null | Promise<string | null>,
+  prepare?: () => Promise<void>,
 ): Promise<SendSnapshot> {
   const assert = async () => {
     const problem = await guard?.()
     if (problem) throw new Error(problem)
   }
+  await assert()
+  await prepare?.()
   await assert()
   const [nonce, block] = await Promise.all([reads.nonce('pending'), reads.blockNumber()])
   await assert()
@@ -115,7 +137,7 @@ export async function reconcileSend(
   reads: ChainReads,
   snapshot: SendSnapshot,
   from: string,
-  call: { to: string; data: Hex; value?: bigint },
+  call: { to: string; data: Hex; value?: bigint; nonce?: number },
   maxBlocks = 240,
 ): Promise<Reconciled> {
   let mined: number
@@ -137,6 +159,7 @@ export async function reconcileSend(
           if (!same(tx.from, from) || tx.nonce < snapshot.nonce) continue
           if (
             same(tx.to, call.to) &&
+            (call.nonce === undefined || tx.nonce === call.nonce) &&
             tx.input.toLowerCase() === call.data.toLowerCase() &&
             (tx.value ?? 0n) === (call.value ?? 0n)
           )

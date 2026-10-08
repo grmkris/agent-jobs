@@ -174,6 +174,15 @@ export function pastSteps(events: TimelineEvent[], job: TimelineJob): Step[] {
           tx,
         })
         break
+      case 'BondForfeited':
+        steps.push({
+          mark: 'warn',
+          title: `${bond(String(a.amount))} of the creator bond forfeited to the treasury`,
+          sub: 'This listing ended without activation.',
+          at,
+          tx,
+        })
+        break
       case 'PayoutDeferred':
         steps.push({
           mark: 'warn',

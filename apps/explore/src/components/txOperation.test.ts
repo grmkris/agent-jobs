@@ -6,12 +6,55 @@ import {
   walletRefused,
   walletStepRequest,
   withWalletStepLock,
+  withWalletAccountLock,
   type StepLocks,
 } from './txOperation.ts'
 
 const hash = `0x${'1'.repeat(64)}` as const
 
 describe('wallet step retry reconciliation', () => {
+  it('coordinates different operations for the same account before snapshotting and passes the captured nonce to the wallet', async () => {
+    const queues = new Map<string, Promise<void>>()
+    const locks: StepLocks = {
+      request: async (name, fn) => {
+        const previous = queues.get(name) ?? Promise.resolve()
+        let release!: () => void
+        queues.set(
+          name,
+          new Promise<void>((resolve) => {
+            release = resolve
+          }),
+        )
+        await previous
+        try {
+          return await fn()
+        } finally {
+          release()
+        }
+      },
+    }
+    const owner = '0xa111111111111111111111111111111111111111'
+    let nextNonce = 7
+    const requests: number[] = []
+    const reads = { nonce: async () => nextNonce, blockNumber: async () => 100n }
+    const tab = (key: string, account: `0x${string}`) =>
+      withWalletStepLock(locks, key, () =>
+        withWalletAccountLock(locks, 10143, account, async () => {
+          const snapshot = await guardedSnapshot(reads)
+          const request = walletStepRequest(
+            { description: 'Fund', chainId: 10143, to: owner, data: '0x', value: '500' },
+            account,
+            10143,
+            snapshot.nonce,
+          )
+          await Promise.resolve()
+          requests.push(request.nonce!)
+          nextNonce++
+        }),
+      )
+    await Promise.all([tab('first-job', owner), tab('second-job', `0x${owner.slice(2).toUpperCase()}`)])
+    expect(requests).toEqual([7, 8])
+  })
   it('serializes stale tabs and rereads the shared pending/hash journal before a second prompt', async () => {
     let queue = Promise.resolve()
     const locks: StepLocks = {
@@ -155,6 +198,15 @@ describe('ambiguous send reconciliation', () => {
     })
     expect(await reconcileSend(c, snapshot, owner, call)).toEqual({ at: 'found', hash: tx(5, '0x').hash })
     expect(reads.blocks).toBe(3)
+  })
+  it('does not recover another operation with identical calldata at a different nonce', async () => {
+    const other = chain({ mined: 7, blocks: { 101: [tx(5, '0x1234'), tx(6, call.data)] } })
+    expect(await reconcileSend(other.chain, snapshot, owner, { ...call, nonce: 5 })).toEqual({ at: 'not-sent' })
+    const original = chain({ mined: 7, blocks: { 101: [tx(5, call.data), tx(6, call.data)] } })
+    expect(await reconcileSend(original.chain, snapshot, owner, { ...call, nonce: 5 })).toEqual({
+      at: 'found',
+      hash: tx(5, '0x').hash,
+    })
   })
   it('distinguishes two native transfers to the same recipient by their reviewed amount', async () => {
     const native = { ...call, data: '0x' as const, value: 500n }

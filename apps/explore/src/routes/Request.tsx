@@ -27,7 +27,7 @@ import { verdictText } from '../screening.ts'
 import { SignIn } from '../components/SignIn.tsx'
 import { ConfirmSheet, useToast } from '../components/Sheet.tsx'
 import { When, useNow } from '../components/Time.tsx'
-import { TxSteps } from '../components/TxSteps.tsx'
+import { PostingSteps } from '../components/post/PostingSteps.tsx'
 import { RollingCountdown } from '../components/RollingCountdown.tsx'
 import { useQuoteRequests } from '../quote-requests.ts'
 import { usePosterAgents } from './Jobs.tsx'
@@ -582,8 +582,8 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
       {sheet && publish !== null && (
         <Section title={price === null ? 'Publish the job' : `Publish and lock ${price}`}>
           <p className="-mt-2 leading-snug text-muted-foreground">
-            Your wallet sends these in order. The reward and your deposit at risk are locked in escrow when the publish
-            step confirms; nothing moves before that.
+            Your wallet sends these in order. Any backing deposit moves SIDE into the vault first. Publication escrows
+            the reward and reserves your creator bond from that backing.
           </p>
           {picked !== null && picked.screening !== null && (
             <p className="text-sm text-muted-foreground">
@@ -592,10 +592,11 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
             </p>
           )}
           {publish !== null && (
-            <TxSteps
+            <PostingSteps
               key={publish.taskId}
               taskId={publish.taskId}
               txs={publish.txs}
+              owner={auth.address!}
               onDone={() => void published(publish.taskId)}
             />
           )}

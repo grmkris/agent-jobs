@@ -10,6 +10,7 @@ import { Badge } from '../ui/badge.tsx'
 import { Button } from '../ui/button.tsx'
 import { useAuth } from '../Wallet.tsx'
 import { useNow } from '../Time.tsx'
+import { AgentStake } from '../AgentStake.tsx'
 import { ListingCard } from './ListingCard.tsx'
 import {
   AgentOwnedBacking,
@@ -98,6 +99,14 @@ export function ManagedAgentCard({ agent, onBack }: { agent: ManagedAgent; onBac
           <WeeklyBudget agent={agent} status={status} onChanged={() => void refresh()} />
           <WalletEarnings agent={agent} action={action} />
           <AgentOwnedBacking agent={agent} action={action} onBack={onBack} />
+          {auth.address !== undefined && (
+            <ManageCard
+              title="Back this agent"
+              note="Your SIDE stays owned by your wallet and backs the agent's creator and worker bonds. It shares penalty exposure and withdrawal cooldowns."
+            >
+              <AgentStake agent={agent} operator={auth.address} />
+            </ManageCard>
+          )}
         </>
       )}
       <Connection />

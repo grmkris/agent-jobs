@@ -132,12 +132,24 @@ export function usePrivyModalOpen(): boolean {
  * itself, once the wallet points at the deployment's DeleGator (the first batch upgrades it through the board's
  * relay). All or nothing, one confirmation. Null without Privy or for another wallet.
  */
-export type BatchSend = (txs: TxRequest[], gas?: bigint) => Promise<Hex>
+export type BatchSend = ((txs: TxRequest[], gas?: bigint, nonce?: number) => Promise<Hex>) & {
+  /** Finish any authorization transaction before the caller captures the funding nonce. */
+  prepare?: () => Promise<void>
+}
 
 export function usePrivyBatch(address: string | undefined): BatchSend | null {
   const account = useDelegatorAccount(address)
   if (account === null) return null
-  return (txs, gas) => account.send(sdk.batchCalldata(txs.map((t) => ({ ...t, value: '0' as const }))), gas)
+  const send: BatchSend = (txs, gas, nonce) =>
+    account.send(sdk.batchCalldata(txs.map((t) => ({ ...t, value: '0' as const }))), gas, nonce)
+  send.prepare = async () => {
+    const hash = await account.upgrade()
+    if (hash !== null && (await reads.waitForTransactionReceipt({ hash })).status !== 'success')
+      throw new Error('Wallet upgrade reverted. No funding steps were sent.')
+    if (!(await account.delegated()))
+      throw new Error('Wallet upgrade is not confirmed. Reconcile it before sending funding.')
+  }
+  return send
 }
 
 /**
@@ -158,7 +170,7 @@ interface DelegatorAccount {
   /** The DeleGator upgrade when the code is not there yet: the relay's transaction hash, or null. */
   upgrade(): Promise<Hex | null>
   /** A call to self, after the upgrade when it is still needed; `gas` when the calls need more than an estimate. */
-  send(data: Hex, gas?: bigint): Promise<Hex>
+  send(data: Hex, gas?: bigint, nonce?: number): Promise<Hex>
 }
 
 function useDelegatorAccount(address: string | undefined): DelegatorAccount | null {
@@ -208,8 +220,8 @@ function useDelegatorAccountInner(address: string | undefined): DelegatorAccount
   return {
     delegated,
     upgrade,
-    send: async (data, gas) => {
-      await upgrade()
+    send: async (data, gas, nonce) => {
+      if (!(await delegated())) throw new Error('Prepare the wallet upgrade before capturing the send nonce.')
       const provider = (await embedded.getEthereumProvider()) as EIP1193Provider
       const request = {
         from: me,
@@ -218,6 +230,7 @@ function useDelegatorAccountInner(address: string | undefined): DelegatorAccount
         value: '0x0',
         chainId: toHex(chain.id),
         ...(gas === undefined ? {} : { gas: toHex(gas) }),
+        ...(nonce === undefined ? {} : { nonce: toHex(nonce) }),
       }
       return (await provider.request({
         method: 'eth_sendTransaction',

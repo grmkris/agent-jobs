@@ -24,6 +24,17 @@ export interface JournalStorage {
   removeItem(key: string): void
 }
 export const emptyJournal = (): OpRecord => ({ batch: false, hashes: [], recorded: [], pending: null })
+/** Mode changes may never replace an unresolved attempt or successful batch. */
+export function sequentialJournal(record: OpRecord): OpRecord {
+  if (
+    !record.batch ||
+    record.pending !== null ||
+    record.hashes.some((hash) => hash !== null) ||
+    record.recorded.some(Boolean)
+  )
+    throw new Error('Reconcile the original batch before changing how it is sent.')
+  return { ...record, batch: false }
+}
 export function txJournalKey(taskId: string, txs: WalletStep[]): string {
   const native = txs.some((tx) => tx.value !== '0')
   let hash = 0x811c9dc5
