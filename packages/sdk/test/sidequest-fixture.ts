@@ -186,8 +186,9 @@ export async function startSidequestFork() {
       d.identity,
       arbitrator.account.address,
       120,
-      parseEther('1000'),
-      parseEther('10000'),
+      BigInt(testnetConfig.sidequest.minimumCreatorBond),
+      BigInt(testnetConfig.sidequest.maxMinimumCreatorBond),
+      testnetConfig.sidequest.unfilledForfeitBps,
       clocks,
     ])
     const evaluator = await deploy('SidequestEvaluator', [core, holding, d.reputation])
