@@ -12,6 +12,7 @@ import {
 } from 'viem'
 import type { Ctx } from './actions.ts'
 import archived from '../../../contracts/config/archive/pre-g1d-monad-testnet.json' with { type: 'json' }
+import archivedG1d from '../../../contracts/config/archive/pre-g1e-monad-testnet.json' with { type: 'json' }
 import { deployment, deploymentFromConfig, stack } from './deployment.ts'
 import { minOutFor, permit2Abi, sidePrice, swapTransactions, universalRouterAbi } from './market.ts'
 
@@ -19,6 +20,10 @@ const owner: Address = '0x00000000000000000000000000000000000000aa'
 const previous = deploymentFromConfig('monad-testnet', {
   ...archived,
   deployment: { ...archived.deployment, main: { ...archived.deployment.main, kind: 'sidequest-v1' } },
+})
+const g1d = deploymentFromConfig('monad-testnet', {
+  ...archivedG1d,
+  deployment: { ...archivedG1d.deployment, main: { ...archivedG1d.deployment.main, kind: 'sidequest-v1' } },
 })
 
 function decodeSwap(data: Hex) {
@@ -46,10 +51,18 @@ describe.each([
   },
   {
     generation: 'G1d',
-    d: deployment('monad-testnet'),
+    d: g1d,
     poolId: '0x58d464a271a5828f4d092c3df6169f18766c8de18a09efda5a53f91a12fbc17d',
     quoteIs0: false,
     sqrtPriceX96: 792281625142643375935n,
+  },
+  {
+    // G1e's SIDE sorts after mUSD again, so the quote is currency0 as before G1d.
+    generation: 'G1e',
+    d: deployment('monad-testnet'),
+    poolId: '0x4eb903f29419f209c25c85a75aafad8f5f3dd0a79f4a6f5cba11f4d854e09a4d',
+    quoteIs0: true,
+    sqrtPriceX96: 7922816251426433759354395033600000000n,
   },
 ])('the $generation SIDE market', ({ d, poolId, quoteIs0, sqrtPriceX96 }) => {
   const m = d.market!
