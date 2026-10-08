@@ -1,0 +1,23 @@
+{
+  "observedAt": "2026-10-08T21:56:40.936Z",
+  "step": 9,
+  "appId": "cmui9skoc01zr0dl03tyahirs",
+  "adminId": "q4bhp78wp2ialt6ffv2pv3mg",
+  "signerId": "q82i8vfysvn523j6mx69wljn",
+  "policyId": "ocog6r948i9p93x6ucd4f3db",
+  "verifiedAt": "2026-10-08T21:55:53.010Z",
+  "desiredPolicySha256": "eccbb87bb383ced89eaa1da402b8b5445cee2b1a17ac5a700b9870c580773f9f",
+  "policyRuleCount": 11,
+  "freshTargets": {
+    "Allow Selection": "0x8E2C39f28119F21566D88ba18028B95c1F19Bb31",
+    "Allow SetBudgetAuthorization": "0x5914B7de3E80F1e8460901b4eBd6D19B15f9147e",
+    "Allow SubmitAuthorization": "0x5914B7de3E80F1e8460901b4eBd6D19B15f9147e"
+  },
+  "relayAddresses": [
+    "0xC4173dBC98ffd6F5785E8Fba85E9e5bd8b3F5058",
+    "0xa6D3eC73053152221af873789aEd179E506b1F0E"
+  ],
+  "chainId": 10143,
+  "legacyAuthorityPreserved": true,
+  "policyUpdateJournalCleared": true
+}
