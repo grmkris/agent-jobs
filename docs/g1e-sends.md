@@ -138,22 +138,28 @@ Read `docs/stages.md`, `docs/deploy.md` and the G1e common/OPS briefs before exe
     Check no duplicate old process and no unexpected pending job before launch. Startup is not proof of a completed
     ruling; any job-processing sends must be covered by this GO's approved scope, otherwise hold those actions.
 
-13. **GO 13 — manual bonded quote hire and early cancel.**
-    Kris funds and stakes his creator wallet and backs the agent via Explore. Confirm owner/position/available values.
+13. **GO 13 — FLOW-wallet bonded quote hire and early cancel.**
+    Use the existing creator/worker FLOW wallets from G1d's live hire (task `446757c086f21ecf`, job 1), with their
+    retained journals and staking. Resolve their public addresses from the G1d live-hire receipt and verify the selected
+    env keys derive those same addresses without printing keys. Read their recreated G1e positions after GO 8 and
+    confirm ownership, available backing and current floor before any publish. No new wallet or Kris signature is needed.
+    Use a fresh generation-bound G1e operation profile; retain the G1d journals without reusing their signed bytes.
     Use distinct frozen keys for a quotes-first bonded hire and a never-activated listing cancelled strictly inside
     600 seconds. Record quote selection, activation/delivery/completion and exact reward/fee/net amounts for the hire.
     For early cancel, use the receipt block timestamp, full bond release, zero treasury delta and no `BondForfeited`.
     A relay hire retains **three ordered calls** (reward pull, approval, publish); its creator bond is at least live floor.
-    No automated A01–A08 fixtures. Preserve all UI/operation journals after an interrupted response.
+    These are bounded FLOW-wallet operator checks, separate from genuine-user acceptance. Kris is away and tests
+    manually later. No automated A01–A08 fixtures. Preserve all operation journals after an interrupted response.
 
-14. **GO 14 — late unfilled cancel and indexed forfeit.**
-    Publish a separate never-activated listing with the current floor and recorded snapshotted rate/publish time.
+14. **GO 14 — FLOW-wallet late unfilled cancel and indexed forfeit.**
+    Use that same existing FLOW creator wallet and its recreated staking. Publish a separate never-activated listing
+    with the current floor and recorded snapshotted rate/publish time; verify free backing before its new operation.
     Wait until the mined cancel can be at or after `publishedAt + 600` (use chain timestamps), then cancel once with
     its frozen key. With unchanged initial policy, 10 SIDE yields **2.5 SIDE to current treasury and 7.5 SIDE released**.
     Record successful receipt, exact `BondForfeited` args, SIDE transfer to the live Safe treasury, reserved-bond release,
     vault accounting and the indexed event for the same job/hash/block. Reconcile before retrying a lost response.
     An expiry/settle test is a separate **GO 14a** if requested; it must prove the same never-activated forfeit. Activated
-    jobs retain no penalty at/after expiry. Record any untested manual items as pending.
+    jobs retain no penalty at/after expiry. Record Kris’s genuine-user manual acceptance as pending until he returns.
 
 15. **GO 15 — closeout.**
     The orchestrator owns bytecode baseline/full gate/fork verification and any final push. OPS records exact test counts,
