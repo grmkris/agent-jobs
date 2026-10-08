@@ -85,7 +85,9 @@ async function chainLimits(runtime: Runtime): Promise<Record<string, unknown>> {
     throw new Error('P8_FORBIDDEN_ALLOWANCE_CALL_ACCEPTED')
   }
   await refused(nested(active.token, runtime.agent.operator), 'AllowedCalldataEnforcer')
-  await refused(nested(chain.ctx.deployment.rewardTokens[1]!, runtime.agent.address), 'invalid-contract')
+  // The deployed manager's target allow-list rejects the wrong token before
+  // the token contract's own address check can run.
+  await refused(nested(chain.ctx.deployment.rewardTokens[1]!, runtime.agent.address), 'AllowedTargetsEnforcer')
   const fork = await deployedFork(await chain.ctx.publicClient.getBlockNumber())
   try {
     const read = () =>
