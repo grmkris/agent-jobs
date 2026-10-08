@@ -1,0 +1,436 @@
+{
+  "observedAt": "2026-10-08T18:29:29.539986+00:00",
+  "sourceCommit": "8640662d0df7e0deaf62cb85480f004b270380b9",
+  "releaseBaseline": "fb5d2696021cccd86fd5cd9b207fb6e20ae21c79",
+  "origin": "https://sidequest.exchange",
+  "network": "monad-testnet",
+  "chainId": 10143,
+  "layer": "fixture",
+  "generation": "g1d",
+  "supersededBy": "planned g1e; no G1e sends authorized yet",
+  "runId": "g1d-prod-fixture-20261008",
+  "stoppedBy": "Kris decision to stop A01-A08 reruns and test G1e by hand",
+  "cases": [
+    {
+      "id": "A01f",
+      "result": "pass",
+      "evidence": "p8-A01f.json",
+      "checks": [
+        "real Privy fixture login and browser-created managed agent",
+        "registry owner is the stable operator",
+        "agentWallet is the separate managed wallet",
+        "Privy user ownership, routine signer and policy read back"
+      ],
+      "error": null
+    },
+    {
+      "id": "A02f",
+      "result": "pass",
+      "evidence": "p8-A02f.json",
+      "checks": [
+        "browser OAuth consent and isolated Codex MCP",
+        "fixture creator publishes escrow",
+        "Codex applies, activates and submits without browser agent signing",
+        "chain-funded activation and finalized delivery",
+        "completed outcome and exact net token payment"
+      ],
+      "error": null
+    },
+    {
+      "id": "A03f",
+      "result": "pass",
+      "evidence": "p8-A03f.json",
+      "checks": [
+        "named Grok worker and agent creator",
+        "one confirmed relay transaction pulls exact reward, approves Holding and publishes escrow",
+        "real deployed-bytecode fork proves failed publish rollback"
+      ],
+      "error": null
+    },
+    {
+      "id": "A04f",
+      "result": "pass",
+      "evidence": "p8-A04f.json",
+      "checks": [
+        "live wrong token and recipient refused",
+        "fixed-period rollover, cap and expiry on deployed-state fork",
+        "two concurrent near-cap hires yield one publish and one Approval",
+        "browser signs exact one-off allowance; approval atomically escrows the unchanged amount"
+      ],
+      "error": null
+    },
+    {
+      "id": "A05f",
+      "result": "pass",
+      "evidence": "p8-A05f.json",
+      "checks": [
+        "provider-policy: wrong chain refused",
+        "provider-policy: wrong verifying contract refused",
+        "provider-policy: wrong type refused",
+        "provider-policy: wrong signer field refused",
+        "provider-policy: wrong delegate refused",
+        "provider-authorization: policy update refused",
+        "provider-authorization: signer update refused",
+        "provider-authorization: export refused",
+        "hosted-application: another registered identity refused",
+        "hosted-application: arbitrary signing tool with empty caveats refused",
+        "provider-authorization: policy and signers unchanged after refused mutations"
+      ],
+      "error": null
+    },
+    {
+      "id": "A06f",
+      "result": "pass",
+      "evidence": "p8-A06f.json",
+      "checks": [
+        "actual Codex OAuth token refused immediately after stop-access",
+        "grants remain unconfirmed while the revoke route is aborted",
+        "restored relay confirms disablement; every disabled status matches chain state"
+      ],
+      "error": null
+    },
+    {
+      "id": "A07f",
+      "result": "pass",
+      "evidence": "p8-A07f.json",
+      "checks": [
+        "real Codex process killed at the lost-response boundary",
+        "new Codex process repeats the persisted key and arguments",
+        "same operation ID and transaction hash",
+        "exactly one Published event for the frozen offer"
+      ],
+      "error": null
+    },
+    {
+      "id": "A08f",
+      "result": "blocked",
+      "evidence": "p8-A08f.json",
+      "checks": [],
+      "error": "P8_SCENARIO_FAILED_DETAILS_SUPPRESSED"
+    }
+  ],
+  "budget": {
+    "capWei": "2000000000000000000",
+    "spentWei": "1409454666000000000",
+    "spentMon": "1.409454666",
+    "reservedWei": "0",
+    "remainingWei": "590545334000000000",
+    "receiptCount": 21,
+    "reservations": {},
+    "accounting": "All observed relay and fixture-wallet receipts include gas and successful native value. ERC-20 rewards are separate."
+  },
+  "receipts": [
+    {
+      "txHash": "0x21cc947c69529acf05cf1936d3fad614b501d5e386471679044d2b484cdc019c",
+      "status": "success",
+      "gasUsed": "61072",
+      "effectiveGasPrice": "102000000000",
+      "costWei": "6229344000000000",
+      "nativeValueWei": "0",
+      "blockNumber": "69290745",
+      "from": "0xa6d3ec73053152221af873789aed179e506b1f0e",
+      "nonce": 0
+    },
+    {
+      "txHash": "0xe4fb50175714bd1dfe4661fced1ecbc752323f76084c3a25a48e8d16957faf3a",
+      "status": "success",
+      "gasUsed": "61072",
+      "effectiveGasPrice": "102000000000",
+      "costWei": "6229344000000000",
+      "nativeValueWei": "0",
+      "blockNumber": "69290791",
+      "from": "0xa6d3ec73053152221af873789aed179e506b1f0e",
+      "nonce": 1
+    },
+    {
+      "txHash": "0xc1697e625c220a8a7a107d5dcda4277fc2e82c52d8ccebf27bddcc4f6f4ba1ec",
+      "status": "success",
+      "gasUsed": "649968",
+      "effectiveGasPrice": "102000000000",
+      "costWei": "66296736000000000",
+      "nativeValueWei": "0",
+      "blockNumber": "69295070",
+      "from": "0xa6d3ec73053152221af873789aed179e506b1f0e",
+      "nonce": 2
+    },
+    {
+      "txHash": "0x833aab8f23d188d0b1d3cb7e2c717f6316c98d13a23e889485fe3a4f6822257b",
+      "status": "success",
+      "gasUsed": "375183",
+      "effectiveGasPrice": "102000000000",
+      "costWei": "38268666000000000",
+      "nativeValueWei": "0",
+      "blockNumber": "69295080",
+      "from": "0xa6d3ec73053152221af873789aed179e506b1f0e",
+      "nonce": 3
+    },
+    {
+      "txHash": "0xf97a41db63779124dc03315286428a1d3149d03209dca8faaf68cfc677d0cba7",
+      "status": "success",
+      "gasUsed": "89717",
+      "effectiveGasPrice": "102000000000",
+      "costWei": "9151134000000000",
+      "nativeValueWei": "0",
+      "blockNumber": "69295158",
+      "from": "0x9819c243702dd06e8d793987f0f46f793996c71c",
+      "nonce": 347
+    },
+    {
+      "txHash": "0x5bf7b1d671501d3df53a871460e8dc392c1e939b041bc80d4d7706df2945855e",
+      "status": "success",
+      "gasUsed": "75127",
+      "effectiveGasPrice": "102000000000",
+      "costWei": "7662954000000000",
+      "nativeValueWei": "0",
+      "blockNumber": "69311047",
+      "from": "0x9819c243702dd06e8d793987f0f46f793996c71c",
+      "nonce": 348
+    },
+    {
+      "txHash": "0xd72477407433ce979f368a6bd39079d0f2ec114ac2bf3dfe2b6145546e1e1756",
+      "status": "success",
+      "gasUsed": "669037",
+      "effectiveGasPrice": "102000000000",
+      "costWei": "68241774000000000",
+      "nativeValueWei": "0",
+      "blockNumber": "69311068",
+      "from": "0x9819c243702dd06e8d793987f0f46f793996c71c",
+      "nonce": 349
+    },
+    {
+      "txHash": "0x26852024935f5adf8ea82fbc1fa43dce47b0fbf1ba356559e3b2f6e645f2d74c",
+      "status": "success",
+      "gasUsed": "817969",
+      "effectiveGasPrice": "102000000000",
+      "costWei": "83432838000000000",
+      "nativeValueWei": "0",
+      "blockNumber": "69318117",
+      "from": "0xa6d3ec73053152221af873789aed179e506b1f0e",
+      "nonce": 4
+    },
+    {
+      "txHash": "0x7bb5d3613876ed43567068b6e727a54558fa5d2d61779e438196323c8a7ea327",
+      "status": "success",
+      "gasUsed": "397635",
+      "effectiveGasPrice": "102000000000",
+      "costWei": "40558770000000000",
+      "nativeValueWei": "0",
+      "blockNumber": "69319574",
+      "from": "0xa6d3ec73053152221af873789aed179e506b1f0e",
+      "nonce": 5
+    },
+    {
+      "txHash": "0xdd6d7baaf227c5bfeef18694516cdbe34dad3223d39868531e758a7a4b84889b",
+      "status": "success",
+      "gasUsed": "1184179",
+      "effectiveGasPrice": "102000000000",
+      "costWei": "120786258000000000",
+      "nativeValueWei": "0",
+      "blockNumber": "69319645",
+      "from": "0x9819c243702dd06e8d793987f0f46f793996c71c",
+      "nonce": 350
+    },
+    {
+      "txHash": "0x35d4fb0c99b3de93206fe16eace1ac5cdbec89dea0d69b78c2be49b5f07875e2",
+      "status": "success",
+      "gasUsed": "593917",
+      "effectiveGasPrice": "102000000000",
+      "costWei": "60579534000000000",
+      "nativeValueWei": "0",
+      "blockNumber": "69319678",
+      "from": "0x9819c243702dd06e8d793987f0f46f793996c71c",
+      "nonce": 351
+    },
+    {
+      "txHash": "0x56021bceef6c8fdd1842f396309e9c0c97e77e2c2a466f0d03889e5e0b2baae5",
+      "status": "success",
+      "gasUsed": "1652660",
+      "effectiveGasPrice": "102000000000",
+      "costWei": "168571320000000000",
+      "nativeValueWei": "0",
+      "blockNumber": "69319817",
+      "from": "0xa6d3ec73053152221af873789aed179e506b1f0e",
+      "nonce": 6
+    },
+    {
+      "txHash": "0x88be47cdf42f370c3cb4c3be1f2a388a68a154da83ba41b4f5f1b39e8188e27c",
+      "status": "success",
+      "gasUsed": "1519974",
+      "effectiveGasPrice": "102000000000",
+      "costWei": "155037348000000000",
+      "nativeValueWei": "0",
+      "blockNumber": "69321886",
+      "from": "0xa6d3ec73053152221af873789aed179e506b1f0e",
+      "nonce": 7
+    },
+    {
+      "txHash": "0x15c0291f25bf27affcf071d6e0e97ae6506d4f1306f07a6895a76558a65fad45",
+      "status": "success",
+      "gasUsed": "1657232",
+      "effectiveGasPrice": "102000000000",
+      "costWei": "169037664000000000",
+      "nativeValueWei": "0",
+      "blockNumber": "69322785",
+      "from": "0xa6d3ec73053152221af873789aed179e506b1f0e",
+      "nonce": 8
+    },
+    {
+      "txHash": "0xaa6e808072fa9816e27d3f29146c360af28f99a0c5d2d91816996bb6d673c488",
+      "status": "success",
+      "gasUsed": "1520013",
+      "effectiveGasPrice": "102000000000",
+      "costWei": "155041326000000000",
+      "nativeValueWei": "0",
+      "blockNumber": "69323005",
+      "from": "0xa6d3ec73053152221af873789aed179e506b1f0e",
+      "nonce": 9
+    },
+    {
+      "txHash": "0x8c3969f285e0a330450baf693280cd4936363dd441e9931cf085232467400569",
+      "status": "success",
+      "gasUsed": "444087",
+      "effectiveGasPrice": "102000000000",
+      "costWei": "45296874000000000",
+      "nativeValueWei": "0",
+      "blockNumber": "69326260",
+      "from": "0xa6d3ec73053152221af873789aed179e506b1f0e",
+      "nonce": 10
+    },
+    {
+      "txHash": "0x8a9c4ea711585d7d79bc93cd51700c574f4cd85d85bbdd192ea94cf3519c615a",
+      "status": "success",
+      "gasUsed": "417922",
+      "effectiveGasPrice": "102000000000",
+      "costWei": "42628044000000000",
+      "nativeValueWei": "0",
+      "blockNumber": "69326270",
+      "from": "0xa6d3ec73053152221af873789aed179e506b1f0e",
+      "nonce": 11
+    },
+    {
+      "txHash": "0x1838775c4baf3f5c732b333191b323a5fa9d6efd819dee0238de59036faae801",
+      "status": "success",
+      "gasUsed": "411143",
+      "effectiveGasPrice": "102000000000",
+      "costWei": "41936586000000000",
+      "nativeValueWei": "0",
+      "blockNumber": "69326280",
+      "from": "0xa6d3ec73053152221af873789aed179e506b1f0e",
+      "nonce": 12
+    },
+    {
+      "txHash": "0x3930ab69df6a914832ced856e976253623fb517630b2637dc15d5878e0ca215c",
+      "status": "success",
+      "gasUsed": "411408",
+      "effectiveGasPrice": "102000000000",
+      "costWei": "41963616000000000",
+      "nativeValueWei": "0",
+      "blockNumber": "69326290",
+      "from": "0xa6d3ec73053152221af873789aed179e506b1f0e",
+      "nonce": 13
+    },
+    {
+      "txHash": "0xe55390fd517f03c969ca5be4d0b7958539533426665de319d66d5b7f8ca1c14f",
+      "status": "success",
+      "gasUsed": "410487",
+      "effectiveGasPrice": "102000000000",
+      "costWei": "41869674000000000",
+      "nativeValueWei": "0",
+      "blockNumber": "69326299",
+      "from": "0xa6d3ec73053152221af873789aed179e506b1f0e",
+      "nonce": 14
+    },
+    {
+      "txHash": "0x1258fd9bee30151df186ec8a63d116a1e5707698506faa13bc06364c909dacad",
+      "status": "success",
+      "gasUsed": "398381",
+      "effectiveGasPrice": "102000000000",
+      "costWei": "40634862000000000",
+      "nativeValueWei": "0",
+      "blockNumber": "69326309",
+      "from": "0xa6d3ec73053152221af873789aed179e506b1f0e",
+      "nonce": 15
+    }
+  ],
+  "cleanup": {
+    "case": "A06f",
+    "result": "pass",
+    "hostedAccessStopped": true,
+    "onchainPermissionsDisabled": true,
+    "llmCalls": 0,
+    "receiptCount": 6
+  },
+  "validation": {
+    "snapshotBase": "413cfe187764cef5d9ea070b676294d7856627ad",
+    "sdkTypecheck": "pass with owned atomic/chain/codex/limits/restart overlaid",
+    "sdkUnit": {
+      "passed": 297,
+      "skipped": 33,
+      "passingFiles": 37,
+      "skippedFiles": 4
+    },
+    "scopedFormatLint": [
+      "restart.ts",
+      "clients.ts"
+    ],
+    "fullGate": "earlier full check passed before latest fixture followups; not repeated",
+    "limits": [
+      "Snapshot lint gate had one stale unrelated API baseline entry; shared baseline preserved.",
+      "A08 fresh OAuth and instructions observed; complete A08 proof remains blocked.",
+      "Fixture evidence is not genuine-user consent or mainnet readiness.",
+      "A03 rollback and A04 time/cap checks are local fork evidence."
+    ]
+  },
+  "publicReadback": [
+    {
+      "origin": "https://dev.sidequest.exchange",
+      "observedAt": "2026-10-08T18:23:59.880Z",
+      "reads": [
+        {
+          "path": "/health",
+          "status": 200,
+          "body": {
+            "ok": true,
+            "runtime": "Cloudflare-Workers",
+            "network": "monad-testnet",
+            "board": "public"
+          }
+        },
+        {
+          "path": "/release.json",
+          "status": 200,
+          "body": {
+            "network": "monad-testnet",
+            "mainnetLive": false,
+            "writesOpen": true
+          }
+        }
+      ]
+    },
+    {
+      "origin": "https://sidequest.exchange",
+      "observedAt": "2026-10-08T18:24:00.215Z",
+      "reads": [
+        {
+          "path": "/health",
+          "status": 200,
+          "body": {
+            "ok": true,
+            "runtime": "Cloudflare-Workers",
+            "network": "monad-testnet",
+            "board": "public"
+          }
+        },
+        {
+          "path": "/release.json",
+          "status": 200,
+          "body": {
+            "network": "monad-testnet",
+            "mainnetLive": false,
+            "writesOpen": true
+          }
+        }
+      ]
+    }
+  ]
+}

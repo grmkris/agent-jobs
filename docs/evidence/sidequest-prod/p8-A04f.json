@@ -1,0 +1,44 @@
+{
+  "id": "A04f",
+  "commit": "9081282c9df8b74cf854b67d7a54646f81992d8e",
+  "release": "fb5d2696021cccd86fd5cd9b207fb6e20ae21c79",
+  "network": "monad-testnet",
+  "chainId": 10143,
+  "fixture": true,
+  "result": "pass",
+  "checks": [
+    "live wrong token and recipient refused",
+    "fixed-period rollover, cap and expiry on deployed-state fork",
+    "two concurrent near-cap hires yield one publish and one Approval",
+    "browser signs exact one-off allowance; approval atomically escrows the unchanged amount"
+  ],
+  "txHashes": [
+    "0x15c0291f25bf27affcf071d6e0e97ae6506d4f1306f07a6895a76558a65fad45",
+    "0x88be47cdf42f370c3cb4c3be1f2a388a68a154da83ba41b4f5f1b39e8188e27c"
+  ],
+  "gas": [
+    "1657232",
+    "1519974"
+  ],
+  "spendMon": "1.000083684",
+  "details": {
+    "allowanceHash": "0xc9149cf7fa281c638ea76905ec32984497c2d6ceae74893a298e664406b9a975",
+    "duration": "604800",
+    "expiresAt": 1794066665,
+    "liveRefusals": [
+      "wrong recipient",
+      "wrong token"
+    ],
+    "timeTier": "real signed browser allowance on a local fork of deployed state; no public timestamp manipulation",
+    "forkChecks": [
+      "period rollover",
+      "full cap consumption",
+      "over-cap refusal",
+      "next period rollover",
+      "30-day expiry refusal"
+    ],
+    "approvalId": "0x5c6a3aa34b7d87d929ac37f4d4553d999b201356732fee769a5539f21ee3cec6",
+    "exactAmount": "12000000",
+    "token": "0x6B56D64150818f91f5112B285e806ec6C78EADe8"
+  }
+}

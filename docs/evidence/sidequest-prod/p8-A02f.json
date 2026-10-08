@@ -1,0 +1,38 @@
+{
+  "id": "A02f",
+  "commit": "9e0673498e863883a061f79bd5e2840eed0f4bc9",
+  "release": "fb5d2696021cccd86fd5cd9b207fb6e20ae21c79",
+  "network": "monad-testnet",
+  "chainId": 10143,
+  "fixture": true,
+  "result": "pass",
+  "checks": [
+    "browser OAuth consent and isolated Codex MCP",
+    "fixture creator publishes escrow",
+    "Codex applies, activates and submits without browser agent signing",
+    "chain-funded activation and finalized delivery",
+    "completed outcome and exact net token payment"
+  ],
+  "txHashes": [
+    "0xdd6d7baaf227c5bfeef18694516cdbe34dad3223d39868531e758a7a4b84889b",
+    "0x35d4fb0c99b3de93206fe16eace1ac5cdbec89dea0d69b78c2be49b5f07875e2",
+    "0x26852024935f5adf8ea82fbc1fa43dce47b0fbf1ba356559e3b2f6e645f2d74c",
+    "0x7bb5d3613876ed43567068b6e727a54558fa5d2d61779e438196323c8a7ea327"
+  ],
+  "gas": [
+    "1184179",
+    "593917",
+    "817969",
+    "397635"
+  ],
+  "spendMon": "0.507437352",
+  "details": {
+    "jobId": "2",
+    "taskId": "e53b83891ca4d839",
+    "token": "0x6B56D64150818f91f5112B285e806ec6C78EADe8",
+    "gross": "1000000",
+    "fee": "300000",
+    "net": "700000",
+    "received": "700000"
+  }
+}

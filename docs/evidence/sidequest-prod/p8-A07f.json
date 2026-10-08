@@ -1,0 +1,29 @@
+{
+  "id": "A07f",
+  "commit": "9081282c9df8b74cf854b67d7a54646f81992d8e",
+  "release": "fb5d2696021cccd86fd5cd9b207fb6e20ae21c79",
+  "network": "monad-testnet",
+  "chainId": 10143,
+  "fixture": true,
+  "result": "pass",
+  "checks": [
+    "real Codex process killed at the lost-response boundary",
+    "new Codex process repeats the persisted key and arguments",
+    "same operation ID and transaction hash",
+    "exactly one Published event for the frozen offer"
+  ],
+  "txHashes": [
+    "0xaa6e808072fa9816e27d3f29146c360af28f99a0c5d2d91816996bb6d673c488"
+  ],
+  "gas": [
+    "1520013"
+  ],
+  "spendMon": "1.15512501",
+  "details": {
+    "operationId": "0x565f2a366f70a90c3956cbe967405788f95813cbe6eacf0f99d9a3f60bf801e9",
+    "boundary": "Codex killed after MCP confirmation, before durable local result",
+    "taskId": "422b80624d4e7319",
+    "verifiedThroughBlock": "69324406",
+    "rotation": "outside A07f; no wallet rotation performed"
+  }
+}

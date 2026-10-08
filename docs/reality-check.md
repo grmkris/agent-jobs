@@ -540,3 +540,43 @@ The official publisher validated `server.json`; the registry accepted `exchange.
 [registry readback](https://registry.modelcontextprotocol.io/v0.1/servers/exchange.sidequest%2Fsidequest/versions/2.0.0)
 is active and contains the exact production endpoint, title, description, repository and icon. Sanitized request
 receipts are in [the MCP evidence directory](evidence/mcp-metadata/2026-10-08-a234a7f-release.json).
+
+## G1d managed-agent fixture closeout, superseded by G1e (8 Oct 2026)
+
+Kris stopped further A01–A08 fixture runs before the planned G1e creator-bond redeploy. The retained prod-testnet
+run `g1d-prod-fixture-20261008` on Monad 10143 passed **A01f–A07f**; **A08f remains blocked**. A06f ran separately
+as the explicitly authorized cleanup after the stop decision, without an LLM call. The fixture agent **2082** now has
+hosted access stopped; its actual retained Codex OAuth token returns 401, and each disabled grant matches chain state.
+The cleanup has **six successful revocation receipts**. Journals, budget, Chromium profile and both Codex homes remain
+retained; no subsequent fixture suite is authorized.
+
+A01 proves the operator-owned Privy fixture agent and registry/signer/policy binding. A02's task `e53b83891ca4d839`,
+job **2**, completed through real Codex MCP activation and delivery: a **1 mUSD** reward paid exactly **0.7 mUSD** net,
+with **0.3 mUSD** fee. A03's named-worker atomic hire for Grok agent **2036**, task `0e5071c9328d82ce`, job **3**,
+funded **3 mUSD** in one relay receipt; it does not prove Grok delivery or payment. Failed-publish rollback was proved
+on a local fork immediately before that receipt. A04 proves live wrong-recipient/token refusals, the original concurrent
+one-publish/one-approval result and the exact **12 mUSD** one-off operator approval; period/cap/expiry are fork evidence.
+A05 labels provider policy, provider authorization and hosted identity/signing refusals separately.
+
+A07 killed the real Codex client after confirmation and recovered original operation
+`0x565f2a366f70a90c3956cbe967405788f95813cbe6eacf0f99d9a3f60bf801e9`, transaction
+`0xaa6e808072fa9816e27d3f29146c360af28f99a0c5d2d91816996bb6d673c488`, task `422b80624d4e7319`. The complete
+provider-bounded scan found exactly one publish through block **69324406**. The fresh A08 OAuth client retrieved
+connector instructions; its complete browser/mining proof remains blocked with a suppressed external error. The stale
+instruction wording was corrected, but no further A08 run is planned.
+
+Integer receipt accounting closes at **21 receipts**, **1,409,454,666,000,000,000 wei (1.409454666 MON)** against
+the shared **2 MON** cap, with **zero pending reservations**. This conservatively includes all observed relay traffic;
+ERC-20 rewards are separate. Public dev/prod readbacks at **18:24 UTC** returned healthy testnet stages, writes open
+and `mainnetLive: false`. The earlier hosted G1d release and the separate MCP metadata release are recorded above.
+
+The final owned SDK snapshot typecheck passed; **297 SDK unit tests passed, 33 were skipped**, and scoped restart/client
+format and lint checks passed. The earlier full repository gate predates the latest harness followups. The snapshot lint
+gate had one stale unrelated API baseline entry; the shared baseline was preserved. No full G1e gate, redeploy,
+genuine-user acceptance, fresh arbitration ruling or mainnet transaction is established here.
+
+Receipts: [fixture closeout and ledger](evidence/sidequest-prod/2026-10-08-g1d-fixture-closeout.json),
+[A01](evidence/sidequest-prod/p8-A01f.json), [A02](evidence/sidequest-prod/p8-A02f.json),
+[A03](evidence/sidequest-prod/p8-A03f.json), [A04](evidence/sidequest-prod/p8-A04f.json),
+[A05](evidence/sidequest-prod/p8-A05f.json), [A06 cleanup](evidence/sidequest-prod/p8-A06f.json),
+[A07](evidence/sidequest-prod/p8-A07f.json), [A08 blocked](evidence/sidequest-prod/p8-A08f.json).

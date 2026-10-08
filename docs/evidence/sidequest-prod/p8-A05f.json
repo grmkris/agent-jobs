@@ -1,0 +1,99 @@
+{
+  "id": "A05f",
+  "commit": "9081282c9df8b74cf854b67d7a54646f81992d8e",
+  "release": "fb5d2696021cccd86fd5cd9b207fb6e20ae21c79",
+  "network": "monad-testnet",
+  "chainId": 10143,
+  "fixture": true,
+  "result": "pass",
+  "checks": [
+    "provider-policy: wrong chain refused",
+    "provider-policy: wrong verifying contract refused",
+    "provider-policy: wrong type refused",
+    "provider-policy: wrong signer field refused",
+    "provider-policy: wrong delegate refused",
+    "provider-authorization: policy update refused",
+    "provider-authorization: signer update refused",
+    "provider-authorization: export refused",
+    "hosted-application: another registered identity refused",
+    "hosted-application: arbitrary signing tool with empty caveats refused",
+    "provider-authorization: policy and signers unchanged after refused mutations"
+  ],
+  "txHashes": [],
+  "gas": [],
+  "spendMon": "1.000083684",
+  "details": {
+    "results": [
+      {
+        "probe": "wrong chain",
+        "enforcementLayer": "provider-policy",
+        "path": "Privy API with routine quorum",
+        "status": 400,
+        "code": "policy_violation"
+      },
+      {
+        "probe": "wrong verifying contract",
+        "enforcementLayer": "provider-policy",
+        "path": "Privy API with routine quorum",
+        "status": 400,
+        "code": "policy_violation"
+      },
+      {
+        "probe": "wrong type",
+        "enforcementLayer": "provider-policy",
+        "path": "Privy API with routine quorum",
+        "status": 400,
+        "code": "policy_violation"
+      },
+      {
+        "probe": "wrong signer field",
+        "enforcementLayer": "provider-policy",
+        "path": "Privy API with routine quorum",
+        "status": 400,
+        "code": "policy_violation"
+      },
+      {
+        "probe": "wrong delegate",
+        "enforcementLayer": "provider-policy",
+        "path": "Privy API with routine quorum",
+        "status": 400,
+        "code": "policy_violation"
+      },
+      {
+        "probe": "policy update",
+        "enforcementLayer": "provider-authorization",
+        "path": "Privy API with routine quorum",
+        "status": 401,
+        "code": "invalid_data"
+      },
+      {
+        "probe": "signer update",
+        "enforcementLayer": "provider-authorization",
+        "path": "Privy API with routine quorum",
+        "status": 401,
+        "code": "invalid_data"
+      },
+      {
+        "probe": "export",
+        "enforcementLayer": "provider-authorization",
+        "path": "Privy API with routine quorum",
+        "status": 401,
+        "code": "unspecified"
+      },
+      {
+        "probe": "another registered identity",
+        "enforcementLayer": "hosted-application",
+        "path": "deployed MCP",
+        "code": "registered_agent_scope"
+      },
+      {
+        "probe": "arbitrary signing tool with empty caveats",
+        "enforcementLayer": "hosted-application",
+        "path": "deployed HTTP",
+        "status": 403,
+        "code": "forbidden"
+      }
+    ],
+    "boundary": "Provider probes use the deployed-created wallet and routine quorum directly. The MCP identity refusal and HTTP arbitrary-signing-tool refusal are hosted application evidence. Exact caveat and domain-version validation remains source/fork evidence; this suite uses no raw signing endpoint."
+  }
+}

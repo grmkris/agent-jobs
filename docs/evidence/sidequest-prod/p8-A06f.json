@@ -1,0 +1,36 @@
+{
+  "id": "A06f",
+  "commit": "a57471053b58263daea9c936055a0b1e3d9d4a58",
+  "release": "fb5d2696021cccd86fd5cd9b207fb6e20ae21c79",
+  "network": "monad-testnet",
+  "chainId": 10143,
+  "fixture": true,
+  "result": "pass",
+  "checks": [
+    "actual Codex OAuth token refused immediately after stop-access",
+    "grants remain unconfirmed while the revoke route is aborted",
+    "restored relay confirms disablement; every disabled status matches chain state"
+  ],
+  "txHashes": [
+    "0x8c3969f285e0a330450baf693280cd4936363dd441e9931cf085232467400569",
+    "0x8a9c4ea711585d7d79bc93cd51700c574f4cd85d85bbdd192ea94cf3519c615a",
+    "0x1838775c4baf3f5c732b333191b323a5fa9d6efd819dee0238de59036faae801",
+    "0x3930ab69df6a914832ced856e976253623fb517630b2637dc15d5878e0ca215c",
+    "0xe55390fd517f03c969ca5be4d0b7958539533426665de319d66d5b7f8ca1c14f",
+    "0x1258fd9bee30151df186ec8a63d116a1e5707698506faa13bc06364c909dacad"
+  ],
+  "gas": [
+    "444087",
+    "417922",
+    "411143",
+    "411408",
+    "410487",
+    "398381"
+  ],
+  "spendMon": "1.409454666",
+  "details": {
+    "hostedAccessStopped": true,
+    "onchainPermissionsDisabled": true,
+    "faultInjection": "Playwright network route aborts; no replacement responses"
+  }
+}

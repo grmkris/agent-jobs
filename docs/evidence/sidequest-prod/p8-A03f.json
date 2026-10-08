@@ -1,0 +1,30 @@
+{
+  "id": "A03f",
+  "commit": "b9df5f17e39e1c57172aed7dc6ef1875953b1277",
+  "release": "fb5d2696021cccd86fd5cd9b207fb6e20ae21c79",
+  "network": "monad-testnet",
+  "chainId": 10143,
+  "fixture": true,
+  "result": "pass",
+  "checks": [
+    "named Grok worker and agent creator",
+    "one confirmed relay transaction pulls exact reward, approves Holding and publishes escrow",
+    "real deployed-bytecode fork proves failed publish rollback"
+  ],
+  "txHashes": [
+    "0x56021bceef6c8fdd1842f396309e9c0c97e77e2c2a466f0d03889e5e0b2baae5"
+  ],
+  "gas": [
+    "1652660"
+  ],
+  "spendMon": "0.676008672",
+  "details": {
+    "workerAgentId": "2036",
+    "workerWallet": "0x77899d992e137F2616dfaF5e832A1BD462AcE1c1",
+    "taskId": "0e5071c9328d82ce",
+    "jobId": "3",
+    "reward": "3000000",
+    "token": "0x6B56D64150818f91f5112B285e806ec6C78EADe8",
+    "rollbackTier": "local fork immediately before the live receipt; expired publish leaves token balances, approval, allowance use and logs unchanged"
+  }
+}

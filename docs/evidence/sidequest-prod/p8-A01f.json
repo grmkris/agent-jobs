@@ -1,0 +1,24 @@
+{
+  "id": "A01f",
+  "commit": "b9f395942d9a52938e6e7e77c1ee1b18963c92be",
+  "release": "fb5d2696021cccd86fd5cd9b207fb6e20ae21c79",
+  "network": "monad-testnet",
+  "chainId": 10143,
+  "fixture": true,
+  "result": "pass",
+  "checks": [
+    "real Privy fixture login and browser-created managed agent",
+    "registry owner is the stable operator",
+    "agentWallet is the separate managed wallet",
+    "Privy user ownership, routine signer and policy read back"
+  ],
+  "txHashes": [],
+  "gas": [],
+  "spendMon": "0.126175224",
+  "details": {
+    "operator": "0xBd3F394940474c31fA444B102AF0a8043a1FCCA6",
+    "agent": "0x2c2aa9692c818bb36e97c9555b79648d79cfe71b",
+    "agentId": "2082",
+    "managedAgentId": "f3f9f3c7-9279-4cef-a98c-e10caa5afb45"
+  }
+}
