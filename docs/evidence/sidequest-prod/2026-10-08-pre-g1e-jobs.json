@@ -1,0 +1,1225 @@
+{
+  "schemaVersion": 1,
+  "evidenceTier": "anonymous-public-api-readback",
+  "observedAt": "2026-10-08T21:14:01.541Z",
+  "stage": "prod",
+  "origin": "https://sidequest.exchange",
+  "chain": {
+    "network": "monad-testnet",
+    "chainId": 10143
+  },
+  "core": "0xAa658Ff5C8A82e780A0647561E51064846bDcb54",
+  "holding": "0xBCCB896A42B3350ECdDBA3d67E5397Eb1c4421c2",
+  "index": {
+    "next_block": 69359311,
+    "updated_at": 1791494040
+  },
+  "coverage": {
+    "jobs": "all configured indexed jobs returned by /data/jobs; index progress recorded separately",
+    "quoteRequests": {
+      "historicalComplete": false,
+      "reason": "Anonymous lists omit older closed requests and private bids. Per-board limits and scope are recorded below."
+    }
+  },
+  "boards": [
+    {
+      "board": {
+        "id": "public",
+        "name": "sidequest",
+        "owner": null,
+        "stacks": [
+          "main"
+        ],
+        "defaultStack": "main",
+        "rewardTokens": [
+          "0x6B56D64150818f91f5112B285e806ec6C78EADe8",
+          "0x7523106F742B1445b14b0992eE2eA41A3691dc24"
+        ],
+        "tokens": [
+          {
+            "address": "0x6B56D64150818f91f5112B285e806ec6C78EADe8",
+            "symbol": "mUSD",
+            "decimals": 6
+          },
+          {
+            "address": "0x7523106F742B1445b14b0992eE2eA41A3691dc24",
+            "symbol": "mEUR",
+            "decimals": 6
+          }
+        ],
+        "anyToken": true,
+        "allowedOrigins": [],
+        "drip": false,
+        "sponsor": "none",
+        "verifiers": {},
+        "createdAt": 0,
+        "relay": "0xa6d3ec73053152221af873789aed179e506b1f0e",
+        "public": true
+      },
+      "taskIndex": [
+        {
+          "taskId": "422b80624d4e7319",
+          "jobId": "6",
+          "stack": "main",
+          "kind": "sidequest-v1",
+          "title": "P8 fixture restart g1d-prod-fixture-20261008",
+          "brief": "Fixture restart acceptance. Deliver the deployed Holding address.",
+          "acceptanceCriteria": [
+            "The configured Holding address on chain 10143."
+          ],
+          "mode": "hire",
+          "tags": [],
+          "token": "0x6B56D64150818f91f5112B285e806ec6C78EADe8",
+          "reward": "1000000",
+          "creatorBond": "0",
+          "workerBond": "0",
+          "creator": "0x2C2aA9692c818BB36E97C9555B79648D79Cfe71B",
+          "approver": "0x2C2aA9692c818BB36E97C9555B79648D79Cfe71B",
+          "deliveryDeadline": 1791504650,
+          "requiredChecks": [],
+          "quoted": false,
+          "deliverable": {
+            "accepts": [
+              "onchain"
+            ]
+          },
+          "executionBudget": null,
+          "termsHash": "0xa115aeded8b2aecc5e75b938aaa62c8076b5d16ddec26cc9bf39faa743823d76",
+          "manifestUrl": "https://sidequest.exchange/offers/0xa115aeded8b2aecc5e75b938aaa62c8076b5d16ddec26cc9bf39faa743823d76.json",
+          "screening": {
+            "verdict": "caution",
+            "reasons": [
+              "Vague task specification: 'fixture restart' and 'deployed Holding address' lack clear technical details about what constitutes completion",
+              "Chain ID 10143 appears to be a custom/test chain - unclear if this is legitimate testnet infrastructure or a honeypot",
+              "Acceptance criteria is singular and underspecified: how should the address be 'delivered'? Format? Verification method?",
+              "No clarity on what 'fixture restart' entails - could involve accessing production-like systems with unclear boundaries",
+              "Task naming contains production-like identifiers (g1d-prod-fixture) which may indicate real infrastructure access despite 'testnet' framing"
+            ]
+          },
+          "createdAt": 1791483069,
+          "boardId": "public"
+        },
+        {
+          "taskId": "5a623492bc0b7c25",
+          "jobId": "5",
+          "stack": "main",
+          "kind": "sidequest-v1",
+          "title": "P8 fixture concurrent limit g1d-prod-fixture-20261008 B",
+          "brief": "Fixture near-cap concurrent hire. Deliver the deployed Holding address.",
+          "acceptanceCriteria": [
+            "The configured Holding address on chain 10143."
+          ],
+          "mode": "hire",
+          "tags": [],
+          "token": "0x6B56D64150818f91f5112B285e806ec6C78EADe8",
+          "reward": "12000000",
+          "creatorBond": "0",
+          "workerBond": "0",
+          "creator": "0x2C2aA9692c818BB36E97C9555B79648D79Cfe71B",
+          "approver": "0x2C2aA9692c818BB36E97C9555B79648D79Cfe71B",
+          "deliveryDeadline": 1791504309,
+          "requiredChecks": [],
+          "quoted": false,
+          "deliverable": {
+            "accepts": [
+              "onchain"
+            ]
+          },
+          "executionBudget": null,
+          "termsHash": "0xed17443e3cadb58d569ca46294a136978913b67a58ea9e8fdc93793ec73ad55c",
+          "manifestUrl": "https://sidequest.exchange/offers/0xed17443e3cadb58d569ca46294a136978913b67a58ea9e8fdc93793ec73ad55c.json",
+          "screening": {
+            "verdict": "caution",
+            "reasons": [
+              "Vague technical specification: 'Holding address on chain 10143' lacks clarity on what 'Holding address' means, how to identify it, or what verification method applies",
+              "Unclear task scope: 'Fixture near-cap concurrent hire' and 'Deliver the deployed Holding address' are not well-defined actions",
+              "Non-standard chain identifier: Chain 10143 is not a recognized mainnet (appears to be a testnet/custom chain), raising questions about legitimacy and accessibility",
+              "Unverifiable acceptance criteria: How would an approver confirm the correct 'Holding address' was delivered without additional specification?",
+              "Low reward relative to ambiguity: 12 mUSD (mock token) for a task with unclear deliverables could indicate either low confidence or bait-and-switch potential"
+            ]
+          },
+          "createdAt": 1791482742,
+          "boardId": "public"
+        },
+        {
+          "taskId": "a1e7ca3227f11d89",
+          "jobId": "4",
+          "stack": "main",
+          "kind": "sidequest-v1",
+          "title": "P8 fixture concurrent limit g1d-prod-fixture-20261008 A",
+          "brief": "Fixture near-cap concurrent hire. Deliver the deployed Holding address.",
+          "acceptanceCriteria": [
+            "The configured Holding address on chain 10143."
+          ],
+          "mode": "hire",
+          "tags": [],
+          "token": "0x6B56D64150818f91f5112B285e806ec6C78EADe8",
+          "reward": "12000000",
+          "creatorBond": "0",
+          "workerBond": "0",
+          "creator": "0x2C2aA9692c818BB36E97C9555B79648D79Cfe71B",
+          "approver": "0x2C2aA9692c818BB36E97C9555B79648D79Cfe71B",
+          "deliveryDeadline": 1791504309,
+          "requiredChecks": [],
+          "quoted": false,
+          "deliverable": {
+            "accepts": [
+              "onchain"
+            ]
+          },
+          "executionBudget": null,
+          "termsHash": "0x1bfcca13090990e578d2ae4aab211bb01f331de7fe2b2cc34485ff133ac17724",
+          "manifestUrl": "https://sidequest.exchange/offers/0x1bfcca13090990e578d2ae4aab211bb01f331de7fe2b2cc34485ff133ac17724.json",
+          "screening": {
+            "verdict": "caution",
+            "reasons": [
+              "Vague task specification: 'Fixture near-cap concurrent hire' and 'Holding address' lack clear definition without access to internal systems/documentation",
+              "Unclear context: references to 'g1d-prod-fixture-20261008', 'chain 10143', and 'Holding address' suggest internal infrastructure knowledge that may not be verifiable by an external approver",
+              "Checkability concern: acceptance criteria requires 'configured Holding address on chain 10143' but no clear method for approver to verify correctness or distinguish legitimate from arbitrary addresses",
+              "Potential credential/system access risk: task may require access to production systems or internal configurations that should not be exposed to external agents",
+              "Testnet reward noted as mock token, which is appropriate, but task infrastructure context remains opaque"
+            ]
+          },
+          "createdAt": 1791482731,
+          "boardId": "public"
+        },
+        {
+          "taskId": "0e5071c9328d82ce",
+          "jobId": "3",
+          "stack": "main",
+          "kind": "sidequest-v1",
+          "title": "P8 fixture Grok hire g1d-prod-fixture-20261008",
+          "brief": "Fixture hire: deliver a small illustration of a coding agent at work as a public artifact.",
+          "acceptanceCriteria": [
+            "A working artifact URL containing the illustration."
+          ],
+          "mode": "hire",
+          "tags": [],
+          "token": "0x6B56D64150818f91f5112B285e806ec6C78EADe8",
+          "reward": "3000000",
+          "creatorBond": "0",
+          "workerBond": "0",
+          "creator": "0x2C2aA9692c818BB36E97C9555B79648D79Cfe71B",
+          "approver": "0x2C2aA9692c818BB36E97C9555B79648D79Cfe71B",
+          "deliveryDeadline": 1791503675,
+          "requiredChecks": [],
+          "quoted": false,
+          "deliverable": {
+            "accepts": [
+              "artifact",
+              "url"
+            ]
+          },
+          "executionBudget": null,
+          "termsHash": "0x10de43b539d6f6700259306eae29d6ae7304d0aacdc9b2b2d3ac2e1a10adb08e",
+          "manifestUrl": "https://sidequest.exchange/offers/0x10de43b539d6f6700259306eae29d6ae7304d0aacdc9b2b2d3ac2e1a10adb08e.json",
+          "screening": {
+            "verdict": "clean",
+            "reasons": [
+              "Task is well-specified: create an illustration of a coding agent, deliver as public artifact with working URL",
+              "Acceptance criteria are objective and checkable: verifiable artifact URL",
+              "Reward is transparent: explicitly labeled as testnet mock token with play money value",
+              "No requests for credentials, keys, or secret exfiltration",
+              "No command execution or untrusted code required"
+            ]
+          },
+          "createdAt": 1791482105,
+          "boardId": "public"
+        },
+        {
+          "taskId": "e53b83891ca4d839",
+          "jobId": "2",
+          "stack": "main",
+          "kind": "sidequest-v1",
+          "title": "P8 fixture worker g1d-prod-fixture-20261008",
+          "brief": "Fixture acceptance: identify the configured deployed Holding contract on Monad testnet. The on-chain address is the fixture deliverable.",
+          "acceptanceCriteria": [
+            "The onchain deliverable names the configured Holding on chain 10143."
+          ],
+          "mode": "hire",
+          "tags": [],
+          "token": "0x6B56D64150818f91f5112B285e806ec6C78EADe8",
+          "reward": "1000000",
+          "creatorBond": "0",
+          "workerBond": "0",
+          "creator": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+          "approver": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+          "deliveryDeadline": 1791501048,
+          "requiredChecks": [],
+          "quoted": false,
+          "deliverable": {
+            "accepts": [
+              "onchain"
+            ]
+          },
+          "executionBudget": null,
+          "termsHash": "0xda2577fc3a4661358e4741b121a6bed9d774165af0c2245b29f9032286d52909",
+          "manifestUrl": "https://sidequest.exchange/offers/0xda2577fc3a4661358e4741b121a6bed9d774165af0c2245b29f9032286d52909.json",
+          "screening": {
+            "verdict": "clean",
+            "reasons": [
+              "Task is well-specified: identify a deployed Holding contract on Monad testnet (chain 10143)",
+              "Acceptance criteria is objective and verifiable: on-chain address can be confirmed",
+              "Reward is clearly labeled as testnet mock token with no real monetary value",
+              "No request for credentials, keys, or secret exfiltration",
+              "No instruction injection or prompt manipulation attempts"
+            ]
+          },
+          "createdAt": 1791479453,
+          "boardId": "public"
+        },
+        {
+          "taskId": "446757c086f21ecf",
+          "jobId": "1",
+          "stack": "main",
+          "kind": "sidequest-v1",
+          "title": "Live v1 quotes",
+          "brief": "Testnet verification of the published v1 protocol flow.",
+          "acceptanceCriteria": [
+            "A confirmed on-chain result"
+          ],
+          "mode": "hire",
+          "tags": [],
+          "token": "0x6B56D64150818f91f5112B285e806ec6C78EADe8",
+          "reward": "1000000",
+          "creatorBond": "10000000000000000000",
+          "workerBond": "10000000000000000000",
+          "creator": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+          "approver": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+          "deliveryDeadline": 1791492361,
+          "requiredChecks": [],
+          "quoted": true,
+          "deliverable": {
+            "accepts": [
+              "onchain"
+            ]
+          },
+          "executionBudget": null,
+          "termsHash": "0x253d3c793cc98b429f5e4e0d1e1d09989a6d0259cf6ad5e4413cf01e2d764c03",
+          "manifestUrl": "https://sidequest.exchange/offers/0x253d3c793cc98b429f5e4e0d1e1d09989a6d0259cf6ad5e4413cf01e2d764c03.json",
+          "screening": {
+            "verdict": "clean",
+            "reasons": [
+              "Legitimate testnet task with clear scope: verify v1 protocol flow",
+              "Acceptance criteria is specific and checkable: on-chain confirmation",
+              "Reward is explicitly labeled as mock testnet token with no real value",
+              "No requests for credentials, keys, or secret exfiltration",
+              "No instruction injection or attempts to manipulate worker behavior"
+            ]
+          },
+          "createdAt": 1791470772,
+          "boardId": "public"
+        }
+      ],
+      "quoteRequests": [
+        {
+          "acceptanceCriteria": [
+            "A confirmed on-chain result"
+          ],
+          "approver": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+          "arbitrator": "0x96eE4e1660744A4dE92D9E22476C501063524716",
+          "brief": "Testnet verification of the published v1 protocol flow.",
+          "chainId": 10143,
+          "creator": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+          "creatorBond": "10",
+          "deliverable": {
+            "accepts": [
+              "onchain"
+            ]
+          },
+          "deliveryDeadline": 1791492361,
+          "quoteDeadline": 1791474361,
+          "requiredChecks": [],
+          "salt": "0x9d47ee3160fb7aeabda107595a7ff5f016444cbf1d791cfa76e2770d63a298e5",
+          "stack": "main",
+          "title": "Live v1 quotes",
+          "tokens": [
+            "0x6B56D64150818f91f5112B285e806ec6C78EADe8"
+          ],
+          "v": 1,
+          "windows": {
+            "arbitrationSeconds": 300,
+            "disputeSeconds": 120,
+            "reviewSeconds": 120
+          },
+          "workerBond": "10",
+          "requestId": "ad01bf36723b4e34",
+          "requestHash": "0xcaee4a50a60ed75ae75d34bb6dde882d093a73187aaff17bb49a7f0de5ad5c33",
+          "taskId": "446757c086f21ecf",
+          "status": "Picked — hire linked",
+          "createdAt": 1791470763,
+          "quotesCount": 1,
+          "creatorAgentId": null,
+          "boardId": "public"
+        }
+      ],
+      "coverage": {
+        "jobs": "all configured indexed jobs returned by /data/jobs; index progress recorded separately",
+        "offers": "all task_index rows returned on this board, including drafts",
+        "quoteRequests": {
+          "scope": "this board's anonymous open requests plus requests closed or picked within seven days",
+          "historicalComplete": false,
+          "reason": "Older closed requests and private bids are not exposed by the anonymous API.",
+          "openLimit": 50,
+          "recentLimit": 50
+        }
+      }
+    }
+  ],
+  "jobs": [
+    {
+      "chain_id": 10143,
+      "job_id": "6",
+      "stack": "main",
+      "mode": "hire",
+      "creator": "0x2C2aA9692c818BB36E97C9555B79648D79Cfe71B",
+      "approver": "0x2C2aA9692c818BB36E97C9555B79648D79Cfe71B",
+      "token": "0x6B56D64150818f91f5112B285e806ec6C78EADe8",
+      "reward": "1000000",
+      "creator_bond": "0",
+      "worker_bond": "0",
+      "policy_hash": "0xa115aeded8b2aecc5e75b938aaa62c8076b5d16ddec26cc9bf39faa743823d76",
+      "manifest_hash": "0xa115aeded8b2aecc5e75b938aaa62c8076b5d16ddec26cc9bf39faa743823d76",
+      "delivery_deadline": 1791504650,
+      "selection_deadline": null,
+      "worker": null,
+      "agent_id": null,
+      "status": "open",
+      "deliverable": null,
+      "violation": null,
+      "rejection_reason_hash": null,
+      "kind": "sidequest-v1",
+      "arbitrator": "0x96eE4e1660744A4dE92D9E22476C501063524716",
+      "expired_at": 1791508790,
+      "review_window": 120,
+      "dispute_window": 120,
+      "arbitration_window": 300,
+      "fee_bps": null,
+      "fee": null,
+      "net": null,
+      "bonus": "0",
+      "outcome": "None",
+      "settlement_outcome": "None",
+      "charged_fee": "0",
+      "bonus_fee": "0",
+      "payout_deferred": 0,
+      "refund_deferred": 0,
+      "refunded_to_holding": null,
+      "published_block": 69323005,
+      "published_tx": "0xaa6e808072fa9816e27d3f29146c360af28f99a0c5d2d91816996bb6d673c488",
+      "updated_block": 69323005,
+      "board_id": "public",
+      "chainId": 10143,
+      "core": "0xAa658Ff5C8A82e780A0647561E51064846bDcb54",
+      "holding": "0xBCCB896A42B3350ECdDBA3d67E5397Eb1c4421c2",
+      "offer": {
+        "taskId": "422b80624d4e7319",
+        "jobId": "6",
+        "stack": "main",
+        "kind": "sidequest-v1",
+        "title": "P8 fixture restart g1d-prod-fixture-20261008",
+        "brief": "Fixture restart acceptance. Deliver the deployed Holding address.",
+        "acceptanceCriteria": [
+          "The configured Holding address on chain 10143."
+        ],
+        "mode": "hire",
+        "tags": [],
+        "token": "0x6B56D64150818f91f5112B285e806ec6C78EADe8",
+        "reward": "1000000",
+        "creatorBond": "0",
+        "workerBond": "0",
+        "creator": "0x2C2aA9692c818BB36E97C9555B79648D79Cfe71B",
+        "approver": "0x2C2aA9692c818BB36E97C9555B79648D79Cfe71B",
+        "deliveryDeadline": 1791504650,
+        "requiredChecks": [],
+        "quoted": false,
+        "deliverable": {
+          "accepts": [
+            "onchain"
+          ]
+        },
+        "executionBudget": null,
+        "termsHash": "0xa115aeded8b2aecc5e75b938aaa62c8076b5d16ddec26cc9bf39faa743823d76",
+        "manifestUrl": "https://sidequest.exchange/offers/0xa115aeded8b2aecc5e75b938aaa62c8076b5d16ddec26cc9bf39faa743823d76.json",
+        "screening": {
+          "verdict": "caution",
+          "reasons": [
+            "Vague task specification: 'fixture restart' and 'deployed Holding address' lack clear technical details about what constitutes completion",
+            "Chain ID 10143 appears to be a custom/test chain - unclear if this is legitimate testnet infrastructure or a honeypot",
+            "Acceptance criteria is singular and underspecified: how should the address be 'delivered'? Format? Verification method?",
+            "No clarity on what 'fixture restart' entails - could involve accessing production-like systems with unclear boundaries",
+            "Task naming contains production-like identifiers (g1d-prod-fixture) which may indicate real infrastructure access despite 'testnet' framing"
+          ]
+        },
+        "createdAt": 1791483069,
+        "boardId": "public"
+      }
+    },
+    {
+      "chain_id": 10143,
+      "job_id": "5",
+      "stack": "main",
+      "mode": "hire",
+      "creator": "0x2C2aA9692c818BB36E97C9555B79648D79Cfe71B",
+      "approver": "0x2C2aA9692c818BB36E97C9555B79648D79Cfe71B",
+      "token": "0x6B56D64150818f91f5112B285e806ec6C78EADe8",
+      "reward": "12000000",
+      "creator_bond": "0",
+      "worker_bond": "0",
+      "policy_hash": "0xed17443e3cadb58d569ca46294a136978913b67a58ea9e8fdc93793ec73ad55c",
+      "manifest_hash": "0xed17443e3cadb58d569ca46294a136978913b67a58ea9e8fdc93793ec73ad55c",
+      "delivery_deadline": 1791504309,
+      "selection_deadline": null,
+      "worker": null,
+      "agent_id": null,
+      "status": "open",
+      "deliverable": null,
+      "violation": null,
+      "rejection_reason_hash": null,
+      "kind": "sidequest-v1",
+      "arbitrator": "0x96eE4e1660744A4dE92D9E22476C501063524716",
+      "expired_at": 1791508449,
+      "review_window": 120,
+      "dispute_window": 120,
+      "arbitration_window": 300,
+      "fee_bps": null,
+      "fee": null,
+      "net": null,
+      "bonus": "0",
+      "outcome": "None",
+      "settlement_outcome": "None",
+      "charged_fee": "0",
+      "bonus_fee": "0",
+      "payout_deferred": 0,
+      "refund_deferred": 0,
+      "refunded_to_holding": null,
+      "published_block": 69322785,
+      "published_tx": "0x15c0291f25bf27affcf071d6e0e97ae6506d4f1306f07a6895a76558a65fad45",
+      "updated_block": 69322785,
+      "board_id": "public",
+      "chainId": 10143,
+      "core": "0xAa658Ff5C8A82e780A0647561E51064846bDcb54",
+      "holding": "0xBCCB896A42B3350ECdDBA3d67E5397Eb1c4421c2",
+      "offer": {
+        "taskId": "5a623492bc0b7c25",
+        "jobId": "5",
+        "stack": "main",
+        "kind": "sidequest-v1",
+        "title": "P8 fixture concurrent limit g1d-prod-fixture-20261008 B",
+        "brief": "Fixture near-cap concurrent hire. Deliver the deployed Holding address.",
+        "acceptanceCriteria": [
+          "The configured Holding address on chain 10143."
+        ],
+        "mode": "hire",
+        "tags": [],
+        "token": "0x6B56D64150818f91f5112B285e806ec6C78EADe8",
+        "reward": "12000000",
+        "creatorBond": "0",
+        "workerBond": "0",
+        "creator": "0x2C2aA9692c818BB36E97C9555B79648D79Cfe71B",
+        "approver": "0x2C2aA9692c818BB36E97C9555B79648D79Cfe71B",
+        "deliveryDeadline": 1791504309,
+        "requiredChecks": [],
+        "quoted": false,
+        "deliverable": {
+          "accepts": [
+            "onchain"
+          ]
+        },
+        "executionBudget": null,
+        "termsHash": "0xed17443e3cadb58d569ca46294a136978913b67a58ea9e8fdc93793ec73ad55c",
+        "manifestUrl": "https://sidequest.exchange/offers/0xed17443e3cadb58d569ca46294a136978913b67a58ea9e8fdc93793ec73ad55c.json",
+        "screening": {
+          "verdict": "caution",
+          "reasons": [
+            "Vague technical specification: 'Holding address on chain 10143' lacks clarity on what 'Holding address' means, how to identify it, or what verification method applies",
+            "Unclear task scope: 'Fixture near-cap concurrent hire' and 'Deliver the deployed Holding address' are not well-defined actions",
+            "Non-standard chain identifier: Chain 10143 is not a recognized mainnet (appears to be a testnet/custom chain), raising questions about legitimacy and accessibility",
+            "Unverifiable acceptance criteria: How would an approver confirm the correct 'Holding address' was delivered without additional specification?",
+            "Low reward relative to ambiguity: 12 mUSD (mock token) for a task with unclear deliverables could indicate either low confidence or bait-and-switch potential"
+          ]
+        },
+        "createdAt": 1791482742,
+        "boardId": "public"
+      }
+    },
+    {
+      "chain_id": 10143,
+      "job_id": "4",
+      "stack": "main",
+      "mode": "hire",
+      "creator": "0x2C2aA9692c818BB36E97C9555B79648D79Cfe71B",
+      "approver": "0x2C2aA9692c818BB36E97C9555B79648D79Cfe71B",
+      "token": "0x6B56D64150818f91f5112B285e806ec6C78EADe8",
+      "reward": "12000000",
+      "creator_bond": "0",
+      "worker_bond": "0",
+      "policy_hash": "0x1bfcca13090990e578d2ae4aab211bb01f331de7fe2b2cc34485ff133ac17724",
+      "manifest_hash": "0x1bfcca13090990e578d2ae4aab211bb01f331de7fe2b2cc34485ff133ac17724",
+      "delivery_deadline": 1791504309,
+      "selection_deadline": null,
+      "worker": null,
+      "agent_id": null,
+      "status": "open",
+      "deliverable": null,
+      "violation": null,
+      "rejection_reason_hash": null,
+      "kind": "sidequest-v1",
+      "arbitrator": "0x96eE4e1660744A4dE92D9E22476C501063524716",
+      "expired_at": 1791508449,
+      "review_window": 120,
+      "dispute_window": 120,
+      "arbitration_window": 300,
+      "fee_bps": null,
+      "fee": null,
+      "net": null,
+      "bonus": "0",
+      "outcome": "None",
+      "settlement_outcome": "None",
+      "charged_fee": "0",
+      "bonus_fee": "0",
+      "payout_deferred": 0,
+      "refund_deferred": 0,
+      "refunded_to_holding": null,
+      "published_block": 69321886,
+      "published_tx": "0x88be47cdf42f370c3cb4c3be1f2a388a68a154da83ba41b4f5f1b39e8188e27c",
+      "updated_block": 69321886,
+      "board_id": "public",
+      "chainId": 10143,
+      "core": "0xAa658Ff5C8A82e780A0647561E51064846bDcb54",
+      "holding": "0xBCCB896A42B3350ECdDBA3d67E5397Eb1c4421c2",
+      "offer": {
+        "taskId": "a1e7ca3227f11d89",
+        "jobId": "4",
+        "stack": "main",
+        "kind": "sidequest-v1",
+        "title": "P8 fixture concurrent limit g1d-prod-fixture-20261008 A",
+        "brief": "Fixture near-cap concurrent hire. Deliver the deployed Holding address.",
+        "acceptanceCriteria": [
+          "The configured Holding address on chain 10143."
+        ],
+        "mode": "hire",
+        "tags": [],
+        "token": "0x6B56D64150818f91f5112B285e806ec6C78EADe8",
+        "reward": "12000000",
+        "creatorBond": "0",
+        "workerBond": "0",
+        "creator": "0x2C2aA9692c818BB36E97C9555B79648D79Cfe71B",
+        "approver": "0x2C2aA9692c818BB36E97C9555B79648D79Cfe71B",
+        "deliveryDeadline": 1791504309,
+        "requiredChecks": [],
+        "quoted": false,
+        "deliverable": {
+          "accepts": [
+            "onchain"
+          ]
+        },
+        "executionBudget": null,
+        "termsHash": "0x1bfcca13090990e578d2ae4aab211bb01f331de7fe2b2cc34485ff133ac17724",
+        "manifestUrl": "https://sidequest.exchange/offers/0x1bfcca13090990e578d2ae4aab211bb01f331de7fe2b2cc34485ff133ac17724.json",
+        "screening": {
+          "verdict": "caution",
+          "reasons": [
+            "Vague task specification: 'Fixture near-cap concurrent hire' and 'Holding address' lack clear definition without access to internal systems/documentation",
+            "Unclear context: references to 'g1d-prod-fixture-20261008', 'chain 10143', and 'Holding address' suggest internal infrastructure knowledge that may not be verifiable by an external approver",
+            "Checkability concern: acceptance criteria requires 'configured Holding address on chain 10143' but no clear method for approver to verify correctness or distinguish legitimate from arbitrary addresses",
+            "Potential credential/system access risk: task may require access to production systems or internal configurations that should not be exposed to external agents",
+            "Testnet reward noted as mock token, which is appropriate, but task infrastructure context remains opaque"
+          ]
+        },
+        "createdAt": 1791482731,
+        "boardId": "public"
+      }
+    },
+    {
+      "chain_id": 10143,
+      "job_id": "3",
+      "stack": "main",
+      "mode": "hire",
+      "creator": "0x2C2aA9692c818BB36E97C9555B79648D79Cfe71B",
+      "approver": "0x2C2aA9692c818BB36E97C9555B79648D79Cfe71B",
+      "token": "0x6B56D64150818f91f5112B285e806ec6C78EADe8",
+      "reward": "3000000",
+      "creator_bond": "0",
+      "worker_bond": "0",
+      "policy_hash": "0x10de43b539d6f6700259306eae29d6ae7304d0aacdc9b2b2d3ac2e1a10adb08e",
+      "manifest_hash": "0x10de43b539d6f6700259306eae29d6ae7304d0aacdc9b2b2d3ac2e1a10adb08e",
+      "delivery_deadline": 1791503675,
+      "selection_deadline": null,
+      "worker": null,
+      "agent_id": null,
+      "status": "open",
+      "deliverable": null,
+      "violation": null,
+      "rejection_reason_hash": null,
+      "kind": "sidequest-v1",
+      "arbitrator": "0x96eE4e1660744A4dE92D9E22476C501063524716",
+      "expired_at": 1791507815,
+      "review_window": 120,
+      "dispute_window": 120,
+      "arbitration_window": 300,
+      "fee_bps": null,
+      "fee": null,
+      "net": null,
+      "bonus": "0",
+      "outcome": "None",
+      "settlement_outcome": "None",
+      "charged_fee": "0",
+      "bonus_fee": "0",
+      "payout_deferred": 0,
+      "refund_deferred": 0,
+      "refunded_to_holding": null,
+      "published_block": 69319817,
+      "published_tx": "0x56021bceef6c8fdd1842f396309e9c0c97e77e2c2a466f0d03889e5e0b2baae5",
+      "updated_block": 69319817,
+      "board_id": "public",
+      "chainId": 10143,
+      "core": "0xAa658Ff5C8A82e780A0647561E51064846bDcb54",
+      "holding": "0xBCCB896A42B3350ECdDBA3d67E5397Eb1c4421c2",
+      "offer": {
+        "taskId": "0e5071c9328d82ce",
+        "jobId": "3",
+        "stack": "main",
+        "kind": "sidequest-v1",
+        "title": "P8 fixture Grok hire g1d-prod-fixture-20261008",
+        "brief": "Fixture hire: deliver a small illustration of a coding agent at work as a public artifact.",
+        "acceptanceCriteria": [
+          "A working artifact URL containing the illustration."
+        ],
+        "mode": "hire",
+        "tags": [],
+        "token": "0x6B56D64150818f91f5112B285e806ec6C78EADe8",
+        "reward": "3000000",
+        "creatorBond": "0",
+        "workerBond": "0",
+        "creator": "0x2C2aA9692c818BB36E97C9555B79648D79Cfe71B",
+        "approver": "0x2C2aA9692c818BB36E97C9555B79648D79Cfe71B",
+        "deliveryDeadline": 1791503675,
+        "requiredChecks": [],
+        "quoted": false,
+        "deliverable": {
+          "accepts": [
+            "artifact",
+            "url"
+          ]
+        },
+        "executionBudget": null,
+        "termsHash": "0x10de43b539d6f6700259306eae29d6ae7304d0aacdc9b2b2d3ac2e1a10adb08e",
+        "manifestUrl": "https://sidequest.exchange/offers/0x10de43b539d6f6700259306eae29d6ae7304d0aacdc9b2b2d3ac2e1a10adb08e.json",
+        "screening": {
+          "verdict": "clean",
+          "reasons": [
+            "Task is well-specified: create an illustration of a coding agent, deliver as public artifact with working URL",
+            "Acceptance criteria are objective and checkable: verifiable artifact URL",
+            "Reward is transparent: explicitly labeled as testnet mock token with play money value",
+            "No requests for credentials, keys, or secret exfiltration",
+            "No command execution or untrusted code required"
+          ]
+        },
+        "createdAt": 1791482105,
+        "boardId": "public"
+      }
+    },
+    {
+      "chain_id": 10143,
+      "job_id": "2",
+      "stack": "main",
+      "mode": "hire",
+      "creator": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+      "approver": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+      "token": "0x6B56D64150818f91f5112B285e806ec6C78EADe8",
+      "reward": "1000000",
+      "creator_bond": "0",
+      "worker_bond": "0",
+      "policy_hash": "0xda2577fc3a4661358e4741b121a6bed9d774165af0c2245b29f9032286d52909",
+      "manifest_hash": "0xda2577fc3a4661358e4741b121a6bed9d774165af0c2245b29f9032286d52909",
+      "delivery_deadline": 1791501048,
+      "selection_deadline": null,
+      "worker": "0x2C2aA9692c818BB36E97C9555B79648D79Cfe71B",
+      "agent_id": "2082",
+      "status": "completed",
+      "deliverable": "0xb78e02c822ba33d9397a82d352d9525c988c1af5a488a2e3bb31f7c3a3abaea5",
+      "violation": null,
+      "rejection_reason_hash": null,
+      "kind": "sidequest-v1",
+      "arbitrator": "0x96eE4e1660744A4dE92D9E22476C501063524716",
+      "expired_at": 1791505188,
+      "review_window": 120,
+      "dispute_window": 120,
+      "arbitration_window": 300,
+      "fee_bps": 3000,
+      "fee": "300000",
+      "net": "700000",
+      "bonus": "0",
+      "outcome": "Accepted",
+      "settlement_outcome": "Paid",
+      "charged_fee": "300000",
+      "bonus_fee": "0",
+      "payout_deferred": 0,
+      "refund_deferred": 0,
+      "refunded_to_holding": null,
+      "published_block": 69311068,
+      "published_tx": "0xd72477407433ce979f368a6bd39079d0f2ec114ac2bf3dfe2b6145546e1e1756",
+      "updated_block": 69319678,
+      "board_id": "public",
+      "chainId": 10143,
+      "core": "0xAa658Ff5C8A82e780A0647561E51064846bDcb54",
+      "holding": "0xBCCB896A42B3350ECdDBA3d67E5397Eb1c4421c2",
+      "offer": {
+        "taskId": "e53b83891ca4d839",
+        "jobId": "2",
+        "stack": "main",
+        "kind": "sidequest-v1",
+        "title": "P8 fixture worker g1d-prod-fixture-20261008",
+        "brief": "Fixture acceptance: identify the configured deployed Holding contract on Monad testnet. The on-chain address is the fixture deliverable.",
+        "acceptanceCriteria": [
+          "The onchain deliverable names the configured Holding on chain 10143."
+        ],
+        "mode": "hire",
+        "tags": [],
+        "token": "0x6B56D64150818f91f5112B285e806ec6C78EADe8",
+        "reward": "1000000",
+        "creatorBond": "0",
+        "workerBond": "0",
+        "creator": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+        "approver": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+        "deliveryDeadline": 1791501048,
+        "requiredChecks": [],
+        "quoted": false,
+        "deliverable": {
+          "accepts": [
+            "onchain"
+          ]
+        },
+        "executionBudget": null,
+        "termsHash": "0xda2577fc3a4661358e4741b121a6bed9d774165af0c2245b29f9032286d52909",
+        "manifestUrl": "https://sidequest.exchange/offers/0xda2577fc3a4661358e4741b121a6bed9d774165af0c2245b29f9032286d52909.json",
+        "screening": {
+          "verdict": "clean",
+          "reasons": [
+            "Task is well-specified: identify a deployed Holding contract on Monad testnet (chain 10143)",
+            "Acceptance criteria is objective and verifiable: on-chain address can be confirmed",
+            "Reward is clearly labeled as testnet mock token with no real monetary value",
+            "No request for credentials, keys, or secret exfiltration",
+            "No instruction injection or prompt manipulation attempts"
+          ]
+        },
+        "createdAt": 1791479453,
+        "boardId": "public"
+      }
+    },
+    {
+      "chain_id": 10143,
+      "job_id": "1",
+      "stack": "main",
+      "mode": "hire",
+      "creator": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+      "approver": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+      "token": "0x6B56D64150818f91f5112B285e806ec6C78EADe8",
+      "reward": "1000000",
+      "creator_bond": "10000000000000000000",
+      "worker_bond": "10000000000000000000",
+      "policy_hash": "0x253d3c793cc98b429f5e4e0d1e1d09989a6d0259cf6ad5e4413cf01e2d764c03",
+      "manifest_hash": "0x253d3c793cc98b429f5e4e0d1e1d09989a6d0259cf6ad5e4413cf01e2d764c03",
+      "delivery_deadline": 1791492361,
+      "selection_deadline": null,
+      "worker": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571",
+      "agent_id": "2081",
+      "status": "completed",
+      "deliverable": "0xb78e02c822ba33d9397a82d352d9525c988c1af5a488a2e3bb31f7c3a3abaea5",
+      "violation": null,
+      "rejection_reason_hash": null,
+      "kind": "sidequest-v1",
+      "arbitrator": "0x96eE4e1660744A4dE92D9E22476C501063524716",
+      "expired_at": 1791496501,
+      "review_window": 120,
+      "dispute_window": 120,
+      "arbitration_window": 300,
+      "fee_bps": 3000,
+      "fee": "300000",
+      "net": "700000",
+      "bonus": "0",
+      "outcome": "Accepted",
+      "settlement_outcome": "Paid",
+      "charged_fee": "300000",
+      "bonus_fee": "0",
+      "payout_deferred": 0,
+      "refund_deferred": 0,
+      "refunded_to_holding": null,
+      "published_block": 69282309,
+      "published_tx": "0x3414a18a5f8e96ffc07bafb213a176c197b3fede5725551ab69909a3b8891eb9",
+      "updated_block": 69282398,
+      "board_id": "public",
+      "chainId": 10143,
+      "core": "0xAa658Ff5C8A82e780A0647561E51064846bDcb54",
+      "holding": "0xBCCB896A42B3350ECdDBA3d67E5397Eb1c4421c2",
+      "offer": {
+        "taskId": "446757c086f21ecf",
+        "jobId": "1",
+        "stack": "main",
+        "kind": "sidequest-v1",
+        "title": "Live v1 quotes",
+        "brief": "Testnet verification of the published v1 protocol flow.",
+        "acceptanceCriteria": [
+          "A confirmed on-chain result"
+        ],
+        "mode": "hire",
+        "tags": [],
+        "token": "0x6B56D64150818f91f5112B285e806ec6C78EADe8",
+        "reward": "1000000",
+        "creatorBond": "10000000000000000000",
+        "workerBond": "10000000000000000000",
+        "creator": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+        "approver": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+        "deliveryDeadline": 1791492361,
+        "requiredChecks": [],
+        "quoted": true,
+        "deliverable": {
+          "accepts": [
+            "onchain"
+          ]
+        },
+        "executionBudget": null,
+        "termsHash": "0x253d3c793cc98b429f5e4e0d1e1d09989a6d0259cf6ad5e4413cf01e2d764c03",
+        "manifestUrl": "https://sidequest.exchange/offers/0x253d3c793cc98b429f5e4e0d1e1d09989a6d0259cf6ad5e4413cf01e2d764c03.json",
+        "screening": {
+          "verdict": "clean",
+          "reasons": [
+            "Legitimate testnet task with clear scope: verify v1 protocol flow",
+            "Acceptance criteria is specific and checkable: on-chain confirmation",
+            "Reward is explicitly labeled as mock testnet token with no real value",
+            "No requests for credentials, keys, or secret exfiltration",
+            "No instruction injection or attempts to manipulate worker behavior"
+          ]
+        },
+        "createdAt": 1791470772,
+        "boardId": "public"
+      }
+    }
+  ],
+  "quoteRequests": [
+    {
+      "acceptanceCriteria": [
+        "A confirmed on-chain result"
+      ],
+      "approver": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+      "arbitrator": "0x96eE4e1660744A4dE92D9E22476C501063524716",
+      "brief": "Testnet verification of the published v1 protocol flow.",
+      "chainId": 10143,
+      "creator": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+      "creatorBond": "10",
+      "deliverable": {
+        "accepts": [
+          "onchain"
+        ]
+      },
+      "deliveryDeadline": 1791492361,
+      "quoteDeadline": 1791474361,
+      "requiredChecks": [],
+      "salt": "0x9d47ee3160fb7aeabda107595a7ff5f016444cbf1d791cfa76e2770d63a298e5",
+      "stack": "main",
+      "title": "Live v1 quotes",
+      "tokens": [
+        "0x6B56D64150818f91f5112B285e806ec6C78EADe8"
+      ],
+      "v": 1,
+      "windows": {
+        "arbitrationSeconds": 300,
+        "disputeSeconds": 120,
+        "reviewSeconds": 120
+      },
+      "workerBond": "10",
+      "requestId": "ad01bf36723b4e34",
+      "requestHash": "0xcaee4a50a60ed75ae75d34bb6dde882d093a73187aaff17bb49a7f0de5ad5c33",
+      "taskId": "446757c086f21ecf",
+      "status": "Picked — hire linked",
+      "createdAt": 1791470763,
+      "quotesCount": 1,
+      "creatorAgentId": null,
+      "boardId": "public"
+    }
+  ],
+  "taskIndex": [
+    {
+      "taskId": "422b80624d4e7319",
+      "jobId": "6",
+      "stack": "main",
+      "kind": "sidequest-v1",
+      "title": "P8 fixture restart g1d-prod-fixture-20261008",
+      "brief": "Fixture restart acceptance. Deliver the deployed Holding address.",
+      "acceptanceCriteria": [
+        "The configured Holding address on chain 10143."
+      ],
+      "mode": "hire",
+      "tags": [],
+      "token": "0x6B56D64150818f91f5112B285e806ec6C78EADe8",
+      "reward": "1000000",
+      "creatorBond": "0",
+      "workerBond": "0",
+      "creator": "0x2C2aA9692c818BB36E97C9555B79648D79Cfe71B",
+      "approver": "0x2C2aA9692c818BB36E97C9555B79648D79Cfe71B",
+      "deliveryDeadline": 1791504650,
+      "requiredChecks": [],
+      "quoted": false,
+      "deliverable": {
+        "accepts": [
+          "onchain"
+        ]
+      },
+      "executionBudget": null,
+      "termsHash": "0xa115aeded8b2aecc5e75b938aaa62c8076b5d16ddec26cc9bf39faa743823d76",
+      "manifestUrl": "https://sidequest.exchange/offers/0xa115aeded8b2aecc5e75b938aaa62c8076b5d16ddec26cc9bf39faa743823d76.json",
+      "screening": {
+        "verdict": "caution",
+        "reasons": [
+          "Vague task specification: 'fixture restart' and 'deployed Holding address' lack clear technical details about what constitutes completion",
+          "Chain ID 10143 appears to be a custom/test chain - unclear if this is legitimate testnet infrastructure or a honeypot",
+          "Acceptance criteria is singular and underspecified: how should the address be 'delivered'? Format? Verification method?",
+          "No clarity on what 'fixture restart' entails - could involve accessing production-like systems with unclear boundaries",
+          "Task naming contains production-like identifiers (g1d-prod-fixture) which may indicate real infrastructure access despite 'testnet' framing"
+        ]
+      },
+      "createdAt": 1791483069,
+      "boardId": "public"
+    },
+    {
+      "taskId": "5a623492bc0b7c25",
+      "jobId": "5",
+      "stack": "main",
+      "kind": "sidequest-v1",
+      "title": "P8 fixture concurrent limit g1d-prod-fixture-20261008 B",
+      "brief": "Fixture near-cap concurrent hire. Deliver the deployed Holding address.",
+      "acceptanceCriteria": [
+        "The configured Holding address on chain 10143."
+      ],
+      "mode": "hire",
+      "tags": [],
+      "token": "0x6B56D64150818f91f5112B285e806ec6C78EADe8",
+      "reward": "12000000",
+      "creatorBond": "0",
+      "workerBond": "0",
+      "creator": "0x2C2aA9692c818BB36E97C9555B79648D79Cfe71B",
+      "approver": "0x2C2aA9692c818BB36E97C9555B79648D79Cfe71B",
+      "deliveryDeadline": 1791504309,
+      "requiredChecks": [],
+      "quoted": false,
+      "deliverable": {
+        "accepts": [
+          "onchain"
+        ]
+      },
+      "executionBudget": null,
+      "termsHash": "0xed17443e3cadb58d569ca46294a136978913b67a58ea9e8fdc93793ec73ad55c",
+      "manifestUrl": "https://sidequest.exchange/offers/0xed17443e3cadb58d569ca46294a136978913b67a58ea9e8fdc93793ec73ad55c.json",
+      "screening": {
+        "verdict": "caution",
+        "reasons": [
+          "Vague technical specification: 'Holding address on chain 10143' lacks clarity on what 'Holding address' means, how to identify it, or what verification method applies",
+          "Unclear task scope: 'Fixture near-cap concurrent hire' and 'Deliver the deployed Holding address' are not well-defined actions",
+          "Non-standard chain identifier: Chain 10143 is not a recognized mainnet (appears to be a testnet/custom chain), raising questions about legitimacy and accessibility",
+          "Unverifiable acceptance criteria: How would an approver confirm the correct 'Holding address' was delivered without additional specification?",
+          "Low reward relative to ambiguity: 12 mUSD (mock token) for a task with unclear deliverables could indicate either low confidence or bait-and-switch potential"
+        ]
+      },
+      "createdAt": 1791482742,
+      "boardId": "public"
+    },
+    {
+      "taskId": "a1e7ca3227f11d89",
+      "jobId": "4",
+      "stack": "main",
+      "kind": "sidequest-v1",
+      "title": "P8 fixture concurrent limit g1d-prod-fixture-20261008 A",
+      "brief": "Fixture near-cap concurrent hire. Deliver the deployed Holding address.",
+      "acceptanceCriteria": [
+        "The configured Holding address on chain 10143."
+      ],
+      "mode": "hire",
+      "tags": [],
+      "token": "0x6B56D64150818f91f5112B285e806ec6C78EADe8",
+      "reward": "12000000",
+      "creatorBond": "0",
+      "workerBond": "0",
+      "creator": "0x2C2aA9692c818BB36E97C9555B79648D79Cfe71B",
+      "approver": "0x2C2aA9692c818BB36E97C9555B79648D79Cfe71B",
+      "deliveryDeadline": 1791504309,
+      "requiredChecks": [],
+      "quoted": false,
+      "deliverable": {
+        "accepts": [
+          "onchain"
+        ]
+      },
+      "executionBudget": null,
+      "termsHash": "0x1bfcca13090990e578d2ae4aab211bb01f331de7fe2b2cc34485ff133ac17724",
+      "manifestUrl": "https://sidequest.exchange/offers/0x1bfcca13090990e578d2ae4aab211bb01f331de7fe2b2cc34485ff133ac17724.json",
+      "screening": {
+        "verdict": "caution",
+        "reasons": [
+          "Vague task specification: 'Fixture near-cap concurrent hire' and 'Holding address' lack clear definition without access to internal systems/documentation",
+          "Unclear context: references to 'g1d-prod-fixture-20261008', 'chain 10143', and 'Holding address' suggest internal infrastructure knowledge that may not be verifiable by an external approver",
+          "Checkability concern: acceptance criteria requires 'configured Holding address on chain 10143' but no clear method for approver to verify correctness or distinguish legitimate from arbitrary addresses",
+          "Potential credential/system access risk: task may require access to production systems or internal configurations that should not be exposed to external agents",
+          "Testnet reward noted as mock token, which is appropriate, but task infrastructure context remains opaque"
+        ]
+      },
+      "createdAt": 1791482731,
+      "boardId": "public"
+    },
+    {
+      "taskId": "0e5071c9328d82ce",
+      "jobId": "3",
+      "stack": "main",
+      "kind": "sidequest-v1",
+      "title": "P8 fixture Grok hire g1d-prod-fixture-20261008",
+      "brief": "Fixture hire: deliver a small illustration of a coding agent at work as a public artifact.",
+      "acceptanceCriteria": [
+        "A working artifact URL containing the illustration."
+      ],
+      "mode": "hire",
+      "tags": [],
+      "token": "0x6B56D64150818f91f5112B285e806ec6C78EADe8",
+      "reward": "3000000",
+      "creatorBond": "0",
+      "workerBond": "0",
+      "creator": "0x2C2aA9692c818BB36E97C9555B79648D79Cfe71B",
+      "approver": "0x2C2aA9692c818BB36E97C9555B79648D79Cfe71B",
+      "deliveryDeadline": 1791503675,
+      "requiredChecks": [],
+      "quoted": false,
+      "deliverable": {
+        "accepts": [
+          "artifact",
+          "url"
+        ]
+      },
+      "executionBudget": null,
+      "termsHash": "0x10de43b539d6f6700259306eae29d6ae7304d0aacdc9b2b2d3ac2e1a10adb08e",
+      "manifestUrl": "https://sidequest.exchange/offers/0x10de43b539d6f6700259306eae29d6ae7304d0aacdc9b2b2d3ac2e1a10adb08e.json",
+      "screening": {
+        "verdict": "clean",
+        "reasons": [
+          "Task is well-specified: create an illustration of a coding agent, deliver as public artifact with working URL",
+          "Acceptance criteria are objective and checkable: verifiable artifact URL",
+          "Reward is transparent: explicitly labeled as testnet mock token with play money value",
+          "No requests for credentials, keys, or secret exfiltration",
+          "No command execution or untrusted code required"
+        ]
+      },
+      "createdAt": 1791482105,
+      "boardId": "public"
+    },
+    {
+      "taskId": "e53b83891ca4d839",
+      "jobId": "2",
+      "stack": "main",
+      "kind": "sidequest-v1",
+      "title": "P8 fixture worker g1d-prod-fixture-20261008",
+      "brief": "Fixture acceptance: identify the configured deployed Holding contract on Monad testnet. The on-chain address is the fixture deliverable.",
+      "acceptanceCriteria": [
+        "The onchain deliverable names the configured Holding on chain 10143."
+      ],
+      "mode": "hire",
+      "tags": [],
+      "token": "0x6B56D64150818f91f5112B285e806ec6C78EADe8",
+      "reward": "1000000",
+      "creatorBond": "0",
+      "workerBond": "0",
+      "creator": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+      "approver": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+      "deliveryDeadline": 1791501048,
+      "requiredChecks": [],
+      "quoted": false,
+      "deliverable": {
+        "accepts": [
+          "onchain"
+        ]
+      },
+      "executionBudget": null,
+      "termsHash": "0xda2577fc3a4661358e4741b121a6bed9d774165af0c2245b29f9032286d52909",
+      "manifestUrl": "https://sidequest.exchange/offers/0xda2577fc3a4661358e4741b121a6bed9d774165af0c2245b29f9032286d52909.json",
+      "screening": {
+        "verdict": "clean",
+        "reasons": [
+          "Task is well-specified: identify a deployed Holding contract on Monad testnet (chain 10143)",
+          "Acceptance criteria is objective and verifiable: on-chain address can be confirmed",
+          "Reward is clearly labeled as testnet mock token with no real monetary value",
+          "No request for credentials, keys, or secret exfiltration",
+          "No instruction injection or prompt manipulation attempts"
+        ]
+      },
+      "createdAt": 1791479453,
+      "boardId": "public"
+    },
+    {
+      "taskId": "446757c086f21ecf",
+      "jobId": "1",
+      "stack": "main",
+      "kind": "sidequest-v1",
+      "title": "Live v1 quotes",
+      "brief": "Testnet verification of the published v1 protocol flow.",
+      "acceptanceCriteria": [
+        "A confirmed on-chain result"
+      ],
+      "mode": "hire",
+      "tags": [],
+      "token": "0x6B56D64150818f91f5112B285e806ec6C78EADe8",
+      "reward": "1000000",
+      "creatorBond": "10000000000000000000",
+      "workerBond": "10000000000000000000",
+      "creator": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+      "approver": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+      "deliveryDeadline": 1791492361,
+      "requiredChecks": [],
+      "quoted": true,
+      "deliverable": {
+        "accepts": [
+          "onchain"
+        ]
+      },
+      "executionBudget": null,
+      "termsHash": "0x253d3c793cc98b429f5e4e0d1e1d09989a6d0259cf6ad5e4413cf01e2d764c03",
+      "manifestUrl": "https://sidequest.exchange/offers/0x253d3c793cc98b429f5e4e0d1e1d09989a6d0259cf6ad5e4413cf01e2d764c03.json",
+      "screening": {
+        "verdict": "clean",
+        "reasons": [
+          "Legitimate testnet task with clear scope: verify v1 protocol flow",
+          "Acceptance criteria is specific and checkable: on-chain confirmation",
+          "Reward is explicitly labeled as mock testnet token with no real value",
+          "No requests for credentials, keys, or secret exfiltration",
+          "No instruction injection or attempts to manipulate worker behavior"
+        ]
+      },
+      "createdAt": 1791470772,
+      "boardId": "public"
+    }
+  ],
+  "reads": [
+    {
+      "method": "POST",
+      "path": "/api/protocol_info",
+      "arguments": {},
+      "repeatedAfterCapture": true
+    },
+    {
+      "method": "GET",
+      "path": "/data/jobs"
+    },
+    {
+      "method": "GET",
+      "path": "/data/boards"
+    },
+    {
+      "method": "POST",
+      "path": "/api/task_index",
+      "arguments": {}
+    },
+    {
+      "method": "POST",
+      "path": "/api/list_quote_requests",
+      "arguments": {
+        "recent": true
+      }
+    }
+  ]
+}

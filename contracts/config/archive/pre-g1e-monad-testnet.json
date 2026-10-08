@@ -38,13 +38,13 @@
     "0x534b2f3A21130d7a60830c2Df862319e593943A3"
   ],
   "deployment": {
-    "block": 69362272,
-    "core": "0x5914B7de3E80F1e8460901b4eBd6D19B15f9147e",
-    "factory": "0xbf0A7336d774729af63d415b5A6bDae8731b2e9B",
+    "block": 69264369,
+    "core": "0xAa658Ff5C8A82e780A0647561E51064846bDcb54",
+    "factory": "0x239B662ACE82c0804b0bf8469918C3edBFAFf6Ed",
     "main": {
-      "evaluator": "0x13a38Bf23B7e6F748769d54dEA0017235DD0E120",
-      "factory": "0xbf0A7336d774729af63d415b5A6bDae8731b2e9B",
-      "holding": "0x8E2C39f28119F21566D88ba18028B95c1F19Bb31",
+      "evaluator": "0x087a20C70f38942Eb16Ea8d55E9549495098E125",
+      "factory": "0x239B662ACE82c0804b0bf8469918C3edBFAFf6Ed",
+      "holding": "0xBCCB896A42B3350ECdDBA3d67E5397Eb1c4421c2",
       "kind": "sidequest-v1",
       "openTokens": true
     },
@@ -54,7 +54,7 @@
       "0x7523106F742B1445b14b0992eE2eA41A3691dc24"
     ],
     "sidequest": {
-      "block": 69362265,
+      "block": 69264363,
       "clocks": {
         "epochDuration": 3600,
         "epochZeroDuration": 1800,
@@ -66,15 +66,16 @@
         "proposalGrace": 1800,
         "unstakeDelay": 259200
       },
-      "distributor": "0x931DC564e1D4f768008a7965CF616Aa743B8DDa8",
-      "factory": "0xbf0A7336d774729af63d415b5A6bDae8731b2e9B",
-      "feeSchedule": "0x9e0CE88C25f5989fd9bC79c88EdB791f9f701033",
-      "miningReserve": "0x7B5e3D35B854EB8d578BdEA89C9d02EbBBA430BE",
+      "distributor": "0xbc7AA83411fE8aC360a43b3ea08331eDd1B70dD3",
+      "factory": "0x239B662ACE82c0804b0bf8469918C3edBFAFf6Ed",
+      "feeSchedule": "0x595e9E818bbFBbEdB9ff9cb2A9f86658aE7F3ba2",
+      "miningReserve": "0x7BE767913596b048422583fb286BBc37279ab877",
       "safe": "0x77923113FD1a71Ad91F81064C3c05cA1EfB44CD8",
-      "t0": 1791494929,
-      "teamVesting": "0xDafD3e64d756BF206DFB160BBfb787252Ea74ED5",
-      "vault": "0x0281F52d12ADbBe48DeF22a79ADef9A2308BD81b"
-    }
+      "t0": 1791465352,
+      "teamVesting": "0xb71896a98b63d9A8eeE477d977ABAA8779dC734c",
+      "vault": "0x7F9e1eAB7472f14f8a43233e6AC82f5088f7f36a"
+    },
+    "testnetFaucet": "0xDB257E28bD501f19E6Df100B34491655A8D4Fe62"
   },
   "sidequest": {
     "clocks": {
@@ -92,7 +93,7 @@
     "defaultArbitrator": "0x96eE4e1660744A4dE92D9E22476C501063524716",
     "margin": 3600,
     "minimumCreatorBond": 10000000000000000000,
-    "maxMinimumCreatorBond": 1e+21,
+    "maxMinimumCreatorBond": 1000000000000000000000,
     "unfilledForfeitBps": 2500,
     "schedule": {
       "thresholds": [
