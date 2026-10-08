@@ -3,6 +3,7 @@ import { type Address, type Hex, type TransactionReceipt, erc20Abi, formatEther,
 import * as sdk from '../../../src/index.ts'
 import { CAP_WEI, assertSendBound, budgetRemaining, required, type SendBound } from './guards.ts'
 import { RunState } from './state.ts'
+import { auditBlocks } from './audit-blocks.ts'
 
 export interface ReceiptEvidence {
   txHash: Hex
@@ -99,13 +100,14 @@ export class Chain {
     // JSON-RPC batch keeps the same complete block/receipt audit while avoiding
     // a cursor that can never catch the live tip.
     const rpcUrl = required('MONAD_TESTNET_RPC_URL')
-    const batchSize = 50n
+    const batchSize = 12n
+    const batchFetch = sdk.throttledFetch(1)
     for (let number = start; number <= end; number += batchSize) {
       const numbers = Array.from(
         { length: Number(end - number + 1n < batchSize ? end - number + 1n : batchSize) },
         (_, index) => number + BigInt(index),
       )
-      const response = await fetch(rpcUrl, {
+      const response = await batchFetch(rpcUrl, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(
@@ -116,22 +118,15 @@ export class Chain {
             params: [`0x${blockNumber.toString(16)}`, true],
           })),
         ),
+        signal: AbortSignal.timeout(60_000),
       })
       if (!response.ok) throw new Error('P8_AUDIT_RPC_REFUSED')
-      const payload = (await response.json()) as Array<{
-        result?: { number: `0x${string}`; transactions: Array<{ from: Address; hash: Hex }> }
-        error?: unknown
-      }>
-      const blocks = payload
-        .map((item) => item.result)
-        .filter((block): block is NonNullable<typeof block> => block !== undefined)
-        .toSorted((left, right) => Number(BigInt(left.number) - BigInt(right.number)))
-      if (blocks.length !== numbers.length) throw new Error('P8_AUDIT_BLOCK_MISSING')
+      const blocks = auditBlocks(await response.json(), numbers)
       for (const block of blocks) {
         for (const tx of block.transactions) {
           if (senders.has(tx.from.toLowerCase())) await this.record(tx.hash)
         }
-        this.run.set('auditBlock', block.number! + 1n)
+        this.run.set('auditBlock', block.number + 1n)
       }
     }
     budgetRemaining(this.receipts, {})
