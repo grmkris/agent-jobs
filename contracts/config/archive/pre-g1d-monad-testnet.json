@@ -38,13 +38,13 @@
     "0x534b2f3A21130d7a60830c2Df862319e593943A3"
   ],
   "deployment": {
-    "block": 69264369,
-    "core": "0xAa658Ff5C8A82e780A0647561E51064846bDcb54",
-    "factory": "0x239B662ACE82c0804b0bf8469918C3edBFAFf6Ed",
+    "block": 68581020,
+    "core": "0x9D3B88bc525E7A363F099332E6F4b5A7af1FcC32",
+    "factory": "0x7572f3Eb31C5bd3E5809F20d221603C2E31f170d",
     "main": {
-      "evaluator": "0x087a20C70f38942Eb16Ea8d55E9549495098E125",
-      "factory": "0x239B662ACE82c0804b0bf8469918C3edBFAFf6Ed",
-      "holding": "0xBCCB896A42B3350ECdDBA3d67E5397Eb1c4421c2",
+      "evaluator": "0x999576200d2216591bDb8c3Fb662b48F1109414b",
+      "factory": "0x7572f3Eb31C5bd3E5809F20d221603C2E31f170d",
+      "holding": "0xfa52B3d905346c53436B6F4824A7c6F0439A0614",
       "kind": "sidequest-v1",
       "openTokens": true
     },
@@ -54,27 +54,28 @@
       "0x7523106F742B1445b14b0992eE2eA41A3691dc24"
     ],
     "sidequest": {
-      "block": 69264363,
+      "block": 68581014,
       "clocks": {
         "epochDuration": 3600,
         "epochZeroDuration": 1800,
         "feeDelay": 300,
-        "holdingDelay": 262800,
+        "holdingDelay": 900,
         "minArbitrationWindow": 300,
         "minDisputeWindow": 120,
         "minReviewWindow": 120,
         "proposalGrace": 1800,
-        "unstakeDelay": 259200
+        "unstakeDelay": 600
       },
-      "distributor": "0xbc7AA83411fE8aC360a43b3ea08331eDd1B70dD3",
-      "factory": "0x239B662ACE82c0804b0bf8469918C3edBFAFf6Ed",
-      "feeSchedule": "0x595e9E818bbFBbEdB9ff9cb2A9f86658aE7F3ba2",
-      "miningReserve": "0x7BE767913596b048422583fb286BBc37279ab877",
+      "distributor": "0xD54ab32a456878e1Ad3a346d537Ea569602F425e",
+      "factory": "0x7572f3Eb31C5bd3E5809F20d221603C2E31f170d",
+      "feeSchedule": "0x6b3946408838CFd43eb28024Bc11B5C0b119DfAC",
+      "miningReserve": "0x2610f52Ff9e18B7108a0d6EcAd28243c680A7BC0",
       "safe": "0x77923113FD1a71Ad91F81064C3c05cA1EfB44CD8",
-      "t0": 1791465352,
-      "teamVesting": "0xb71896a98b63d9A8eeE477d977ABAA8779dC734c",
-      "vault": "0x7F9e1eAB7472f14f8a43233e6AC82f5088f7f36a"
-    }
+      "t0": 1791257814,
+      "teamVesting": "0x754662106Bf8305b33999aB37C1CC4F9ad6f9f46",
+      "vault": "0x48aB9ec1d37818293Ba1F9e63a4f01C8e4a05C76"
+    },
+    "testnetFaucet": "0x311746E7B0dbadC0E905eDa3Fc5c4d281187Fada"
   },
   "sidequest": {
     "clocks": {
