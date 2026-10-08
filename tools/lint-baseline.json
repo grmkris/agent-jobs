@@ -529,12 +529,6 @@
     "eslint(max-lines-per-function)": 1,
     "typescript(no-unnecessary-type-assertion)": 1
   },
-  "apps/explore/src/components/CreateWithAgent.tsx": {
-    "anti-slop-effect(prefer-effect-match)": 2,
-    "complexity(complexity)": 1,
-    "eslint(max-lines-per-function)": 1,
-    "jsx-a11y(prefer-tag-over-role)": 1
-  },
   "apps/explore/src/components/DelegationForm.tsx": {
     "complexity(complexity)": 1,
     "eslint(max-lines-per-function)": 1,
@@ -879,9 +873,6 @@
     "jsx-a11y(prefer-tag-over-role)": 1,
     "typescript(no-deprecated)": 3,
     "typescript(no-misused-promises)": 1
-  },
-  "apps/explore/src/routes/Home.tsx": {
-    "eslint(max-lines-per-function)": 1
   },
   "apps/explore/src/routes/Job.tsx": {
     "anti-slop(require-safety-comment-for-type-assertion)": 4,

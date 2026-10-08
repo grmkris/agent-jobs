@@ -14,7 +14,7 @@ import { Button } from './ui/button.tsx'
 import { useAuth } from './Wallet.tsx'
 import { BondHorizonNotice } from './BondHorizonNotice.tsx'
 
-export type CreationContext = 'quotes' | 'hire' | 'again' | 'pick'
+type CreationContext = 'quotes' | 'hire' | 'again' | 'pick'
 
 interface CreationDraft {
   context?: CreationContext
