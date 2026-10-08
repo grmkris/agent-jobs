@@ -94,6 +94,26 @@ with Path('forge-calls.jsonl').open('a') as out:
         self.assertIn('NEEDS mUSD: 5 whole mUSD', result.stderr)
         self.assertFalse(self.calls.exists())
 
+    def test_g1d_approved_seed_passes_dry_run(self):
+        self.record['liquidity'].update(factoryAmount=10000000, quoteAmount=1000, maxRepairCost=5)
+        result = self.run_wrapper(factory=str(10050000 * 10**18), quote='1005000000')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        calls = [json.loads(line) for line in self.calls.read_text().splitlines()]
+        self.assertEqual(len(calls), 1)
+        self.assertNotIn('--broadcast', calls[0])
+
+    def test_seed_above_approved_quote_cap_refuses_before_forge(self):
+        self.record['liquidity'].update(quoteAmount=1001)
+        result = self.run_wrapper()
+        self.assertEqual(result.returncode, 2)
+        self.assertFalse(self.calls.exists())
+
+    def test_repair_above_approved_cap_refuses_before_forge(self):
+        self.record['liquidity'].update(quoteAmount=1000, maxRepairCost=6)
+        result = self.run_wrapper()
+        self.assertEqual(result.returncode, 2)
+        self.assertFalse(self.calls.exists())
+
     def test_huge_digits_cannot_wrap_into_the_small_bounds(self):
         for field in ('factoryAmount', 'quoteAmount', 'maxRepairCost'):
             for value in (2**64 + 1, 10**96):

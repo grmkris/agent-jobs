@@ -51,7 +51,8 @@ ge_dec() {
   (( ${#left} > ${#right} )) || { (( ${#left} == ${#right} )) && [[ "$left" == "$right" || "$left" > "$right" ]]; }
 }
 [[ "$SIDE_AMOUNT" =~ ^[1-9][0-9]*$ && "$QUOTE_AMOUNT" =~ ^[1-9][0-9]*$ && "$REPAIR_QUOTE" =~ ^[1-9][0-9]*$ ]] || { echo "refusing: invalid seed amounts" >&2; exit 2; }
-ge_dec 50000000 "$SIDE_AMOUNT" && ge_dec 10 "$QUOTE_AMOUNT" && ge_dec "$QUOTE_AMOUNT" "$REPAIR_QUOTE" \
+# G1d's approved seed is 10M SIDE + 1,000 mUSD; repair spending remains capped at 5 mUSD.
+ge_dec 50000000 "$SIDE_AMOUNT" && ge_dec 1000 "$QUOTE_AMOUNT" && ge_dec 5 "$REPAIR_QUOTE" && ge_dec "$QUOTE_AMOUNT" "$REPAIR_QUOTE" \
   || { echo "refusing: outside the small testnet seed bounds" >&2; exit 2; }
 [[ "$(cast call "$SIDE" 'decimals()(uint8)' --rpc-url "$RPC")" == 18 && "$(cast call "$QUOTE" 'decimals()(uint8)' --rpc-url "$RPC")" == 6 ]] || { echo "refusing: token decimals mismatch" >&2; exit 2; }
 for address in "$POOL_MANAGER" "$POSITION_MANAGER" "$PERMIT2" "$STATE_VIEW" "$SIDE" "$QUOTE" "$SAFE"; do
