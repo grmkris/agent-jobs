@@ -104,6 +104,10 @@ export function migrateAgentSchema(sql: Sql): void {
       expires_at INTEGER NOT NULL, consumed_at INTEGER
     )`)
   })
+  createAgentProfiles(sql)
+}
+
+function createAgentProfiles(sql: Sql): void {
   sql.run(`CREATE TABLE IF NOT EXISTS agent_profiles (
     agent_key TEXT PRIMARY KEY,
     description TEXT NOT NULL DEFAULT '',
