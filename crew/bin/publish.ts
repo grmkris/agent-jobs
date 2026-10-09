@@ -6,7 +6,8 @@
  * standing operator note once.
  *
  *   bun crew/bin/publish.ts notes          write the standing showcase note into each hirer's operator notes
- *   bun crew/bin/publish.ts post <id>      post one example (idempotent: a repeat returns the same request)
+ *   bun crew/bin/publish.ts post <id> [n]  post one example (idempotent: a repeat returns the same request); round n
+ *                                          > 1 posts it again as a new request, for a round whose quotes lapsed
  *   bun crew/bin/publish.ts seed [n]       post up to n examples not posted yet (default: all)
  *   bun crew/bin/publish.ts status         what was posted, by whom, and when
  *
@@ -122,12 +123,16 @@ function notes() {
   }
 }
 
-function post(example: Example): Posted {
+/** Round 1 keeps the first key and journal entry; a later round is its own request under its own key. */
+const roundKey = (id: string, round: number) => (round > 1 ? `${id}.r${round}` : id)
+
+function post(example: Example, round = 1): Posted {
   const entries = journal()
-  const existing = entries[example.id]
+  const key = roundKey(example.id, round)
+  const existing = entries[key]
   if (existing?.requestId != null) return existing
   if (running(example.hirer)) throw new Error(`${example.hirer} is running; post ${example.id} after its run`)
-  const idempotencyKey = existing?.idempotencyKey ?? `showcase-${stage}-${example.id}`
+  const idempotencyKey = existing?.idempotencyKey ?? `showcase-${stage}-${key}`
   const reply = requestQuotes(example.hirer, {
     title: example.title,
     brief: example.brief,
@@ -148,10 +153,10 @@ function post(example: Example): Posted {
     postedAt: new Date().toISOString(),
     response: reply,
   }
-  entries[example.id] = posted
+  entries[key] = posted
   save(entries)
   console.log(
-    `${example.id}: posted by ${example.hirer}${requestId === undefined ? ' (no request id in the reply)' : `, request ${requestId}`}`,
+    `${key}: posted by ${example.hirer}${requestId === undefined ? ' (no request id in the reply)' : `, request ${requestId}`}`,
   )
   if (requestId !== undefined) nudge(example, requestId)
   return posted
@@ -174,7 +179,7 @@ function nudge(example: Example, requestId: string) {
   }
 }
 
-const [command, arg] = process.argv.slice(2)
+const [command, arg, roundArg] = process.argv.slice(2)
 switch (command) {
   case 'notes':
     notes()
@@ -182,8 +187,11 @@ switch (command) {
   case 'post': {
     const example = catalog.examples.find((e) => e.id === arg)
     if (example === undefined) throw new Error(`no example ${arg}; see crew/examples.json`)
+    const round = roundArg === undefined ? 1 : Number(roundArg)
+    if (!Number.isSafeInteger(round) || round < 1)
+      throw new Error(`round must be a whole number from 1, not ${roundArg}`)
     notes()
-    post(example)
+    post(example, round)
     break
   }
   case 'seed': {
@@ -203,14 +211,15 @@ switch (command) {
   case 'status': {
     const posted = journal()
     for (const example of catalog.examples) {
-      const p = posted[example.id]
-      console.log(
-        `${example.id.padEnd(18)} ${p === undefined ? 'not posted' : `${p.hirer.padEnd(7)} ${p.requestId ?? '?'} ${p.postedAt}`}`,
-      )
+      const rounds = Object.entries(posted).filter(([key]) => key === example.id || key.startsWith(`${example.id}.r`))
+      if (rounds.length === 0) console.log(`${example.id.padEnd(22)} not posted`)
+      for (const [key, p] of rounds) {
+        console.log(`${key.padEnd(22)} ${p.hirer.padEnd(7)} ${p.requestId ?? '?'} ${p.postedAt}`)
+      }
     }
     break
   }
   default:
-    console.log('usage: publish.ts notes | post <id> | seed [n] | status')
+    console.log('usage: publish.ts notes | post <id> [round] | seed [n] | status')
     process.exitCode = 2
 }
