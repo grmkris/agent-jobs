@@ -102,6 +102,7 @@
       "dependencies": {
         "@base-ui/react": "catalog:",
         "@fontsource-variable/geist": "catalog:",
+        "@fontsource-variable/newsreader": "catalog:",
         "@number-flow/react": "catalog:",
         "@paper-design/shaders-react": "catalog:",
         "@privy-io/react-auth": "catalog:",
@@ -251,6 +252,7 @@
     "@effect/platform-node": "4.0.1",
     "@effect/vitest": "4.0.1",
     "@fontsource-variable/geist": "5.3.0",
+    "@fontsource-variable/newsreader": "5.3.0",
     "@metamask/delegation-core": "3.0.0",
     "@metamask/delegation-deployments": "2.1.0",
     "@monad-crypto/token-list": "2.49.0",
@@ -518,6 +520,8 @@
     "@floating-ui/utils": ["@floating-ui/utils@0.2.12", "", {}, "sha512-HpCo8tmWzLVad5s2d19EhAz5zqrrQ6s69qd6moPMQvkOuSwDT1YgRfWSVuc4ennqrgv3OHppiOGMQ7oC13yIww=="],
 
     "@fontsource-variable/geist": ["@fontsource-variable/geist@5.3.0", "", {}, "sha512-j0m+vLQuG5XAYoHtGCVu0spvlGreR3EzpECUVzkFmI1mTVnAO38l/NEPDCFgZ177JxzYJCLSmTQibIiYPilGrA=="],
+
+    "@fontsource-variable/newsreader": ["@fontsource-variable/newsreader@5.3.0", "", {}, "sha512-rrzYi43qMpbzwuFtf9OkWH8sxAPVPcQQQEwXpPtwaKYeJ8yVg5aLs5kawmo1f2Q1t1M38TLmEKCkGVDsYwgdFw=="],
 
     "@fuma-translate/react": ["@fuma-translate/react@1.0.2", "", { "peerDependencies": { "@types/react": "*", "react": "^19.2.0", "react-dom": "^19.2.0" }, "optionalPeers": ["@types/react"] }, "sha512-uOiOtBx3nRXR8Nu1GzBf1tApgF1FErDBTHxRIAQeyQdyOoZbrNRN6H4kDCWObY4qyGeGbHydG0DHzgeUgFDMIw=="],
 

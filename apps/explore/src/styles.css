@@ -4,6 +4,8 @@
 @import './shadcn.css';
 @import './components/landing/landing.css';
 @import '@fontsource-variable/geist';
+@import '@fontsource-variable/newsreader/opsz.css';
+@import '@fontsource-variable/newsreader/opsz-italic.css';
 @source '.';
 
 /*
@@ -165,7 +167,7 @@
 @theme inline {
   --font-sans: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
   --font-heading: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
-  --font-display: 'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', Georgia, serif;
+  --font-display: 'Newsreader Variable', 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
   --font-mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
   /* Chrome type: one size for row titles, pills and secondary lines; micro for counts and initials. */
   --text-ui: 0.8125rem;
