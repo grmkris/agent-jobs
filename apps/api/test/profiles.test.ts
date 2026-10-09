@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite'
 import { afterEach, expect, it } from 'vitest'
-import { AgentStore, fromNodeSqlite } from '@sidequest/board'
+import { AgentProfiles, AgentStore, fromNodeSqlite } from '@sidequest/board'
 import * as sdk from '@sidequest/sdk'
 import {
   profileReader,
@@ -9,7 +9,6 @@ import {
   registrationBody,
   registrationResponse,
 } from '../src/profiles.ts'
-import { AgentProfiles } from '../../../packages/board/src/agent-profiles.ts'
 
 const deployment = sdk.deployment('monad-testnet')
 const origin = 'https://dev.sidequest.exchange'
