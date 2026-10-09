@@ -10,6 +10,7 @@ import type { Address } from 'viem'
 import { type AccountTab, accountSearch, accountTab } from '../account-route.ts'
 import { Count } from '../components/AccountLink.tsx'
 import { WalletCard } from '../components/Fund.tsx'
+import { WalletSetup } from '../components/account/WalletSetup.tsx'
 import { InstallHint } from '../components/InstallHint.tsx'
 import { PrivyLogin } from '../components/Privy.tsx'
 import { BackingManager } from '../components/BackingManager.tsx'
@@ -127,6 +128,7 @@ function AccountTabs({ address }: { address: Address }) {
         </TabsTrigger>
       </TabsList>
       <TabsContent value="wallet" className="grid gap-7 text-base">
+        <WalletSetup address={address} />
         <WalletCard address={address} />
         <CollectSection />
       </TabsContent>
