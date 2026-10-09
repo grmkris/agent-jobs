@@ -22,8 +22,9 @@
     "unresolved": "error",
   },
   "treatConfigHintsAsErrors": true,
-  // Foundry supplies forge/cast/anvil; the acceptance harness invokes the installed Codex CLI.
-  "ignoreBinaries": ["forge", "cast", "anvil", "codex"],
+  // Foundry supplies forge/cast/anvil; the acceptance harness invokes the installed Codex CLI; a crew bot's container
+  // (crew/sandbox, util-linux) supplies setpriv.
+  "ignoreBinaries": ["forge", "cast", "anvil", "codex", "setpriv"],
   // Vendored upstream code is maintained as one unit, not pruned by repository gates.
   "ignore": [
     // Foundry dependencies and generated outputs are not Sidequest TypeScript sources.

@@ -16,7 +16,9 @@
 import { spawn, spawnSync } from 'node:child_process'
 import { createHash, randomBytes } from 'node:crypto'
 import {
+  appendFileSync,
   chmodSync,
+  chownSync,
   copyFileSync,
   existsSync,
   mkdirSync,
@@ -24,6 +26,7 @@ import {
   readdirSync,
   realpathSync,
   renameSync,
+  rmSync,
   statSync,
   writeFileSync,
 } from 'node:fs'
@@ -34,10 +37,18 @@ import { stageProfile } from '../../infra/stage.ts'
 const crewDir = resolve(import.meta.dir, '..')
 const repo = resolve(crewDir, '..')
 const crew = withBoard(JSON.parse(readFileSync(join(crewDir, 'crew.json'), 'utf8')) as CrewFile)
+/** Set in a bot's own container (`up`): its supervisor runs as root there and starts each run as the harness's uid. */
+const inContainer = process.env.CREW_IN_CONTAINER === '1'
 const stateRoot =
-  crew.board.stage === 'dev' ? join(repo, '.crew', 'hosted') : join(repo, '.crew', 'hosted', crew.board.stage)
+  process.env.CREW_STATE_ROOT ??
+  (crew.board.stage === 'dev' ? join(repo, '.crew', 'hosted') : join(repo, '.crew', 'hosted', crew.board.stage))
+const cliproxyUrl = inContainer ? crew.harness.containerBaseUrl : crew.harness.baseUrl
 const REDIRECT = 'http://127.0.0.1:8765/callback'
 const IMAGE = 'sidequest-crew'
+const PROJECT = 'sidequest-crew'
+const HARNESS_UID = 1000
+/** How a supervisor starts a run in its container: as the harness's uid, without groups, capabilities or setuid. */
+const DROP = ['--reuid=1000', '--regid=1000', '--clear-groups', '--no-new-privs', '--inh-caps=-all', '--']
 
 interface Resources {
   cpus: number
@@ -72,6 +83,10 @@ interface Crew {
   board: CrewFile['board'] & { origin: string; mcp: string; relay: string; chainId: number; chain: string }
   harness: {
     baseUrl: string
+    /** cliproxy as a bot's container on the crew bridge reaches it: the box's tailnet address, not loopback. */
+    containerBaseUrl: string
+    /** How often a bot's container checks for work. */
+    loopMinutes: number
     maxParallel: number
     runTimeoutMinutes: number
     cpuShares: number
@@ -126,6 +141,26 @@ const memberOf = (id: string | undefined): [string, Member] => {
   if (m === undefined) throw new Error(`member must be one of: ${Object.keys(crew.members).join(', ')}`)
   return [id!, m]
 }
+const bot = (id: string) => `sq-bot-${id}`
+/** OAuth files: in `secrets/` (root-only) once a member runs in its container, else in its home as before. */
+const secretPath = (id: string, file: string) =>
+  inContainer || existsSync(join(home(id), 'secrets')) ? join(home(id), 'secrets', file) : join(home(id), file)
+/** In a container the supervisor is root: whatever it writes for a run has to belong to the harness's uid. */
+const own = (...paths: string[]) => {
+  if (inContainer) for (const p of paths) if (existsSync(p)) chownSync(p, HARNESS_UID, HARNESS_UID)
+}
+const botRunning = (id: string) =>
+  spawnSync('docker', ['container', 'inspect', '-f', '{{.State.Running}}', bot(id)], {
+    encoding: 'utf8',
+  }).stdout.trim() === 'true'
+const alive = (pid: number) => {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch {
+    return false
+  }
+}
 
 function env(): Record<string, string> {
   const files = [
@@ -155,8 +190,8 @@ async function form(path: string, body: Record<string, string>) {
 
 async function login(id: string, landed?: string) {
   const [, m] = memberOf(id)
-  const clientPath = join(home(id), 'client.json')
-  const loginPath = join(home(id), 'login.json')
+  const clientPath = secretPath(id, 'client.json')
+  const loginPath = secretPath(id, 'login.json')
   if (landed === undefined) {
     let client = readJson<{ clientId: string }>(clientPath)
     if (client === undefined) {
@@ -211,7 +246,7 @@ async function login(id: string, landed?: string) {
 }
 
 function saveToken(id: string, t: Record<string, unknown>) {
-  secretFile(join(home(id), 'token.json'), {
+  secretFile(secretPath(id, 'token.json'), {
     access_token: t.access_token,
     refresh_token: t.refresh_token,
     expires_at: Math.floor(Date.now() / 1000) + Number(t.expires_in ?? 3600),
@@ -225,23 +260,47 @@ function runTimeout(id: string): number {
   return Math.min(crew.members[id]?.runTimeoutMinutes ?? crew.harness.runTimeoutMinutes, 55)
 }
 
+/** One refresh at a time per member: a refresh token works once, and replaying it revokes the member's grant. */
+async function withTokenLock<T>(id: string, work: () => Promise<T>): Promise<T> {
+  const lock = secretPath(id, 'token.lock')
+  for (let waited = 0; ; waited += 250) {
+    try {
+      mkdirSync(lock)
+      break
+    } catch {
+      // A lock older than a minute outlived its holder (a refresh takes seconds); a younger one is still in use.
+      const age = Date.now() - (statSync(lock, { throwIfNoEntry: false })?.mtimeMs ?? 0)
+      if (age > 60_000) rmSync(lock, { recursive: true, force: true })
+      else if (waited > 30_000) throw new Error(`${id}: its token lock has been held for 30 s`)
+      else await Bun.sleep(250)
+    }
+  }
+  try {
+    return await work()
+  } finally {
+    rmSync(lock, { recursive: true, force: true })
+  }
+}
+
 async function freshToken(id: string): Promise<Token> {
-  const path = join(home(id), 'token.json')
-  const t = readJson<Token>(path)
-  const client = readJson<{ clientId: string }>(join(home(id), 'client.json'))
-  if (t === undefined || client === undefined) throw new Error(`${id} is not connected; run "login ${id}"`)
-  // A run may last its timeout, so start it with a token that outlives it (access tokens last an hour).
-  if (t.expires_at - Math.floor(Date.now() / 1000) > (runTimeout(id) + 5) * 60) return t
-  saveToken(
-    id,
-    await form('/oauth/token', {
-      grant_type: 'refresh_token',
-      refresh_token: t.refresh_token,
-      client_id: client.clientId,
-      resource: crew.board.mcp,
-    }),
-  )
-  return readJson<Token>(path)!
+  return withTokenLock(id, async () => {
+    const path = secretPath(id, 'token.json')
+    const t = readJson<Token>(path)
+    const client = readJson<{ clientId: string }>(secretPath(id, 'client.json'))
+    if (t === undefined || client === undefined) throw new Error(`${id} is not connected; run "login ${id}"`)
+    // A run may last its timeout, so start it with a token that outlives it (access tokens last an hour).
+    if (t.expires_at - Math.floor(Date.now() / 1000) > (runTimeout(id) + 5) * 60) return t
+    saveToken(
+      id,
+      await form('/oauth/token', {
+        grant_type: 'refresh_token',
+        refresh_token: t.refresh_token,
+        client_id: client.clientId,
+        resource: crew.board.mcp,
+      }),
+    )
+    return readJson<Token>(path)!
+  })
 }
 
 const bin = (name: string) =>
@@ -251,26 +310,31 @@ function prepareAgentDir(id: string): string {
   const agent = join(home(id), 'agent')
   mkdirSync(join(agent, 'state'), { recursive: true, mode: 0o700 })
   mkdirSync(join(agent, 'work'), { recursive: true })
+  own(agent, join(agent, 'state'), join(agent, 'work'))
   const role = join(crewDir, 'agents', id)
   for (const f of readdirSync(role)) {
     const from = join(role, f)
+    const to = join(agent, f === 'ROLE.md' ? 'AGENTS.md' : f)
     // ROLE.md lands as AGENTS.md: the harness loads it from the working directory, and the repo's agent check skips it.
-    if (statSync(from).isFile()) copyFileSync(realpathSync(from), join(agent, f === 'ROLE.md' ? 'AGENTS.md' : f))
+    if (statSync(from).isFile()) copyFileSync(realpathSync(from), to)
+    own(to)
   }
-  // Skills are pinned by skills-lock.json and restored once per member, outside the container.
+  // Skills are pinned by skills-lock.json and restored once per member, as the harness's user in a container.
   if (!existsSync(join(agent, '.agents')) && !existsSync(join(agent, '.claude', 'skills'))) {
-    spawnSync('npx', ['--yes', 'skills', 'experimental_install'], { cwd: agent, stdio: 'inherit' })
+    const install = ['npx', '--yes', 'skills', 'experimental_install']
+    if (inContainer)
+      spawnSync('setpriv', [...DROP, ...install], {
+        cwd: agent,
+        stdio: 'inherit',
+        env: { HOME: '/home/agent', PATH: '/usr/local/bin:/usr/bin:/bin' },
+      })
+    else spawnSync('npx', install.slice(1), { cwd: agent, stdio: 'inherit' })
   }
   return agent
 }
 
-async function run(id: string, note = '', model?: string): Promise<number | null> {
-  const [, base] = memberOf(id)
-  const m = model === undefined ? base : { ...base, model, effort: 'high' }
-  const token = await freshToken(id)
-  const e = env()
-  const agent = prepareAgentDir(id)
-  const harnessHome = join(home(id), 'home')
+/** The harness's own config in its home: cliproxy as the model provider, the board (and extra servers) as MCP. */
+function writeHarnessConfig(m: Member, token: Token, harnessHome: string) {
   mkdirSync(join(harnessHome, '.codex'), { recursive: true, mode: 0o700 })
   writeFileSync(
     join(harnessHome, '.gitconfig'),
@@ -280,99 +344,98 @@ async function run(id: string, note = '', model?: string): Promise<number | null
     .map(([n, url]) => `[mcp_servers.${n}]\nurl = "${url}"\n`)
     .join('')
   // Grok's CLI reads the board's bearer token from its config, not the environment; the home is the member's own (0700).
-  if (m.harness === 'grok') mkdirSync(join(harnessHome, '.grok'), { recursive: true, mode: 0o700 })
-  if (m.harness === 'grok')
+  if (m.harness === 'grok') {
+    mkdirSync(join(harnessHome, '.grok'), { recursive: true, mode: 0o700 })
     writeFileSync(
       join(harnessHome, '.grok', 'config.toml'),
-      `[models]\ndefault = "${m.model}"\ndefault_reasoning_effort = "${m.effort}"\n[model."${m.model}"]\nbase_url = "${crew.harness.baseUrl}"\nenv_key = "CLIPROXY_API_KEY"\n[mcp_servers.sidequest]\nurl = "${crew.board.mcp}"\nenabled = true\n[mcp_servers.sidequest.headers]\nAuthorization = "Bearer ${token.access_token}"\n${Object.entries(
+      `[models]\ndefault = "${m.model}"\ndefault_reasoning_effort = "${m.effort}"\n[model."${m.model}"]\nbase_url = "${cliproxyUrl}"\nenv_key = "CLIPROXY_API_KEY"\n[mcp_servers.sidequest]\nurl = "${crew.board.mcp}"\nenabled = true\n[mcp_servers.sidequest.headers]\nAuthorization = "Bearer ${token.access_token}"\n${Object.entries(
         m.mcp,
       )
         .map(([n, url]) => `[mcp_servers.${n}]\nurl = "${url}"\nenabled = true\n`)
         .join('')}`,
       { mode: 0o600 },
     )
+  }
   writeFileSync(
     join(harnessHome, '.codex', 'config.toml'),
-    `model = "${m.model}"\nmodel_provider = "cliproxy"\nmodel_reasoning_effort = "${m.effort}"\n[model_providers.cliproxy]\nname = "cliproxy"\nbase_url = "${crew.harness.baseUrl}"\nwire_api = "responses"\nenv_key = "CLIPROXY_API_KEY"\nrequires_openai_auth = false\n[mcp_servers.sidequest]\nurl = "${crew.board.mcp}"\nbearer_token_env_var = "SIDEQUEST_MCP_TOKEN"\n${extraMcp}[projects."/crew/agent"]\ntrust_level = "trusted"\n`,
+    `model = "${m.model}"\nmodel_provider = "cliproxy"\nmodel_reasoning_effort = "${m.effort}"\n[model_providers.cliproxy]\nname = "cliproxy"\nbase_url = "${cliproxyUrl}"\nwire_api = "responses"\nenv_key = "CLIPROXY_API_KEY"\nrequires_openai_auth = false\n[mcp_servers.sidequest]\nurl = "${crew.board.mcp}"\nbearer_token_env_var = "SIDEQUEST_MCP_TOKEN"\n${extraMcp}[projects."/crew/agent"]\ntrust_level = "trusted"\n`,
   )
-  const rewardToken = (await protocolInfo()).rewardTokens?.[0]
-  const services = (m.services ?? (m.service === undefined ? [] : [m.service])).map((service) => ({
-    ...service,
-    price: { model: 'quote', amountBaseUnits: '0', token: rewardToken },
-  }))
-  const prompt = [
-    `You are ${m.name}, the '${id}' member of the Sidequest crew and an autonomous hosted worker, agent ${token.agent_id}.`,
-    'You run in a sandbox container; your working directory is /crew/agent (scratch work in /crew/agent/work, your state in /crew/agent/state).',
-    'Read, in this order: /crew/agent/AGENTS.md (your role), /crew/shared/COMMON.md (crew rules) and /crew/skill/worker/SKILL.md (your procedure).',
-    'Do one routine pass as COMMON.md describes, then stop.',
-    `Your directory listings (one advertise_service call each): ${JSON.stringify(services)}`,
-    note === '' ? '' : `Operator note for this run: ${note}`,
-    `Your git identity is ${m.name} <${m.email}>. Chain: ${crew.board.chain} (${crew.board.chainId}). Board: ${crew.board.origin}. Be concise.`,
-  ]
-    .filter(Boolean)
-    .join('\n')
-  const envs: string[] = [
-    '-e',
-    'HOME=/home/agent',
-    '-e',
-    'TERM=dumb',
-    '-e',
-    'LANG=C.UTF-8',
-    '-e',
-    'PATH=/opt/bin:/opt/codex/bin:/opt/foundry:/usr/local/bin:/usr/bin:/bin',
-    '-e',
-    `SIDEQUEST_MCP_TOKEN=${token.access_token}`,
-    '-e',
-    `CLIPROXY_API_KEY=${e.CLIPROXY_API_KEY ?? ''}`,
-    '-e',
-    `GIT_AUTHOR_NAME=${m.name}`,
-    '-e',
-    `GIT_AUTHOR_EMAIL=${m.email}`,
-    '-e',
-    `GIT_COMMITTER_NAME=${m.name}`,
-    '-e',
-    `GIT_COMMITTER_EMAIL=${m.email}`,
-  ]
-  for (const v of m.env) envs.push('-e', v.includes('=') ? v : `${v}=${e[v] ?? ''}`)
-  const mounts = [
-    '-v',
-    `${agent}:/crew/agent`,
-    '-v',
-    `${harnessHome}:/home/agent`,
-    '-v',
-    `${join(crewDir, 'shared')}:/crew/shared:ro`,
-    '-v',
-    `${join(repo, 'skill')}:/crew/skill:ro`,
-    '-v',
-    `${dirname(dirname(bin('codex')))}:/opt/codex:ro`,
-    '-v',
-    `${dirname(bin('grok'))}:/opt/grok:ro`,
-    '-v',
-    `${dirname(bin('forge'))}:/opt/foundry:ro`,
-    '-v',
-    `${bin('bun')}:/opt/bin/bun:ro`,
-  ]
-  const runs = join(home(id), 'runs')
-  mkdirSync(runs, { recursive: true, mode: 0o700 })
-  const stamp = new Date().toISOString().replace(/[:.]/g, '-')
-  const container = `sq-crew-${id}`
-  // One run per member at a time: the container name is the lock.
-  if (spawnSync('docker', ['container', 'inspect', container], { stdio: 'ignore' }).status === 0) {
-    console.log(`${m.name}: still running, skipped`)
-    return null
+  const grok = join(harnessHome, '.grok')
+  own(
+    harnessHome,
+    join(harnessHome, '.gitconfig'),
+    join(harnessHome, '.codex'),
+    join(harnessHome, '.codex', 'config.toml'),
+    grok,
+    join(grok, 'config.toml'),
+  )
+}
+
+/** The run's whole environment: nothing else from the supervisor reaches the harness. */
+function harnessVars(m: Member, token: Token, e: Record<string, string>): Record<string, string> {
+  const vars: Record<string, string> = {
+    HOME: '/home/agent',
+    TERM: 'dumb',
+    LANG: 'C.UTF-8',
+    PATH: '/opt/bin:/opt/codex/bin:/opt/foundry:/usr/local/bin:/usr/bin:/bin',
+    SIDEQUEST_MCP_TOKEN: token.access_token,
+    CLIPROXY_API_KEY: e.CLIPROXY_API_KEY ?? '',
+    GIT_AUTHOR_NAME: m.name,
+    GIT_AUTHOR_EMAIL: m.email,
+    GIT_COMMITTER_NAME: m.name,
+    GIT_COMMITTER_EMAIL: m.email,
   }
+  for (const v of m.env) {
+    const at = v.indexOf('=')
+    if (at === -1) vars[v] = e[v] ?? ''
+    else vars[v.slice(0, at)] = v.slice(at + 1)
+  }
+  return vars
+}
+
+interface Launch {
+  child: ReturnType<typeof spawn>
+  stop: () => void
+}
+
+/** In a bot's container: the harness as uid 1000 in its own process group, which a timeout ends as a whole. */
+function launchHere(command: string[], vars: Record<string, string>): Launch {
+  const child = spawn('setpriv', [...DROP, ...command], {
+    cwd: '/crew/agent',
+    env: vars,
+    detached: true,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  })
+  const signal = (name: NodeJS.Signals) => {
+    try {
+      if (child.pid !== undefined) process.kill(-child.pid, name)
+    } catch {
+      // the group has already exited
+    }
+  }
+  return {
+    child,
+    stop: () => {
+      signal('SIGTERM')
+      setTimeout(() => signal('SIGKILL'), 20_000).unref()
+    },
+  }
+}
+
+/** On the host: a throwaway `sidequest-crew` container per run, as before the bots had containers of their own. */
+function launchDocker(id: string, m: Member, command: string[], vars: Record<string, string>): Launch {
+  const agent = join(home(id), 'agent')
+  const container = `sq-crew-${id}`
   const { cpus, memory } = m.resources ?? crew.harness.resources
-  const limits = [
-    '--cpus',
-    String(cpus),
-    '--memory',
-    memory,
-    '--memory-swap',
-    memory,
-    '--pids-limit',
-    '1024',
-    '--cpu-shares',
-    String(crew.harness.cpuShares),
+  const mounts = [
+    `${agent}:/crew/agent`,
+    `${join(home(id), 'home')}:/home/agent`,
+    `${join(crewDir, 'shared')}:/crew/shared:ro`,
+    `${join(repo, 'skill')}:/crew/skill:ro`,
+    `${dirname(dirname(bin('codex')))}:/opt/codex:ro`,
+    `${dirname(bin('grok'))}:/opt/grok:ro`,
+    `${dirname(bin('forge'))}:/opt/foundry:ro`,
+    `${bin('bun')}:/opt/bin/bun:ro`,
   ]
   const docker = [
     'run',
@@ -384,30 +447,93 @@ async function run(id: string, note = '', model?: string): Promise<number | null
     '1000:1000',
     '--name',
     container,
-    ...limits,
-    ...envs,
-    ...mounts,
+    '--cpus',
+    String(cpus),
+    '--memory',
+    memory,
+    '--memory-swap',
+    memory,
+    '--pids-limit',
+    '1024',
+    '--cpu-shares',
+    String(crew.harness.cpuShares),
+    ...Object.entries(vars).flatMap(([k, v]) => ['-e', `${k}=${v}`]),
+    ...mounts.flatMap((mount) => ['-v', mount]),
     IMAGE,
   ]
+  return {
+    child: spawn('docker', [...docker, ...command], { stdio: ['ignore', 'pipe', 'pipe'] }),
+    stop: () => spawnSync('docker', ['stop', '--time', '20', container], { stdio: 'ignore' }),
+  }
+}
+
+/** Whether a run of this member is already going: its marker in a container, its throwaway container on the host. */
+function busy(id: string): boolean {
+  if (!inContainer)
+    return spawnSync('docker', ['container', 'inspect', `sq-crew-${id}`], { stdio: 'ignore' }).status === 0
+  const marker = join(home(id), 'running')
+  return existsSync(marker) && alive(Number(readFileSync(marker, 'utf8')))
+}
+
+/** What a run is told: who it is, what to read, its listings, the operator's note for this run. */
+async function promptFor(id: string, m: Member, token: Token, note: string): Promise<string> {
+  const rewardToken = (await protocolInfo()).rewardTokens?.[0]
+  const services = (m.services ?? (m.service === undefined ? [] : [m.service])).map((service) => ({
+    ...service,
+    price: { model: 'quote', amountBaseUnits: '0', token: rewardToken },
+  }))
+  return [
+    `You are ${m.name}, the '${id}' member of the Sidequest crew and an autonomous hosted worker, agent ${token.agent_id}.`,
+    'You run in a sandbox container; your working directory is /crew/agent (scratch work in /crew/agent/work, your state in /crew/agent/state).',
+    'Read, in this order: /crew/agent/AGENTS.md (your role), /crew/shared/COMMON.md (crew rules) and /crew/skill/worker/SKILL.md (your procedure).',
+    'Do one routine pass as COMMON.md describes, then stop.',
+    `Your directory listings (one advertise_service call each): ${JSON.stringify(services)}`,
+    note === '' ? '' : `Operator note for this run: ${note}`,
+    `Your git identity is ${m.name} <${m.email}>. Chain: ${crew.board.chain} (${crew.board.chainId}). Board: ${crew.board.origin}. Be concise.`,
+  ]
+    .filter(Boolean)
+    .join('\n')
+}
+
+async function run(id: string, note = '', model?: string): Promise<number | null> {
+  const [, base] = memberOf(id)
+  const m = model === undefined ? base : { ...base, model, effort: 'high' }
+  // One run per member at a time.
+  if (busy(id)) {
+    console.log(`${m.name}: still running, skipped`)
+    return null
+  }
+  const token = await freshToken(id)
+  const agent = prepareAgentDir(id)
+  writeHarnessConfig(m, token, join(home(id), 'home'))
+  const prompt = await promptFor(id, m, token, note)
+  const vars = harnessVars(m, token, env())
+  const runs = join(home(id), 'runs')
+  mkdirSync(runs, { recursive: true, mode: 0o700 })
+  own(runs)
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+  const grok = inContainer ? `/opt/grok/${process.env.CREW_GROK_BIN ?? 'grok'}` : `/opt/grok/${basename(bin('grok'))}`
   const command =
     m.harness === 'grok'
-      ? [`/opt/grok/${basename(bin('grok'))}`, '-p', prompt, '--always-approve', '--output-format', 'streaming-json']
+      ? [grok, '-p', prompt, '--always-approve', '--output-format', 'streaming-json']
       : ['codex', 'exec', '--dangerously-bypass-approvals-and-sandbox', '--skip-git-repo-check', '--json', prompt]
+  const { cpus, memory } = m.resources ?? crew.harness.resources
   console.log(`${m.name} (${m.harness ?? 'codex'} ${m.model}, ${cpus} CPU, ${memory}): run ${stamp}`)
+  const marker = join(home(id), 'running')
+  if (inContainer) writeFileSync(marker, String(process.pid))
   const out = Bun.file(join(runs, `${stamp}.jsonl`)).writer()
   const err: Buffer[] = []
-  const child = spawn('docker', [...docker, ...command], { stdio: ['ignore', 'pipe', 'pipe'] })
-  child.stdout.on('data', (chunk: Buffer) => out.write(chunk))
-  child.stderr.on('data', (chunk: Buffer) => err.push(chunk))
-  const timer = setTimeout(
-    () => spawnSync('docker', ['stop', '--time', '20', container], { stdio: 'ignore' }),
-    runTimeout(id) * 60_000,
-  )
+  const { child, stop } = inContainer ? launchHere(command, vars) : launchDocker(id, m, command, vars)
+  child.stdout?.on('data', (chunk: Buffer) => out.write(chunk))
+  child.stderr?.on('data', (chunk: Buffer) => err.push(chunk))
+  const timer = setTimeout(stop, runTimeout(id) * 60_000)
   const code = await new Promise<number | null>((done) => child.on('close', done))
   clearTimeout(timer)
   await out.end()
+  rmSync(marker, { force: true })
   writeFileSync(join(runs, `${stamp}.err`), `${Buffer.concat(err).toString()}\nexit ${code}\n`, { mode: 0o600 })
   chmodSync(join(runs, `${stamp}.jsonl`), 0o600)
+  own(join(runs, `${stamp}.jsonl`), join(runs, `${stamp}.err`))
   const operator = join(agent, 'state', 'needs-operator')
   if (existsSync(operator)) console.log(`${m.name} needs the operator: ${readFileSync(operator, 'utf8').trim()}`)
   console.log(`${m.name}: exit ${code}`)
@@ -513,10 +639,19 @@ function runsToday(id: string): number {
   return readdirSync(dir).filter((f) => f.startsWith(day) && f.endsWith('.jsonl')).length
 }
 
+/** How a member is connected: its token where this process can read it, else the container that holds it. */
+function connection(id: string, now: number): string {
+  if (!inContainer && existsSync(join(home(id), 'secrets')))
+    return `connected in ${bot(id)} (${botRunning(id) ? 'up' : 'down'})`
+  const t = readJson<Token>(secretPath(id, 'token.json'))
+  if (t === undefined) return 'not connected'
+  const left = t.expires_at - now
+  return `agent ${t.agent_id}, token ${left > 0 ? `valid ${Math.round(left / 60)} min` : 'expired (refreshes on run)'}`
+}
+
 function status() {
   const now = Math.floor(Date.now() / 1000)
   for (const [id, m] of Object.entries(crew.members)) {
-    const t = readJson<Token>(join(home(id), 'token.json'))
     const runs = existsSync(join(home(id), 'runs'))
       ? readdirSync(join(home(id), 'runs'))
           .filter((f) => f.endsWith('.jsonl'))
@@ -527,9 +662,7 @@ function status() {
       [
         `${m.name.padEnd(6)} ${id.padEnd(6)} ${m.model.padEnd(20)} ${m.operator.padEnd(5)}`,
         m.enabled ? '' : 'paused',
-        t === undefined
-          ? 'not connected'
-          : `agent ${t.agent_id}, token ${t.expires_at > now ? `valid ${Math.round((t.expires_at - now) / 60)} min` : 'expired (refreshes on run)'}`,
+        connection(id, now),
         runs.length === 0 ? 'never run' : `last run ${runs.at(-1)!.replace('.jsonl', '')}`,
         existsSync(operator) ? 'NEEDS OPERATOR' : '',
       ]
@@ -539,7 +672,281 @@ function status() {
   }
 }
 
+interface Slot {
+  take: () => Promise<void>
+  give: () => void
+}
+
+/** The crew-wide cap on runs at once, for members looping in this one process (`loop`). */
+function processSlot(): Slot {
+  let running = 0
+  return {
+    take: async () => {
+      while (running >= crew.harness.maxParallel) await Bun.sleep(5_000)
+      running++
+    },
+    give: () => {
+      running--
+    },
+  }
+}
+
+/**
+ * The same cap across the bots' containers: slot directories in `.slots`, which every container mounts. A slot older
+ * than the longest run is one a container left behind when it stopped mid-run.
+ */
+function fileSlot(id: string): Slot {
+  const dir = join(stateRoot, '.slots')
+  const stale = (runTimeout(id) + 10) * 60_000
+  let held: string | null = null
+  const claim = (path: string) => {
+    try {
+      mkdirSync(path)
+      writeFileSync(join(path, 'owner'), id)
+      return true
+    } catch {
+      const age = Date.now() - (statSync(path, { throwIfNoEntry: false })?.mtimeMs ?? Date.now())
+      if (age > stale) rmSync(path, { recursive: true, force: true })
+      return false
+    }
+  }
+  // Slots this member held when its container last stopped are free again.
+  for (const slot of existsSync(dir) ? readdirSync(dir) : []) {
+    const owner = join(dir, slot, 'owner')
+    if (existsSync(owner) && readFileSync(owner, 'utf8') === id)
+      rmSync(join(dir, slot), { recursive: true, force: true })
+  }
+  return {
+    take: async () => {
+      mkdirSync(dir, { recursive: true })
+      for (;;) {
+        for (let i = 0; i < crew.harness.maxParallel && held === null; i++)
+          if (claim(join(dir, String(i)))) held = join(dir, String(i))
+        if (held !== null) return
+        await Bun.sleep(5_000)
+      }
+    },
+    give: () => {
+      if (held !== null) rmSync(held, { recursive: true, force: true })
+      held = null
+    },
+  }
+}
+
+/**
+ * One run, started for a reason. A nudge's text becomes its operator note and is set aside as the run starts, so it
+ * acts once; a run that did not start (one already going) puts it back for the next pass.
+ */
+async function wake(id: string, reason: string, model: string | undefined): Promise<number | null> {
+  const nudgePath = join(home(id), 'agent', 'state', 'nudge')
+  const nudge = existsSync(nudgePath) ? readFileSync(nudgePath, 'utf8').trim() : ''
+  if (nudge !== '') renameSync(nudgePath, `${nudgePath}.${Date.now()}`)
+  console.log(`${crew.members[id]?.name ?? id}: waking, ${reason}${model === undefined ? '' : ` (on ${model})`}`)
+  const code = await run(id, nudge, model)
+  if (code === null && nudge !== '') appendFileSync(nudgePath, `${nudge}\n`)
+  return code
+}
+
+/** Why a member should not wake although it has a reason: the relay's gas or its daily run cap. */
+async function holdReason(id: string, m: Member, reason: string): Promise<string | null> {
+  // Fail closed: an unreadable relay balance is treated as empty.
+  const relay = await relayMon().catch(() => 0)
+  if (relay < crew.harness.relayFloorMon)
+    return `${m.name}: ${reason}, but the relay holds ${relay} MON (floor ${crew.harness.relayFloorMon}); not waking`
+  const today = runsToday(id)
+  if (today >= crew.harness.maxRunsPerDay)
+    return `${m.name}: ${reason}, but it already ran ${today} times today (cap ${crew.harness.maxRunsPerDay})`
+  return null
+}
+
+/** A member's routine, forever: check for work, wake when there is a reason and nothing holds it back, sleep. */
+async function memberLoop(id: string, m: Member, minutes: number, slot: Slot) {
+  let failures = 0
+  for (;;) {
+    let reason: string | null = null
+    try {
+      reason = await wakeReason(id)
+      if (reason === null) console.log(`${m.name}: idle`)
+    } catch (error) {
+      // A failed check is not a reason to spend a model run; the next pass checks again.
+      console.log(`${m.name}: wake check failed (${String(error).slice(0, 80)}); not waking`)
+    }
+    const blocked = reason === null ? null : await holdReason(id, m, reason)
+    if (blocked !== null) console.log(blocked)
+    else if (reason !== null) {
+      await slot.take()
+      try {
+        const code = await wake(id, reason, failures >= crew.harness.fallbackAfter ? m.fallbackModel : undefined)
+        if (code !== null) failures = code === 0 ? 0 : failures + 1
+      } catch (error) {
+        failures++
+        console.error(`${id}: ${String(error)}`)
+      } finally {
+        slot.give()
+      }
+    }
+    await Bun.sleep(minutes * 60_000)
+  }
+}
+
+/** A bot's container runs this: its own routine every `minutes`, within the run cap it shares with the others. */
+async function serve(id: string, minutes: number) {
+  const [, m] = memberOf(id)
+  console.log(
+    `${m.name}: serving ${crew.board.origin} every ${minutes} min (crew-wide cap ${crew.harness.maxParallel})`,
+  )
+  await memberLoop(id, m, minutes, fileSlot(id))
+}
+
+/** Moves a member's OAuth files into `secrets/` (root-only) for its container and records its Agent ID for labels. */
+function containerize(id: string) {
+  memberOf(id)
+  const script = [
+    'set -e',
+    'cd /m',
+    'if [ -f token.json ]; then jq -r .agent_id token.json > agent-id; fi',
+    'mkdir -p secrets',
+    'for f in token.json client.json login.json; do if [ -f "$f" ]; then mv "$f" secrets/; fi; done',
+    'chown -R 0:0 secrets',
+    'chmod 700 secrets',
+    'find secrets -type f -exec chmod 600 {} +',
+  ].join('; ')
+  const moved = spawnSync(
+    'docker',
+    ['run', '--rm', '--user', '0:0', '--network', 'none', '-v', `${home(id)}:/m`, IMAGE, 'sh', '-c', script],
+    { stdio: 'inherit' },
+  )
+  if (moved.status !== 0) throw new Error(`${id}: its OAuth files could not be moved`)
+  console.log(`${id}: OAuth files are root-only in ${join(home(id), 'secrets')}; start it with "up ${id}"`)
+}
+
+/** The source a container runs: a `git archive` of this commit, so editing the working tree never changes a bot. */
+function snapshot(): { sha: string; source: string } {
+  const sha = spawnSync('git', ['-C', repo, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).stdout.trim()
+  const source = join(repo, '.crew', 'source', sha)
+  if (!existsSync(source)) {
+    mkdirSync(source, { recursive: true })
+    const tar = spawnSync(
+      'bash',
+      ['-c', `git -C "$0" archive "$1" crew infra skill | tar -x -C "$2"`, repo, sha, source],
+      {
+        stdio: 'inherit',
+      },
+    )
+    if (tar.status !== 0) throw new Error('could not snapshot the crew source')
+  }
+  return { sha, source }
+}
+
+interface Mounts {
+  sha: string
+  source: string
+  codex: string
+  grok: string
+  forge: string
+  bun: string
+}
+
+/** One bot's compose service: its env file (0600, only the variables its member lists), limits, labels and mounts. */
+function botService(id: string, m: Member, e: Record<string, string>, at: Mounts) {
+  const envFile = join(repo, '.crew', 'env', `${id}.env`)
+  const vars = [
+    `CLIPROXY_API_KEY=${e.CLIPROXY_API_KEY ?? ''}`,
+    ...m.env.map((v) => (v.includes('=') ? v : `${v}=${e[v] ?? ''}`)),
+  ]
+  writeFileSync(envFile, `${vars.join('\n')}\n`, { mode: 0o600 })
+  chmodSync(envFile, 0o600)
+  const agentFile = join(home(id), 'agent-id')
+  const agentId = existsSync(agentFile) ? readFileSync(agentFile, 'utf8').trim() : ''
+  const { cpus, memory } = m.resources ?? crew.harness.resources
+  const state = home(id)
+  return {
+    image: IMAGE,
+    container_name: bot(id),
+    user: '0:0',
+    init: true,
+    restart: 'unless-stopped',
+    working_dir: '/crew/src',
+    command: ['bun', '/crew/src/crew/bin/crew.ts', 'serve', id, String(crew.harness.loopMinutes)],
+    env_file: [envFile],
+    environment: {
+      CREW_IN_CONTAINER: '1',
+      CREW_STATE_ROOT: '/crew/state',
+      CREW_STAGE: crew.board.stage,
+      CREW_GROK_BIN: basename(at.grok),
+    },
+    cpus,
+    mem_limit: memory,
+    memswap_limit: memory,
+    pids_limit: 1024,
+    cpu_shares: crew.harness.cpuShares,
+    security_opt: ['no-new-privileges:true'],
+    cap_drop: ['ALL'],
+    cap_add: ['CHOWN', 'DAC_OVERRIDE', 'FOWNER', 'SETUID', 'SETGID'],
+    networks: ['crew'],
+    stop_grace_period: '30s',
+    labels: {
+      'sidequest.agent.id': agentId,
+      'sidequest.agent.name': m.name,
+      'sidequest.agent.member': id,
+      'sidequest.agent.harness': m.harness ?? 'codex',
+      'sidequest.agent.model': m.model,
+      'sidequest.agent.profile': agentId === '' ? '' : `${crew.board.origin}/agent/${agentId}`,
+      'sidequest.board': crew.board.origin,
+      'sidequest.source': at.sha,
+    },
+    volumes: [
+      `${state}:/crew/state/${id}`,
+      `${join(stateRoot, '.slots')}:/crew/state/.slots`,
+      `${join(state, 'agent')}:/crew/agent`,
+      `${join(state, 'home')}:/home/agent`,
+      `${at.source}:/crew/src:ro`,
+      `${join(at.source, 'crew', 'shared')}:/crew/shared:ro`,
+      `${join(at.source, 'skill')}:/crew/skill:ro`,
+      `${at.codex}:/opt/codex:ro`,
+      `${dirname(at.grok)}:/opt/grok:ro`,
+      `${at.forge}:/opt/foundry:ro`,
+      `${at.bun}:/opt/bin/bun:ro`,
+    ],
+  }
+}
+
+/** Writes the crew's compose file, one always-on container per connected member, and starts it (or just `only`). */
+function up(only: string[]) {
+  const e = env()
+  const grok = bin('grok')
+  const at: Mounts = {
+    ...snapshot(),
+    codex: dirname(dirname(bin('codex'))),
+    grok,
+    forge: dirname(bin('forge')),
+    bun: bin('bun'),
+  }
+  mkdirSync(join(stateRoot, '.slots'), { recursive: true })
+  mkdirSync(join(repo, '.crew', 'env'), { recursive: true, mode: 0o700 })
+  const members = Object.entries(crew.members).filter(([id, m]) => m.enabled && existsSync(join(home(id), 'secrets')))
+  const services = Object.fromEntries(members.map(([id, m]) => [bot(id), botService(id, m, e, at)]))
+  const file = join(repo, '.crew', 'compose.json')
+  writeFileSync(file, json({ name: PROJECT, services, networks: { crew: { name: PROJECT } } }))
+  const started = spawnSync('docker', ['compose', '-f', file, 'up', '-d', '--remove-orphans', ...only.map(bot)], {
+    stdio: 'inherit',
+  })
+  process.exitCode = started.status ?? 1
+}
+
+const compose = (...args: string[]) =>
+  spawnSync('docker', ['compose', '-f', join(repo, '.crew', 'compose.json'), ...args], { stdio: 'inherit' })
+
 const [command, a, b] = process.argv.slice(2)
+// On the host, a containerized member's commands run in its container: only there is its refresh token readable.
+const relayed = !inContainer && ['login', 'run', 'wake', 'call'].includes(command ?? '') && a !== undefined
+if (relayed && existsSync(join(home(a), 'secrets'))) {
+  if (!botRunning(a)) throw new Error(`${a} runs in ${bot(a)}, which is not up; start it with "up ${a}"`)
+  const inside = spawnSync('docker', ['exec', bot(a), 'bun', '/crew/src/crew/bin/crew.ts', ...process.argv.slice(2)], {
+    stdio: 'inherit',
+  })
+  process.exit(inside.status ?? 1)
+}
 if (command === 'login') await login(a!, b)
 else if (command === 'run') await run(memberOf(a)[0], b)
 else if (command === 'status') status()
@@ -553,16 +960,18 @@ else if (command === 'call')
       2,
     ),
   )
+else if (command === 'serve') await serve(memberOf(a)[0], Number(b ?? crew.harness.loopMinutes))
+else if (command === 'containerize') containerize(memberOf(a)[0])
+else if (command === 'up') up(process.argv.slice(3))
+else if (command === 'down') compose('down')
+else if (command === 'logs')
+  spawnSync('docker', ['logs', '--tail', '100', '-f', bot(memberOf(a)[0])], { stdio: 'inherit' })
 else if (command === 'loop') {
-  // Each enabled, connected member loops on its own (start staggered), at most maxParallel containers at once.
+  // Each enabled, connected member loops on its own (start staggered), at most maxParallel runs at once.
   const minutes = Number(a ?? 15)
-  let running = 0
-  const slot = async () => {
-    while (running >= crew.harness.maxParallel) await Bun.sleep(5_000)
-    running++
-  }
+  const slot = processSlot()
   const members = Object.entries(crew.members).filter(
-    ([id, m]) => m.enabled && existsSync(join(home(id), 'token.json')),
+    ([id, m]) => m.enabled && existsSync(secretPath(id, 'token.json')),
   )
   console.log(
     `crew loop: ${members.map(([, m]) => m.name).join(', ')} every ${minutes} min, at most ${crew.harness.maxParallel} at once`,
@@ -570,58 +979,13 @@ else if (command === 'loop') {
   await Promise.all(
     members.map(async ([id, m], i) => {
       await Bun.sleep(i * 30_000)
-      let failures = 0
-      for (;;) {
-        let reason: string | null = null
-        let checked = true
-        try {
-          reason = await wakeReason(id)
-        } catch (error) {
-          // A failed check is not a reason to spend a model run; the next pass checks again.
-          checked = false
-          console.log(`${m.name}: wake check failed (${(error as Error).message.slice(0, 80)}); not waking`)
-        }
-        // Fail closed: an unreadable relay balance is treated as empty.
-        const relay = reason === null ? Infinity : await relayMon().catch(() => 0)
-        const today = runsToday(id)
-        if (!checked) {
-          // already logged
-        } else if (reason === null) console.log(`${m.name}: idle`)
-        else if (relay < crew.harness.relayFloorMon)
-          console.log(
-            `${m.name}: ${reason}, but the relay holds ${relay} MON (floor ${crew.harness.relayFloorMon}); not waking`,
-          )
-        else if (today >= crew.harness.maxRunsPerDay)
-          console.log(
-            `${m.name}: ${reason}, but it already ran ${today} times today (cap ${crew.harness.maxRunsPerDay})`,
-          )
-        else {
-          await slot()
-          const model = failures >= crew.harness.fallbackAfter ? m.fallbackModel : undefined
-          console.log(
-            `${m.name}: waking, ${reason}${model === undefined ? '' : ` (on ${model} after ${failures} failed runs)`}`,
-          )
-          // A nudge's text becomes the run's operator note; it is set aside when the run starts, so it acts once.
-          const nudgePath = join(home(id), 'agent', 'state', 'nudge')
-          const nudge = existsSync(nudgePath) ? readFileSync(nudgePath, 'utf8').trim() : ''
-          if (nudge !== '') renameSync(nudgePath, `${nudgePath}.${Date.now()}`)
-          try {
-            const code = await run(id, nudge, model)
-            if (code !== null) failures = code === 0 ? 0 : failures + 1
-          } catch (error) {
-            failures++
-            console.error(`${id}: ${(error as Error).message}`)
-          } finally {
-            running--
-          }
-        }
-        await Bun.sleep(minutes * 60_000)
-      }
+      await memberLoop(id, m, minutes, slot)
     }),
   )
 } else {
   console.error(
-    'usage: crew.ts login <member> [url] | run <member> [note] | loop [minutes] | status | wake <member> | call <member> <tool> [json]',
+    'usage: crew.ts login <member> [url] | run <member> [note] | loop [minutes] | status | wake <member> | call <member> <tool> [json]\n' +
+      '       crew.ts containerize <member> | up [member…] | down | logs <member> | serve <member> [minutes] (in its container)',
   )
   process.exit(2)
 }

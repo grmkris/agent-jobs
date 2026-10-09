@@ -2,8 +2,9 @@
 
 A crew of AI agents that take paid jobs on Sidequest (dev: https://dev.sidequest.exchange, Monad testnet). Each member is
 a **hosted agent** its operator created on the site: Sidequest's executor signs as the agent's wallet and its relay pays
-the gas, so no member holds a private key. A member runs headless in its own `sidequest-crew` container, one routine
-pass at a time: `inbox`, its directory listing, then the work it has taken (the worker skill, `skill/worker/SKILL.md`).
+the gas, so no member holds a private key. Each member is one always-on Docker container, `sq-bot-<member>`, that checks
+for work every few minutes and runs one routine pass at a time when there is some: `inbox`, its directory listings,
+then the work it has taken (the worker skill, `skill/worker/SKILL.md`).
 
 | Member   | Role                      | Operator | Harness, model (via cliproxy)    | Service it lists               |
 | -------- | ------------------------- | -------- | -------------------------------- | ------------------------------ |
@@ -20,8 +21,8 @@ A member's `harness` is Codex CLI unless it says `grok` (Grok's own CLI, with th
 token written into the member's `~/.grok/config.toml`). Either way the model calls go through the box's cliproxy, so
 only `gpt-*` members use the Codex subscription. After `harness.fallbackAfter` failed runs in a row a member runs on
 its `fallbackModel` until a run succeeds. `scopes` narrows what its login asks for: Grok Bot drops `sidequest:hire`, so
-it can work but never spend. Each run is one container capped by `resources` (default 1 CPU, 2 GB), pids-limited and
-weighted below CI (`cpuShares` 512); `loop` runs members in parallel, at most `maxParallel` at once, and stops a run
+it can work but never spend. Each bot's container is capped by `resources` (default 1 CPU, 2 GB), pids-limited and
+weighted below CI (`cpuShares` 512); at most `maxParallel` bots run a model at once across the crew, and a run stops
 after `runTimeoutMinutes`. The relay guard skips every wake while the board's relay holds less than
 `harness.relayFloorMon` (2.5 MON), so the crew never drains the gas that sponsors everyone else.
 
@@ -74,20 +75,35 @@ A run that needs the operator (an approval, say) writes the link to `.crew/hoste
 and `status` shows it. Tokens refresh before each run when they would expire before it could finish. Secrets come from
 `.env.local` and `~/.config/secrets.env`, and only the variables a member's `env` lists enter its container.
 
-## Start and stop the loop
+## Run the crew as containers
 
-The loop runs in tmux window `agent-jobs:crew`, started from the repository root in an interactive shell (so
-`~/.config/secrets.env` and the cliproxy key are loaded):
+Each connected member runs in its own container, `sq-bot-<member>` (compose project `sidequest-crew`, bridge network
+`sidequest-crew`, `restart: unless-stopped`). Its supervisor (`crew.ts serve`) checks for work every
+`harness.loopMinutes` and, when there is a reason and the guards allow it, starts the harness as uid 1000 with
+`setpriv` (no groups, no capabilities, no setuid). The member's OAuth files sit in `.crew/hosted/<member>/secrets/`,
+owned by root with mode 700, so a run cannot read the refresh token; it gets only the hour-long access token, as
+before. Model calls reach the box's cliproxy at its tailnet address (`harness.containerBaseUrl`).
 
-    tmux new-window -t agent-jobs -n crew
-    tmux send-keys -t agent-jobs:crew 'bun crew/bin/crew.ts loop 10 2>&1 | tee -a .crew/hosted/loop.log' Enter
+    docker build -t sidequest-crew crew/sandbox
+    bun crew/bin/crew.ts containerize <member>   # once per member: OAuth files into secrets/, Agent ID for the labels
+    bun crew/bin/crew.ts up [member…]           # write .crew/compose.json and start (or recreate) the bots
+    bun crew/bin/crew.ts logs <member>          # = docker logs -f sq-bot-<member>
+    bun crew/bin/crew.ts down                   # stop and remove every bot
 
-Start the window with a shell first, as above: if the loop is the window's own command, Ctrl-C closes the window.
-To stop it, wait until no member is mid-run (`docker ps --filter ancestor=sidequest-crew` is empty; a run cut off
-mid-send leaves a saved operation key the next run resumes, but it is cleaner not to), then press Ctrl-C in the window.
-Nothing else needs stopping: the members' tokens, cursors and scratch stay in `.crew/hosted/<member>/`, so a restart
-picks up where the loop left off. Tokens older than their refresh token's life need `login` again; `status` says so.
+    docker ps --filter label=sidequest.agent.id   # the crew; labels carry Agent ID, name, harness, model, profile URL
+    docker inspect sq-bot-reel                    # limits, mounts, labels, the source commit it runs
+
+A container runs a `git archive` of the commit `up` was called at (`.crew/source/<sha>/`, `sidequest.source` label),
+so editing the working tree never changes a running bot: commit, then `up` again. The harness CLIs are mounted from
+their installed paths at `up` time; after updating codex or grok, run `up` again. Each bot's env file
+(`.crew/env/<member>.env`, mode 600) holds only `CLIPROXY_API_KEY` and the variables its member lists.
+
+Host commands for a containerized member (`call`, `run`, `wake`, `login`) run inside its container with `docker exec`,
+where one lock serialises token refreshes: a refresh token works once, and replaying it revokes the member's grant.
+`publish.ts` goes the same way. A container that stops mid-run frees its run slot (`.crew/hosted/.slots/`) when it
+starts again, or after the longest run plus ten minutes.
 
 Each wake costs relay gas when the member sends anything (about 0.05–0.1 MON per sponsored send on testnet, see
-`docs/sponsorship.md`), and the loop skips every wake while the relay holds less than `relayFloorMon`. Check
-`.crew/hosted/loop.log` and `status` after a restart. Stopped on 7 Oct 2026 at Kris's request after waves 1–3.
+`docs/sponsorship.md`), and a bot skips every wake while the relay holds less than `relayFloorMon`. `loop` still runs
+every member from one host process (as before 9 October, when the crew ran in tmux) for debugging; never run it
+beside the containers.

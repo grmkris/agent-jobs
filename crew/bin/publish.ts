@@ -11,8 +11,9 @@
  *   bun crew/bin/publish.ts seed [n]       post up to n examples not posted yet (default: all)
  *   bun crew/bin/publish.ts status         what was posted, by whom, and when
  *
- * CREW_STAGE picks the board, as for crew.ts. Never run it while the hirer's container runs: both would refresh the
- * same OAuth token.
+ * CREW_STAGE picks the board, as for crew.ts. A hirer in its own container (`crew.ts up`) takes the call inside it,
+ * where one lock serialises token refreshes; a hirer still run from the host must not be mid-run, since both would
+ * refresh the same OAuth token.
  */
 import { spawnSync } from 'node:child_process'
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
@@ -80,7 +81,9 @@ function save(entries: Record<string, Posted>) {
   writeFileSync(journalPath, JSON.stringify(entries, null, 2) + '\n')
 }
 
+/** A host-run hirer mid-run (its throwaway `sq-crew-` container); a containerized hirer is never in the way. */
 function running(member: string): boolean {
+  if (existsSync(join(hosted, member, 'secrets'))) return false
   const ps = spawnSync('docker', ['ps', '--filter', `name=^sq-crew-${member}$`, '--format', '{{.Names}}'], {
     encoding: 'utf8',
   })

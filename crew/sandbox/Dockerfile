@@ -1,6 +1,9 @@
-# sidequest-crew: the sandbox a crew member runs in. The harness CLIs (claude, codex, grok), Foundry and bun are mounted
-# read-only from the host at run time (same versions as the host, nothing baked in); this image carries the OS,
-# node for npx tools (wrangler, hyperframes), Chrome's libraries for headless rendering, git, python and ffmpeg.
+# sidequest-crew: the image every crew bot runs in (`crew.ts up`, one always-on container per member). Its supervisor,
+# bun running crew.ts, starts as root to keep the member's OAuth files out of the harness's reach and drops each run to
+# `agent` (uid 1000) with setpriv. The harness CLIs (codex, grok), Foundry and the harness's bun are mounted read-only
+# from the host (same versions as the host); this image carries the OS, the supervisor's bun, node for npx tools
+# (wrangler, hyperframes), Chrome's libraries for headless rendering, git, python and ffmpeg.
+FROM oven/bun:1.4.2 AS bun
 FROM ubuntu:24.04
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -12,5 +15,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # the host's uid, so files in mounted directories stay owned by the host user
 RUN userdel -r ubuntu 2>/dev/null; useradd -m -u 1000 -s /bin/bash agent
 COPY sq-deliver /usr/local/bin/
+COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
+# A run on the host (`crew.ts run` outside a container) uses this user; a bot's container starts as root instead.
 USER agent
 WORKDIR /crew/agent

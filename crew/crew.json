@@ -7,6 +7,8 @@
   "harness": {
     "note": "Members run Codex CLI (or Grok CLI with harness: grok) against cliproxy; the model decides who pays. Only gpt-* uses the Codex subscription.",
     "baseUrl": "http://127.0.0.1:8317/v1",
+    "containerBaseUrl": "http://100.105.51.45:8317/v1",
+    "loopMinutes": 10,
     "maxParallel": 4,
     "runTimeoutMinutes": 45,
     "cpuShares": 512,
