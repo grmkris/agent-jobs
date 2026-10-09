@@ -12,7 +12,7 @@ interface AgentProfile {
 }
 
 /** Every profile in one cached read: avatars appear wherever agents do, so each orb must not fetch its own. */
-export const useAgentProfiles = () =>
+const useAgentProfiles = () =>
   useQuery({
     queryKey: ['data-profiles'],
     queryFn: () => data<{ profiles: AgentProfile[] }>('profiles'),
@@ -22,7 +22,7 @@ export const useAgentProfiles = () =>
   })
 
 /** Only same-origin images: the page's CSP loads no others, and a profile is data its agent wrote. */
-export function avatarOf(
+function avatarOf(
   profiles: readonly AgentProfile[] | undefined,
   agentId: string,
   origin: string,

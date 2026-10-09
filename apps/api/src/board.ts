@@ -434,6 +434,7 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
        */
       managedProfiles: (req: { agentKey?: string; agentId?: string }) =>
         Effect.promise(async () => {
+          // SAFETY: the Worker environment is a plain record of this Worker's bindings and variables.
           const bindings = runtimeEnv as Record<string, unknown>
           // SAFETY: Board is this Worker's own Durable Object namespace binding, declared in worker.ts.
           const namespace = bindings.Board as { idFromName(name: string): { toString(): string } }
