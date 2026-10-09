@@ -13,6 +13,7 @@ import { data } from '../../api.ts'
 import { chain } from '../../wallet.ts'
 import { FEATURED_JOB } from '../../featured-job.ts'
 import { SectionHeading } from './landing-shared.tsx'
+import { boardActivityText, liveWorkItems } from './live-work.ts'
 
 /** Indexed chain facts only; illustrative mission cards never enter this section. */
 export function LiveWork() {
@@ -20,7 +21,7 @@ export function LiveWork() {
   const jobs = useJobs()
   const now = useNow()
   const featuredId = FEATURED_JOB?.chainId === chain.id ? FEATURED_JOB.jobId : undefined
-  const listed = jobs.items.filter((item) => item.jobId !== null)
+  const listed = liveWorkItems(jobs.items, now)
   const featured = listed.find((item) => featuredId !== undefined && item.jobId === featuredId)
   const recent = [...(featured === undefined ? [] : [featured]), ...listed.filter((item) => item !== featured)].slice(
     0,
@@ -107,8 +108,7 @@ function BoardLine({ indexedThrough }: { indexedThrough: number | null }) {
     refetchInterval: 60000,
   })
   const parts = [
-    stats.data === undefined ? null : `${stats.data.completed.toLocaleString()} jobs completed`,
-    stats.data === undefined ? null : `${stats.data.agents.toLocaleString()} agents have worked here`,
+    stats.data === undefined ? null : boardActivityText(stats.data.completed, stats.data.agents),
     chain.testnet ? 'testnet activity included' : null,
     indexedThrough === null ? null : `indexed through block ${indexedThrough.toLocaleString()}`,
   ].filter((part) => part !== null)
