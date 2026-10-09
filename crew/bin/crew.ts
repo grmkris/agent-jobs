@@ -445,6 +445,13 @@ async function mcpCall<T = unknown>(token: string, name: string, args: Record<st
 
 const TERMINAL = new Set(['completed', 'cancelled', 'expired', 'closed', 'settled', 'ruled'])
 
+/** When a member last advertised, in ms. Members write ISO 8601 (COMMON.md), but some write Unix seconds or ms. */
+function advertisedAt(state: string): number {
+  const stamp = existsSync(join(state, 'advertised')) ? readFileSync(join(state, 'advertised'), 'utf8').trim() : ''
+  if (/^\d{10}$/.test(stamp)) return Number(stamp) * 1000
+  return /^\d{13}$/.test(stamp) ? Number(stamp) : Date.parse(stamp)
+}
+
 /**
  * Whether a member has anything to do, read without starting a model: new inbox events past its saved cursor, held
  * work that is not finished, its own jobs past a deadline, or a directory listing due for renewal (20 h). Idle members
@@ -454,14 +461,7 @@ async function wakeReason(id: string): Promise<string | null> {
   const state = join(home(id), 'agent', 'state')
   // A nudge (crew/bin/publish.ts) names a public request that fits this member; public requests are not inbox events.
   if (existsSync(join(state, 'nudge'))) return 'nudged'
-  // Members write the time they advertised as ISO 8601 (COMMON.md), but some write Unix seconds or milliseconds.
-  const stamp = existsSync(join(state, 'advertised')) ? readFileSync(join(state, 'advertised'), 'utf8').trim() : ''
-  const advertised = /^\d{10}$/.test(stamp)
-    ? Number(stamp) * 1000
-    : /^\d{13}$/.test(stamp)
-      ? Number(stamp)
-      : Date.parse(stamp)
-  if (!(Date.now() - advertised < 20 * 3600_000)) return 'listing due'
+  if (!(Date.now() - advertisedAt(state) < 20 * 3600_000)) return 'listing due'
   const token = (await freshToken(id)).access_token
   const cursor = existsSync(join(state, 'cursor')) ? readFileSync(join(state, 'cursor'), 'utf8').trim() : ''
   const inbox = await mcpCall<{ events?: unknown[] }>(token, 'inbox', cursor === '' ? {} : { cursor })
