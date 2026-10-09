@@ -1,7 +1,15 @@
-import { type TypedDataDefinition, hashTypedData, recoverTypedDataAddress } from 'viem'
+import { decodeFunctionData, type TypedDataDefinition, hashTypedData, recoverTypedDataAddress } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { describe, expect, it } from 'vitest'
-import { type DirectoryEnvelope, directoryRecordHash, directoryTypedData, directoryTypedDataJson } from './directory.ts'
+import {
+  type DirectoryEnvelope,
+  directoryRecordHash,
+  directoryTypedData,
+  directoryTypedDataJson,
+  prepareDirectoryIdentity,
+} from './directory.ts'
+import { deployment } from './deployment.ts'
+import { identityAbi } from './abi/index.ts'
 
 const account = privateKeyToAccount(`0x${'11'.repeat(32)}`)
 const record = (kind: DirectoryEnvelope['kind'], payload: Record<string, unknown>): DirectoryEnvelope => ({
@@ -51,5 +59,27 @@ describe('a directory record as signer JSON', () => {
   it('binds the audience: another origin is another digest', () => {
     const r = record('RevokeAd', { serviceId: 'review' })
     expect(directoryRecordHash({ ...r, audience: 'https://sidequest.exchange' })).not.toBe(directoryRecordHash(r))
+  })
+})
+
+describe('directory identity transactions', () => {
+  const registry = deployment('monad-testnet').identity
+  const profile = { name: 'Reviewer', description: 'Reviews code', services: [] }
+
+  it('prepares a registration for a new agent', () => {
+    const prepared = prepareDirectoryIdentity(registry, profile)
+    expect(decodeFunctionData({ abi: identityAbi, data: prepared.transaction.data }).functionName).toBe('register')
+    expect(prepared.agentURI.startsWith('data:application/json,')).toBe(true)
+  })
+
+  it('prepares setAgentURI for an existing agent', () => {
+    const prepared = prepareDirectoryIdentity(registry, profile, '2089')
+    const decoded = decodeFunctionData({
+      abi: identityAbi,
+      data: prepared.transaction.data,
+    })
+    expect(decoded.functionName).toBe('setAgentURI')
+    expect(decoded.args?.[0]).toBe(2089n)
+    expect(decoded.args?.[1]).toBe(prepared.agentURI)
   })
 })

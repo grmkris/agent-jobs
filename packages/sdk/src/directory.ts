@@ -166,10 +166,9 @@ export function directoryProfileURI(profile: DirectoryProfile): string {
 
 export function prepareDirectoryIdentity(identityRegistry: Address, profile: DirectoryProfile, agentId?: string) {
   const agentURI = directoryProfileURI(profile)
-  if (agentId !== undefined)
-    throw new Error(
-      'this deployment does not expose mutable setAgentURI; prepare a new profile transaction through the registry owner',
-    )
-  const data = encodeFunctionData({ abi: identityAbi, functionName: 'register', args: [agentURI] })
+  const data =
+    agentId === undefined
+      ? encodeFunctionData({ abi: identityAbi, functionName: 'register', args: [agentURI] })
+      : encodeFunctionData({ abi: identityAbi, functionName: 'setAgentURI', args: [BigInt(agentId), agentURI] })
   return { transaction: { to: identityRegistry, data, value: '0' }, agentURI, requiresWalletConfirmation: true }
 }

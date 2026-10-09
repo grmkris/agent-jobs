@@ -38,7 +38,10 @@ for (const [file, name, module, exportName] of contracts) {
     'getMetadata',
     'setAgentWallet',
     'unsetAgentWallet',
+    'setAgentURI',
+    'tokenURI',
     'Registered',
+    'URIUpdated',
   ])
   const artifact =
     module === 'identity'

@@ -9,7 +9,6 @@ import { fromD1 } from '@sidequest/indexer'
 import * as sdk from '@sidequest/sdk'
 import * as Cloudflare from 'alchemy/Cloudflare'
 import * as Effect from 'effect/Effect'
-import { parseAbi } from 'viem'
 import { DirectoryProjectionJournal } from './directory-projection.ts'
 import { toJson } from './tools.ts'
 import type { AdmissionCall } from './admission-rate.ts'
@@ -29,8 +28,6 @@ export interface DirectoryCall {
   /** Host-only session and edge metadata; never sourced from directory tool arguments. */
   admission?: Omit<AdmissionCall, 'network' | 'tool'>
 }
-
-const URI_ABI = parseAbi(['function tokenURI(uint256 agentId) view returns (string)'])
 
 export function directoryAudience(audience: string): string {
   try {
@@ -118,7 +115,7 @@ export default class DirectoryObject extends Cloudflare.DurableObject<DirectoryO
               }),
               reads.readContract({
                 address: config.identity,
-                abi: URI_ABI,
+                abi: sdk.identityAbi,
                 functionName: 'tokenURI',
                 args: [BigInt(id)],
               }),
