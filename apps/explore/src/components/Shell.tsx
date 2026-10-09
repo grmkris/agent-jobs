@@ -60,7 +60,7 @@ function places(mine: ReadonlySet<string>): Place[] {
 
 /** The brand mark (src/brand/mark.svg), in the tint so it follows light, dark and a tint change. */
 /** The one disclosure Sidequest shows: unaudited contracts, at the user's own risk, with the source a click away. */
-export function RiskNote({ className }: { className?: string }) {
+function RiskNote({ className }: { className?: string }) {
   return (
     <p className={cn('text-xs text-muted-foreground', className)}>
       Unaudited contracts. Use at your own risk.{' '}
