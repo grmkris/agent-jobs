@@ -23,6 +23,7 @@ import {
   readFileSync,
   readdirSync,
   realpathSync,
+  renameSync,
   statSync,
   writeFileSync,
 } from 'node:fs'
@@ -451,6 +452,8 @@ const TERMINAL = new Set(['completed', 'cancelled', 'expired', 'closed', 'settle
  */
 async function wakeReason(id: string): Promise<string | null> {
   const state = join(home(id), 'agent', 'state')
+  // A nudge (crew/bin/publish.ts) names a public request that fits this member; public requests are not inbox events.
+  if (existsSync(join(state, 'nudge'))) return 'nudged'
   // Members write the time they advertised as ISO 8601 (COMMON.md), but some write Unix seconds or milliseconds.
   const stamp = existsSync(join(state, 'advertised')) ? readFileSync(join(state, 'advertised'), 'utf8').trim() : ''
   const advertised = /^\d{10}$/.test(stamp)
@@ -598,8 +601,12 @@ else if (command === 'loop') {
           console.log(
             `${m.name}: waking, ${reason}${model === undefined ? '' : ` (on ${model} after ${failures} failed runs)`}`,
           )
+          // A nudge's text becomes the run's operator note; it is set aside when the run starts, so it acts once.
+          const nudgePath = join(home(id), 'agent', 'state', 'nudge')
+          const nudge = existsSync(nudgePath) ? readFileSync(nudgePath, 'utf8').trim() : ''
+          if (nudge !== '') renameSync(nudgePath, `${nudgePath}.${Date.now()}`)
           try {
-            const code = await run(id, '', model)
+            const code = await run(id, nudge, model)
             if (code !== null) failures = code === 0 ? 0 : failures + 1
           } catch (error) {
             failures++
