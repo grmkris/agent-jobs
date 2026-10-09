@@ -80,6 +80,27 @@ Receipts: [contracts](evidence/testnet-g1e/2026-10-08-contracts.json),
 [pool](evidence/testnet-g1e/2026-10-08-pool.json), [refunds](evidence/testnet-g1e/2026-10-08-refunds.json),
 [manifest](evidence/testnet-g1e/refund-manifest.json), and [Privy](evidence/testnet-g1e/2026-10-08-privy.json).
 
+### G1e released public and FLOW checks — 9 October 2026
+
+The orchestrator released `62a6c582e1199a6bdbb908bd8630f10f0a8c1eb3` to dev and prod (CI runs
+[37858656947](https://github.com/grmkris/sidequest/actions/runs/37858656947) and
+[37860512444](https://github.com/grmkris/sidequest/actions/runs/37860512444)). Both public stages read healthy
+Monad testnet 10143, writes open, `mainnetLive:false`, the fresh G1e pair and progressing indexers. One faucet claim
+delivered 1,000 SIDE plus 1,000 mUSD and 1,000 mEUR; pool quote checks passed. One arbiter runs in
+`sidequest-g1e-arbiter`, signed into both boards with no disputes; this is startup/heartbeat evidence only.
+
+The existing FLOW wallets completed bonded job 2 (1 mUSD gross, 0.7 mUSD worker payout, 0.3 mUSD treasury fee and
+both bonds returned) and an eight-second early cancel of job 3 (full bond returned). They then cancelled never-activated
+job 1 after the 600-second grace: 2.5 SIDE was forfeited to the Safe treasury and 7.5 SIDE released. The Holding
+`BondForfeited` and vault `Forfeited` logs share one receipt/block; the Holding event and bond outcomes are indexed on
+both stages, while the vault event is verified from the live RPC log. This is bounded FLOW operator evidence, not
+genuine-user or hosted managed-signer acceptance, and all stages remain testnet.
+
+Receipts: [public/faucet](evidence/testnet-g1e/2026-10-08-public-faucet.json),
+[arbiter](evidence/testnet-g1e/2026-10-08-arbiter.json), [GO 13](evidence/testnet-g1e/2026-10-08-go13-index.json),
+[GO 14](evidence/testnet-g1e/2026-10-09-go14-index.json), and
+[late-cancel chain evidence](evidence/testnet-g1e/2026-10-09-late-cancel.json).
+
 The latest hosted MCP metadata release is `a234a7f`, deployed to dev and promoted to prod on 8 October 2026. It serves
 public and tenant Server Cards, the domain AI Catalog and the HTTPS registry proof. The exact CI, schema, live endpoint
 and registry receipts are in [MCP metadata evidence](evidence/mcp-metadata/2026-10-08-a234a7f-release.json). The public

@@ -622,3 +622,31 @@ Receipts: [deployment](evidence/testnet-g1e/2026-10-08-contracts.json),
 
 No hosted release, authenticated host acceptance, mainnet transaction or later live hire check is established by
 these receipts. Those remain separate, explicitly authorized release and acceptance steps.
+
+## G1e released public checks and FLOW operator evidence (9 Oct 2026)
+
+The orchestrator released `62a6c582e1199a6bdbb908bd8630f10f0a8c1eb3` to dev and prod after the G1e cutover. Dev CI
+run [37858656947](https://github.com/grmkris/sidequest/actions/runs/37858656947) and prod CI run
+[37860512444](https://github.com/grmkris/sidequest/actions/runs/37860512444) are the source/deployment identity. Public
+readbacks on both origins showed healthy Monad testnet (10143), writes open, `mainnetLive:false`, the fresh G1e
+core/Holding pair and progressing indexers. The FLOW creator's single faucet claim delivered exactly 1,000 SIDE,
+1,000 mUSD and 1,000 mEUR; the pool quote directions also passed. This is public and chain receipt evidence, not
+managed-signer acceptance.
+
+GO 12 restarted exactly one arbiter in tmux session `sidequest-g1e-arbiter`, with authenticated sign-ins and empty
+dispute lists on both boards. Startup and heartbeat evidence do not claim a ruling. GO 13 used the existing FLOW
+creator/worker wallets for a bonded quote hire: job 2 completed Paid with a 1 mUSD gross reward, 0.7 mUSD worker
+payout, 0.3 mUSD treasury fee and both 10 SIDE bonds returned. The separate job 3 early cancel occurred eight
+seconds after publish and returned the full 10 SIDE without a forfeit. Both public indexers reported these states and
+all nine receipts in their timelines.
+
+GO 14 then cancelled never-activated job 1 at or after the 600-second grace: creator nonce 361 succeeded at block
+69392758. The live Holding and vault logs share the same receipt and block; 2.5 SIDE went to the Safe treasury and
+7.5 SIDE was released. Both public indexers reported the Holding `BondForfeited` and exact bond outcomes. The vault
+`Forfeited` event is verified from the live RPC log and its indexed topics, correlated to the Holding event by the
+shared receipt. These FLOW checks are bounded operator-wallet proof, not genuine-user consent or hosted managed
+signing; mainnet remains untested.
+
+Receipts: [public checks and faucet](evidence/testnet-g1e/2026-10-08-public-faucet.json),
+[arbiter](evidence/testnet-g1e/2026-10-08-arbiter.json), [FLOW hire and early cancel](evidence/testnet-g1e/2026-10-08-go13-index.json),
+[late cancel](evidence/testnet-g1e/2026-10-09-go14-index.json), and [late-cancel chain evidence](evidence/testnet-g1e/2026-10-09-late-cancel.json).
