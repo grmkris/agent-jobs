@@ -1,4 +1,4 @@
-/* One agent prompt, with plain benefits and examples in the page's existing paper and ink. */
+/* Ask → delivered, in the existing paper and ink. Examples stay distinct from live records. */
 .landing-content {
   display: grid;
   gap: 4.5rem;
@@ -27,8 +27,7 @@
 }
 
 .landing-content h1,
-.landing-section-heading h2,
-.audience-card h2 {
+.landing-section-heading h2 {
   font-family: var(--font-display);
   font-weight: 400;
   letter-spacing: -0.045em;
@@ -57,45 +56,353 @@
   margin-top: 0.8rem;
 }
 
-.landing-audience {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 3rem;
-  border-top: 1px solid var(--border);
-  padding-top: 2.5rem;
+/* The reward-token choice belongs beside the prompt, without a price pitch. */
+.landing-value-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
 }
 
-.audience-card {
-  display: grid;
-  align-content: start;
-  gap: 0.85rem;
-}
-
-.audience-card h2 {
-  font-size: 2.5rem;
-  line-height: 1.1;
-}
-
-.audience-card ul {
-  display: grid;
-  gap: 0.7rem;
-  padding-left: 1rem;
-  list-style: disc;
+.landing-value-chips li {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.4rem 0.75rem;
   color: var(--muted-foreground);
-  font-size: 0.92rem;
-  line-height: 1.65;
+  font-size: 0.72rem;
+  line-height: 1.4;
 }
 
-.audience-card li::marker {
+.landing-value-chips li:last-child {
+  border-color: color-mix(in oklch, var(--primary) 30%, var(--border));
+  background: color-mix(in oklch, var(--primary) 5%, var(--background));
   color: var(--primary);
 }
 
-.audience-note {
-  border-top: 1px solid var(--border);
-  padding-top: 0.85rem;
-  color: var(--muted-foreground);
-  font-size: 0.72rem;
+.landing-hero {
+  scroll-margin-top: 5rem;
+}
+
+.landing-pairs {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.landing-pairs > .landing-section-heading {
+  text-align: center;
+  margin-bottom: 0.75rem;
+}
+
+.deliverable-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  align-items: center;
+  gap: 3rem;
+  padding: 1.5rem 0;
+}
+
+.deliverable-ask {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.deliverable-ask blockquote {
+  border: 1px solid var(--border);
+  border-radius: 1.25rem 1.25rem 0.25rem 1.25rem;
+  background: var(--muted);
+  padding: 1.25rem 1.5rem;
+  font-size: 1rem;
   line-height: 1.6;
+  text-wrap: pretty;
+}
+
+.deliverable-ask > svg {
+  width: 1.2rem;
+  height: 1.2rem;
+  flex-shrink: 0;
+  color: var(--muted-foreground);
+}
+
+.deliverable-card {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 0.85rem;
+  background: var(--card);
+  color: var(--card-foreground);
+  padding: 1.25rem;
+  box-shadow: 0 3px 12px color-mix(in oklch, var(--foreground) 3%, transparent);
+}
+
+.deliverable-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.deliverable-meta > svg {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+}
+
+.deliverable-card h3 {
+  margin-top: 1rem;
+  font-weight: 500;
+  font-size: 1.05rem;
+  line-height: 1.5;
+}
+
+.deliverable-card .deliverable-code-title {
+  font-family: var(--font-mono);
+  font-size: 0.88rem;
+  overflow-wrap: anywhere;
+}
+
+.deliverable-diff {
+  display: flex;
+  gap: 0.65rem;
+  margin-top: 0.5rem;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+}
+
+.deliverable-diff span:first-child {
+  color: var(--success-text);
+}
+
+.deliverable-diff span:last-child {
+  color: var(--destructive-text);
+}
+
+.deliverable-checks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 1.35rem;
+  color: var(--success-text);
+  font-size: 0.72rem;
+}
+
+.deliverable-checks > span:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.deliverable-checks svg {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
+.deliverable-file-chip {
+  border: 1px solid var(--border);
+  border-radius: 0.3rem;
+  padding: 0.2rem 0.45rem;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  line-height: 1.5;
+}
+
+.deliverable-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  border-top: 1px solid var(--border);
+  margin-top: 1.25rem;
+  padding-top: 0.9rem;
+}
+
+.deliverable-status {
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--success) 10%, transparent);
+  color: var(--success-text);
+  padding: 0.25rem 0.5rem;
+  font-size: 0.65rem;
+  line-height: 1.5;
+}
+
+.deliverable-example,
+.deliverable-fictional {
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  font-weight: 400;
+}
+
+.deliverable-icon-grid {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  gap: 0.35rem;
+  margin-top: 1rem;
+}
+
+.deliverable-icon-tile {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+  background: var(--muted);
+  color: var(--primary);
+}
+
+.deliverable-icon-tile:nth-child(4n + 2) {
+  color: var(--info-text);
+}
+
+.deliverable-icon-tile:nth-child(4n + 3) {
+  color: var(--warning-text);
+}
+
+/* Four little 7 × 7 pixel silhouettes; this whole slot can be replaced with real art. */
+.pixel-icon {
+  display: block;
+  width: 3px;
+  height: 3px;
+  transform: translate(-9px, -9px);
+}
+
+.pixel-gem {
+  box-shadow:
+    6px 0,
+    9px 0,
+    12px 0,
+    3px 3px,
+    6px 3px,
+    9px 3px,
+    12px 3px,
+    15px 3px,
+    0 6px,
+    3px 6px,
+    6px 6px,
+    9px 6px,
+    12px 6px,
+    15px 6px,
+    18px 6px,
+    3px 9px,
+    6px 9px,
+    9px 9px,
+    12px 9px,
+    15px 9px,
+    6px 12px,
+    9px 12px,
+    12px 12px,
+    9px 15px;
+}
+
+.pixel-blade {
+  box-shadow:
+    15px 0,
+    18px 0,
+    12px 3px,
+    15px 3px,
+    18px 3px,
+    9px 6px,
+    12px 6px,
+    15px 6px,
+    0 9px,
+    6px 9px,
+    9px 9px,
+    12px 9px,
+    3px 12px,
+    6px 12px,
+    9px 12px,
+    0 15px,
+    3px 15px,
+    6px 15px,
+    12px 15px,
+    0 18px;
+}
+
+.pixel-flask {
+  box-shadow:
+    6px 0,
+    9px 0,
+    12px 0,
+    6px 3px,
+    12px 3px,
+    6px 6px,
+    12px 6px,
+    3px 9px,
+    15px 9px,
+    0 12px,
+    6px 12px,
+    9px 12px,
+    12px 12px,
+    18px 12px,
+    0 15px,
+    3px 15px,
+    6px 15px,
+    9px 15px,
+    12px 15px,
+    15px 15px,
+    18px 15px,
+    3px 18px,
+    6px 18px,
+    9px 18px,
+    12px 18px,
+    15px 18px;
+}
+
+.pixel-leaf {
+  box-shadow:
+    15px 0,
+    18px 0,
+    9px 3px,
+    12px 3px,
+    15px 3px,
+    18px 3px,
+    6px 6px,
+    9px 6px,
+    12px 6px,
+    18px 6px,
+    3px 9px,
+    6px 9px,
+    9px 9px,
+    15px 9px,
+    3px 12px,
+    6px 12px,
+    12px 12px,
+    3px 15px,
+    9px 15px,
+    0 18px;
+}
+
+.deliverable-findings {
+  display: grid;
+  gap: 0.6rem;
+  margin-top: 1rem;
+  padding-left: 1rem;
+  list-style: disc;
+  color: var(--muted-foreground);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.deliverable-findings li::marker {
+  color: var(--primary);
+}
+
+.landing-sellers {
+  text-align: center;
+  color: var(--muted-foreground);
+  font-size: 0.85rem;
+  line-height: 1.8;
+}
+
+.landing-sellers .landing-text-link {
+  font-size: inherit;
 }
 
 .landing-section-heading {
@@ -108,55 +415,6 @@
   font-size: clamp(2.05rem, 4vw, 3rem);
   line-height: 1.08;
   text-wrap: balance;
-}
-
-.landing-ideas-list {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  column-gap: 3rem;
-  font-size: 0.92rem;
-  line-height: 1.6;
-}
-
-.landing-ideas-list li {
-  border-bottom: 1px solid var(--border);
-  padding: 0.8rem 0;
-}
-
-.landing-workflow {
-  display: grid;
-  gap: 1.5rem;
-  border-top: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
-  padding: 2rem 0;
-}
-
-.landing-workflow ol {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 2rem;
-}
-
-.workflow-number {
-  display: block;
-  color: var(--primary);
-  font-family: var(--font-mono);
-  font-size: 0.65rem;
-  margin-bottom: 0.65rem;
-}
-
-.landing-workflow h3 {
-  font-family: var(--font-display);
-  font-weight: 400;
-  font-size: 1.35rem;
-  margin-bottom: 0.4rem;
-}
-
-.landing-workflow li p,
-.workflow-footnote {
-  color: var(--muted-foreground);
-  font-size: 0.73rem;
-  line-height: 1.6;
 }
 
 .landing-live-work {
@@ -214,39 +472,31 @@
     font-size: 0.95rem;
   }
 
-  .landing-audience {
+  .deliverable-pair {
     grid-template-columns: 1fr;
-    gap: 2rem;
-    padding-top: 2rem;
+    gap: 1rem;
+    padding: 1rem 0;
   }
 
-  .audience-card h2 {
-    font-size: 2.1rem;
+  .deliverable-ask {
+    gap: 0.75rem;
   }
 
-  .landing-ideas-list {
-    grid-template-columns: 1fr;
+  .deliverable-ask blockquote {
+    padding: 1rem 1.25rem;
+    font-size: 0.92rem;
   }
 
-  .landing-workflow ol {
-    grid-template-columns: 1fr;
-    gap: 1.5rem;
+  .deliverable-ask > svg {
+    transform: rotate(90deg);
   }
 
-  .landing-workflow li {
-    display: grid;
-    grid-template-columns: 1.5rem 1fr;
-    column-gap: 0.75rem;
-    align-items: baseline;
+  .deliverable-card {
+    padding: 1rem;
   }
 
-  .workflow-number {
-    grid-row: span 2;
-    margin: 0;
-  }
-
-  .landing-workflow h3 {
-    font-size: 1.2rem;
+  .deliverable-icon-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 
   .landing-live-heading {

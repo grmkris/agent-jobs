@@ -35,11 +35,6 @@ export function LiveWork() {
           All jobs <ArrowRight aria-hidden="true" />
         </Link>
       </div>
-      {chain.testnet && (
-        <p className="landing-caption">
-          Monad testnet records. These demonstrate the workflow; they are not evidence of real-money customer payments.
-        </p>
-      )}
       <LiveRecords jobs={jobs} recent={recent} featured={featured} viewer={auth.address} now={now} />
       {jobs.chainError !== null && !jobs.chainUnavailable && (
         <Alert variant="destructive">
