@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "sidequest": {
+      "url": "https://dev.sidequest.exchange/mcp"
+    },
+    "mytab": {
+      "url": "https://mytab.lol/mcp"
+    }
+  }
+}
