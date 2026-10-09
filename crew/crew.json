@@ -15,7 +15,8 @@
       "memory": "2g"
     },
     "relayFloorMon": 2.5,
-    "fallbackAfter": 3
+    "fallbackAfter": 3,
+    "maxRunsPerDay": 24
   },
   "members": {
     "brand": {
@@ -26,16 +27,26 @@
       "enabled": true,
       "env": ["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID=bceaeae4788dce3493514fde194b4a7e", "AI_GATEWAY_API_KEY"],
       "mcp": {},
-      "service": {
-        "serviceId": "brand-kit",
-        "name": "Logo and brand kit",
-        "description": "A logo (SVG + PNG), a palette and type pairing, and a one-page brand guide for a product or project.",
-        "inputs": "A brief: name, audience, tone, any colours or references.",
-        "outputs": "SVG and PNG logo, BRAND.md, hosted on a public URL.",
-        "turnaroundSeconds": 7200
-      },
       "operator": "crew",
-      "fallbackModel": "deepseek-v4-pro-0813"
+      "fallbackModel": "deepseek-v4-pro-0813",
+      "services": [
+        {
+          "serviceId": "brand-kit",
+          "name": "Logo and brand kit",
+          "description": "A logo (SVG + PNG), a palette and type pairing, and a one-page brand guide for a product or project.",
+          "inputs": "A brief: name, audience, tone, any colours or references.",
+          "outputs": "SVG and PNG logo, BRAND.md, hosted on a public URL.",
+          "turnaroundSeconds": 7200
+        },
+        {
+          "serviceId": "game-asset-pack",
+          "name": "Game asset pack",
+          "description": "A coherent set of pixel-art icons or sprites in your target sizes and formats.",
+          "inputs": "The game, style references, the asset list and sizes.",
+          "outputs": "A ZIP of PNGs plus a preview sheet on a public page.",
+          "turnaroundSeconds": 14400
+        }
+      ]
     },
     "web": {
       "name": "Ship",
@@ -51,16 +62,26 @@
       "mcp": {
         "cloudflare-docs": "https://docs.mcp.cloudflare.com/mcp"
       },
-      "service": {
-        "serviceId": "landing-page",
-        "name": "Landing page, deployed",
-        "description": "A fast one-page static site built from your brief and deployed to a public workers.dev URL.",
-        "inputs": "A brief: what it is, sections, call to action, any assets.",
-        "outputs": "A live URL and its source.",
-        "turnaroundSeconds": 7200
-      },
       "operator": "crew",
-      "fallbackModel": "deepseek-v4-pro-0813"
+      "fallbackModel": "deepseek-v4-pro-0813",
+      "services": [
+        {
+          "serviceId": "landing-page",
+          "name": "Landing page, deployed",
+          "description": "A fast one-page static site built from your brief and deployed to a public workers.dev URL.",
+          "inputs": "A brief: what it is, sections, call to action, any assets.",
+          "outputs": "A live URL and its source.",
+          "turnaroundSeconds": 7200
+        },
+        {
+          "serviceId": "data-dashboard",
+          "name": "Data dashboard",
+          "description": "Turns a CSV, JSON or on-chain query into an interactive one-page dashboard with charts and notes.",
+          "inputs": "The data or where to read it, and the questions it should answer.",
+          "outputs": "A deployed dashboard with the cleaned data and method notes.",
+          "turnaroundSeconds": 14400
+        }
+      ]
     },
     "copy": {
       "name": "Quill",
@@ -70,16 +91,26 @@
       "enabled": true,
       "env": ["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID=bceaeae4788dce3493514fde194b4a7e"],
       "mcp": {},
-      "service": {
-        "serviceId": "launch-copy",
-        "name": "Launch copy",
-        "description": "Announcement posts, threads, README and landing copy that sound like a person wrote them.",
-        "inputs": "What you are launching, for whom, and where it will be posted.",
-        "outputs": "Markdown drafts, hosted on a public URL. Nothing is posted for you.",
-        "turnaroundSeconds": 3600
-      },
       "operator": "crew",
-      "fallbackModel": "grok-4.7"
+      "fallbackModel": "grok-4.7",
+      "services": [
+        {
+          "serviceId": "launch-copy",
+          "name": "Launch copy",
+          "description": "Announcement posts, threads, README and landing copy that sound like a person wrote them.",
+          "inputs": "What you are launching, for whom, and where it will be posted.",
+          "outputs": "Markdown drafts, hosted on a public URL. Nothing is posted for you.",
+          "turnaroundSeconds": 3600
+        },
+        {
+          "serviceId": "translation",
+          "name": "Translation",
+          "description": "Translates docs, a README or a landing page into the languages you name, keeping formatting and terms.",
+          "inputs": "The source text or URL, target languages and any glossary.",
+          "outputs": "Translated files and a side-by-side page on a public URL.",
+          "turnaroundSeconds": 10800
+        }
+      ]
     },
     "video": {
       "name": "Reel",
@@ -87,22 +118,49 @@
       "model": "grok-4.7",
       "effort": "high",
       "resources": {
-        "cpus": 2,
-        "memory": "4g"
+        "cpus": 4,
+        "memory": "6g"
       },
       "enabled": true,
       "env": ["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID=bceaeae4788dce3493514fde194b4a7e", "GEMINI_API_KEY_PAID"],
       "mcp": {},
-      "service": {
-        "serviceId": "promo-video",
-        "name": "Short promo video",
-        "description": "A 15-30 s motion-graphics promo with captions, rendered to MP4 with HyperFrames.",
-        "inputs": "The product, the story beats you want, any brand assets.",
-        "outputs": "MP4 and its project source, hosted on a public URL.",
-        "turnaroundSeconds": 10800
-      },
       "operator": "crew",
-      "fallbackModel": "deepseek-v4-pro-0813"
+      "fallbackModel": "deepseek-v4-pro-0813",
+      "services": [
+        {
+          "serviceId": "promo-video",
+          "name": "Short promo video",
+          "description": "A 15-30 s motion-graphics promo with captions, rendered to MP4 with HyperFrames.",
+          "inputs": "The product, the story beats you want, any brand assets.",
+          "outputs": "MP4 and its project source, hosted on a public URL.",
+          "turnaroundSeconds": 10800
+        },
+        {
+          "serviceId": "explainer-video",
+          "name": "Explainer video",
+          "description": "A 30-90 s explainer with voiceover, captions and music, rendered to MP4 with HyperFrames.",
+          "inputs": "What the product does, who it is for, any brand assets or screenshots.",
+          "outputs": "MP4 with poster and project source on a public page.",
+          "turnaroundSeconds": 14400
+        },
+        {
+          "serviceId": "documentary-short",
+          "name": "Short documentary",
+          "description": "A 2-3 minute narrated documentary on a topic: researched script, voiceover, visuals and music.",
+          "inputs": "The topic, angle and audience; any sources or footage to use.",
+          "outputs": "MP4 with script, sources and poster on a public page.",
+          "turnaroundSeconds": 28800
+        },
+        {
+          "serviceId": "podcast-episode",
+          "name": "Podcast episode",
+          "description": "A 3-6 minute two-voice audio episode that explains a paper, product or topic, with show notes.",
+          "inputs": "The source material or topic and the audience.",
+          "outputs": "MP3 with transcript and show notes on a public page.",
+          "turnaroundSeconds": 14400
+        }
+      ],
+      "runTimeoutMinutes": 55
     },
     "token": {
       "name": "Mint",
@@ -120,16 +178,18 @@
         "MONAD_TESTNET_RPC_URL"
       ],
       "mcp": {},
-      "service": {
-        "serviceId": "solidity-contracts",
-        "name": "Solidity contracts with tests",
-        "description": "Small Solidity contracts (tokens, vaults, simple apps) with Foundry tests and a fork test against Monad testnet, delivered as source.",
-        "inputs": "What the contract must do, who owns it and any interfaces it must match.",
-        "outputs": "Foundry project with passing tests and a README, hosted on a public URL.",
-        "turnaroundSeconds": 10800
-      },
       "operator": "crew",
-      "fallbackModel": "grok-4.7"
+      "fallbackModel": "grok-4.7",
+      "services": [
+        {
+          "serviceId": "solidity-contracts",
+          "name": "Solidity contracts with tests",
+          "description": "Small Solidity contracts (tokens, vaults, simple apps) with Foundry tests and a fork test against Monad testnet, delivered as source.",
+          "inputs": "What the contract must do, who owns it and any interfaces it must match.",
+          "outputs": "Foundry project with passing tests and a README, hosted on a public URL.",
+          "turnaroundSeconds": 10800
+        }
+      ]
     },
     "scout": {
       "name": "Scout",
@@ -139,17 +199,31 @@
       "effort": "high",
       "enabled": true,
       "scopes": "sidequest:read sidequest:hire sidequest:work",
-      "env": ["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID=bceaeae4788dce3493514fde194b4a7e"],
+      "env": [
+        "CLOUDFLARE_ACCOUNT_ID=bceaeae4788dce3493514fde194b4a7e",
+        "CLOUDFLARE_API_TOKEN",
+        "MONAD_TESTNET_RPC_URL"
+      ],
       "mcp": {},
-      "service": {
-        "serviceId": "desk-research",
-        "name": "Desk research with sources",
-        "description": "Market maps, competitor scans and literature summaries with every claim linked to a source.",
-        "inputs": "The question, the scope and how you will use the answer.",
-        "outputs": "A cited report on a public URL.",
-        "turnaroundSeconds": 10800
-      },
-      "fallbackModel": "deepseek-v4-pro-0813"
+      "fallbackModel": "deepseek-v4-pro-0813",
+      "services": [
+        {
+          "serviceId": "desk-research",
+          "name": "Desk research with sources",
+          "description": "Market maps, competitor scans and literature summaries with every claim linked to a source.",
+          "inputs": "The question, the scope and how you will use the answer.",
+          "outputs": "A cited report on a public URL.",
+          "turnaroundSeconds": 10800
+        },
+        {
+          "serviceId": "onchain-report",
+          "name": "On-chain report",
+          "description": "Explains what is happening on-chain for a token, contract or protocol on Monad, with every number traced to a query.",
+          "inputs": "The token, contract or protocol and the questions to answer.",
+          "outputs": "An HTML report with charts, queries and sources.",
+          "turnaroundSeconds": 14400
+        }
+      ]
     },
     "ledger": {
       "name": "Ledger",
@@ -165,15 +239,17 @@
         "MONAD_TESTNET_RPC_URL"
       ],
       "mcp": {},
-      "service": {
-        "serviceId": "chain-data",
-        "name": "On-chain and tabular data work",
-        "description": "Reads contracts and logs on Monad, verifies addresses, cleans and joins CSVs, and explains what the numbers say.",
-        "inputs": "The question or the dataset, and the format you want back.",
-        "outputs": "A CSV or report on a public URL, with the queries used.",
-        "turnaroundSeconds": 7200
-      },
-      "fallbackModel": "glm-5.3"
+      "fallbackModel": "glm-5.3",
+      "services": [
+        {
+          "serviceId": "chain-data",
+          "name": "On-chain and tabular data work",
+          "description": "Reads contracts and logs on Monad, verifies addresses, cleans and joins CSVs, and explains what the numbers say.",
+          "inputs": "The question or the dataset, and the format you want back.",
+          "outputs": "A CSV or report on a public URL, with the queries used.",
+          "turnaroundSeconds": 7200
+        }
+      ]
     },
     "grokbot": {
       "name": "Grok Bot",
@@ -186,15 +262,41 @@
       "scopes": "sidequest:read sidequest:work",
       "env": ["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID=bceaeae4788dce3493514fde194b4a7e"],
       "mcp": {},
-      "service": {
-        "serviceId": "quick-answers",
-        "name": "Quick answers with sources",
-        "description": "Short explainers, fact checks and sourced lists, delivered as a one-page site within the hour.",
-        "inputs": "The question and how you will use the answer.",
-        "outputs": "A one-page answer with sources on a public URL.",
-        "turnaroundSeconds": 3600
-      },
-      "fallbackModel": "deepseek-v4-pro-0813"
+      "fallbackModel": "deepseek-v4-pro-0813",
+      "services": [
+        {
+          "serviceId": "quick-answers",
+          "name": "Quick answers with sources",
+          "description": "Short explainers, fact checks and sourced lists, delivered as a one-page site within the hour.",
+          "inputs": "The question and how you will use the answer.",
+          "outputs": "A one-page answer with sources on a public URL.",
+          "turnaroundSeconds": 3600
+        },
+        {
+          "serviceId": "research-memo",
+          "name": "Research memo",
+          "description": "A short sourced memo answering one question: who, what, how big, what changed.",
+          "inputs": "The question and any sources to start from.",
+          "outputs": "An HTML memo with every claim linked.",
+          "turnaroundSeconds": 3600
+        },
+        {
+          "serviceId": "translation",
+          "name": "Translation",
+          "description": "Fast translation of short docs or pages into the languages you name.",
+          "inputs": "The text or URL and target languages.",
+          "outputs": "Translated files on a public page.",
+          "turnaroundSeconds": 3600
+        },
+        {
+          "serviceId": "landing-page",
+          "name": "One-page site",
+          "description": "A simple responsive one-page site from a short brief.",
+          "inputs": "What the page is for and any copy or assets.",
+          "outputs": "A deployed page on a public URL.",
+          "turnaroundSeconds": 3600
+        }
+      ]
     }
   },
   "operators": {

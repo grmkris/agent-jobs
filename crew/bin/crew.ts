@@ -55,10 +55,14 @@ interface Member {
   fallbackModel?: string
   effort: string
   resources?: Resources
+  /** Overrides harness.runTimeoutMinutes (renders run long); capped below the hour an access token lasts. */
+  runTimeoutMinutes?: number
   enabled: boolean
   env: string[]
   mcp: Record<string, string>
-  service: Record<string, unknown>
+  /** Its directory listings (advertise_service, at most 10); `service` is the older single-listing form. */
+  services?: Record<string, unknown>[]
+  service?: Record<string, unknown>
 }
 interface CrewFile extends Omit<Crew, 'board'> {
   board: { stage: string; scopes: string; rpc: string }
@@ -73,6 +77,8 @@ interface Crew {
     resources: Resources
     relayFloorMon: number
     fallbackAfter: number
+    /** The cost guard: model runs per member per UTC day (idle checks are free and do not count). */
+    maxRunsPerDay: number
   }
   members: Record<string, Member>
 }
@@ -213,13 +219,18 @@ function saveToken(id: string, t: Record<string, unknown>) {
   })
 }
 
+/** Minutes a member's run may take: its own override or the harness default, never past a fresh token's hour. */
+function runTimeout(id: string): number {
+  return Math.min(crew.members[id]?.runTimeoutMinutes ?? crew.harness.runTimeoutMinutes, 55)
+}
+
 async function freshToken(id: string): Promise<Token> {
   const path = join(home(id), 'token.json')
   const t = readJson<Token>(path)
   const client = readJson<{ clientId: string }>(join(home(id), 'client.json'))
   if (t === undefined || client === undefined) throw new Error(`${id} is not connected; run "login ${id}"`)
-  // A run may last runTimeoutMinutes, so start it with a token that outlives it (access tokens last an hour).
-  if (t.expires_at - Math.floor(Date.now() / 1000) > (crew.harness.runTimeoutMinutes + 5) * 60) return t
+  // A run may last its timeout, so start it with a token that outlives it (access tokens last an hour).
+  if (t.expires_at - Math.floor(Date.now() / 1000) > (runTimeout(id) + 5) * 60) return t
   saveToken(
     id,
     await form('/oauth/token', {
@@ -283,16 +294,17 @@ async function run(id: string, note = '', model?: string): Promise<number | null
     join(harnessHome, '.codex', 'config.toml'),
     `model = "${m.model}"\nmodel_provider = "cliproxy"\nmodel_reasoning_effort = "${m.effort}"\n[model_providers.cliproxy]\nname = "cliproxy"\nbase_url = "${crew.harness.baseUrl}"\nwire_api = "responses"\nenv_key = "CLIPROXY_API_KEY"\nrequires_openai_auth = false\n[mcp_servers.sidequest]\nurl = "${crew.board.mcp}"\nbearer_token_env_var = "SIDEQUEST_MCP_TOKEN"\n${extraMcp}[projects."/crew/agent"]\ntrust_level = "trusted"\n`,
   )
-  const service = {
-    ...m.service,
-    price: { model: 'quote', amountBaseUnits: '0', token: (await protocolInfo()).rewardTokens?.[0] },
-  }
+  const rewardToken = (await protocolInfo()).rewardTokens?.[0]
+  const services = (m.services ?? (m.service === undefined ? [] : [m.service])).map((service) => ({
+    ...service,
+    price: { model: 'quote', amountBaseUnits: '0', token: rewardToken },
+  }))
   const prompt = [
     `You are ${m.name}, the '${id}' member of the Sidequest crew and an autonomous hosted worker, agent ${token.agent_id}.`,
     'You run in a sandbox container; your working directory is /crew/agent (scratch work in /crew/agent/work, your state in /crew/agent/state).',
     'Read, in this order: /crew/agent/AGENTS.md (your role), /crew/shared/COMMON.md (crew rules) and /crew/skill/worker/SKILL.md (your procedure).',
     'Do one routine pass as COMMON.md describes, then stop.',
-    `Your directory listing (for advertise_service): ${JSON.stringify(service)}`,
+    `Your directory listings (one advertise_service call each): ${JSON.stringify(services)}`,
     note === '' ? '' : `Operator note for this run: ${note}`,
     `Your git identity is ${m.name} <${m.email}>. Chain: ${crew.board.chain} (${crew.board.chainId}). Board: ${crew.board.origin}. Be concise.`,
   ]
@@ -388,7 +400,7 @@ async function run(id: string, note = '', model?: string): Promise<number | null
   child.stderr.on('data', (chunk: Buffer) => err.push(chunk))
   const timer = setTimeout(
     () => spawnSync('docker', ['stop', '--time', '20', container], { stdio: 'ignore' }),
-    crew.harness.runTimeoutMinutes * 60_000,
+    runTimeout(id) * 60_000,
   )
   const code = await new Promise<number | null>((done) => child.on('close', done))
   clearTimeout(timer)
@@ -490,6 +502,14 @@ async function protocolInfo() {
   return info
 }
 
+/** Model runs this UTC day: run logs are named by their start time (`runs/<ISO>.jsonl`). */
+function runsToday(id: string): number {
+  const dir = join(home(id), 'runs')
+  if (!existsSync(dir)) return 0
+  const day = new Date().toISOString().slice(0, 10)
+  return readdirSync(dir).filter((f) => f.startsWith(day) && f.endsWith('.jsonl')).length
+}
+
 function status() {
   const now = Math.floor(Date.now() / 1000)
   for (const [id, m] of Object.entries(crew.members)) {
@@ -550,16 +570,27 @@ else if (command === 'loop') {
       let failures = 0
       for (;;) {
         let reason: string | null = null
+        let checked = true
         try {
           reason = await wakeReason(id)
         } catch (error) {
-          reason = `check failed (${(error as Error).message.slice(0, 80)})`
+          // A failed check is not a reason to spend a model run; the next pass checks again.
+          checked = false
+          console.log(`${m.name}: wake check failed (${(error as Error).message.slice(0, 80)}); not waking`)
         }
-        const relay = reason === null ? Infinity : await relayMon().catch(() => Infinity)
-        if (reason === null) console.log(`${m.name}: idle`)
+        // Fail closed: an unreadable relay balance is treated as empty.
+        const relay = reason === null ? Infinity : await relayMon().catch(() => 0)
+        const today = runsToday(id)
+        if (!checked) {
+          // already logged
+        } else if (reason === null) console.log(`${m.name}: idle`)
         else if (relay < crew.harness.relayFloorMon)
           console.log(
             `${m.name}: ${reason}, but the relay holds ${relay} MON (floor ${crew.harness.relayFloorMon}); not waking`,
+          )
+        else if (today >= crew.harness.maxRunsPerDay)
+          console.log(
+            `${m.name}: ${reason}, but it already ran ${today} times today (cap ${crew.harness.maxRunsPerDay})`,
           )
         else {
           await slot()

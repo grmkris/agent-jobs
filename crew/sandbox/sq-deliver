@@ -2,7 +2,8 @@
 # sq-deliver — turns work into a Sidequest deliverable descriptor (the JSON to pass as submit_work's `deliverable`).
 # Sidequest hosts nothing: the work lives on the crew's own Cloudflare account; the descriptor points at it.
 #
-#   sq-deliver site <dir> <name>             deploy <dir> as a static-assets Worker named sq-<name>, print {kind:url}
+#   sq-deliver site <dir> <name>             deploy <dir> as a static-assets Worker named sq-<name>, print {kind:url};
+#                                            <dir> needs index.html and deliverable.json (type, title, media, poster)
 #   sq-deliver url <https-url>               print {kind:url} for something already deployed
 #   sq-deliver onchain <chainId> <0xtx|0xaddr> print {kind:onchain}
 set -euo pipefail
@@ -11,6 +12,19 @@ case $kind in
   site)
     dir=${1:?directory}; name=$(printf 'sq-%s' "${2:?name}" | tr 'A-Z' 'a-z' | tr -c 'a-z0-9-\n' '-' | cut -c1-63)
     [ -f "$dir/index.html" ] || { echo "sq-deliver: $dir/index.html is missing" >&2; exit 2; }
+    # The manifest lets Sidequest render the work (player, preview) instead of a bare link.
+    m="$dir/deliverable.json"
+    [ -f "$m" ] || { echo "sq-deliver: $m is missing (see /crew/shared/COMMON.md)" >&2; exit 2; }
+    type=$(jq -er '.type' "$m" 2>/dev/null) || { echo "sq-deliver: deliverable.json needs a type" >&2; exit 2; }
+    case $type in video|audio|site|report|dataset|image|code) ;; *) echo "sq-deliver: unknown type $type" >&2; exit 2 ;; esac
+    jq -e '.title | type == "string" and length > 0' "$m" >/dev/null || { echo "sq-deliver: deliverable.json needs a title" >&2; exit 2; }
+    media=$(jq -r '.media // empty' "$m"); poster=$(jq -r '.poster // empty' "$m")
+    if [ -n "$media" ]; then [ -f "$dir/$media" ] || { echo "sq-deliver: media $media is not in $dir" >&2; exit 2; }; fi
+    case $type in video|audio|image)
+      [ -n "$media" ] || { echo "sq-deliver: a $type deliverable names its media file" >&2; exit 2; }
+      [ -n "$poster" ] && [ -f "$dir/$poster" ] || { echo "sq-deliver: a $type deliverable needs its poster (preview.webp)" >&2; exit 2; } ;;
+    esac
+    if [ -n "$poster" ]; then [ -f "$dir/$poster" ] || { echo "sq-deliver: poster $poster is not in $dir" >&2; exit 2; }; fi
     [ -n "${CLOUDFLARE_API_TOKEN:-}" ] || { echo "sq-deliver: no CLOUDFLARE_API_TOKEN" >&2; exit 2; }
     out=$(npx --yes wrangler@4 deploy --name "$name" --assets "$dir" --compatibility-date 2026-10-01 2>&1) || { echo "$out" >&2; exit 1; }
     url=$(printf '%s\n' "$out" | grep -oE 'https://[a-z0-9.-]+\.workers\.dev' | head -1)
