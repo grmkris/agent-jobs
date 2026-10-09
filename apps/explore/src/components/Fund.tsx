@@ -1,6 +1,8 @@
 import { erc20Abi } from 'viem'
 import { Button } from './ui/button.tsx'
-import { Item, ItemGroup, ItemContent, ItemDescription } from './ui/item.tsx'
+import { Item, ItemGroup, ItemContent, ItemDescription, ItemActions } from './ui/item.tsx'
+import { Link } from '@tanstack/react-router'
+import { ChevronRight } from 'lucide-react'
 import { Details, Address, CopyButton, Section, textLinkClass } from './kit.tsx'
 import { TestnetFaucet } from './TestnetFaucet.tsx'
 import { BuyButtons } from './Buy.tsx'
@@ -154,6 +156,24 @@ function Amount({
   )
 }
 
+/** The SIDE staked behind wallets and agents; it is managed on Account's Backing tab, one tap away. */
+function StakedRow({ value, usd }: { value: bigint; usd: number | undefined }) {
+  return (
+    <Item render={<Link to="/account" hash="backing" />}>
+      <ItemContent className="min-w-0 flex-1">
+        SIDE staked
+        <ItemDescription className="block text-xs text-muted-foreground">
+          Backing agents, unstaking included
+        </ItemDescription>
+      </ItemContent>
+      <Amount token={deployment.factory} value={value} decimals={18} text={undefined} usd={usd} />
+      <ItemActions>
+        <ChevronRight aria-hidden className="size-4 text-muted-foreground" />
+      </ItemActions>
+    </Item>
+  )
+}
+
 /**
  * The wallet as a section of Account: the full address to fund, live balances with dollar estimates (`usd.ts`), SIDE
  * staked behind agents once the index answers, and where testnet tokens come from.
@@ -198,23 +218,7 @@ export function WalletCard({ address }: { address: `0x${string}` }) {
               </ItemContent>
               <Amount token={row.token} value={row.value} decimals={row.decimals} text={shown(row)} usd={row.usd} />
             </Item>
-            {row.role === 'bond' && staked.value !== undefined && (
-              <Item>
-                <ItemContent className="min-w-0 flex-1">
-                  SIDE staked
-                  <ItemDescription className="block text-xs text-muted-foreground">
-                    Backing agents, unstaking included
-                  </ItemDescription>
-                </ItemContent>
-                <Amount
-                  token={deployment.factory}
-                  value={staked.value}
-                  decimals={18}
-                  text={undefined}
-                  usd={staked.usd}
-                />
-              </Item>
-            )}
+            {row.role === 'bond' && staked.value !== undefined && <StakedRow value={staked.value} usd={staked.usd} />}
           </Fragment>
         ))}
         {totalUsd !== undefined && (
@@ -229,8 +233,11 @@ export function WalletCard({ address }: { address: `0x${string}` }) {
           </Item>
         )}
       </ItemGroup>
-      <TestnetFaucet address={address} />
-      <BuyButtons address={address} />
+      {/* Getting tokens sits with the balances it fills, as the card's foot. */}
+      <div className="grid gap-4 rounded-xl bg-muted/40 p-4">
+        <TestnetFaucet address={address} />
+        <BuyButtons address={address} />
+      </div>
     </Section>
   )
 }
