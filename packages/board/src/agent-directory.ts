@@ -11,6 +11,7 @@ import { AgentFailure } from './agent-failure.ts'
 import type { AgentSigning } from './agent-signing.ts'
 import type { AgentStore } from './agents.ts'
 import { DirectoryError, validateAdvertisement } from './directory.ts'
+import { AgentProfiles } from './agent-profiles.ts'
 
 /** The agent's directory object: its current listing, and records it prepares and accepts. */
 export interface DirectoryPort {
@@ -62,9 +63,13 @@ export class AgentDirectory {
     if (done !== undefined) return done
     const listing = await refusing(() => this.deps.port.read())
     if (!listing.enrolled || listing.ownership !== 'verified') {
-      const agent = this.deps.agents.get(id)
+      const profile = new AgentProfiles(this.deps.agents.sql, this.deps.agents.now).read(id)
       await this.#record(operation.id, 'enroll', id, 'Enrollment', {
-        profile: { name: agent.name, description: '', services: [checked.name] },
+        profile: {
+          name: profile.name,
+          description: profile.description,
+          services: [...new Set([...listing.ads.map((live) => live.name), checked.name])],
+        },
         delegate: zeroAddress,
         adDelegate: false,
         grantExpiresAt: 0,
@@ -72,6 +77,31 @@ export class AgentDirectory {
       })
     }
     return this.#record(operation.id, 'ad', id, 'ServiceAd', checked)
+  }
+
+  /** Enrollment revokes every ad, so freeze the live set before replacing it and resume each publication on retry. */
+  async refreshProfile(id: string, operationId: string, profile: { name: string; description: string }): Promise<void> {
+    const operation = this.deps.agents.operation(operationId)
+    if (operation.agent_id !== id)
+      throw new AgentFailure('forbidden', 'Profile operation belongs to another agent', 'profile-owner', 'none')
+    if (this.deps.agents.step<boolean>(operationId, 'profile-directory:done') === true) return
+    const listing =
+      this.deps.agents.step<sdk.DirectoryAgent>(operationId, 'profile-directory:listing') ??
+      this.deps.agents.freezeStep(operationId, 'profile-directory:listing', await refusing(() => this.deps.port.read()))
+    if (listing.enrolled) {
+      await this.#record(operationId, 'profile-directory:enroll', id, 'Enrollment', {
+        profile: { ...profile, services: [...new Set(listing.ads.map((ad) => ad.name))] },
+        delegate: zeroAddress,
+        adDelegate: false,
+        grantExpiresAt: 0,
+        enrolled: true,
+      })
+      for (const ad of listing.ads) {
+        const { adHash: _adHash, expiresAt: _expiresAt, ...service } = ad
+        await this.#record(operationId, `profile-directory:ad:${ad.serviceId}`, id, 'ServiceAd', service)
+      }
+    }
+    this.deps.agents.freezeStep(operationId, 'profile-directory:done', true)
   }
 
   /** Takes one service down (`serviceId`), or without one removes the agent from the directory with all its ads. */

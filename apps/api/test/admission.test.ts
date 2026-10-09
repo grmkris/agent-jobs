@@ -11,11 +11,18 @@ import { tools } from '../src/tools.ts'
 import { tenantTools } from '../src/tools-tenant.ts'
 import { directoryTools } from '../src/directory.ts'
 import { telegramTools } from '../src/tools-telegram.ts'
+import { agentTools } from '../src/tools-agents.ts'
 import { admissionIpHash, enforceHostedRate, type AdmissionCall } from '../src/admission-rate.ts'
 
 const wallet = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
 const stranger = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
-const allTools = Object.keys({ ...tools, ...tenantTools, ...directoryTools, ...telegramTools })
+const allTools = Object.keys({
+  ...tools,
+  ...tenantTools,
+  ...directoryTools,
+  ...telegramTools,
+  update_profile: agentTools.update_profile,
+})
 const policy = parseHostedAdmission('0')
 
 test('every REST/MCP tool is classified; authenticated writes are open', () => {

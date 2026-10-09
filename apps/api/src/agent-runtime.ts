@@ -27,6 +27,7 @@ import { tenantAgentRequest } from './agent-requests.ts'
 import { reportRelayWatchFailure, watchRelay } from './relay-watch.ts'
 import { agentFeedEvents, approvalUrl, recordAgentEvents } from './feed-agent.ts'
 import { directoryAudience, directoryPort } from './directory-object.ts'
+import { managedProfileUpdates, profileOperationKey } from './agent-profiles.ts'
 
 const key32 = (key: string) => /^0x[0-9a-fA-F]{64}$/.test(key)
 
@@ -122,6 +123,22 @@ export async function runAgent(runtime: {
   const prepare = (tool: string, input: Record<string, unknown>): BoardCall =>
     tenantAgentRequest(req, agent.address!, tool, input)
   const tenant = namespace.get(namespace.idFromName(req.env.boardId))
+  if (req.tool === 'update_profile') {
+    const key = profileOperationKey(operationKey)
+    const updates = managedProfileUpdates({
+      sql,
+      now: () => Math.floor(Date.now() / 1000),
+      origin: new URL(req.resource).origin,
+      boardId: req.env.boardId,
+      bindings,
+      context: ctx,
+      rpcUrl: req.env.rpcUrl,
+    })
+    return toJson({
+      ok: true,
+      result: await updates.update(agent.id, key, args, req.operator === undefined ? 'agent' : 'owner'),
+    })
+  }
   if (requiredToolScope(req.tool) === 'sidequest:read') return tenant.call(prepare(req.tool, args))
   const signerKey = typeof bindings.PRIVY_SIGNER_KEY === 'string' ? bindings.PRIVY_SIGNER_KEY : ''
   const appSecret = typeof bindings.PRIVY_APP_SECRET === 'string' ? bindings.PRIVY_APP_SECRET : ''

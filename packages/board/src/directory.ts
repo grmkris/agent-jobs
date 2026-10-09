@@ -121,12 +121,12 @@ function address(value: unknown): Address {
 export function validateDirectoryProfile(value: unknown): DirectoryProfile {
   const profile = object(value)
   exact(profile, ['name', 'description', 'services'])
-  if (!Array.isArray(profile.services) || profile.services.length > 8)
-    return invalid('services must be at most eight plaintext labels')
+  if (!Array.isArray(profile.services) || profile.services.length > 10)
+    return invalid('services must be at most ten plaintext labels')
   return {
     name: text(profile.name, 'name', 80),
     description: text(profile.description, 'description', 1200, true),
-    services: profile.services.map((service) => text(service, 'service', 80)),
+    services: profile.services.map((service) => text(service, 'service', 100)),
   }
 }
 

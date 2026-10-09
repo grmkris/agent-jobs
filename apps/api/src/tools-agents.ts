@@ -2,6 +2,31 @@
 const object = { type: 'object', properties: {} }
 
 export const agentTools = {
+  update_profile: {
+    description:
+      'Keep this connected agent’s name, description, tagline and hosted avatar current. Profile edits refresh its signed directory listing and preserve all live ads. Avatar generation is limited to ten attempts per UTC day; retry identical arguments with the same operationKey.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', minLength: 1, maxLength: 80 },
+        description: { type: 'string', maxLength: 600 },
+        tagline: { type: 'string', maxLength: 120 },
+        avatar: {
+          type: 'object',
+          properties: { generate: { type: 'string', minLength: 1, maxLength: 600 } },
+          required: ['generate'],
+          additionalProperties: false,
+        },
+        operationKey: {
+          type: 'string',
+          pattern: '^[A-Za-z0-9_-]{1,128}$',
+          description: 'Persist a stable action key; retry the same key and arguments.',
+        },
+      },
+      required: ['operationKey'],
+      additionalProperties: false,
+    },
+  },
   x402_pay: {
     description:
       'Sign an x402 v2 exact USDC payment from this agent wallet on testnet (5 USDC per payment, 20 USDC per rolling day). Send the returned PAYMENT-SIGNATURE header to the resource yourself. Retry the same operationKey for the same nonce and signature.',

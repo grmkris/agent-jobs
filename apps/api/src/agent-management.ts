@@ -11,6 +11,7 @@ import {
   type Sql,
 } from '@sidequest/board'
 import * as sdk from '@sidequest/sdk'
+import { Schema } from 'effect'
 import { type Address, type Hex, isAddress } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { privyOperator } from './privy-operator.ts'
@@ -208,6 +209,7 @@ export async function agentManagement(input: {
     sql,
     context,
     now,
+    publicOrigin: Schema.decodeUnknownSync(Schema.String)(bindings.PUBLIC_ORIGIN ?? ''),
     sponsor,
     signing: new AgentSigning(sql, context, provider, now),
     signerId: String(bindings.PRIVY_SIGNER_ID ?? ''),

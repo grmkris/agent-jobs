@@ -8,6 +8,7 @@ import { GrantStore } from './grants.ts'
 import { RelaySender } from './relay.ts'
 import { SponsorDesk } from './sponsor.ts'
 import type { Sql } from './store.ts'
+import { BoardError } from './board-error.ts'
 
 export interface AgentWalletCreator {
   createAgentWallet(input: {
@@ -28,6 +29,25 @@ export interface AgentOnboardingDeps {
   readonly sponsor: SponsorDesk
   readonly signerId: string
   readonly policyId: string
+  readonly publicOrigin?: string
+}
+
+export function hostedAgentURI(origin: string | undefined, agentKey: string): string {
+  let url: URL
+  try {
+    url = new URL(origin ?? '')
+  } catch {
+    throw new BoardError('unavailable', 'Hosted agent registration requires the public origin')
+  }
+  if (
+    (url.protocol !== 'https:' &&
+      !(url.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname))) ||
+    url.username !== '' ||
+    url.password !== '' ||
+    !/^[A-Za-z0-9_-]{1,64}$/.test(agentKey)
+  )
+    throw new BoardError('invalid', 'Invalid hosted profile URI')
+  return `${url.origin}/profiles/${agentKey}.json`
 }
 
 function salt(id: string, purpose: string): bigint {
@@ -202,8 +222,14 @@ export class AgentOnboarding {
       throw new Error('Not this operator registration grant')
     await this.grants.confirm(hash, signature)
     if (agent.agent_id === null) {
-      const profile = `data:application/json,${encodeURIComponent(JSON.stringify({ name: agent.name, type: 'https://eips.ethereum.org/EIPS/eip-8004#registration-v1', active: true }))}`
-      const data = this.agents.freezeStep(operation.id, 'register-data', sdk.registerCalldata(profile))
+      const prior = this.agents.step<Hex>(operation.id, 'register-data')
+      const data =
+        prior ??
+        this.agents.freezeStep(
+          operation.id,
+          'register-data',
+          sdk.registerCalldata(hostedAgentURI(this.deps.publicOrigin, agent.id)),
+        )
       const result = await sponsor.submit(
         operator,
         [{ grant: hash, calls: [{ to: ctx.deployment.identity, data }] }],

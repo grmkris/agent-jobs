@@ -110,6 +110,7 @@ export const hostedToolNames = new Set([
   'create_board',
   'update_board',
   'prepare_agent_profile',
+  'update_profile',
   'prepare_directory_enrollment',
   'enroll_directory',
   'prepare_heartbeat',

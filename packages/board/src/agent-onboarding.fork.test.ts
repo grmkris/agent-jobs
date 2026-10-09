@@ -46,6 +46,7 @@ suite('resumable agent registry onboarding', () => {
       signing,
       signerId: 'unused-in-fork',
       policyId: 'unused-in-fork',
+      publicOrigin: 'https://dev.sidequest.exchange',
       relay: new RelaySender(sql, ctx, fixture.admin.account as LocalAccount, fixture.url, () => now),
       sponsor: new SponsorDesk({
         sql,
