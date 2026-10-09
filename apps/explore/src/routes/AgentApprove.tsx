@@ -46,7 +46,13 @@ function ApproveRoles({ agent }: { agent: ManagedAgent }) {
     try {
       setApproved(await approveAgent(agent.id, roles))
     } catch (failure) {
-      setError(failure instanceof Error ? failure.message : 'The approval did not go through')
+      const message = failure instanceof Error ? failure.message : 'The approval did not go through'
+      // The connection can only get the roles allowed when it was made; say which to drop instead of the API's words.
+      setError(
+        /widen/.test(message)
+          ? 'When you connected your coding agent you allowed fewer roles. Untick the one you did not allow.'
+          : message,
+      )
     } finally {
       setBusy(false)
     }
