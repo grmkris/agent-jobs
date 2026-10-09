@@ -89,6 +89,29 @@ describe('workersAiImages', () => {
     ])
   })
 
+  it('resizes the drawing to a 256 px WebP when the Images binding is there', async () => {
+    const asked: unknown[] = []
+    const images = {
+      input: () => ({
+        transform: (transform: unknown) => {
+          asked.push(transform)
+          return {
+            output: async (options: unknown) => {
+              asked.push(options)
+              return { response: () => new Response(new Uint8Array([0x52, 0x49, 0x46, 0x46])) }
+            },
+          }
+        },
+      }),
+    }
+    const model = workersAiImages({ run: async () => ({ image: btoa('jpeg') }) }, images)
+    expect(await model.generate('x')).toEqual({ bytes: new Uint8Array([0x52, 0x49, 0x46, 0x46]), type: 'image/webp' })
+    expect(asked).toEqual([
+      { width: 256, height: 256, fit: 'cover' },
+      { format: 'image/webp', quality: 85 },
+    ])
+  })
+
   it('refuses an answer without an image', async () => {
     const model = workersAiImages({ run: async () => ({ error: 'capacity' }) })
     await expect(model.generate('x')).rejects.toThrow()

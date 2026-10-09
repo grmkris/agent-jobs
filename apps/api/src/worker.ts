@@ -175,8 +175,10 @@ export default class Api extends Cloudflare.Worker<Api>()(
     const runtimeEnv = yield* Cloudflare.WorkerEnvironment
     const directory = yield* DirectoryObject
     const manifests = yield* Cloudflare.R2.ReadWriteBucket(Manifests)
-    // Workers AI, bound as env.AI: agents' generated avatars (workers-ai-images.ts), in the management object.
+    // Workers AI and Images, bound as env.AI and env.IMAGES: agents' generated avatars, drawn and resized to 256 px
+    // (workers-ai-images.ts) in the management object.
     yield* Cloudflare.Workers.AI()
+    yield* Cloudflare.Images.Images()
     // Explore's chain facts (read-only here; the indexer is the only writer of its tables) and the board registry.
     const facts = yield* Cloudflare.D1.QueryDatabase(Database)
 
@@ -809,6 +811,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
         Cloudflare.R2.ReadWriteBucketBinding,
         Cloudflare.D1.QueryDatabaseBinding,
         Cloudflare.Workers.AIBinding,
+        Cloudflare.Images.ImagesBinding,
       ),
     ),
   ),

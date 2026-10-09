@@ -1,4 +1,7 @@
-/** Avatars from Workers AI: FLUX.1 schnell answers a prompt with one base64 JPEG in a few steps. */
+/**
+ * Avatars from Workers AI: FLUX.1 schnell answers a prompt with one base64 JPEG (1024 px, about 300 KB) in a few
+ * steps; the Images binding then makes it a 256 px WebP, the size an orb ever shows, at a tenth of the weight.
+ */
 import { Schema } from 'effect'
 import type { ImageModel } from './avatars.ts'
 
@@ -10,11 +13,26 @@ export interface WorkersAi {
   run(model: string, inputs: { prompt: string; steps: number }): Promise<object>
 }
 
-export function workersAiImages(ai: WorkersAi): ImageModel {
+/** The Worker's `IMAGES` binding, as far as resizing an avatar uses it. */
+export interface ImagesResizer {
+  input(stream: ReadableStream<Uint8Array>): {
+    transform(transform: { width: number; height: number; fit: 'cover' }): {
+      output(options: { format: 'image/webp'; quality: number }): Promise<{ response(): Response }>
+    }
+  }
+}
+
+export function workersAiImages(ai: WorkersAi, images?: ImagesResizer): ImageModel {
   return {
     generate: async (prompt) => {
       const { image } = Schema.decodeUnknownSync(FluxOutput)(await ai.run(MODEL, { prompt, steps: 6 }))
-      return { bytes: Uint8Array.from(atob(image), (char) => char.charCodeAt(0)), type: 'image/jpeg' }
+      const jpeg = Uint8Array.from(atob(image), (char) => char.charCodeAt(0))
+      if (images === undefined) return { bytes: jpeg, type: 'image/jpeg' }
+      const resized = await images
+        .input(new Blob([jpeg]).stream())
+        .transform({ width: 256, height: 256, fit: 'cover' })
+        .output({ format: 'image/webp', quality: 85 })
+      return { bytes: new Uint8Array(await resized.response().arrayBuffer()), type: 'image/webp' }
     },
   }
 }

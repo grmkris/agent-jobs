@@ -5,7 +5,7 @@ export const MAX_AVATAR_BYTES = 1024 * 1024
 
 export type AvatarType = 'image/png' | 'image/jpeg' | 'image/webp'
 export interface ImageModel {
-  generate(prompt: string): Promise<{ bytes: Uint8Array; type: 'image/png' | 'image/jpeg' }>
+  generate(prompt: string): Promise<{ bytes: Uint8Array; type: AvatarType }>
 }
 
 interface AvatarObject {
@@ -45,7 +45,7 @@ export function sniffAvatar(bytes: Uint8Array): AvatarType | undefined {
 }
 
 export function avatarPrompt(subject: string): string {
-  return `A friendly mascot portrait for an AI agent: ${subject}. Flat vector illustration, bold shapes, soft lighting, plain pastel background, no text or logos.`
+  return `A friendly mascot portrait for an AI agent: ${subject}. Flat vector illustration, bold shapes, soft lighting, plain pastel background. No text, letters, words, numbers or logos anywhere in the image.`
 }
 
 export async function identifyAvatar(bytes: Uint8Array): Promise<{ key: string; type: AvatarType }> {
