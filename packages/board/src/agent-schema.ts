@@ -104,6 +104,17 @@ export function migrateAgentSchema(sql: Sql): void {
       expires_at INTEGER NOT NULL, consumed_at INTEGER
     )`)
   })
+  sql.run(`CREATE TABLE IF NOT EXISTS agent_profiles (
+    agent_key TEXT PRIMARY KEY,
+    description TEXT NOT NULL DEFAULT '',
+    tagline TEXT NOT NULL DEFAULT '',
+    avatar_key TEXT,
+    avatar_prompt TEXT,
+    generations_day TEXT,
+    generations INTEGER NOT NULL DEFAULT 0,
+    updated_at INTEGER NOT NULL,
+    updated_by TEXT NOT NULL CHECK(updated_by IN ('owner','agent'))
+  )`)
 }
 
 /** The former fleet object retires its authority records without receiving any new management tables. */

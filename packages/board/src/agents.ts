@@ -115,7 +115,7 @@ export class AgentStore {
     registry: Address
     chainId: number
   }): AgentRow {
-    if (!/^[A-Za-z0-9_-]{1,64}$/.test(input.id) || input.name.trim().length < 1 || input.name.length > 100)
+    if (!/^[A-Za-z0-9_-]{1,64}$/.test(input.id) || input.name.trim().length < 1 || input.name.trim().length > 80)
       throw new Error('Invalid agent identity')
     const prior = this.sql.all<AgentRow>('SELECT * FROM agents WHERE id=?', input.id)[0]
     if (prior) {
@@ -142,6 +142,14 @@ export class AgentStore {
       this.now(),
     )
     return this.get(input.id)
+  }
+
+  rename(id: string, name: string): AgentRow {
+    const normalized = name.trim()
+    if (normalized.length < 1 || normalized.length > 80) throw new Error('Invalid agent name')
+    this.get(id)
+    this.sql.run('UPDATE agents SET name=?,updated_at=? WHERE id=?', normalized, this.now(), id)
+    return this.get(id)
   }
 
   bindWallet(id: string, walletId: string, address: Address): AgentRow {
