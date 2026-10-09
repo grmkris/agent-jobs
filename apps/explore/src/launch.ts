@@ -21,6 +21,7 @@ export const READ_TOOLS: ReadonlySet<string> = new Set([
   'list_disputes',
   'get_dispute_bundle',
   'settlement_actions',
+  'setup_status',
   'collect_actions',
   'list_boards',
   'get_board',
