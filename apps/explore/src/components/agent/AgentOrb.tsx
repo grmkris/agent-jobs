@@ -1,6 +1,7 @@
 import { MeshGradient, PulsingBorder } from '@paper-design/shaders-react'
 import { cn } from '../../lib/cn.ts'
 import { type AgentLiveness, orbGradient, orbPalette } from '../../agent-orb.ts'
+import { useAgentAvatar } from '../../agent-profiles.ts'
 import { usePrefersReducedMotion, useShaderSlot } from './shader-budget.ts'
 
 const SIZE = { sm: 'size-5', md: 'size-10', lg: 'size-18' } as const
@@ -8,10 +9,11 @@ const LIVE = ['hsl(142, 71%, 45%)', 'hsl(152, 76%, 60%)', 'hsl(160, 84%, 39%)']
 const CLEAR = '#00000000'
 
 /**
- * An agent's mark: a slow mesh gradient in colours seeded by its Agent ID, ringed while it is live or working. The md
- * and lg orbs draw with WebGL while the page has a shader slot free (see shader-budget); the sm orb in chips and rows,
- * and any orb past the budget, is the same gradient in CSS, so small chips never take the slots a page's main orb
- * needs. It stands still when idle or when the person prefers less motion. Decorative only: it renders no text.
+ * An agent's mark: its avatar when its profile has one (`/data/profiles`), else a slow mesh gradient in colours seeded
+ * by its Agent ID; either is ringed while the agent is live or working. The md and lg orbs draw with WebGL while the
+ * page has a shader slot free (see shader-budget); the sm orb in chips and rows, and any orb past the budget, is the
+ * same gradient in CSS, so small chips never take the slots a page's main orb needs. It stands still when idle or when
+ * the person prefers less motion. Decorative only: it renders no text.
  */
 export function AgentOrb({
   agentId,
@@ -25,9 +27,10 @@ export function AgentOrb({
   className?: string
 }) {
   const palette = orbPalette(agentId)
+  const avatar = useAgentAvatar(agentId)
   const still = usePrefersReducedMotion()
   const moving = !still && status !== 'idle'
-  const orb = useShaderSlot(size !== 'sm')
+  const orb = useShaderSlot(size !== 'sm' && avatar === null)
   // A ring shader is worth a WebGL context only around the larger orbs; small ones get the CSS ring.
   const ringShader = useShaderSlot(status !== 'idle' && size !== 'sm')
   return (
@@ -59,17 +62,34 @@ export function AgentOrb({
             )}
           />
         ))}
-      {orb ? (
-        <MeshGradient
-          className="size-full overflow-hidden rounded-full"
-          colors={palette}
-          distortion={0.8}
-          swirl={0.3}
-          speed={moving ? 0.25 : 0}
-        />
-      ) : (
-        <span className="block size-full rounded-full" style={{ background: orbGradient(palette) }} />
-      )}
+      <OrbFace avatar={avatar} shader={orb} palette={palette} moving={moving} />
     </span>
   )
+}
+
+/** The orb's face: the agent's avatar, else its gradient (WebGL with a shader slot, CSS without). */
+function OrbFace({
+  avatar,
+  shader,
+  palette,
+  moving,
+}: {
+  avatar: string | null
+  shader: boolean
+  palette: string[]
+  moving: boolean
+}) {
+  if (avatar !== null)
+    return <img src={avatar} alt="" loading="lazy" className="block size-full rounded-full bg-muted object-cover" />
+  if (shader)
+    return (
+      <MeshGradient
+        className="size-full overflow-hidden rounded-full"
+        colors={palette}
+        distortion={0.8}
+        swirl={0.3}
+        speed={moving ? 0.25 : 0}
+      />
+    )
+  return <span className="block size-full rounded-full" style={{ background: orbGradient(palette) }} />
 }
