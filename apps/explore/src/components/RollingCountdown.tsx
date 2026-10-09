@@ -1,10 +1,10 @@
 /**
- * A deadline as rolling digits: "2d 04h 17m 05s" at display size, minute precision in rows, then a word once
- * it has passed. The digits roll downwards (NumberFlow, which honours reduced motion) and are decoration: screen
+ * A deadline as rolling digits: "2d 04h 17m 05s" at display size; in rows "2d 04h 17m", then "17m 32s" ticking in
+ * amber during the last hour; then a word once it has passed. The digits roll downwards (NumberFlow, which honours reduced motion) and are decoration: screen
  * readers read minute-level plain text beside them.
  */
 import NumberFlow, { NumberFlowGroup } from '@number-flow/react'
-import { countdownParts, countdownText, countdownUrgent } from '../countdown.ts'
+import { countdownParts, countdownSpoken, countdownUrgent } from '../countdown.ts'
 import { cn } from '../lib/cn.ts'
 import { useRemaining, utc } from './Time.tsx'
 
@@ -41,7 +41,7 @@ export function RollingCountdown({
         className,
       )}
     >
-      <span className="sr-only">{countdownText(countdownParts(left, 'minute'))}</span>
+      <span className="sr-only">{countdownSpoken(left)}</span>
       <span aria-hidden className="inline-flex items-baseline gap-[0.3em]">
         <NumberFlowGroup>
           {parts.map((part) => (
