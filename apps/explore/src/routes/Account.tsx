@@ -16,6 +16,7 @@ import { BackingManager } from '../components/BackingManager.tsx'
 import { ResumeOffer } from '../components/post/Resume.tsx'
 import { LaunchNotice } from '../components/LaunchGate.tsx'
 import { CollectSection } from './Collect.tsx'
+import { MyActivity } from '../components/MyActivity.tsx'
 import { TelegramSection } from './Telegram.tsx'
 
 import { Monogram, useAuth, useSignOut } from '../components/Wallet.tsx'
@@ -137,6 +138,7 @@ function AccountTabs({ address }: { address: Address }) {
       </TabsContent>
       <TabsContent value="notifications" className="grid gap-7 text-base">
         <TelegramSection />
+        <MyActivity />
       </TabsContent>
       <TabsContent value="settings" className="grid gap-7 text-base">
         <AccountSettings />
