@@ -4,6 +4,7 @@
  */
 import { useSyncExternalStore } from 'react'
 import { countdownTick } from '../countdown.ts'
+import type { CountdownPrecision } from '../countdown.ts'
 import { localTime, relative, span } from '../format.ts'
 
 const listeners = new Set<() => void>()
@@ -42,14 +43,13 @@ export const useMinute = (): number =>
   )
 
 /**
- * The seconds left until `deadline`, as a countdown shows them: the snapshot only changes once a minute while an
- * hour or more is left, so a far deadline re-renders per minute and the last hour per second.
+ * The seconds left until `deadline`, floored to the requested precision so only display countdowns re-render per second.
  */
-export const useRemaining = (deadline: number): number =>
+export const useRemaining = (deadline: number, precision: CountdownPrecision = 'minute'): number =>
   useSyncExternalStore(
     subscribe,
-    () => countdownTick(deadline - now),
-    () => countdownTick(deadline - now),
+    () => countdownTick(deadline - now, precision),
+    () => countdownTick(deadline - now, precision),
   )
 
 /** "2026-10-07 14:29 UTC": the exact instant, for a time's tooltip. */

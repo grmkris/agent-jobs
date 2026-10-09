@@ -1,7 +1,7 @@
 /**
- * A deadline as rolling digits: "2d 04h 17m", then "17m 32s" ticking in amber during the last hour, then a word once
+ * A deadline as rolling digits: "2d 04h 17m 05s" at display size, minute precision in rows, then a word once
  * it has passed. The digits roll downwards (NumberFlow, which honours reduced motion) and are decoration: screen
- * readers and tests read the plain text beside them.
+ * readers read minute-level plain text beside them.
  */
 import NumberFlow, { NumberFlowGroup } from '@number-flow/react'
 import { countdownParts, countdownText, countdownUrgent } from '../countdown.ts'
@@ -20,7 +20,8 @@ export function RollingCountdown({
   size?: 'row' | 'display'
   className?: string
 }) {
-  const left = useRemaining(to)
+  const precision = size === 'display' ? 'second' : 'minute'
+  const left = useRemaining(to, precision)
   const at = new Date(to * 1000).toISOString()
   if (left <= 0)
     return (
@@ -28,7 +29,7 @@ export function RollingCountdown({
         {passed}
       </time>
     )
-  const parts = countdownParts(left)
+  const parts = countdownParts(left, precision)
   return (
     <time
       dateTime={at}
@@ -40,7 +41,7 @@ export function RollingCountdown({
         className,
       )}
     >
-      <span className="sr-only">{countdownText(parts)}</span>
+      <span className="sr-only">{countdownText(countdownParts(left, 'minute'))}</span>
       <span aria-hidden className="inline-flex items-baseline gap-[0.3em]">
         <NumberFlowGroup>
           {parts.map((part) => (
