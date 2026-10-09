@@ -122,6 +122,14 @@ function createSetupOAuth(sql: Sql): void {
     hash TEXT PRIMARY KEY, family_id TEXT NOT NULL, kind TEXT NOT NULL,
     expires_at INTEGER NOT NULL, consumed_at INTEGER
   )`)
+  sql.run(`CREATE TABLE IF NOT EXISTS agent_setup_operators (
+    operator TEXT PRIMARY KEY, privy_user_id TEXT NOT NULL, verified_at INTEGER NOT NULL
+  )`)
+  sql.run(`CREATE TABLE IF NOT EXISTS agent_setup_connections (
+    agent_key TEXT NOT NULL, family_id TEXT NOT NULL UNIQUE, board_id TEXT NOT NULL,
+    resource TEXT NOT NULL, created_at INTEGER NOT NULL,
+    PRIMARY KEY(agent_key,family_id)
+  )`)
 }
 
 function createAgentProfiles(sql: Sql): void {

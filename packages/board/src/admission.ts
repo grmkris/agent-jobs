@@ -1,6 +1,7 @@
 export const readOnlyHostedTools = new Set([
   'protocol_info',
   'whoami',
+  'setup_status',
   'list_tasks',
   'get_task',
   'list_quote_requests',
@@ -74,6 +75,7 @@ export const hostedToolNames = new Set([
   'auth_challenge',
   'auth_login',
   'whoami',
+  'create_agent',
   'create_task',
   'request_quotes',
   'submit_quote',

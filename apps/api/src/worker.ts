@@ -56,7 +56,7 @@ import { configurePublicSite, handleTelegramWebhook, migrateTelegram } from './t
 import { feedTools } from './feed.ts'
 import { telegramTools } from './tools-telegram.ts'
 import type { OAuthReply, OAuthGrant } from './oauth.ts'
-import { mcpRoute } from './mcp.ts'
+import { agentFirstMcpRoute as mcpRoute } from './mcp-agent-setup.ts'
 import { McpEvents } from './mcp-events.ts'
 import { tools } from './tools.ts'
 import { jsonResponse } from './json.ts'
@@ -634,8 +634,12 @@ export default class Api extends Cloudflare.Worker<Api>()(
           const grant = JSON.parse(
             yield* boards
               .getByName(SPONSOR_OBJECT_NAME)
-              .oauthResolve({ resource, activity: true, ...(bearer === undefined ? {} : { bearer }) }),
+              .oauthResolve({ resource, ...(bearer === undefined ? {} : { bearer }) }),
           ) as OAuthGrant | null
+          if (grant !== null && grant.setup !== true)
+            yield* boards
+              .getByName(SPONSOR_OBJECT_NAME)
+              .oauthResolve({ resource, activity: true, ...(bearer === undefined ? {} : { bearer }) })
           const reply = yield* Effect.promise(() =>
             mcpRoute({
               method: request.method,
@@ -652,9 +656,8 @@ export default class Api extends Cloudflare.Worker<Api>()(
               ),
               call: async (tool, args, agentId) => {
                 if (
-                  ['list_boards', 'get_board', 'list_directory', 'get_directory_agent', 'whoami', 'inbox'].includes(
-                    tool,
-                  )
+                  ['list_boards', 'get_board', 'list_directory', 'get_directory_agent', 'inbox'].includes(tool) ||
+                  (tool === 'whoami' && grant!.setup !== true)
                 )
                   return runMcp(call(tool, args, undefined, grant!.address))
                 const result = JSON.parse(

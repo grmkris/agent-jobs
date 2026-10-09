@@ -20,6 +20,7 @@ import { fromD1 } from '@sidequest/indexer'
 import { decisionFeedEvents, recordAgentEvents } from './feed-agent.ts'
 import { terminateSubscriptions } from './webhooks.ts'
 import type { AgentRouteRequest } from './routes/agents.ts'
+import { ownerAgentSetup } from './agent-setup-owner.ts'
 import { agentProfileManagement } from './agent-profile-management.ts'
 
 function text(body: Record<string, unknown>, key: string): string {
@@ -62,6 +63,7 @@ export async function agentManagement(input: {
   if (action === 'registration-record') {
     return new AgentRegistration({ sql, context, now }).record(id, operator, hex(body, 'txHash', 64))
   }
+  if (action === 'setup-identity' || action === 'approve') return ownerAgentSetup(input)
   const sponsor = new SponsorDesk({
     sql,
     ctx: context,

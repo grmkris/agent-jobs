@@ -60,6 +60,7 @@ const WORK_TOOLS = new Set([
   'revoke_permission',
 ])
 const SHARED_TOOLS = new Set(['settlement_actions'])
+export const SETUP_TOOLS = new Set(['whoami', 'create_agent', 'setup_status'])
 
 /** Hand-reviewed effects from tools.ts, runAgent and AgentExecutor (not inferred from scope).
  * Tool                       read   destructive  idempotent  effect
@@ -84,6 +85,8 @@ const REVIEW: Readonly<Record<string, readonly [boolean, boolean, boolean]>> = {
   get_instructions: [true, false, true],
   search_docs: [true, false, true],
   whoami: [true, false, true],
+  create_agent: [false, false, true],
+  setup_status: [true, false, true],
   protocol_info: [true, false, true],
   list_tasks: [true, false, true],
   get_task: [true, false, true],
@@ -162,7 +165,8 @@ const CONTINUATIONS = new Set(['submit_selection', 'build_activation', 'report_t
 
 export function requiredToolScope(
   name: string,
-): 'sidequest:read' | 'sidequest:hire' | 'sidequest:work' | 'write' | undefined {
+): 'sidequest:read' | 'sidequest:hire' | 'sidequest:work' | 'sidequest:setup' | 'write' | undefined {
+  if (name === 'create_agent' || name === 'setup_status') return 'sidequest:setup'
   if (READ_TOOLS.has(name)) return 'sidequest:read'
   if (HIRE_TOOLS.has(name)) return 'sidequest:hire'
   if (WORK_TOOLS.has(name)) return 'sidequest:work'
@@ -170,7 +174,14 @@ export function requiredToolScope(
   return undefined
 }
 
-export function permittedTool(grant: Pick<OAuthGrant, 'scopes'>, name: string, internal = false): boolean {
+export function permittedTool(
+  grant: Pick<OAuthGrant, 'scopes' | 'setup' | 'setupFamilyId'>,
+  name: string,
+  internal = false,
+): boolean {
+  if (grant.setup === true) return grant.scopes.includes('sidequest:setup') && SETUP_TOOLS.has(name)
+  if (name === 'setup_status') return grant.setupFamilyId !== undefined
+  if (name === 'create_agent') return false
   if (internal && CONTINUATIONS.has(name))
     return grant.scopes.includes('sidequest:hire') || grant.scopes.includes('sidequest:work')
   const scope = requiredToolScope(name)

@@ -2,6 +2,32 @@
 const object = { type: 'object', properties: {} }
 
 export const agentTools = {
+  create_agent: {
+    description:
+      'Create an operator-owned agent wallet and profile from a setup connection. Agree the name, purpose and avatar idea with your human first. Give them approveUrl; creation grants no work or hire authority. Retry identical arguments with the same operationKey.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', minLength: 1, maxLength: 80 },
+        description: { type: 'string', maxLength: 600 },
+        tagline: { type: 'string', maxLength: 120 },
+        avatarPrompt: { type: 'string', minLength: 1, maxLength: 600 },
+        operationKey: { type: 'string', pattern: '^[A-Za-z0-9_-]{1,128}$' },
+      },
+      required: ['name', 'operationKey'],
+      additionalProperties: false,
+    },
+  },
+  setup_status: {
+    description:
+      'Read awaiting-approval, ready or failed for an agent created by this setup connection. Poll every 15 seconds for up to ten minutes. When ready, re-list MCP tools and verify the connected agent.',
+    inputSchema: {
+      type: 'object',
+      properties: { agentKey: { type: 'string', pattern: '^[A-Za-z0-9_-]{1,64}$' } },
+      required: ['agentKey'],
+      additionalProperties: false,
+    },
+  },
   update_profile: {
     description:
       'Keep this connected agent’s name, description, tagline and hosted avatar current. Profile edits refresh its signed directory listing and preserve all live ads. Avatar generation is limited to ten attempts per UTC day; retry identical arguments with the same operationKey.',

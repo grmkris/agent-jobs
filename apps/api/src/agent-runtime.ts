@@ -18,7 +18,7 @@ import { type Address, type Hex, encodeFunctionData, erc20Abi } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import type { BoardCall, BoardReply } from './board.ts'
 import { resolveOAuth } from './oauth.ts'
-import { networkTool, permittedTool, requiredToolScope } from './mcp-policy.ts'
+import { networkTool, permittedTool, requiredToolScope, SETUP_TOOLS } from './mcp-policy.ts'
 import { resourceBoard } from './oauth-validation.ts'
 import { toJson } from './tools.ts'
 import { fromD1 } from '@sidequest/indexer'
@@ -28,6 +28,7 @@ import { reportRelayWatchFailure, watchRelay } from './relay-watch.ts'
 import { agentFeedEvents, approvalUrl, recordAgentEvents } from './feed-agent.ts'
 import { directoryAudience, directoryPort } from './directory-object.ts'
 import { managedProfileUpdates, profileOperationKey } from './agent-profiles.ts'
+import { runSetupTool } from './agent-setup.ts'
 
 const key32 = (key: string) => /^0x[0-9a-fA-F]{64}$/.test(key)
 
@@ -65,11 +66,13 @@ export async function runAgent(runtime: {
     const grant = await resolveOAuth(sql, req.bearer, req.resource, Math.floor(Date.now() / 1000))
     if (
       grant === undefined ||
-      !grant.agentIds.includes(req.agentId) ||
+      (grant.setup === true ? !SETUP_TOOLS.has(req.tool) : !grant.agentIds.includes(req.agentId)) ||
       !permittedTool(grant, req.tool) ||
       resourceBoard(req.resource, new URL(req.resource).origin) !== req.env.boardId
     )
       throw new BoardError('forbidden', 'This connection does not grant this agent, tool or board')
+    if (grant.setup === true || req.tool === 'setup_status')
+      return toJson({ ok: true, result: await runSetupTool({ req, bindings, sql, grant }) })
   }
   const agents = new AgentStore(sql, () => Math.floor(Date.now() / 1000))
   const agent = req.operator === undefined ? agents.get(req.agentId) : agents.owned(req.agentId, req.operator)
