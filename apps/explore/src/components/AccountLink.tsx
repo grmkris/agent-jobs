@@ -21,6 +21,26 @@ export function Count({ n, kind, className }: { n: number; kind: 'collect' | 'wa
 }
 
 /**
+ * The signed-in operator's account on a phone, at the header's top right: their mark, a 44 px link to Account, with what
+ * is ready to collect counted on it. The phone has no Account tab.
+ */
+export function AccountAvatar({ collect }: { collect: number }) {
+  const auth = useAuth()
+  if (auth.address === undefined) return null
+  const short = `${auth.address.slice(0, 6)}…${auth.address.slice(-4)}`
+  return (
+    <Link
+      to="/account"
+      aria-label={`Account ${short}`}
+      className="relative grid size-11 shrink-0 place-items-center rounded-full transition-opacity active:opacity-60"
+    >
+      <Monogram seed={auth.address} size="md" />
+      {collect > 0 && <Count n={collect} kind="collect" className="absolute -top-0.5 -right-1" />}
+    </Link>
+  )
+}
+
+/**
  * The signed-in operator's account row at the foot of the sidebar: the link to Account, where account actions live, and
  * beside it the chevron that opens the wallet's balances.
  */

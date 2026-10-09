@@ -4,16 +4,16 @@ import { cn } from '../lib/cn.ts'
 /**
  * The app's frame, around two places: Jobs (every board’s work and quote requests) and Agents (the operator's own).
  * On a wide screen: a sidebar with both, the operator's agents nested under Agents with what each waits on, and the
- * account link at its foot. On a phone: a translucent top bar and a tab bar (Jobs, Agents, Account), clear of the
- * notch and the home indicator. Content scrolls under the translucent chrome.
+ * account link at its foot. On a phone: a translucent top bar with Sign in, or the account's mark, at its right, and a
+ * tab bar (Jobs, Agents), clear of the notch and the home indicator. Content scrolls under the translucent chrome.
  */
 import { Link, useLocation } from '@tanstack/react-router'
-import { Bot, BriefcaseBusiness, CircleUserRound, type LucideIcon, Plus } from 'lucide-react'
+import { Bot, BriefcaseBusiness, type LucideIcon, Plus } from 'lucide-react'
 import type { ComponentProps, ReactNode } from 'react'
 import { currentBoardId } from '../api.ts'
 import { agentHome, managedLiveness, pendingByAgent, useManagedAgents, useManagedApprovals } from '../managed.ts'
 import { usePaused } from '../wallet.ts'
-import { AccountLink, Count } from './AccountLink.tsx'
+import { AccountAvatar, AccountLink, Count } from './AccountLink.tsx'
 import { type LinkTarget, BoardLink, boardRoutes } from './BoardLink.tsx'
 import { LaunchBanner } from './LaunchGate.tsx'
 import { TestnetEdge, TestnetTag } from './NetworkCue.tsx'
@@ -36,8 +36,9 @@ const AGENT_PATHS = ['/agents', '/connect']
 const onAccount = (p: string) => ACCOUNT_PATHS.some((a) => p.startsWith(a))
 
 /**
- * Jobs, Agents and (on a phone) Account. An agent's page belongs to Agents when it is one of the operator's own
- * (`mine`), and to Jobs otherwise: a worker reached from a job.
+ * Jobs and Agents. An agent's page belongs to Agents when it is one of the operator's own (`mine`), and to Jobs
+ * otherwise: a worker reached from a job. Account pages belong to neither; the account is reached from the sidebar's foot
+ * or the phone header.
  */
 function places(mine: ReadonlySet<string>): Place[] {
   const r = boardRoutes()
@@ -54,7 +55,6 @@ function places(mine: ReadonlySet<string>): Place[] {
       active: (p) => p !== '/' && !agents(p) && !onAccount(p),
     },
     { label: 'Agents', icon: Bot, target: { to: '/agents' }, active: agents },
-    { label: 'Account', icon: CircleUserRound, target: { to: '/account' }, active: onAccount },
   ]
 }
 
@@ -123,7 +123,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const pending = pendingByAgent(auth.signedIn ? (approvals.data?.approvals ?? []) : [])
   const waiting = [...pending.values()].reduce((sum, n) => sum + n, 0)
   const mine = new Set(agents.flatMap((a) => (a.agent_id === null ? [] : [String(a.agent_id)])))
-  const [jobs, agentsPlace, accountPlace] = places(mine)
+  const [jobs, agentsPlace] = places(mine)
   // Nothing is counted when unknown.
   const collect = useCollectActions(auth.address, auth.signedIn).data?.length ?? 0
   return (
@@ -197,7 +197,7 @@ export function Shell({ children }: { children: ReactNode }) {
         <header className="material-chrome material-edge-bottom sticky top-0 z-30 pt-[var(--safe-top)] lg:hidden">
           <div className="flex min-h-12 items-center justify-between gap-3 pr-[max(1rem,var(--safe-right))] pl-[max(1rem,var(--safe-left))]">
             <Brand />
-            {!auth.signedIn && <AccountControl auth={auth} account={account} />}
+            {auth.signedIn ? <AccountAvatar collect={collect} /> : <AccountControl auth={auth} account={account} />}
           </div>
         </header>
 
@@ -231,11 +231,11 @@ export function Shell({ children }: { children: ReactNode }) {
         aria-label="Sections"
         className="material-chrome fixed inset-x-0 bottom-0 z-30 grid auto-cols-fr grid-flow-col border-t border-border/60 pt-1.5 pr-[var(--safe-right)] pb-[calc(0.375rem+var(--safe-bottom))] pl-[var(--safe-left)] lg:hidden"
       >
-        {[jobs, agentsPlace, accountPlace].map((p) => {
+        {[jobs, agentsPlace].map((p) => {
           if (p === undefined) return null
           const on = p.active(pathname)
           const Icon = p.icon
-          const n = p.label === 'Agents' ? waiting : p.label === 'Account' ? collect : 0
+          const n = p === agentsPlace ? waiting : 0
           return (
             <PlaceLink
               key={p.label}
@@ -251,13 +251,7 @@ export function Shell({ children }: { children: ReactNode }) {
             >
               <Icon aria-hidden className="size-6" strokeWidth={on ? 2.2 : 1.7} />
               {p.label}
-              {n > 0 && (
-                <Count
-                  n={n}
-                  kind={p.label === 'Account' ? 'collect' : 'waiting'}
-                  className="absolute top-0 left-[calc(50%+0.5rem)]"
-                />
-              )}
+              {n > 0 && <Count n={n} kind="waiting" className="absolute top-0 left-[calc(50%+0.5rem)]" />}
             </PlaceLink>
           )
         })}

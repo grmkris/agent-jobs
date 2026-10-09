@@ -592,7 +592,6 @@
     "jsx-a11y(prefer-tag-over-role)": 1
   },
   "apps/explore/src/components/Shell.tsx": {
-    "anti-slop-effect(prefer-effect-match)": 1,
     "eslint(max-lines-per-function)": 1,
     "typescript(no-unnecessary-type-conversion)": 1
   },
