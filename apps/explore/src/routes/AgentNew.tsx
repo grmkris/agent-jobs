@@ -1,32 +1,18 @@
 import { Button } from '../components/ui/button.tsx'
-import { Input } from '../components/ui/input.tsx'
-import { cn } from '../lib/cn.ts'
 import { Alert, AlertDescription } from '../components/ui/alert.tsx'
 import { PageTitle, Section, Segmented, textLinkClass } from '../components/kit.tsx'
-import { usePrivy } from '@privy-io/react-auth'
-import { useQueryClient } from '@tanstack/react-query'
-import { Check } from 'lucide-react'
 import { useSearch } from '@tanstack/react-router'
-import { type ReactNode, useState } from 'react'
-import { type Address } from 'viem'
-import { useSignTypedData } from 'wagmi'
-import { agentEndpoint, type ManagedAgent } from '../api.ts'
-import { agentAction, prepareRegistration } from '../agent-api.ts'
-import { reviewAgentGrant } from '../agent-grant.ts'
-import { AgentGrantReview } from '../components/AgentGrantReview.tsx'
+import { useState } from 'react'
+import { type ManagedAgent } from '../api.ts'
 import { BoardLink } from '../components/BoardLink.tsx'
-import { OperatorGrant } from '../components/OperatorGrant.tsx'
 import { PrivyLogin } from '../components/Privy.tsx'
-
 import { StartPrompt } from '../components/AgentStartLink.tsx'
 import { useAuth } from '../components/Wallet.tsx'
 import { agentHome, managedLiveness, useManagedAgents } from '../managed.ts'
 import { relative } from '../format.ts'
 import { AgentOrb } from '../components/agent/AgentOrb.tsx'
-import { AllowanceEditor } from '../components/AllowanceEditor.tsx'
-import { AgentStake } from '../components/AgentStake.tsx'
+import { CreateAgent } from '../components/agent/CreateAgent.tsx'
 import { ConnectionCard } from '../components/ConnectionCard.tsx'
-import { typedDataArgs } from '../typed-data.ts'
 import { privyAppId } from '../wallet.ts'
 
 /** What the agent is for; a connection made right after setup asks only for the scopes of that role. */
@@ -34,12 +20,13 @@ export type AgentRole = 'both' | 'hire' | 'work'
 
 /** Create an agent, or (`?resume=<id>`) continue the setup of one that has no Agent ID yet. */
 export function AgentNewPage() {
+  // SAFETY: this route declares no search schema; `resume` is the only key it reads, an agent key string or absent.
   const { resume } = useSearch({ strict: false }) as { resume?: string }
   const agents = useManagedAgents()
   const initial = resume === undefined ? undefined : agents.data?.agents.find((agent) => agent.id === resume)
   return (
     <>
-      <PageTitle sub="Your wallet owns the identity. The agent has its own wallet.">
+      <PageTitle sub="Your agent gets its own wallet; its identity is registered to yours.">
         {resume === undefined ? 'Create an agent' : 'Finish setting up your agent'}
       </PageTitle>
 
@@ -77,331 +64,20 @@ export function AgentNew({
         <PrivyLogin />
       </Section>
     )
+  const done = (agent: ManagedAgent) =>
+    context === 'oauth' && onReady !== undefined ? (
+      <UseForConnection agent={agent} onReady={onReady} />
+    ) : (
+      <CreatedCard agent={agent} />
+    )
+  if (initial?.state === 'active') return done(initial)
   return (
-    <AgentSetup
+    <CreateAgent
       key={initial?.id ?? auth.address}
       operator={auth.address}
-      context={context}
       {...(initial === undefined ? {} : { initial })}
-      {...(onReady === undefined ? {} : { onReady })}
+      done={done}
     />
-  )
-}
-
-function AgentSetup({
-  operator,
-  initial,
-  onReady,
-  context,
-}: {
-  operator: Address
-  initial?: ManagedAgent
-  onReady?: (agent: ManagedAgent, role: AgentRole) => void
-  context: 'standalone' | 'oauth'
-}) {
-  const { getAccessToken } = usePrivy()
-  const queryClient = useQueryClient()
-  const { signTypedDataAsync } = useSignTypedData()
-  const [name, setName] = useState(initial?.name ?? '')
-  const [draft] = useState(() => {
-    if (initial !== undefined) return { id: initial.id, name: initial.name }
-    try {
-      const saved = JSON.parse(localStorage.getItem(`sidequest.agent-draft:${operator}`) ?? 'null') as {
-        id: string
-        name: string
-      } | null
-      if (saved !== null) return saved
-    } catch {
-      /* This tab keeps the same intent without storage. */
-    }
-    return { id: crypto.randomUUID(), name: '' }
-  })
-  const [agent, setAgent] = useState(initial)
-  const [operatorReady, setOperatorReady] = useState(false)
-  const [fundingReady, setFundingReady] = useState(false)
-  const [role, setRole] = useState<AgentRole>('both')
-  const [review, setReview] = useState<ReturnType<typeof reviewAgentGrant> | null>(null)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  async function run(action: () => Promise<void>) {
-    setBusy(true)
-    setError(null)
-    try {
-      await action()
-    } catch (failure) {
-      setError(failure instanceof Error ? failure.message : 'Setup is unavailable; retry this step')
-    } finally {
-      setBusy(false)
-    }
-  }
-  async function create() {
-    if (draft.name === '') draft.name = name.trim() || 'My coding agent'
-    try {
-      localStorage.setItem(`sidequest.agent-draft:${operator}`, JSON.stringify(draft))
-    } catch {
-      /* The in-memory identity still survives retries. */
-    }
-    const token = await getAccessToken()
-    setAgent(await agentEndpoint<ManagedAgent>('/api/agents', 'POST', draft, token ?? undefined))
-    await queryClient.invalidateQueries({ queryKey: ['managed-agents', operator] })
-  }
-  async function prepare() {
-    if (agent === undefined) return
-    const prepared = await prepareRegistration(agent.id)
-    setReview(reviewAgentGrant(prepared, { kind: 'registration', delegator: operator }))
-  }
-  async function register() {
-    if (agent === undefined || review === null) return
-    const signatureKey = `sidequest.registration-signature:${operator}:${agent.id}`
-    const saved = JSON.parse(localStorage.getItem(signatureKey) ?? 'null') as {
-      hash: string
-      signature: string
-    } | null
-    const signature =
-      saved?.hash === review.hash ? saved.signature : await signTypedDataAsync(typedDataArgs(review.typedData))
-    localStorage.setItem(signatureKey, JSON.stringify({ hash: review.hash, signature }))
-    const response = await agentAction<ManagedAgent | { status: string }>(agent.id, 'registration-confirm', {
-      hash: review.hash,
-      signature,
-    })
-    if (!('state' in response))
-      throw new Error(`Registration is ${response.status}. Retry this step to reconcile the saved sends.`)
-    setAgent(response)
-    setReview(null)
-    await queryClient.invalidateQueries({ queryKey: ['managed-agents', operator] })
-    try {
-      localStorage.removeItem(`sidequest.agent-draft:${operator}`)
-    } catch {
-      /* Setup is already durably stored. */
-    }
-  }
-  const active = agent !== undefined && agent.state === 'active'
-  // The shared 15-second list carries the agent's last MCP call, so the orb rings as soon as the coding agent connects.
-  const polled = useManagedAgents().data?.agents.find((entry) => entry.id === agent?.id)
-  const steps = context === 'oauth' ? (['Identity', 'Choose'] as const) : (['Identity', 'Connect', 'Choose'] as const)
-  return (
-    <div className="grid gap-8">
-      <Step
-        n={1}
-        of={steps}
-        title="Identity"
-        done={active}
-        summary={active && agent !== undefined ? `${agent.name} · Agent ID ${agent.agent_id}` : undefined}
-      >
-        {agent === undefined ? (
-          <>
-            <label className="grid gap-2 text-sm">
-              <span>Agent name</span>
-              <Input
-                value={name || draft.name}
-                onChange={(event) => setName(event.target.value)}
-                maxLength={100}
-                placeholder="My coding agent"
-              />
-            </label>
-
-            <p className="text-ui text-muted-foreground">
-              Sidequest creates a separate wallet for it, owned by your account, and registers its Agent ID to your
-              wallet.
-            </p>
-
-            <Button busy={busy} onClick={() => void run(create)}>
-              Create agent wallet
-            </Button>
-            {busy && (
-              <p role="status" className="text-ui text-muted-foreground">
-                Creating the agent&apos;s wallet and preparing it for gas sponsorship. This takes about ten seconds.
-              </p>
-            )}
-          </>
-        ) : agent.state !== 'active' ? (
-          <>
-            <p className="text-ui text-muted-foreground">
-              {agent.name} · setup saved ({agent.state}). Retrying resumes the same wallet and registration.
-            </p>
-
-            {['created', 'upgraded'].includes(agent.state) ? (
-              <>
-                <Button
-                  busy={busy}
-                  onClick={() => void run(async () => setAgent(await agentAction<ManagedAgent>(agent.id, 'resume')))}
-                >
-                  Resume wallet setup
-                </Button>
-                {busy && (
-                  <p role="status" className="text-ui text-muted-foreground">
-                    Finishing the agent&apos;s wallet. This takes about ten seconds.
-                  </p>
-                )}
-              </>
-            ) : !operatorReady ? (
-              <OperatorGrant operator={operator} onReady={() => setOperatorReady(true)} />
-            ) : review === null ? (
-              <Button busy={busy} onClick={() => void run(prepare)}>
-                Review registration grant
-              </Button>
-            ) : (
-              <>
-                <AgentGrantReview description={review.description} />
-
-                <Button busy={busy} onClick={() => void run(register)}>
-                  Sign registration permission
-                </Button>
-              </>
-            )}
-          </>
-        ) : (
-          <div className="flex items-start gap-4">
-            <AgentOrb
-              agentId={agent.agent_id ?? agent.id}
-              size="lg"
-              status={managedLiveness(polled ?? agent, Date.now() / 1000)}
-            />
-            <div className="grid min-w-0 gap-1">
-              <p className="text-sm font-medium">{connection(polled ?? agent)}</p>
-              <p className="text-ui text-muted-foreground">
-                Agent ID {agent.agent_id} is registered to your wallet. The agent&apos;s own wallet holds its earnings
-                and job obligations; anyone who backs it keeps ownership of their SIDE.
-              </p>
-            </div>
-          </div>
-        )}
-      </Step>
-      {active && agent !== undefined && context === 'standalone' && (
-        <Step
-          n={2}
-          of={steps}
-          title="Connect"
-          summary="Paste this into your coding agent, or add Sidequest to its MCP settings. It asks you once whether to work, hire or both."
-        >
-          <StartPrompt />
-          <ConnectionCard />
-        </Step>
-      )}
-      {active && agent !== undefined && (
-        <Step
-          n={steps.length}
-          of={steps}
-          title="Choose"
-          summary={
-            context === 'oauth'
-              ? 'You can connect now. A weekly budget and backing can be added later.'
-              : 'An agent can hire other agents, get hired, or both. Either part can wait.'
-          }
-        >
-          <Segmented
-            label="What this agent does"
-            value={role}
-            onChange={setRole}
-            options={[
-              ['both', 'Both'],
-              ['hire', 'Hire'],
-              ['work', 'Get hired'],
-            ]}
-          />
-          {context === 'oauth' && onReady !== undefined && (
-            <Button onClick={() => onReady(agent, role)}>Use this agent for this connection</Button>
-          )}
-          {role !== 'work' && (
-            <Part
-              title="Hire · weekly budget"
-              note="What it may spend each week without asking you. Bigger spends wait for your approval."
-            >
-              {context === 'oauth' ? (
-                <details>
-                  <summary className="cursor-pointer text-sm font-medium">Optional weekly budget</summary>
-                  <div className="pt-3">
-                    <AllowanceEditor agent={agent} onConfirmed={() => setFundingReady(true)} />
-                  </div>
-                </details>
-              ) : (
-                <AllowanceEditor agent={agent} onConfirmed={() => setFundingReady(true)} />
-              )}
-            </Part>
-          )}
-          {role !== 'hire' && (
-            <Part
-              title="Get hired · backing"
-              note="A worker's deposit comes from the SIDE behind it, and bad work can lose it. Back your agent now or later."
-            >
-              {context === 'oauth' ? (
-                <details>
-                  <summary className="cursor-pointer text-sm font-medium">Optional SIDE backing</summary>
-                  <div className="pt-3">
-                    <AgentStake agent={agent} operator={operator} />
-                  </div>
-                </details>
-              ) : (
-                <AgentStake agent={agent} operator={operator} />
-              )}
-              <p className="text-ui text-muted-foreground">
-                Once connected, your agent lists its own services in the worker directory. You can take a listing down
-                from its Manage tab.
-              </p>
-            </Part>
-          )}
-          {context === 'standalone' && onReady !== undefined && (
-            <Button disabled={!fundingReady} onClick={() => onReady(agent, role)}>
-              Use this agent for this connection
-            </Button>
-          )}
-          {onReady === undefined && (
-            <BoardLink target={agentHome(agent)} className={textLinkClass}>
-              Open this agent
-            </BoardLink>
-          )}
-        </Step>
-      )}
-      {error !== null && (
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-    </div>
-  )
-}
-
-/**
- * One numbered step of agent setup (Identity, Connect, Choose; OAuth has no Connect step, the client is already
- * connecting). A finished step keeps its one-line summary and a check.
- */
-function Step({
-  n,
-  of,
-  title,
-  done = false,
-  summary,
-  children,
-}: {
-  n: number
-  of: readonly string[]
-  title: string
-  done?: boolean
-  summary?: ReactNode
-  children: ReactNode
-}) {
-  return (
-    <div className="grid grid-cols-[1.75rem_minmax(0,1fr)] gap-x-3 gap-y-4">
-      <span
-        aria-hidden
-        className={cn(
-          'grid size-7 place-items-center rounded-full text-xs font-semibold tabular-nums',
-          done ? 'bg-success/15 text-success-text' : 'bg-foreground text-background',
-        )}
-      >
-        {done ? <Check className="size-4" /> : n}
-      </span>
-      <div className="grid min-w-0 gap-1 pt-0.5">
-        <h2 className="text-base leading-tight font-semibold tracking-tight">
-          <span className="sr-only">
-            Step {n} of {of.length}:{' '}
-          </span>
-          {title}
-        </h2>
-        {summary !== undefined && <p className="text-sm text-muted-foreground">{summary}</p>}
-      </div>
-      <div className="col-start-2 grid min-w-0 gap-5">{children}</div>
-    </div>
   )
 }
 
@@ -414,15 +90,60 @@ function connection(agent: Pick<ManagedAgent, 'last_activity_at'>): string {
     : `Last MCP call ${ago}`
 }
 
-/** One role's part of the Choose step. */
-function Part({ title, note, children }: { title: string; note: string; children: ReactNode }) {
+/** The agent exists: the prompt that connects your coding agent as it, and where the rest of its setup lives. */
+function CreatedCard({ agent }: { agent: ManagedAgent }) {
+  // The shared 15-second list carries the agent's last MCP call, so the orb rings as soon as the coding agent connects.
+  const polled = useManagedAgents().data?.agents.find((entry) => entry.id === agent.id) ?? agent
   return (
-    <div className="grid min-w-0 gap-3 rounded-xl bg-card p-4 ring-1 ring-foreground/10">
-      <div className="grid gap-0.5">
-        <h3 className="text-sm font-semibold">{title}</h3>
-        <p className="text-ui text-muted-foreground">{note}</p>
+    <div className="grid gap-6">
+      <div className="flex items-center gap-4">
+        <AgentOrb agentId={agent.agent_id ?? agent.id} size="lg" status={managedLiveness(polled, Date.now() / 1000)} />
+        <div className="grid min-w-0 gap-1">
+          <p className="text-xl font-semibold tracking-tight [overflow-wrap:anywhere]">{agent.name}</p>
+          <p className="text-sm text-muted-foreground">
+            Agent ID {agent.agent_id} · {connection(polled)}
+          </p>
+        </div>
       </div>
-      {children}
+      <StartPrompt agent={{ name: agent.name, agentId: agent.agent_id ?? '' }} />
+      <details className="rounded-xl bg-muted/40 px-4 py-3">
+        <summary className="cursor-pointer text-sm font-medium">Add Sidequest to your coding agent by hand</summary>
+        <div className="pt-4">
+          <ConnectionCard />
+        </div>
+      </details>
+      <BoardLink target={agentHome(agent)} className={textLinkClass}>
+        Open {agent.name}: its profile, weekly budget and backing
+      </BoardLink>
+    </div>
+  )
+}
+
+/** Inside an OAuth consent: what the new agent is for, then use it for the connection waiting on this page. */
+function UseForConnection({
+  agent,
+  onReady,
+}: {
+  agent: ManagedAgent
+  onReady: (agent: ManagedAgent, role: AgentRole) => void
+}) {
+  const [role, setRole] = useState<AgentRole>('both')
+  return (
+    <div className="grid gap-4">
+      <p className="text-sm text-muted-foreground">
+        {agent.name} · Agent ID {agent.agent_id}. A weekly budget and backing can be added later from its page.
+      </p>
+      <Segmented
+        label="What this agent does"
+        value={role}
+        onChange={setRole}
+        options={[
+          ['both', 'Both'],
+          ['hire', 'Hire'],
+          ['work', 'Get hired'],
+        ]}
+      />
+      <Button onClick={() => onReady(agent, role)}>Use this agent for this connection</Button>
     </div>
   )
 }

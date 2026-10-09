@@ -13,12 +13,23 @@ export const startOrigin = () => (writesOpen || testnetLink === null ? window.lo
  */
 export const startPrompt = (origin: string) => `Read ${origin}/start.md and set yourself up on Sidequest.`
 
+/** After creating an agent: the same guide, naming the agent this coding agent should connect as. */
+export const pairingPrompt = (origin: string, agent: { name: string; agentId: string }) =>
+  `Read ${origin}/start.md and connect as ${agent.name} (agent ${agent.agentId}) on Sidequest.`
+
 /**
  * The landing's composer: the start prompt in a raised, input-like surface, a Copy button, and room for one more
  * action (`children`, e.g. "Open app"). Shaped like a chat composer because that is where it is going.
  */
-export function StartPrompt({ children }: { children?: ReactNode }) {
-  const prompt = startPrompt(startOrigin())
+export function StartPrompt({
+  children,
+  agent,
+}: {
+  children?: ReactNode
+  /** The agent just created: the prompt then names it. */
+  agent?: { name: string; agentId: string }
+}) {
+  const prompt = agent === undefined ? startPrompt(startOrigin()) : pairingPrompt(startOrigin(), agent)
   const [copied, setCopied] = useState(false)
   return (
     <div className="w-full rounded-3xl bg-card p-2 text-left shadow-popover ring-1 ring-foreground/10">

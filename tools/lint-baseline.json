@@ -565,10 +565,6 @@
   "apps/explore/src/components/OperatorBalances.tsx": {
     "anti-slop(no-runtime-typeof)": 1
   },
-  "apps/explore/src/components/OperatorGrant.tsx": {
-    "eslint(max-lines-per-function)": 1,
-    "typescript(no-deprecated)": 1
-  },
   "apps/explore/src/components/Phase.test.ts": {
     "anti-slop(no-chained-type-assertions)": 1,
     "anti-slop(require-safety-comment-for-type-assertion)": 2
@@ -838,14 +834,6 @@
     "complexity(complexity)": 1,
     "eslint(max-lines-per-function)": 1,
     "typescript(no-base-to-string)": 1
-  },
-  "apps/explore/src/routes/AgentNew.tsx": {
-    "anti-slop(require-safety-comment-for-type-assertion)": 3,
-    "complexity(complexity)": 1,
-    "eslint(max-lines-per-function)": 1,
-    "jsx-a11y(label-has-associated-control)": 1,
-    "jsx-a11y(prefer-tag-over-role)": 2,
-    "typescript(no-deprecated)": 1
   },
   "apps/explore/src/routes/BoardNew.tsx": {
     "anti-slop(require-safety-comment-for-type-assertion)": 1,
