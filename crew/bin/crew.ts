@@ -798,13 +798,13 @@ async function serve(id: string, minutes: number) {
   await memberLoop(id, m, minutes, fileSlot(id))
 }
 
-/** Moves a member's OAuth files into `secrets/` (root-only) for its container and records its Agent ID for labels. */
+/** Moves a member's OAuth files into `secrets/` (root-only) for its container and records its hosted agent's key. */
 function containerize(id: string) {
   memberOf(id)
   const script = [
     'set -e',
     'cd /m',
-    'if [ -f token.json ]; then jq -r .agent_id token.json > agent-id; fi',
+    'if [ -f token.json ]; then jq -r .agent_id token.json > agent-key; fi',
     'mkdir -p secrets',
     'for f in token.json client.json login.json; do if [ -f "$f" ]; then mv "$f" secrets/; fi; done',
     'chown -R 0:0 secrets',
@@ -848,7 +848,7 @@ interface Mounts {
 }
 
 /** One bot's compose service: its env file (0600, only the variables its member lists), limits, labels and mounts. */
-function botService(id: string, m: Member, e: Record<string, string>, at: Mounts) {
+function botService(id: string, m: Member, e: Record<string, string>, at: Mounts, agentId: string) {
   const envFile = join(repo, '.crew', 'env', `${id}.env`)
   const vars = [
     `CLIPROXY_API_KEY=${e.CLIPROXY_API_KEY ?? ''}`,
@@ -856,8 +856,8 @@ function botService(id: string, m: Member, e: Record<string, string>, at: Mounts
   ]
   writeFileSync(envFile, `${vars.join('\n')}\n`, { mode: 0o600 })
   chmodSync(envFile, 0o600)
-  const agentFile = join(home(id), 'agent-id')
-  const agentId = existsSync(agentFile) ? readFileSync(agentFile, 'utf8').trim() : ''
+  const keyFile = join(home(id), 'agent-key')
+  const agentKey = existsSync(keyFile) ? readFileSync(keyFile, 'utf8').trim() : ''
   const { cpus, memory } = m.resources ?? crew.harness.resources
   const state = home(id)
   return {
@@ -887,6 +887,7 @@ function botService(id: string, m: Member, e: Record<string, string>, at: Mounts
     stop_grace_period: '30s',
     labels: {
       'sidequest.agent.id': agentId,
+      'sidequest.agent.key': agentKey,
       'sidequest.agent.name': m.name,
       'sidequest.agent.member': id,
       'sidequest.agent.harness': m.harness ?? 'codex',
@@ -911,8 +912,16 @@ function botService(id: string, m: Member, e: Record<string, string>, at: Mounts
   }
 }
 
+/** The crew's ERC-8004 Agent IDs by name, from the board's directory (a token names only the hosted agent's key). */
+async function agentIds(): Promise<Map<string, string>> {
+  const res = await fetch(`${crew.board.origin}/data/directory`).catch(() => undefined)
+  const body: { agents?: Array<{ agentId: string; profile: { name: string } }> } =
+    res?.ok === true ? await res.json() : {}
+  return new Map((body.agents ?? []).map((agent) => [agent.profile.name, agent.agentId]))
+}
+
 /** Writes the crew's compose file, one always-on container per connected member, and starts it (or just `only`). */
-function up(only: string[]) {
+async function up(only: string[]) {
   const e = env()
   const grok = bin('grok')
   const at: Mounts = {
@@ -925,7 +934,10 @@ function up(only: string[]) {
   mkdirSync(join(stateRoot, '.slots'), { recursive: true })
   mkdirSync(join(repo, '.crew', 'env'), { recursive: true, mode: 0o700 })
   const members = Object.entries(crew.members).filter(([id, m]) => m.enabled && existsSync(join(home(id), 'secrets')))
-  const services = Object.fromEntries(members.map(([id, m]) => [bot(id), botService(id, m, e, at)]))
+  const ids = await agentIds()
+  const services = Object.fromEntries(
+    members.map(([id, m]) => [bot(id), botService(id, m, e, at, ids.get(m.name) ?? '')]),
+  )
   const file = join(repo, '.crew', 'compose.json')
   writeFileSync(file, json({ name: PROJECT, services, networks: { crew: { name: PROJECT } } }))
   const started = spawnSync('docker', ['compose', '-f', file, 'up', '-d', '--remove-orphans', ...only.map(bot)], {
@@ -962,7 +974,7 @@ else if (command === 'call')
   )
 else if (command === 'serve') await serve(memberOf(a)[0], Number(b ?? crew.harness.loopMinutes))
 else if (command === 'containerize') containerize(memberOf(a)[0])
-else if (command === 'up') up(process.argv.slice(3))
+else if (command === 'up') await up(process.argv.slice(3))
 else if (command === 'down') compose('down')
 else if (command === 'logs')
   spawnSync('docker', ['logs', '--tail', '100', '-f', bot(memberOf(a)[0])], { stdio: 'inherit' })
