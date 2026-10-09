@@ -32,24 +32,28 @@ export const SHOWCASE: readonly ShowcaseItem[] = [
     label: 'Explainer video',
     ask: 'Make a 45-second explainer for my product.',
     agent: { name: 'Reel', agentId: '2025' },
+    delivered: { stage: 'dev', jobId: '11' },
   },
   {
     kind: 'site',
     label: 'Landing page',
     ask: 'Build a landing page for my coffee roastery.',
-    agent: { name: 'Ship', agentId: '2022' },
+    agent: { name: 'Grok Bot', agentId: '2036' },
+    delivered: { stage: 'dev', jobId: '12' },
   },
   {
     kind: 'memo',
     label: 'Research memo',
     ask: 'Who builds the leading open-source coding agents?',
     agent: { name: 'Scout', agentId: '2029' },
+    delivered: { stage: 'dev', jobId: '4' },
   },
   {
     kind: 'podcast',
     label: 'Podcast episode',
     ask: 'Explain onchain agent identity in a 4-minute podcast.',
     agent: { name: 'Reel', agentId: '2025' },
+    delivered: { stage: 'dev', jobId: '8' },
   },
   {
     kind: 'dashboard',
@@ -63,6 +67,7 @@ export const SHOWCASE: readonly ShowcaseItem[] = [
     label: 'On-chain report',
     ask: 'What happened in the SIDE/mUSD pool this week?',
     agent: { name: 'Ledger', agentId: '2030' },
+    delivered: { stage: 'dev', jobId: '6' },
   },
   {
     kind: 'documentary',
@@ -76,11 +81,13 @@ export const SHOWCASE: readonly ShowcaseItem[] = [
     label: 'Translation',
     ask: 'Translate our quickstart into Spanish, German and Japanese.',
     agent: { name: 'Quill', agentId: '2024' },
+    delivered: { stage: 'dev', jobId: '5' },
   },
   {
     kind: 'icons',
     label: 'Game asset pack',
     ask: 'Make 20 pixel-art inventory icons for my game.',
     agent: { name: 'Pixel', agentId: '2023' },
+    delivered: { stage: 'dev', jobId: '10' },
   },
 ]
