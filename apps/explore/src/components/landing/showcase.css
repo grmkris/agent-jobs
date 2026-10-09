@@ -1,0 +1,864 @@
+/*
+ * The gallery of kinds of work (ExamplesGallery) and the agents strip (AgentsStrip), in the delivery desk's paper and
+ * ink. Each preview is drawn in em inside a frame whose font size follows the frame's width, so a preview keeps its
+ * proportions from the three-column grid down to a phone's swipe row. Previews are illustrations, never records.
+ */
+.showcase,
+.agents-strip {
+  display: grid;
+  gap: 1.5rem;
+  min-width: 0;
+}
+
+.showcase-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.25rem;
+}
+
+.showcase-card {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 0.9rem;
+  min-width: 0;
+  padding: 0.55rem 0.55rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--card);
+  color: var(--card-foreground);
+  transition:
+    transform 0.35s var(--ease-out),
+    box-shadow 0.35s var(--ease-out);
+}
+
+.showcase-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--proof-shadow);
+}
+
+.showcase-frame {
+  position: relative;
+  container-type: inline-size;
+  aspect-ratio: 16 / 10;
+  max-width: 100%;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: color-mix(in oklch, var(--muted) 60%, var(--card));
+  line-height: 1.35;
+}
+
+/* Container units resolve against the frame only from inside it, so the preview root takes the scaled size. */
+.showcase-frame > * {
+  font-size: 3.4cqi;
+}
+
+.showcase-text {
+  display: grid;
+  align-content: start;
+  gap: 0.35rem;
+  padding-inline: 0.4rem;
+}
+
+.showcase-label {
+  color: var(--primary);
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.showcase-ask {
+  font-family: var(--font-display);
+  font-size: 1.04rem;
+  font-style: italic;
+  line-height: 1.3;
+  text-wrap: pretty;
+}
+
+.showcase-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding-inline: 0.4rem;
+  font-size: 0.76rem;
+}
+
+.showcase-agent {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+  transition: text-decoration-color 0.2s;
+}
+
+.showcase-agent:hover {
+  text-decoration-color: currentColor;
+}
+
+.showcase-status {
+  color: var(--primary);
+  font-weight: 500;
+}
+
+.showcase-agent:focus-visible,
+.showcase-status:focus-visible,
+.agent-tile:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+}
+
+/* Shared preview parts. */
+.sp-chip {
+  display: inline-block;
+  padding: 0.15em 0.55em;
+  border: 1px solid var(--border);
+  border-radius: 0.45em;
+  background: var(--card);
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  white-space: nowrap;
+}
+
+.sp-scrubber {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 0.7em;
+  min-width: 0;
+}
+
+.sp-track {
+  position: relative;
+  flex: 1;
+  height: 0.28em;
+  border-radius: 999px;
+  background: oklch(1 0 0 / 0.22);
+}
+
+.sp-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+  background: var(--terminal-accent);
+}
+
+.sp-fill::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: -0.4em;
+  width: 0.8em;
+  height: 0.8em;
+  border-radius: 999px;
+  background: var(--terminal-fg);
+  transform: translateY(-50%);
+}
+
+.sp-tick {
+  position: absolute;
+  top: -0.2em;
+  bottom: -0.2em;
+  width: 0.14em;
+  background: var(--terminal-fg);
+  opacity: 0.6;
+}
+
+.sp-time {
+  font-family: var(--font-mono);
+  font-size: 0.8em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  opacity: 0.85;
+}
+
+/* Video: a paused frame with a caption. */
+.sp-screen {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-rows: 1fr auto auto;
+  justify-items: center;
+  gap: 0.7em;
+  padding: 1.6em 1.4em 1.1em;
+  background:
+    radial-gradient(70% 90% at 78% 18%, color-mix(in oklch, var(--terminal-accent) 30%, transparent), transparent 70%),
+    var(--terminal-bg);
+  color: var(--terminal-fg);
+}
+
+.sp-scene {
+  justify-self: start;
+  max-width: 62%;
+  font-family: var(--font-display);
+  font-size: 2.35em;
+  font-weight: 420;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.sp-scene em {
+  color: var(--terminal-accent);
+}
+
+.sp-play {
+  position: absolute;
+  top: 42%;
+  left: 74%;
+  display: grid;
+  place-items: center;
+  width: 3.4em;
+  height: 3.4em;
+  border: 1px solid oklch(1 0 0 / 0.35);
+  border-radius: 999px;
+  background: oklch(1 0 0 / 0.14);
+  transform: translate(-50%, -50%);
+}
+
+.sp-play svg {
+  width: 1.4em;
+  height: 1.4em;
+  margin-left: 0.15em;
+  fill: currentColor;
+}
+
+.sp-caption {
+  padding: 0.2em 0.6em;
+  border-radius: 0.3em;
+  background: oklch(0 0 0 / 0.55);
+  font-size: 0.95em;
+}
+
+.sp-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.8em;
+  width: 100%;
+}
+
+.sp-controls .sp-chip {
+  border-color: oklch(1 0 0 / 0.3);
+  background: transparent;
+  color: var(--terminal-fg);
+  font-size: 0.75em;
+}
+
+/* Documentary: letterboxed, a chapter card over a dusk still. */
+.sp-letterbox {
+  grid-template-rows: auto 1fr auto;
+  justify-items: center;
+  padding-block: 2.6em 0.7em;
+  background:
+    linear-gradient(oklch(0.12 0.01 255) 0 12%, transparent 12% 82%, oklch(0.12 0.01 255) 82%),
+    radial-gradient(90% 70% at 30% 75%, oklch(0.62 0.12 55 / 0.55), transparent 70%),
+    linear-gradient(170deg, oklch(0.3 0.05 250), oklch(0.42 0.07 30));
+  color: oklch(0.97 0.01 80);
+}
+
+.sp-chapter {
+  font-family: var(--font-mono);
+  font-size: 0.75em;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+
+.sp-scene-title {
+  align-self: center;
+  justify-self: center;
+  max-width: 80%;
+  font-size: 2.1em;
+  font-style: normal;
+  text-align: center;
+  text-wrap: balance;
+}
+
+.sp-scene-title em {
+  color: oklch(0.86 0.1 70);
+}
+
+.sp-letterbox .sp-fill {
+  background: oklch(0.86 0.1 70);
+}
+
+.sp-letterbox .sp-time,
+.sp-letterbox .sp-tick {
+  color: oklch(0.97 0.01 80);
+}
+
+/* Podcast: cover art beside a two-voice waveform. */
+.sp-podcast {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 1.3em;
+  padding: 1.3em;
+}
+
+.sp-cover {
+  display: grid;
+  align-content: space-between;
+  width: 9.5em;
+  aspect-ratio: 1;
+  padding: 0.9em;
+  border-radius: 0.8em;
+  background:
+    radial-gradient(80% 80% at 80% 15%, color-mix(in oklch, var(--info-text) 55%, transparent), transparent 70%),
+    var(--primary);
+  color: var(--primary-foreground);
+  box-shadow: 0 0.8em 1.6em -1em oklch(0.2 0.03 255 / 0.6);
+}
+
+.sp-cover-kicker {
+  font-family: var(--font-mono);
+  font-size: 0.75em;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+
+.sp-cover-title {
+  font-family: var(--font-display);
+  font-size: 1.75em;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.sp-podcast-body {
+  display: grid;
+  gap: 0.8em;
+  min-width: 0;
+  color: var(--muted-foreground);
+}
+
+.sp-voices {
+  display: flex;
+  gap: 1em;
+  font-size: 0.85em;
+}
+
+.sp-voices span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+}
+
+.sp-voices span::before {
+  content: '';
+  width: 0.6em;
+  height: 0.6em;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+[data-voice='a'] {
+  color: var(--primary);
+}
+
+[data-voice='b'] {
+  color: var(--info-text);
+}
+
+.sp-wave {
+  display: flex;
+  align-items: center;
+  gap: 0.18em;
+  height: 4.6em;
+}
+
+.sp-wave span {
+  flex: 1;
+  min-height: 0.3em;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.sp-podcast .sp-track {
+  background: var(--border);
+}
+
+.sp-podcast .sp-fill {
+  background: var(--primary);
+}
+
+.sp-podcast .sp-fill::after {
+  background: var(--primary);
+}
+
+/* Site and dashboard: a browser window that runs off the bottom of the frame, like a cropped screenshot. */
+.sp-browser {
+  position: absolute;
+  inset: 1.3em 1.3em -1em;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 0.7em;
+  background: var(--card);
+  box-shadow: 0 1em 2em -1.4em oklch(0.2 0.03 255 / 0.45);
+}
+
+.sp-browser-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.8em;
+  padding: 0.5em 0.7em;
+  border-bottom: 1px solid var(--border);
+}
+
+.sp-lights {
+  display: inline-flex;
+  gap: 0.3em;
+}
+
+.sp-lights span {
+  width: 0.5em;
+  height: 0.5em;
+  border-radius: 999px;
+  background: var(--border);
+}
+
+.sp-address {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  padding: 0.15em 0.7em;
+  border-radius: 999px;
+  background: var(--muted);
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 0.75em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sp-browser-page {
+  padding: 0.8em;
+}
+
+/* The client's own colours: a delivered site looks the same in either theme, like a screenshot. */
+.sp-site {
+  display: grid;
+  gap: 0.7em;
+}
+
+.sp-site-hero {
+  display: grid;
+  justify-items: start;
+  gap: 0.35em;
+  padding: 1em 1.1em;
+  border-radius: 0.5em;
+  background: radial-gradient(70% 120% at 100% 0%, oklch(0.55 0.12 45 / 0.6), transparent 70%), oklch(0.27 0.04 45);
+  color: oklch(0.95 0.025 80);
+}
+
+.sp-site-name {
+  font-family: var(--font-display);
+  font-size: 1.9em;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.sp-site-name em {
+  color: oklch(0.78 0.12 65);
+}
+
+.sp-site-tag {
+  font-size: 0.85em;
+  opacity: 0.85;
+}
+
+.sp-site-button {
+  margin-top: 0.3em;
+  padding: 0.25em 0.8em;
+  border-radius: 999px;
+  background: oklch(0.78 0.12 65);
+  color: oklch(0.25 0.04 45);
+  font-size: 0.75em;
+  font-weight: 600;
+}
+
+.sp-site-roasts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5em;
+}
+
+.sp-site-roasts li {
+  display: flex;
+  align-items: center;
+  gap: 0.45em;
+  padding: 0.45em 0.55em;
+  border: 1px solid var(--border);
+  border-radius: 0.45em;
+  font-size: 0.8em;
+}
+
+.sp-site-roasts span {
+  width: 1.1em;
+  height: 1.1em;
+  border-radius: 999px;
+  background: oklch(0.55 0.1 50);
+}
+
+.sp-site-roasts [data-roast='1'] span {
+  background: oklch(0.42 0.08 40);
+}
+
+.sp-site-roasts [data-roast='2'] span {
+  background: oklch(0.3 0.05 35);
+}
+
+.sp-dash {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: 0.6em;
+}
+
+.sp-dash-panel {
+  display: grid;
+  align-content: start;
+  gap: 0.5em;
+  padding: 0.6em 0.7em;
+  border: 1px solid var(--border);
+  border-radius: 0.5em;
+}
+
+.sp-dash-label {
+  color: var(--muted-foreground);
+  font-size: 0.72em;
+}
+
+.sp-dash-trend svg {
+  width: 100%;
+  height: 5.4em;
+}
+
+.sp-dash-area {
+  fill: color-mix(in oklch, var(--primary) 16%, transparent);
+}
+
+.sp-dash-line {
+  fill: none;
+  stroke: var(--primary);
+  stroke-width: 1.6;
+  vector-effect: non-scaling-stroke;
+}
+
+.sp-dash-bars {
+  display: grid;
+  gap: 0.22em;
+}
+
+.sp-dash-bars span {
+  height: 0.32em;
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--info-text) 70%, transparent);
+}
+
+.sp-dash-foot {
+  display: flex;
+  grid-column: 1 / -1;
+  gap: 0.4em;
+}
+
+/* Memo, report and translation: a sheet of paper that runs off the bottom of the frame. */
+.sp-paper {
+  position: absolute;
+  inset: 1.3em 1.8em -1em;
+  display: grid;
+  align-content: start;
+  gap: 0.75em;
+  padding: 1.1em 1.3em;
+  border: 1px solid var(--border);
+  border-radius: 0.5em;
+  background: var(--card);
+  box-shadow: 0 1em 2em -1.4em oklch(0.2 0.03 255 / 0.45);
+}
+
+.sp-paper-title {
+  font-family: var(--font-display);
+  font-size: 1.45em;
+  font-weight: 450;
+  line-height: 1.1;
+  letter-spacing: -0.015em;
+}
+
+.sp-paper-title span {
+  margin-left: 0.3em;
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 0.5em;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.sp-lines {
+  display: grid;
+  gap: 0.45em;
+}
+
+.sp-lines span,
+.sp-memo-cell span {
+  display: block;
+  height: 0.42em;
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--muted-foreground) 24%, transparent);
+}
+
+.sp-memo-table {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) repeat(2, minmax(0, 1fr));
+  column-gap: 1em;
+}
+
+.sp-memo-head {
+  padding-bottom: 0.4em;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 0.68em;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sp-memo-cell {
+  padding-block: 0.42em;
+  border-bottom: 1px solid color-mix(in oklch, var(--border) 60%, transparent);
+}
+
+.sp-memo-cell[data-first] span {
+  background: color-mix(in oklch, var(--foreground) 40%, transparent);
+}
+
+.sp-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35em;
+  color: var(--primary);
+  font-family: var(--font-mono);
+  font-size: 0.72em;
+}
+
+.sp-sources span:last-child {
+  margin-left: auto;
+  color: var(--muted-foreground);
+}
+
+.sp-onchain-bars {
+  display: flex;
+  align-items: end;
+  gap: 0.3em;
+  height: 4.2em;
+  padding-bottom: 0.2em;
+  border-bottom: 1px solid var(--border);
+}
+
+.sp-onchain-bars span {
+  flex: 1;
+  border-radius: 0.2em 0.2em 0 0;
+  background: color-mix(in oklch, var(--primary) 55%, transparent);
+}
+
+.sp-onchain-bars span:last-child {
+  background: var(--primary);
+}
+
+.sp-command {
+  justify-self: start;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 0.3em 0.6em;
+  border-radius: 0.35em;
+  background: var(--terminal-bg);
+  color: var(--terminal-fg);
+  font-family: var(--font-mono);
+  font-size: 0.72em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sp-command span {
+  color: var(--terminal-accent);
+}
+
+.sp-translation {
+  inset-inline: 1.3em;
+}
+
+.sp-translation .sp-command {
+  font-size: 0.6em;
+}
+
+.sp-tabs {
+  display: flex;
+  gap: 1.1em;
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 0.75em;
+}
+
+.sp-tabs span {
+  padding-bottom: 0.4em;
+  color: var(--muted-foreground);
+}
+
+.sp-tabs [data-active] {
+  margin-bottom: -1px;
+  border-bottom: 2px solid var(--primary);
+  color: var(--foreground);
+}
+
+.sp-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.2em;
+}
+
+.sp-columns > div {
+  display: grid;
+  align-content: start;
+  gap: 0.6em;
+  min-width: 0;
+}
+
+.sp-column-title {
+  font-family: var(--font-display);
+  font-size: 1.2em;
+  line-height: 1.1;
+}
+
+/* Icons: the sheet on a transparency checkerboard. */
+.sp-icons {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 0.8em;
+  background-color: var(--card);
+  background-image:
+    linear-gradient(45deg, var(--muted) 25%, transparent 25% 75%, var(--muted) 75%),
+    linear-gradient(45deg, var(--muted) 25%, transparent 25% 75%, var(--muted) 75%);
+  background-position:
+    0 0,
+    0.6em 0.6em;
+  background-size: 1.2em 1.2em;
+}
+
+.sp-icons-sheet {
+  display: grid;
+  grid-template-columns: repeat(5, 2.7em);
+  gap: 0.35em;
+}
+
+/* The agents strip. */
+.agents-strip-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+.agent-tile {
+  display: grid;
+  align-content: start;
+  gap: 0.4rem;
+  height: 100%;
+  padding: 1rem 1rem 1.05rem;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--card);
+  color: var(--card-foreground);
+  transition:
+    border-color 0.25s,
+    transform 0.35s var(--ease-out);
+}
+
+.agent-tile:hover {
+  border-color: color-mix(in oklch, var(--primary) 40%, var(--border));
+  transform: translateY(-3px);
+}
+
+.agent-tile-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+}
+
+.agent-tile-record {
+  padding: 0.1rem 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.agent-tile-name {
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  font-weight: 450;
+  line-height: 1.1;
+  letter-spacing: -0.015em;
+}
+
+.agent-tile-line {
+  color: var(--muted-foreground);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.agent-tile-services {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.4rem;
+}
+
+.agent-tile-services span {
+  padding: 0.12rem 0.45rem;
+  border-radius: 6px;
+  background: color-mix(in oklch, var(--muted) 80%, var(--card));
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+}
+
+/* Below the desktop width: both become swipe rows, cards snapping to the start. */
+@media (max-width: 1023px) {
+  .showcase-grid,
+  .agents-strip-row {
+    display: flex;
+    gap: 0.9rem;
+    margin-inline: -0.25rem;
+    padding: 0.25rem 0.25rem 1rem;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+  }
+
+  .showcase-card {
+    flex: 0 0 min(82%, 21rem);
+    scroll-snap-align: start;
+  }
+
+  .agents-strip-row > li {
+    flex: 0 0 min(64%, 15rem);
+    scroll-snap-align: start;
+  }
+
+  .showcase-card:hover,
+  .agent-tile:hover {
+    transform: none;
+  }
+}

@@ -1,20 +1,10 @@
 import { Link } from '@tanstack/react-router'
 import { ArrowRight } from 'lucide-react'
+import { AgentsStrip } from '../components/landing/AgentsStrip.tsx'
+import { ExamplesGallery } from '../components/landing/ExamplesGallery.tsx'
 import { LiveWork } from '../components/landing/LiveWork.tsx'
 import { PromptTerminal } from '../components/landing/PromptTerminal.tsx'
 import { ProofStack } from '../components/landing/ProofStack.tsx'
-
-/** Examples of work to hand off; illustrations, not listings. */
-const MORE_ASKS = [
-  'Audit a site you own',
-  'Plan a four-day trip on a budget',
-  'Turn raw notes into a report',
-  'Translate the docs',
-  'Clean a messy dataset',
-  'Sketch a logo',
-  'Fix an open-source bug',
-  'Map a market from public sources',
-]
 
 function Hero() {
   return (
@@ -40,24 +30,13 @@ function Hero() {
   )
 }
 
-function MoreAsks() {
-  const items = MORE_ASKS.map((ask) => <li key={ask}>{ask}</li>)
-  return (
-    <section className="ask-marquee" aria-label="More things to hand off (examples)">
-      <div className="ask-marquee-track">
-        <ul>{items}</ul>
-        <ul aria-hidden="true">{items}</ul>
-      </div>
-    </section>
-  )
-}
-
-/** One prompt beside three finished examples, a line of further ideas, then the live board. */
+/** One prompt beside three finished examples, the gallery of kinds of work, the agents who take it, then the live board. */
 export function HomePage() {
   return (
     <div className="landing-content">
       <Hero />
-      <MoreAsks />
+      <ExamplesGallery />
+      <AgentsStrip />
       <a href="#start" className="landing-sellers">
         <span>Have an agent that's good at something?</span>
         <span className="landing-sellers-cta">
