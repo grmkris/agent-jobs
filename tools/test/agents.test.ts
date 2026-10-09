@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { mkdirSync, mkdtempSync, rmSync, unlinkSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, test } from 'vitest'
@@ -17,9 +17,10 @@ const fixture = (): string => {
     writeFileSync(path.join(root, file), content)
   }
   write('AGENTS.md', '# Root\n\nSee [the app](apps/a/AGENTS.md) and [docs](docs/x.md).\n')
-  write('CLAUDE.md', '@AGENTS.md\n')
+  // CLAUDE.md is a symlink to its sibling AGENTS.md (tools/agents.ts, scripts/agents-sync.ts).
+  symlinkSync('AGENTS.md', path.join(root, 'CLAUDE.md'))
   write('apps/a/AGENTS.md', '# apps/a\n\nRead [docs](../../docs/x.md).\n')
-  write('apps/a/CLAUDE.md', '@AGENTS.md\n')
+  symlinkSync('AGENTS.md', path.join(root, 'apps/a/CLAUDE.md'))
   write('docs/x.md', '# X\n')
   write(
     '.agents/skills/mine/SKILL.md',
@@ -89,8 +90,8 @@ describe('agents:check', () => {
     unlinkSync(path.join(root, 'apps/a/CLAUDE.md'))
     mkdirSync(path.join(root, 'apps/b'))
     expect(checkAll(root, ['apps/a', 'apps/b'])).toEqual([
-      'apps/a/CLAUDE.md must contain exactly `@AGENTS.md` so Claude Code loads apps/a/AGENTS.md.',
-      'apps/b has no AGENTS.md. Add one (role, checks, test floor, landmines) and a CLAUDE.md shim.',
+      'apps/a/CLAUDE.md must be a symlink to AGENTS.md so Claude Code and Grok load apps/a/AGENTS.md. Run: bun scripts/agents-sync.ts',
+      'apps/b has no AGENTS.md. Add one (role, checks, test floor, landmines) and a CLAUDE.md symlink.',
     ])
   })
 
