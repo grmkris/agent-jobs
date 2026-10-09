@@ -8,7 +8,7 @@ import { cn } from '../lib/cn.ts'
  * notch and the home indicator. Content scrolls under the translucent chrome.
  */
 import { Link, useLocation } from '@tanstack/react-router'
-import { Bot, BookOpen, BriefcaseBusiness, CircleUserRound, type LucideIcon, Plus } from 'lucide-react'
+import { Bot, BriefcaseBusiness, CircleUserRound, type LucideIcon, Plus } from 'lucide-react'
 import type { ComponentProps, ReactNode } from 'react'
 import { currentBoardId } from '../api.ts'
 import { agentHome, managedLiveness, pendingByAgent, useManagedAgents, useManagedApprovals } from '../managed.ts'
@@ -25,9 +25,10 @@ import { AgentOrb } from './agent/AgentOrb.tsx'
 type Place = {
   label: string
   icon: LucideIcon
+  target: LinkTarget
   /** Whether the current path belongs to this place. */
   active: (path: string) => boolean
-} & ({ target: LinkTarget; href?: never } | { href: string; target?: never })
+}
 
 /** Pages that belong to the account rather than to a job or an agent. */
 const ACCOUNT_PATHS = ['/account', '/sponsorship', '/admin']
@@ -54,18 +55,24 @@ function places(mine: ReadonlySet<string>): Place[] {
     },
     { label: 'Agents', icon: Bot, target: { to: '/agents' }, active: agents },
     { label: 'Account', icon: CircleUserRound, target: { to: '/account' }, active: onAccount },
-    { label: 'Docs', icon: BookOpen, href: '/docs', active: (p) => p.startsWith('/docs') },
   ]
 }
 
 /** The brand mark (src/brand/mark.svg), in the tint so it follows light, dark and a tint change. */
-/** The one disclosure Sidequest shows: unaudited contracts, at the user's own risk, with the source a click away. */
+/**
+ * The one disclosure Sidequest shows: unaudited contracts, at the user's own risk, with the source a click away. The
+ * docs link sits here too, now that the docs are no longer a place in the nav.
+ */
 function RiskNote({ className }: { className?: string }) {
   return (
     <p className={cn('text-xs text-muted-foreground', className)}>
       Unaudited contracts. Use at your own risk.{' '}
       <a className="underline" href="https://github.com/grmkris/sidequest" target="_blank" rel="noreferrer">
         Source
+      </a>{' '}
+      ·{' '}
+      <a className="underline" href="/docs">
+        Docs
       </a>
     </p>
   )
@@ -116,7 +123,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const pending = pendingByAgent(auth.signedIn ? (approvals.data?.approvals ?? []) : [])
   const waiting = [...pending.values()].reduce((sum, n) => sum + n, 0)
   const mine = new Set(agents.flatMap((a) => (a.agent_id === null ? [] : [String(a.agent_id)])))
-  const [jobs, agentsPlace, accountPlace, docsPlace] = places(mine)
+  const [jobs, agentsPlace, accountPlace] = places(mine)
   // Nothing is counted when unknown.
   const collect = useCollectActions(auth.address, auth.signedIn).data?.length ?? 0
   return (
@@ -173,7 +180,6 @@ export function Shell({ children }: { children: ReactNode }) {
               </li>
             </ul>
           )}
-          {docsPlace !== undefined && <SideItem place={docsPlace} on={docsPlace.active(pathname)} />}
         </nav>
         <div className="mt-auto grid gap-3 pt-6">
           {auth.signedIn ? (
@@ -223,9 +229,9 @@ export function Shell({ children }: { children: ReactNode }) {
 
       <nav
         aria-label="Sections"
-        className="material-chrome fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 border-t border-border/60 pt-1.5 pr-[var(--safe-right)] pb-[calc(0.375rem+var(--safe-bottom))] pl-[var(--safe-left)] lg:hidden"
+        className="material-chrome fixed inset-x-0 bottom-0 z-30 grid auto-cols-fr grid-flow-col border-t border-border/60 pt-1.5 pr-[var(--safe-right)] pb-[calc(0.375rem+var(--safe-bottom))] pl-[var(--safe-left)] lg:hidden"
       >
-        {[jobs, agentsPlace, docsPlace, accountPlace].map((p) => {
+        {[jobs, agentsPlace, accountPlace].map((p) => {
           if (p === undefined) return null
           const on = p.active(pathname)
           const Icon = p.icon
@@ -273,7 +279,6 @@ const sideClass = (on: boolean, nested = false) =>
   )
 
 function PlaceLink({ place, ...props }: { place: Place } & Omit<ComponentProps<'a'>, 'href' | 'target'>) {
-  if (place.href !== undefined) return <a href={place.href} {...props} />
   return <BoardLink target={place.target} {...props} />
 }
 

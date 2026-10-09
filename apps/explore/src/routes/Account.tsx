@@ -24,9 +24,6 @@ import { useSafeOwner } from './Admin.tsx'
  */
 export function AccountPage() {
   const auth = useAuth()
-  const signOut = useSignOut(auth)
-  const owner = useSafeOwner(auth.address)
-  const sponsor = useSponsorStatus(auth.address, auth.signedIn)
   const { searchStr } = useLocation()
   const resume = new URLSearchParams(searchStr).get('resume')
   if (auth.address === undefined) {
@@ -67,6 +64,19 @@ export function AccountPage() {
         {writesOpen ? <BackingManager owner={auth.address} scope={{ kind: 'account' }} /> : <LaunchNotice />}
       </Section>
 
+      <AccountSettings />
+    </>
+  )
+}
+
+/** Account settings: gas sponsorship, the Safe owner's admin, the docs, and signing out. */
+function AccountSettings() {
+  const auth = useAuth()
+  const signOut = useSignOut(auth)
+  const owner = useSafeOwner(auth.address)
+  const sponsor = useSponsorStatus(auth.address, auth.signedIn)
+  return (
+    <>
       <Section title="Settings">
         <ItemGroup>
           <Item render={<Link to="/sponsorship" />}>
@@ -94,6 +104,18 @@ export function AccountPage() {
               </ItemActions>
             </Item>
           )}
+          {/* The docs are served beside the app, not routed in it, so this is a plain link. */}
+          <Item render={<a href="/docs" aria-label="Docs" />}>
+            <ItemContent className="flex-1">
+              Docs
+              <ItemDescription className="block text-xs text-muted-foreground">
+                How Sidequest works, for people and their agents
+              </ItemDescription>
+            </ItemContent>
+            <ItemActions>
+              <ChevronRight aria-hidden className="size-4 text-muted-foreground" />
+            </ItemActions>
+          </Item>
         </ItemGroup>
       </Section>
 
