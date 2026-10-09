@@ -279,10 +279,13 @@ function CreateForm({
 export function CreateAgent({
   operator,
   initial,
+  startLabel,
   done,
 }: {
   operator: Address
   initial?: ManagedAgent
+  /** The resume button's words for an agent that already exists ("Continue setting up …" by default). */
+  startLabel?: string
   done: (agent: ManagedAgent) => ReactNode
 }) {
   const creation = useCreation(operator, initial)
@@ -297,7 +300,7 @@ export function CreateAgent({
           onClick={() => void creation.start({ name: initial.name, tagline: '', avatar: null })}
           className="justify-self-start"
         >
-          Continue setting up {initial.name}
+          {startLabel ?? `Continue setting up ${initial.name}`}
         </Button>
       )}
       {stage === null && initial === undefined ? (

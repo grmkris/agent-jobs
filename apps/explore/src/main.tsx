@@ -38,6 +38,7 @@ import { AdminPage } from './routes/Admin.tsx'
 import { SponsorshipPage } from './routes/Sponsorship.tsx'
 import { useTokenRegistry } from './useTokens.ts'
 import { AgentNewPage } from './routes/AgentNew.tsx'
+import { AgentApprovePage } from './routes/AgentApprove.tsx'
 import { HomePage } from './routes/Home.tsx'
 
 function Layout() {
@@ -168,6 +169,15 @@ const agentNew = createRoute({
     </LaunchGate>
   ),
 })
+const agentApprove = createRoute({
+  getParentRoute: () => root,
+  path: '/agents/approve/$agentKey',
+  component: () => (
+    <LaunchGate title="Approve your agent">
+      <AgentApprovePage />
+    </LaunchGate>
+  ),
+})
 const account = createRoute({ getParentRoute: () => root, path: '/account', component: AccountPage })
 const admin = createRoute({
   getParentRoute: () => root,
@@ -263,6 +273,7 @@ const router = createRouter({
     connect,
     account,
     agentNew,
+    agentApprove,
     agentsAlias,
     admin,
     sponsorship,

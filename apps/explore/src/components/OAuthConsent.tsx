@@ -11,6 +11,8 @@ import { AgentStake } from './AgentStake.tsx'
 
 import { useAuth } from './Wallet.tsx'
 import { OAuthClient, type OAuthClientIdentity } from './OAuthClient.tsx'
+import { SetupConnect } from './SetupConnect.tsx'
+import { clientRedirect } from '../agent-setup-api.ts'
 
 export function OAuthConsent({ requestId }: { requestId: string }) {
   const auth = useAuth()
@@ -20,6 +22,8 @@ export function OAuthConsent({ requestId }: { requestId: string }) {
       agentEndpoint<{
         request: OAuthClientIdentity & { scopes: string[]; resource: string; expiresAt: number }
         agents: ManagedAgent[]
+        /** Whether this request may connect without an agent (the client asked for sidequest:setup). */
+        setup?: { available: boolean }
       }>(`/oauth/requests/${requestId}`),
     enabled: auth.signedIn,
     retry: false,
@@ -49,13 +53,7 @@ export function OAuthConsent({ requestId }: { requestId: string }) {
         agentIds: [selected],
         scopes,
       })
-      const url = new URL(response.redirectUrl)
-      if (
-        url.protocol !== 'https:' &&
-        !(url.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname))
-      )
-        throw new Error('The client redirect is unavailable')
-      window.location.assign(url.href)
+      window.location.assign(clientRedirect(response.redirectUrl))
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : 'OAuth consent is unavailable')
     } finally {
@@ -80,8 +78,15 @@ export function OAuthConsent({ requestId }: { requestId: string }) {
         </AlertDescription>
       </Alert>
     )
+  const setup =
+    request.data?.setup?.available === true ? (
+      <SetupConnect requestId={requestId} requested={request.data.request.scopes} />
+    ) : null
+  // Someone without an agent yet starts with the coding agent's setup; anyone else, with their agents.
+  const noAgents = agents.data !== undefined && !agents.data.agents.some((row) => row.state === 'active')
   return (
     <div className="grid gap-6">
+      {noAgents && setup}
       <Section title="Connect one agent" note={request.data?.request.resource ?? 'Loading connection request…'}>
         {request.data !== undefined && <OAuthClient client={request.data.request} />}
         <label className="grid gap-2 text-sm">
@@ -158,6 +163,7 @@ export function OAuthConsent({ requestId }: { requestId: string }) {
           </details>
         </Section>
       )}
+      {!noAgents && setup}
       <Button variant="link" disabled={busy} onClick={() => void decide(false)}>
         Deny connection
       </Button>
