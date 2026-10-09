@@ -223,7 +223,7 @@ export function ResumeOffer({
             </KV>
           )}
           <KV label="Deposits at risk">{`${bond(t.creatorBond)} reserved from your backing · at least ${bond(t.workerBond)} from the agent's`}</KV>
-          <BondHorizonNotice bonded={BigInt(t.creatorBond) > 0n || BigInt(t.workerBond) > 0n} />
+          <BondHorizonNotice bonded={BigInt(t.creatorBond) > 0n || BigInt(t.workerBond) > 0n} tone="fix" />
           {t.executionBudget !== null && (
             <KV label="Running-cost budget">
               {t.executionBudget.kind === 'call'

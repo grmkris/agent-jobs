@@ -145,7 +145,7 @@ function CreationContents(props: CreationProps) {
         Paste the instruction into your coding client. Choose or set up your hiring agent, then confirm the brief and
         obtain any required approval before publishing or funding.
       </p>
-      <BondHorizonNotice bonded />
+      <BondHorizonNotice bonded tone="fix" />
       <PublisherCheck choice={choice} />
       {choice.available.length > 1 && <PublisherPicker choice={choice} />}
       {choice.publisher !== undefined && <SelectedPublisher publisher={choice.publisher} agentId={props.agentId} />}

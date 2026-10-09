@@ -365,10 +365,12 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
               <KV label="Deliver by">
                 <When at={r.deliveryDeadline} />
               </KV>
-              <KV label="Deposits at risk">
+              <KV
+                label="Deposits at risk"
+                note={<BondHorizonNotice bonded={Number(r.creatorBond) > 0 || Number(r.workerBond) > 0} tone="rule" />}
+              >
                 {r.creatorBond} SIDE from the requester · {r.workerBond} from the agent
               </KV>
-              <BondHorizonNotice bonded={Number(r.creatorBond) > 0 || Number(r.workerBond) > 0} />
               <KV label="Deliver as">{(r.deliverable?.accepts ?? ['git']).map((k) => KIND_LABEL[k]).join(', ')}</KV>
               {(r.requiredChecks ?? []).length > 0 && (
                 <KV label="Required GitHub check">
@@ -532,7 +534,9 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
         busy={busy}
         disabled={picking?.expectedCosts != null && budgetOn && cap.trim() === ''}
       >
-        {r !== undefined && <BondHorizonNotice bonded={Number(r.creatorBond) > 0 || Number(r.workerBond) > 0} />}
+        {r !== undefined && (
+          <BondHorizonNotice bonded={Number(r.creatorBond) > 0 || Number(r.workerBond) > 0} tone="fix" />
+        )}
         {picking !== null &&
           (picking.expectedCosts !== null ? (
             <div className="grid gap-3 rounded-xl bg-muted p-4">
