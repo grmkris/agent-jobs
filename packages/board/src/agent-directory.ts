@@ -89,14 +89,17 @@ export class AgentDirectory {
       this.deps.agents.step<sdk.DirectoryAgent>(operationId, 'profile-directory:listing') ??
       this.deps.agents.freezeStep(operationId, 'profile-directory:listing', await refusing(() => this.deps.port.read()))
     if (listing.enrolled) {
+      const liveAds = listing.ads.filter((ad) => ad.expiresAt > this.deps.agents.now())
       await this.#record(operationId, 'profile-directory:enroll', id, 'Enrollment', {
-        profile: { ...profile, services: [...new Set(listing.ads.map((ad) => ad.name))] },
+        profile: { ...profile, services: [...new Set(liveAds.map((ad) => ad.name))] },
         delegate: zeroAddress,
         adDelegate: false,
         grantExpiresAt: 0,
         enrolled: true,
       })
-      for (const ad of listing.ads) {
+      for (const ad of liveAds) {
+        // Enrollment or a previous publication may have waited past this ad's original expiry.
+        if (ad.expiresAt <= this.deps.agents.now()) continue
         const { adHash: _adHash, expiresAt: _expiresAt, ...service } = ad
         await this.#record(operationId, `profile-directory:ad:${ad.serviceId}`, id, 'ServiceAd', service)
       }

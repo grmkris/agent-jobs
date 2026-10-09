@@ -133,6 +133,29 @@ describe('a hosted agent listing itself', () => {
     expect(f.signedCount()).toBe(signed)
   })
 
+  it('does not revive expired ads returned in a stale listing, including the exact expiry boundary', async () => {
+    const f = fixture()
+    for (const serviceId of ['expired', 'boundary', 'live'])
+      await f.directory.advertise('lister', `list-${serviceId}`, { ...ad, serviceId, name: serviceId })
+    const listing = await f.service.read()
+    const now = f.agents.now()
+    const expiry = new Map([
+      ['expired', now - 1],
+      ['boundary', now],
+      ['live', now + 60],
+    ])
+    listing.ads = listing.ads.map((service) => ({
+      ...service,
+      expiresAt: expiry.get(service.serviceId) ?? now,
+    }))
+    f.port.read = async () => listing
+    const operation = f.agents.begin('lister', 'profile-expiry', 'public', 'update_profile', { name: 'Changed' })
+    await f.directory.refreshProfile('lister', operation.id, { name: 'Changed', description: '' })
+    const refreshed = await f.service.read()
+    expect(refreshed.profile.services).toEqual(['live'])
+    expect(refreshed.ads.map((service) => service.serviceId)).toEqual(['live'])
+  })
+
   it('resumes the frozen live-ad set after a lost publication acknowledgement', async () => {
     const f = fixture()
     await f.directory.advertise('lister', 'list-1', ad)
