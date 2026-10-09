@@ -126,6 +126,18 @@ describe('workersAiImages', () => {
     expect(await model.generate('x')).toEqual({ bytes: new TextEncoder().encode('jpeg'), type: 'image/jpeg' })
   })
 
+  it("passes the model's refusal on in its own words", async () => {
+    const model = workersAiImages({
+      run: async () => {
+        throw new Error('3036: daily free allocation exhausted')
+      },
+    })
+    await expect(model.generate('x')).rejects.toMatchObject({
+      code: 'unavailable',
+      message: expect.stringContaining('daily free allocation exhausted'),
+    })
+  })
+
   it('refuses an answer without an image', async () => {
     const model = workersAiImages({ run: async () => ({ error: 'capacity' }) })
     await expect(model.generate('x')).rejects.toThrow()
