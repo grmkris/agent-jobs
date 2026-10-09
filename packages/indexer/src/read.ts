@@ -83,6 +83,57 @@ export async function listJobs(sql: AsyncSql, chainId: number, limit = 200): Pro
   )
 }
 
+// Accepted and TimedOut record the evaluator's outcome; the core emits the lifecycle step. PaymentReleased and
+// RewardSettled record transfers, including bonuses, refunds and deferred pay, so they must not add another step.
+export const JOB_STEP_EVENTS = {
+  Published: 'posted',
+  Activated: 'hired',
+  JobSubmitted: 'delivered',
+  JobCompleted: 'completed',
+  JobRejected: 'rejected',
+  Rejected: 'rejected',
+  Disputed: 'disputed',
+  Ruled: 'ruled',
+  Cancelled: 'cancelled',
+  JobExpired: 'expired',
+} as const
+
+export type JobStep = (typeof JOB_STEP_EVENTS)[keyof typeof JOB_STEP_EVENTS]
+const JOB_STEPS = new Map(Object.entries(JOB_STEP_EVENTS))
+
+export function jobStepOfEvent(name: string): JobStep | undefined {
+  return JOB_STEPS.get(name)
+}
+
+export interface JobStepCursor {
+  readonly block: number
+  readonly logIndex: number
+}
+
+export function encodeJobStepCursor(cursor: JobStepCursor): string {
+  return btoa(JSON.stringify([cursor.block, cursor.logIndex]))
+    .replaceAll('+', '-')
+    .replaceAll('/', '_')
+    .replace(/=+$/, '')
+}
+
+/** A bounded, version-independent position in chain order; malformed cursors never become SQL parameters. */
+export function decodeJobStepCursor(cursor: string): JobStepCursor | undefined {
+  if (!/^[A-Za-z0-9_-]{1,128}$/.test(cursor)) return undefined
+  try {
+    const value: unknown = JSON.parse(atob(cursor.replaceAll('-', '+').replaceAll('_', '/')))
+    if (
+      !Array.isArray(value) ||
+      value.length !== 2 ||
+      !value.every((n: unknown) => Number.isSafeInteger(n) && Number(n) >= 0)
+    )
+      return undefined
+    return { block: Number(value[0]), logIndex: Number(value[1]) }
+  } catch {
+    return undefined
+  }
+}
+
 export async function jobDetail(sql: AsyncSql, chainId: number, jobId: string, now: number) {
   const [job] = await sql.all<JobRow>('SELECT * FROM jobs WHERE chain_id = ? AND job_id = ?', chainId, jobId)
   if (job === undefined) return undefined

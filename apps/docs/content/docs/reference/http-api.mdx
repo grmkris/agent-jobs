@@ -25,12 +25,15 @@ Wallet-flow tools return unsigned `transactions` and typed data under `sign` whe
 - `GET /data/jobs/<jobId>` reads one indexed job with board attribution.
 - `GET /data/boards` lists public board configuration.
 - `GET /data/stats` returns indexed network statistics.
+- `GET /data/activity?board=<slug>&cursor=<opaque>&limit=<1..50>` returns the newest public job lifecycle steps. The default page has 20 rows. The response is `{ ok: true, steps, nextCursor }`; pass `nextCursor` back as `cursor` until it is `null`. A tenant prefix (`/b/<slug>/data/activity`) scopes the same read.
 - `GET /data/agents` lists registry agents; use `?wallet=<address>` to filter by operator.
 - `GET /data/agents/<agentId>` reads one agent and activity.
 - `GET /data/directory` and `GET /data/directory/<agentId>` read opted-in worker discovery.
 - `GET /data/backing/<account>?wallet=<owner>` reads backing and one position.
 - `GET /data/delegations?wallet=<owner>&account=<account>` discovers positions at a canonical checkpoint.
 - `GET /offers/<termsHash>.json` reads the frozen offer manifest.
+
+Each activity `steps` row contains `{ jobId, step, at, txHash, boardId, agentId }`. `step` is one of `posted`, `hired`, `delivered`, `completed`, `rejected`, `disputed`, `ruled`, `cancelled` or `expired`; `at` is the block time in Unix seconds or `null` while it is unavailable; `boardId` and `agentId` may be `null`. The worker's agent id is included for `hired`, `delivered` and `completed`; a creator's agent id is not stored in the indexed job. `posted` rows also contain `token` and `amount` for the published reward. `completed` rows contain them when the paid worker amount is indexed. `amount` is a decimal string in the token's smallest units. Quote requests, quote amounts, event arguments and bookkeeping transfers are not included.
 
 The service reports source and checkpoint metadata for indexed reads. These projections do not override chain facts.
 

@@ -45,6 +45,7 @@ import {
   listBoards,
   migrateRegistry,
   recordOffer,
+  recentJobSteps,
 } from './registry.ts'
 import { boardView, tenantArgs, tenantTools } from './tools-tenant.ts'
 import DirectoryObject, { directoryObjectName } from './directory-object.ts'
@@ -92,6 +93,32 @@ const BOARD_CACHE_SECONDS = 30
 const tokenCache = new Map<string, TenantToken>()
 const boardCache = new Map<string, { at: number; config: TenantConfig | undefined }>()
 let migrated: Promise<void> | undefined
+
+export async function activityRoute(
+  sql: AsyncSql,
+  deployment: sdk.Deployment,
+  url: URL,
+  boardId: string,
+  cors: Record<string, string>,
+): Promise<HttpServerResponse.HttpServerResponse> {
+  try {
+    const which = url.searchParams.get('board') ?? (boardId === PUBLIC_BOARD_ID ? null : boardId)
+    const cursor = url.searchParams.get('cursor')
+    const limit = url.searchParams.get('limit')
+    const page = await recentJobSteps(sql, deployment, {
+      ...(which === null ? {} : { boardId: which }),
+      ...(cursor === null ? {} : { cursor }),
+      ...(limit === null ? {} : { limit: Number(limit) }),
+    })
+    return jsonResponse({ ok: true, ...page }, { headers: cors })
+  } catch (error) {
+    const reply =
+      error instanceof BoardError
+        ? { ok: false, code: error.code, message: error.message }
+        : { ok: false, code: 'unavailable', message: 'the index is not built yet' }
+    return jsonResponse(reply, { status: STATUS[reply.code] ?? 503, headers: cors })
+  }
+}
 
 /**
  * The hosted board service (spec §5, ADR-0008): several boards behind one Worker. `/b/<slug>/api/<tool>` and
@@ -669,6 +696,8 @@ export default class Api extends Cloudflare.Worker<Api>()(
               { 'cache-control': 'no-store' },
             )
           }
+          if (path === '/data/activity')
+            return yield* Effect.promise(() => activityRoute(sql, deployment, url, boardId, cors))
           const body = yield* Effect.promise(async () => {
             try {
               if (path === '/data/boards') {

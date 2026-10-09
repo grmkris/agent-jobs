@@ -4,7 +4,7 @@
  * the once-per-address MON drips. Lives in the API's D1 next to the indexer's chain facts; the API Worker is the only
  * writer of these tables, the indexer of its own.
  */
-import type { TenantConfig } from '@sidequest/board'
+import { BoardError, type TenantConfig } from '@sidequest/board'
 import {
   type AsyncSql,
   type JobRow,
@@ -16,6 +16,11 @@ import {
   OFFER_HASH_SQL,
   jobAvailability,
   jobDetail,
+  JOB_STEP_EVENTS,
+  type JobStep,
+  decodeJobStepCursor,
+  encodeJobStepCursor,
+  jobStepOfEvent,
   stmt,
 } from '@sidequest/indexer'
 import type { Deployment } from '@sidequest/sdk'
@@ -209,6 +214,116 @@ export async function jobsOfBoard(
     ...configured.params,
     limit,
   )
+}
+
+export interface RecentJobStep {
+  readonly jobId: string
+  readonly step: JobStep
+  readonly at: number | null
+  readonly txHash: string
+  readonly boardId: string | null
+  readonly agentId: string | null
+  readonly token?: string
+  readonly amount?: string
+}
+
+interface JobStepRow {
+  job_id: string
+  name: string
+  block: number
+  log_index: number
+  tx_hash: string
+  timestamp: number | null
+  board_id: string | null
+  agent_id: string | null
+  token: string | null
+  reward: string | null
+  net: string | null
+  paid_json: string | null
+}
+
+function stepAmount(row: JobStepRow, step: JobStep): string | null {
+  if (step === 'posted') return row.reward
+  if (step !== 'completed') return null
+  // SAFETY: json_group_array packs reward_outcomes.amount TEXT values written by the event fold.
+  const paid = row.paid_json === null ? [] : (JSON.parse(row.paid_json) as string[])
+  // Sum recorded worker transfers as decimal strings, including a paid bonus; core payments to Holding and
+  // refunds are excluded. A completed job's net is the known core payment when transfer rows are unavailable.
+  return paid.length === 0 ? row.net : paid.reduce((total, value) => total + BigInt(value), 0n).toString()
+}
+
+function recentStep(row: JobStepRow): RecentJobStep {
+  const step = jobStepOfEvent(row.name)!
+  const amount = stepAmount(row, step)
+  return {
+    jobId: row.job_id,
+    step,
+    at: row.timestamp,
+    txHash: row.tx_hash,
+    boardId: row.board_id,
+    // jobs has only the worker's agent_id; it cannot identify a publication's creator or a ruling's arbitrator.
+    agentId: ['hired', 'delivered', 'completed'].includes(step) ? row.agent_id : null,
+    ...(amount === null || row.token === null ? {} : { token: row.token, amount }),
+  }
+}
+
+/** Anonymous chain activity, attributed to boards without exposing event arguments or private quote terms. */
+export async function recentJobSteps(
+  sql: AsyncSql,
+  deployment: Deployment,
+  opts: { boardId?: string; cursor?: string; limit?: number } = {},
+): Promise<{ steps: RecentJobStep[]; nextCursor: string | null }> {
+  const limit = opts.limit ?? 20
+  if (!Number.isInteger(limit) || limit < 1 || limit > 50)
+    throw new BoardError('invalid', 'limit must be an integer between 1 and 50')
+  if (opts.boardId !== undefined && !/^[a-z0-9-]{3,32}$/.test(opts.boardId))
+    throw new BoardError('invalid', 'board must be a board slug (3–32 lowercase letters, digits or hyphens)')
+  const cursor = opts.cursor === undefined ? undefined : decodeJobStepCursor(opts.cursor)
+  if (opts.cursor !== undefined && cursor === undefined) throw new BoardError('invalid', 'invalid activity cursor')
+  const configured = configuredJobs(deployment, 'j')
+  const names = Object.keys(JOB_STEP_EVENTS)
+  const params = [
+    deployment.chainId,
+    ...configured.params,
+    ...names,
+    ...(opts.boardId === undefined ? [] : [opts.boardId]),
+    ...(cursor === undefined ? [] : [cursor.block, cursor.block, cursor.logIndex]),
+    limit + 1,
+  ]
+  const query = (withTimes: boolean) => `SELECT e.job_id, e.name, e.block, e.log_index, e.tx_hash,
+    ${withTimes ? 'b.timestamp' : 'NULL AS timestamp'}, o.board_id, j.agent_id, j.token, j.reward, j.net,
+    CASE WHEN e.name = 'JobCompleted' THEN (
+      SELECT json_group_array(r.amount) FROM reward_outcomes r
+      WHERE r.chain_id = j.chain_id AND r.job_id = j.job_id AND r.kind = 'paid'
+        AND lower(r.recipient) = lower(j.worker)
+    ) END AS paid_json
+    FROM events e JOIN jobs j ON j.chain_id = e.chain_id AND j.job_id = e.job_id
+    LEFT JOIN board_offers o ON lower(${OFFER_HASH_SQL}) = o.terms_hash
+    ${withTimes ? 'LEFT JOIN block_times b ON b.chain_id = e.chain_id AND b.block = e.block' : ''}
+    WHERE e.chain_id = ? AND ${configured.clause} AND e.name IN (${names.map(() => '?').join(', ')})
+      ${opts.boardId === undefined ? '' : 'AND o.board_id = ?'}
+      ${cursor === undefined ? '' : 'AND (e.block < ? OR (e.block = ? AND e.log_index < ?))'}
+      AND NOT (e.name = 'JobRejected' AND EXISTS (
+        SELECT 1 FROM events prior WHERE prior.chain_id = e.chain_id AND prior.job_id = e.job_id
+          AND (prior.name = 'Rejected' OR (prior.name = 'Cancelled' AND prior.tx_hash = e.tx_hash))
+      ))
+    ORDER BY e.block DESC, e.log_index DESC LIMIT ?`
+  // Rejected opens the appeal window; the core's later JobRejected finalizes it. Cancellation also rejects the
+  // core job. Keep the original public step, including when the two events fall on different pages.
+  const rows = await sql
+    .all<JobStepRow>(query(true), ...params)
+    // A fresh deploy can be read before the indexer has created block_times, just like jobTimeline.
+    .catch(() => sql.all<JobStepRow>(query(false), ...params))
+  const page = rows.slice(0, limit)
+  const steps = page.map(recentStep)
+  const last = page.at(-1)
+  return {
+    steps,
+    nextCursor:
+      rows.length > limit && last !== undefined
+        ? encodeJobStepCursor({ block: last.block, logIndex: last.log_index })
+        : null,
+  }
 }
 
 /** Keep historical evidence readable, with an explicit unavailable result for a retired or unknown Holding. */
