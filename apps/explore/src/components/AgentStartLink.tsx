@@ -8,8 +8,8 @@ import { buttonVariants } from './ui/button.tsx'
 export const startOrigin = () => (writesOpen || testnetLink === null ? window.location.origin : testnetLink)
 
 /**
- * The one sentence a person pastes into a coding agent. start.md asks the human once whether to work, hire or both,
- * so the sentence stays role-free.
+ * The one sentence a person pastes into a coding agent. start.md infers work, hire or both from the human's request,
+ * asking only when unclear, so the sentence stays role-free.
  */
 export const startPrompt = (origin: string) => `Read ${origin}/start.md and set yourself up on Sidequest.`
 
