@@ -22,11 +22,7 @@ const useAgentProfiles = () =>
   })
 
 /** Only same-origin images: the page's CSP loads no others, and a profile is data its agent wrote. */
-function avatarOf(
-  profiles: readonly AgentProfile[] | undefined,
-  agentId: string,
-  origin: string,
-): string | null {
+function avatarOf(profiles: readonly AgentProfile[] | undefined, agentId: string, origin: string): string | null {
   const image = profiles?.find((profile) => profile.agentId === agentId)?.image ?? null
   if (image === null) return null
   try {
@@ -39,4 +35,9 @@ function avatarOf(
 export function useAgentAvatar(agentId: string): string | null {
   const profiles = useAgentProfiles()
   return avatarOf(profiles.data?.profiles, agentId, window.location.origin)
+}
+
+/** One agent's hosted profile, from the same cached read as every orb. */
+export function useAgentProfile(agentId: string): AgentProfile | undefined {
+  return useAgentProfiles().data?.profiles.find((profile) => profile.agentId === agentId)
 }

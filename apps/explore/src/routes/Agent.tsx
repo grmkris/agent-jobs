@@ -365,6 +365,7 @@ function Profile({ id }: { id: string }) {
         wallet={wallet}
         directory={directory.data?.agent}
         owner={managed !== undefined}
+        {...(managed === undefined ? {} : { managedId: managed.id })}
         onBack={openBacking}
       />
       {managed === undefined ? (

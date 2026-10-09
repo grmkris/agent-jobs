@@ -12,6 +12,8 @@ import { useNow } from '../Time.tsx'
 import { Button, buttonVariants } from '../ui/button.tsx'
 import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from '../ui/popover.tsx'
 import { AgentOrb } from './AgentOrb.tsx'
+import { ProfileEditor } from './ProfileEditor.tsx'
+import { useAgentProfile } from '../../agent-profiles.ts'
 
 /** The identity is global to the network: board context, owner tabs and anchors are never shared. */
 const canonicalAgentUrl = (origin: string, id: string) => `${new URL(origin).origin}/agent/${id}`
@@ -113,12 +115,54 @@ function OwnerDetails({ identity }: { identity: AgentIdentity }) {
   )
 }
 
+/** Hire, back, edit (the owner's), share and explorer links, in that order. */
+function HeaderActions({
+  id,
+  wallet,
+  owner,
+  onBack,
+  onEdit,
+}: {
+  id: string
+  wallet: `0x${string}` | undefined
+  owner: boolean
+  onBack: () => void
+  onEdit?: () => void
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {!owner && (
+        <CreateWithAgent context="hire" agentId={id}>
+          Hire this agent
+        </CreateWithAgent>
+      )}
+      {wallet !== undefined && (
+        <Button variant="secondary" onClick={onBack}>
+          Back this agent
+        </Button>
+      )}
+      {onEdit !== undefined && (
+        <Button variant="outline" onClick={onEdit}>
+          Edit profile
+        </Button>
+      )}
+      <CopyButton
+        value={canonicalAgentUrl(window.location.origin, id)}
+        label="Share this agent"
+        className={buttonVariants({ variant: 'outline', size: 'icon' })}
+      />
+      <ExplorerMenu id={id} wallet={wallet} />
+    </div>
+  )
+}
+
 export function ProfileHeader({
   id,
   identity,
   wallet,
   directory,
   owner,
+  managedId,
   onBack,
 }: {
   id: string
@@ -126,10 +170,16 @@ export function ProfileHeader({
   wallet: `0x${string}` | undefined
   directory: DirectoryAgent | undefined
   owner: boolean
+  /** The signed-in operator's hosted agent key, when this is theirs: it can edit the hosted profile. */
+  managedId?: string
   onBack: () => void
 }) {
+  const [editing, setEditing] = useState(false)
+  // A hosted profile is current; the registration (tokenURI) may still be the one minted at registration.
+  const hosted = useAgentProfile(id)
   const profile = identity.profile?.kind === 'json' ? identity.profile : null
-  const name = profile?.name ?? directory?.profile.name ?? null
+  const name = hosted?.name ?? profile?.name ?? directory?.profile.name ?? null
+  const description = hosted?.description || profile?.description || null
   const title = name ?? `Agent ID ${id}`
   const now = useNow()
   const status = directory === undefined ? 'idle' : directoryLiveness(directory, now)
@@ -157,28 +207,25 @@ export function ProfileHeader({
           </div>
         </div>
       </div>
-      {profile?.description !== null && profile?.description !== undefined && (
-        <p className="leading-relaxed text-muted-foreground">{profile.description}</p>
-      )}
+      {hosted?.tagline !== undefined && hosted.tagline !== '' && <p className="text-lg">{hosted.tagline}</p>}
+      {description !== null && <p className="leading-relaxed text-muted-foreground">{description}</p>}
       {identity.exists !== false && (
-        <div className="flex flex-wrap items-center gap-2">
-          {!owner && (
-            <CreateWithAgent context="hire" agentId={id}>
-              Hire this agent
-            </CreateWithAgent>
-          )}
-          {wallet !== undefined && (
-            <Button variant="secondary" onClick={onBack}>
-              Back this agent
-            </Button>
-          )}
-          <CopyButton
-            value={canonicalAgentUrl(window.location.origin, id)}
-            label="Share this agent"
-            className={buttonVariants({ variant: 'outline', size: 'icon' })}
-          />
-          <ExplorerMenu id={id} wallet={wallet} />
-        </div>
+        <HeaderActions
+          id={id}
+          wallet={wallet}
+          owner={owner}
+          onBack={onBack}
+          {...(managedId === undefined || editing ? {} : { onEdit: () => setEditing(true) })}
+        />
+      )}
+      {managedId !== undefined && editing && (
+        <ProfileEditor
+          agentId={id}
+          managedId={managedId}
+          initial={{ name: name ?? '', tagline: hosted?.tagline ?? '', description: description ?? '' }}
+          tokenUri={identity.uri}
+          onClose={() => setEditing(false)}
+        />
       )}
     </header>
   )
