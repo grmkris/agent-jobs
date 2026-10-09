@@ -19,6 +19,7 @@ import { fromD1 } from '@sidequest/indexer'
 import { decisionFeedEvents, recordAgentEvents } from './feed-agent.ts'
 import { terminateSubscriptions } from './webhooks.ts'
 import type { AgentRouteRequest } from './routes/agents.ts'
+import { agentProfileManagement } from './agent-profile-management.ts'
 
 function text(body: Record<string, unknown>, key: string): string {
   const value = body[key]
@@ -56,6 +57,7 @@ export async function agentManagement(input: {
   const { action, body } = request
   const id = request.id ?? ''
   const agents = new AgentStore(sql, now)
+  if (action === 'profile' || action === 'avatar' || action === 'avatar-generate') return agentProfileManagement(input)
   const sponsor = new SponsorDesk({
     sql,
     ctx: context,
