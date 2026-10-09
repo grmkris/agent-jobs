@@ -891,9 +891,6 @@
     "typescript(no-unnecessary-type-assertion)": 1,
     "typescript(switch-exhaustiveness-check)": 1
   },
-  "apps/explore/src/routes/MyAgents.tsx": {
-    "anti-slop-effect(prefer-effect-match)": 1
-  },
   "apps/explore/src/routes/Request.tsx": {
     "anti-slop(require-safety-comment-for-type-assertion)": 5,
     "complexity(complexity)": 1,
