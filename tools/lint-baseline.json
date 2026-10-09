@@ -509,7 +509,7 @@
     "anti-slop-effect(prefer-effect-match)": 1,
     "complexity(complexity)": 1,
     "eslint(max-lines-per-function)": 3,
-    "jsx-a11y(prefer-tag-over-role)": 2,
+    "jsx-a11y(prefer-tag-over-role)": 1,
     "typescript(no-deprecated)": 1,
     "typescript(no-unnecessary-boolean-literal-compare)": 1
   },

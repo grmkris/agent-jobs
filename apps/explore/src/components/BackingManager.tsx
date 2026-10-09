@@ -5,14 +5,15 @@ import * as sdk from '@sidequest/sdk'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { useEffect, useState } from 'react'
-import { Link } from '@tanstack/react-router'
-import { type Address, encodeFunctionData, erc20Abi, formatEther, parseEther, parseSignature } from 'viem'
+import { type Address, encodeFunctionData, erc20Abi, parseSignature } from 'viem'
 import { useBalance, useSignTypedData } from 'wagmi'
 import { type ManagedAgent, agentEndpoint } from '../api.ts'
 import { DelegationForm, exactFactory } from './DelegationForm.tsx'
 import { DELEGATION_RISK, DelegationPositions, factoryValue, walletAgentsKey } from './DelegationPositions.tsx'
 import { HoldingControls } from './HoldingControls.tsx'
 import { useToast } from './Sheet.tsx'
+import { BackingSheets, GasWarning, PositionsUnavailable, useReveal } from './backing/AccountBacking.tsx'
+import { BackingOverview } from './backing/BackingOverview.tsx'
 import { TxSteps } from './TxSteps.tsx'
 import { emptyJournal, readTxJournalDurable, txJournalKey, writeTxJournalDurable } from './txJournal.ts'
 import { withWalletStepLock } from './txOperation.ts'
@@ -25,6 +26,7 @@ import { factoryAmount } from '../stake.ts'
 import { friendlyError } from '../txErrors.ts'
 import { vaultOperationGuards } from '../vault-proof.ts'
 import { positionLabel } from '../position-label.ts'
+import { backableAgents } from '../backing-agents.ts'
 import { chain, deployment, writesOpen } from '../wallet.ts'
 import {
   InterruptedVaultPreparation,
@@ -38,9 +40,6 @@ import {
   withVaultIntentLock,
 } from '../vault-lock.ts'
 import { VaultPreparationRecovery } from './VaultPreparationRecovery.tsx'
-
-/** About one backing send at testnet gas prices, with room to spare: backing is not gas-sponsored. */
-const BACKING_GAS = parseEther('0.03')
 
 export function BackingManager({
   owner,
@@ -84,6 +83,13 @@ function Stake({
   const [account, setAccount] = useState<Address>(initialAccount ?? owner)
   const selected = useIndexedBacking(account, owner)
   const [mode, setMode] = useState<'add' | 'leave'>('add')
+  // On Account the form and the agent picker open in a sheet; on an agent's page the form stays inline.
+  const [sheet, setSheet] = useState<'form' | 'pick' | null>(null)
+  const openForm = (target: Address, next: 'add' | 'leave' = 'add') => {
+    setAccount(target)
+    setMode(next)
+    setSheet('form')
+  }
   const [text, setText] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -302,9 +308,50 @@ function Stake({
     ).catch(reportFailure)
   }
 
+  // On Account the form sheet closes into the confirm step (and a saved one is restored on load): bring it into view.
+  useReveal('backing-confirm', scope.kind === 'account' ? operation?.id : undefined)
+
+  // The backing form with its gas warning: inline on an agent's page, in a sheet on Account.
+  const formBlock = (
+    <>
+      {mode === 'add' && <GasWarning mon={mon.data?.value} />}
+      <DelegationForm
+        account={account}
+        owner={owner}
+        mode={mode}
+        text={text}
+        wallet={reads.data?.wallet}
+        active={selected.data?.position?.activeValue}
+        reserved={selected.data?.backing?.reserved}
+        cooldown={reads.data?.cooldown}
+        disabled={disabled}
+        busy={busy}
+        error={error}
+        onMode={setMode}
+        onText={setText}
+        onSubmit={() => void submit()}
+        framed={scope.kind === 'agent'}
+      />
+    </>
+  )
+
   return (
     <>
-      <p className="rounded-xl bg-warning/14 p-4 text-sm leading-relaxed text-warning-text">{DELEGATION_RISK}</p>
+      {scope.kind === 'account' ? (
+        reads.data !== undefined && (
+          <BackingOverview
+            positions={reads.data.positions}
+            wallet={reads.data.wallet}
+            owner={owner}
+            cooldown={reads.data.cooldown}
+            disabled={disabled}
+            onBackWallet={() => openForm(owner)}
+            onBackAgent={() => setSheet('pick')}
+          />
+        )
+      ) : (
+        <p className="rounded-xl bg-warning/14 p-4 text-sm leading-relaxed text-warning-text">{DELEGATION_RISK}</p>
+      )}
 
       {initial.error !== null && (
         <Alert variant="destructive">
@@ -323,22 +370,10 @@ function Stake({
       />
 
       {(reads.isError || selected.isError) && (
-        <div role="status" className="grid gap-2 rounded-xl bg-warning/14 p-4 text-sm text-warning-text">
-          <p>
-            {reads.data === undefined
-              ? 'Your positions could not be read. This does not mean they are gone.'
-              : 'Showing last-known positions. Actions are paused until chain facts refresh.'}
-          </p>
-          <Button
-            variant="secondary"
-            onClick={() => {
-              void reads.refetch()
-              void selected.refetch()
-            }}
-          >
-            Retry
-          </Button>
-        </div>
+        <PositionsUnavailable
+          lastKnown={reads.data !== undefined}
+          onRetry={() => void Promise.all([reads.refetch(), selected.refetch()])}
+        />
       )}
 
       {scope.kind === 'account' && reads.isPending ? (
@@ -346,19 +381,18 @@ function Stake({
       ) : (
         reads.data !== undefined && (
           <>
-            <p className="px-4 text-sm text-muted-foreground">
-              In your wallet:{' '}
-              <span className="tabular-nums font-semibold text-foreground">{factoryValue(reads.data.wallet)}</span>
-            </p>
+            {scope.kind === 'agent' && (
+              <p className="px-4 text-sm text-muted-foreground">
+                In your wallet:{' '}
+                <span className="tabular-nums font-semibold text-foreground">{factoryValue(reads.data.wallet)}</span>
+              </p>
+            )}
 
             <DelegationPositions
               positions={positions}
               sources={labelSources}
               disabled={disabled}
-              onEdit={(target, nextMode) => {
-                setAccount(target)
-                setMode(nextMode)
-              }}
+              onEdit={openForm}
               onCancel={(target) => direct('cancel', target)}
               onWithdraw={(target) => direct('withdraw', target)}
             />
@@ -374,21 +408,8 @@ function Stake({
         </Alert>
       )}
 
-      {scope.kind === 'account' && account.toLowerCase() !== owner.toLowerCase() && operation === null && (
-        <Button
-          variant="secondary"
-          disabled={disabled}
-          onClick={() => {
-            setAccount(owner)
-            setMode('add')
-          }}
-        >
-          Back my own wallet
-        </Button>
-      )}
-
       {operation !== null ? (
-        <Section title="Confirm your position action">
+        <Section id="backing-confirm" title="Confirm your position action">
           <p className="px-4 text-sm text-muted-foreground">
             Backing wallet: {nameOf(operation.account)}. Withdrawals return to your signed-in wallet.
           </p>
@@ -457,40 +478,21 @@ function Stake({
           )}
         </Section>
       ) : (
-        <>
-          {mode === 'add' && mon.data !== undefined && mon.data.value < BACKING_GAS && (
-            <Alert>
-              <AlertDescription>
-                Backing is sent from your wallet, which pays the gas in MON; Sidequest does not sponsor it. Your wallet
-                holds {Number(formatEther(mon.data.value)).toLocaleString(undefined, { maximumFractionDigits: 4 })} MON
-                and a backing costs about 0.02.{' '}
-                {deployment.testnetFaucet !== null ? (
-                  <Link to="/account" className="underline underline-offset-2">
-                    Get test tokens
-                  </Link>
-                ) : (
-                  'Add MON to your wallet first.'
-                )}
-              </AlertDescription>
-            </Alert>
-          )}
-          <DelegationForm
-            account={account}
-            owner={owner}
-            mode={mode}
-            text={text}
-            wallet={reads.data?.wallet}
-            active={selected.data?.position?.activeValue}
-            reserved={selected.data?.backing?.reserved}
-            cooldown={reads.data?.cooldown}
-            disabled={disabled}
-            busy={busy}
-            error={error}
-            onMode={setMode}
-            onText={setText}
-            onSubmit={() => void submit()}
-          />
-        </>
+        scope.kind === 'agent' && formBlock
+      )}
+
+      {scope.kind === 'account' && (
+        <BackingSheets
+          open={operation === null ? sheet : null}
+          onClose={() => setSheet(null)}
+          mode={mode}
+          own={account.toLowerCase() === owner.toLowerCase()}
+          name={nameOf(account)}
+          form={formBlock}
+          busy={busy}
+          agents={backableAgents(owner, managed.data?.agents ?? [], agents)}
+          onPick={openForm}
+        />
       )}
 
       {reads.data?.open === false && (

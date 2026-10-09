@@ -23,6 +23,7 @@ export function DelegationForm({
   onMode,
   onText,
   onSubmit,
+  framed = true,
 }: {
   account: Address
   owner: Address
@@ -38,28 +39,28 @@ export function DelegationForm({
   onMode: (mode: 'add' | 'leave') => void
   onText: (text: string) => void
   onSubmit: () => void
+  /** Inside a sheet, which carries its own title, the form goes without its section. */
+  framed?: boolean
 }) {
   const value = factoryAmount(text)
   const maximum = mode === 'add' ? wallet : active
   const invalid = text.trim() !== '' && value === null
   const tooMuch = value !== null && maximum !== undefined && value > maximum
-  return (
-    <Section
-      title={
-        mode === 'add'
-          ? account.toLowerCase() === owner.toLowerCase()
-            ? 'Back my wallet'
-            : 'Back this agent'
-          : 'Leave this position'
-      }
+  const own = account.toLowerCase() === owner.toLowerCase()
+  const form = (
+    <form
+      className="grid gap-3 rounded-xl bg-card p-4"
+      onSubmit={(event) => {
+        event.preventDefault()
+        onSubmit()
+      }}
     >
-      <form
-        className="grid gap-3 rounded-xl bg-card p-4"
-        onSubmit={(event) => {
-          event.preventDefault()
-          onSubmit()
-        }}
-      >
+      {own ? (
+        <p className="text-sm text-muted-foreground">
+          Your own wallet: the jobs you post reserve their deposit from this backing. Only you can leave and withdraw
+          it.
+        </p>
+      ) : (
         <div className="grid gap-1 text-sm text-muted-foreground">
           <span>
             Backing wallet <AddressText value={account} />
@@ -68,78 +69,84 @@ export function DelegationForm({
             Your position belongs to <AddressText value={owner} />. Only you can leave and withdraw it.
           </span>
         </div>
-        <Segmented
-          label="Add or leave"
-          value={mode}
-          onChange={onMode}
-          options={[
-            ['add', 'Add backing'],
-            ['leave', 'Leave'],
-          ]}
-        />
-        <label className="grid gap-1.5 text-sm">
-          <span>Amount of SIDE</span>
-          <span className="flex gap-2">
-            <Input
-              id="stake-amount"
-              inputMode="decimal"
-              autoComplete="off"
-              value={text}
-              placeholder="0"
-              onChange={(event) => onText(event.target.value)}
-              className="min-w-0 flex-1 tabular-nums"
-            />
-            <Button
-              variant="secondary"
-              disabled={disabled || maximum === undefined}
-              onClick={() => maximum !== undefined && onText(exactFactory(maximum))}
-            >
-              Max
-            </Button>
-          </span>
-        </label>
+      )}
+      <Segmented
+        label="Add or leave"
+        value={mode}
+        onChange={onMode}
+        options={[
+          ['add', 'Add backing'],
+          ['leave', 'Leave'],
+        ]}
+      />
+      <label className="grid gap-1.5 text-sm">
+        <span>Amount of SIDE</span>
+        <span className="flex gap-2">
+          <Input
+            id="stake-amount"
+            inputMode="decimal"
+            autoComplete="off"
+            value={text}
+            placeholder="0"
+            onChange={(event) => onText(event.target.value)}
+            className="min-w-0 flex-1 tabular-nums"
+          />
+          <Button
+            variant="secondary"
+            disabled={disabled || maximum === undefined}
+            onClick={() => maximum !== undefined && onText(exactFactory(maximum))}
+          >
+            Max
+          </Button>
+        </span>
+      </label>
+      <p className="text-sm text-muted-foreground">
+        {mode === 'add'
+          ? 'Review the exact amount, then confirm the backing in your wallet. Your wallet pays the gas in MON.'
+          : `Leaving starts ${cooldown === undefined ? 'the vault cooldown' : `a ${duration(cooldown)} cooldown`} for all your queued shares, including any already leaving. Deposits at risk do not prevent requesting to leave; they may delay withdrawal.`}
+      </p>
+      {mode === 'add' && reserved !== undefined && (
         <p className="text-sm text-muted-foreground">
-          {mode === 'add'
-            ? 'Review the exact amount, then confirm the backing in your wallet. Your wallet pays the gas in MON.'
-            : `Leaving starts ${cooldown === undefined ? 'the vault cooldown' : `a ${duration(cooldown)} cooldown`} for all your queued shares, including any already leaving. Deposits at risk do not prevent requesting to leave; they may delay withdrawal.`}
+          Currently bonded behind this account:{' '}
+          <span className="font-medium text-foreground">{factoryValue(reserved)}</span>. New backing shares open-bond
+          exposure pro-rata until those jobs settle.
         </p>
-        {mode === 'add' && reserved !== undefined && (
-          <p className="text-sm text-muted-foreground">
-            Currently bonded behind this account:{' '}
-            <span className="font-medium text-foreground">{factoryValue(reserved)}</span>. New backing shares open-bond
-            exposure pro-rata until those jobs settle.
-          </p>
-        )}
-        {invalid && (
-          <Alert variant="destructive">
-            <AlertDescription>Enter a positive SIDE amount with up to 18 decimal places.</AlertDescription>
-          </Alert>
-        )}
-        {tooMuch && (
-          <Alert variant="destructive">
-            <AlertDescription>
-              {mode === 'add' ? 'That is more SIDE than your wallet holds.' : 'That is more than your active position.'}
-            </AlertDescription>
-          </Alert>
-        )}
-        {error !== null && (
-          <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-        <Button
-          type="submit"
-          size="lg"
-          busy={busy}
-          disabled={disabled || maximum === undefined || value === null || tooMuch}
-        >
-          {mode === 'add'
-            ? `Back with ${value === null ? 'SIDE' : factoryValue(value)}`
-            : value === null
-              ? 'Leave'
-              : `Leave ${factoryValue(value)}`}
-        </Button>
-      </form>
+      )}
+      {invalid && (
+        <Alert variant="destructive">
+          <AlertDescription>Enter a positive SIDE amount with up to 18 decimal places.</AlertDescription>
+        </Alert>
+      )}
+      {tooMuch && (
+        <Alert variant="destructive">
+          <AlertDescription>
+            {mode === 'add' ? 'That is more SIDE than your wallet holds.' : 'That is more than your active position.'}
+          </AlertDescription>
+        </Alert>
+      )}
+      {error !== null && (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+      <Button
+        type="submit"
+        size="lg"
+        busy={busy}
+        disabled={disabled || maximum === undefined || value === null || tooMuch}
+      >
+        {mode === 'add'
+          ? `Back with ${value === null ? 'SIDE' : factoryValue(value)}`
+          : value === null
+            ? 'Leave'
+            : `Leave ${factoryValue(value)}`}
+      </Button>
+    </form>
+  )
+  if (!framed) return form
+  return (
+    <Section title={mode === 'add' ? (own ? 'Back my wallet' : 'Back this agent') : 'Leave this position'}>
+      {form}
     </Section>
   )
 }
