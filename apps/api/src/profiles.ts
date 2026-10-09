@@ -66,7 +66,7 @@ export function profileOrigin(value: string): string {
   return url.origin
 }
 
-export function profileImage(origin: string, avatarKey: string | null): string | null {
+function profileImage(origin: string, avatarKey: string | null): string | null {
   if (avatarKey === null || !/^avatars\/[0-9a-f]{64}\.(png|jpg|webp)$/.test(avatarKey)) return null
   return `${profileOrigin(origin)}/${avatarKey}`
 }

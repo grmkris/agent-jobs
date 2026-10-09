@@ -8,7 +8,7 @@ export interface ImageModel {
   generate(prompt: string): Promise<{ bytes: Uint8Array; type: 'image/png' | 'image/jpeg' }>
 }
 
-export interface AvatarObject {
+interface AvatarObject {
   arrayBuffer(): Promise<ArrayBuffer>
 }
 

@@ -45,12 +45,12 @@ export function parseProfileInput(input: unknown): ProfileInput {
   }
 }
 
-export interface ProfileBindings {
+interface ProfileBindings {
   readonly Manifests?: AvatarBucket
   readonly ImageModel?: ImageModel
 }
 
-export function profileBindings(bindings: Record<string, unknown>): ProfileBindings {
+function profileBindings(bindings: Record<string, unknown>): ProfileBindings {
   return bindings
 }
 
