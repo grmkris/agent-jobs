@@ -10,7 +10,7 @@ import { type Address, encodeFunctionData, erc20Abi, formatEther, parseEther, pa
 import { useBalance, useSignTypedData } from 'wagmi'
 import { type ManagedAgent, agentEndpoint } from '../api.ts'
 import { DelegationForm, exactFactory } from './DelegationForm.tsx'
-import { DELEGATION_RISK, DelegationPositions, factoryValue } from './DelegationPositions.tsx'
+import { DELEGATION_RISK, DelegationPositions, factoryValue, walletAgentsKey } from './DelegationPositions.tsx'
 import { HoldingControls } from './HoldingControls.tsx'
 import { useToast } from './Sheet.tsx'
 import { TxSteps } from './TxSteps.tsx'
@@ -24,6 +24,7 @@ import { stakeContext } from '../stake-context.ts'
 import { factoryAmount } from '../stake.ts'
 import { friendlyError } from '../txErrors.ts'
 import { vaultOperationGuards } from '../vault-proof.ts'
+import { positionLabel } from '../position-label.ts'
 import { chain, deployment, writesOpen } from '../wallet.ts'
 import {
   InterruptedVaultPreparation,
@@ -123,6 +124,11 @@ function Stake({
     setText('')
   }, [account, mode])
   const agents = directory.data?.agents ?? []
+  const labelSources = { owner, managed: managed.data?.agents, directory: agents }
+  const nameOf = (target: Address) => {
+    const walletAgents = queryClient.getQueryData<{ agents: string[] }>(walletAgentsKey(target))?.agents
+    return positionLabel(target, { ...labelSources, walletAgents }).name
+  }
   const mine = new Set(
     (managed.data?.agents ?? []).flatMap((agent) => (agent.address === null ? [] : [agent.address.toLowerCase()])),
   )
@@ -194,7 +200,7 @@ function Stake({
           await savePrepared(
             'leave',
             account,
-            `Leave ${factoryValue(amount)} behind ${account}`,
+            `Leave ${factoryValue(amount)} behind ${nameOf(account)}`,
             encodeFunctionData({
               abi: sdk.stakeVaultAbi,
               functionName: 'requestUndelegate',
@@ -227,7 +233,7 @@ function Stake({
           await saveOperation('delegate', account, [
             {
               chainId: chain.id,
-              description: `Back with ${exactFactory(amount)} SIDE to ${agent?.profile.name ?? account}`,
+              description: `Back with ${exactFactory(amount)} SIDE to ${nameOf(account)}`,
               to: owner,
               value: '0',
               data: sdk.batchCalldata([
@@ -263,7 +269,7 @@ function Stake({
             await savePrepared(
               'delegate',
               account,
-              `Back with ${exactFactory(amount)} SIDE to ${agent?.profile.name ?? account}`,
+              `Back with ${exactFactory(amount)} SIDE to ${nameOf(account)}`,
               encodeFunctionData({
                 abi: sdk.stakeVaultAbi,
                 functionName: 'delegateWithPermit',
@@ -285,7 +291,7 @@ function Stake({
     void prepare(
       kind,
       target,
-      kind === 'cancel' ? `Cancel leaving ${target}` : `Withdraw your position from ${target}`,
+      kind === 'cancel' ? `Cancel leaving ${nameOf(target)}` : `Withdraw your position from ${nameOf(target)}`,
       kind === 'cancel'
         ? encodeFunctionData({
             abi: sdk.stakeVaultAbi,
@@ -347,7 +353,7 @@ function Stake({
 
             <DelegationPositions
               positions={positions}
-              agents={agents}
+              sources={labelSources}
               disabled={disabled}
               onEdit={(target, nextMode) => {
                 setAccount(target)
@@ -384,7 +390,7 @@ function Stake({
       {operation !== null ? (
         <Section title="Confirm your position action">
           <p className="px-4 text-sm text-muted-foreground">
-            Backing wallet: {operation.account}. Withdrawals return to your signed-in wallet.
+            Backing wallet: {nameOf(operation.account)}. Withdrawals return to your signed-in wallet.
           </p>
           <TxSteps
             key={operation.id}
