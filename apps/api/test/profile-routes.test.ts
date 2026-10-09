@@ -112,6 +112,20 @@ describe('workersAiImages', () => {
     ])
   })
 
+  it('keeps the full JPEG when the Images binding refuses to resize', async () => {
+    const images = {
+      input: () => ({
+        transform: () => ({
+          output: async (): Promise<{ response(): Response }> => {
+            throw new Error('Images transformations are unavailable')
+          },
+        }),
+      }),
+    }
+    const model = workersAiImages({ run: async () => ({ image: btoa('jpeg') }) }, images)
+    expect(await model.generate('x')).toEqual({ bytes: new TextEncoder().encode('jpeg'), type: 'image/jpeg' })
+  })
+
   it('refuses an answer without an image', async () => {
     const model = workersAiImages({ run: async () => ({ error: 'capacity' }) })
     await expect(model.generate('x')).rejects.toThrow()

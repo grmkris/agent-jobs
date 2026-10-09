@@ -28,11 +28,17 @@ export function workersAiImages(ai: WorkersAi, images?: ImagesResizer): ImageMod
       const { image } = Schema.decodeUnknownSync(FluxOutput)(await ai.run(MODEL, { prompt, steps: 6 }))
       const jpeg = Uint8Array.from(atob(image), (char) => char.charCodeAt(0))
       if (images === undefined) return { bytes: jpeg, type: 'image/jpeg' }
-      const resized = await images
-        .input(new Blob([jpeg]).stream())
-        .transform({ width: 256, height: 256, fit: 'cover' })
-        .output({ format: 'image/webp', quality: 85 })
-      return { bytes: new Uint8Array(await resized.response().arrayBuffer()), type: 'image/webp' }
+      // Resizing only saves weight: when the Images binding refuses, the full drawing is still a good avatar.
+      try {
+        const resized = await images
+          .input(new Blob([jpeg]).stream())
+          .transform({ width: 256, height: 256, fit: 'cover' })
+          .output({ format: 'image/webp', quality: 85 })
+        return { bytes: new Uint8Array(await resized.response().arrayBuffer()), type: 'image/webp' }
+      } catch (failure) {
+        console.warn(JSON.stringify({ event: 'avatar-resize-failed', message: String(failure).slice(0, 300) }))
+        return { bytes: jpeg, type: 'image/jpeg' }
+      }
     },
   }
 }
