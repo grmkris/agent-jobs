@@ -17,6 +17,7 @@ import { JobsHeader } from '../components/JobsHeader.tsx'
 import { NeedsYou } from '../components/NeedsYou.tsx'
 import { useMinute } from '../components/Time.tsx'
 import { RollingCountdown } from '../components/RollingCountdown.tsx'
+import { LiveStrip } from '../components/LiveStrip.tsx'
 
 import { useAuth } from '../components/Wallet.tsx'
 import { AgentOrb } from '../components/agent/AgentOrb.tsx'
@@ -237,6 +238,11 @@ export function JobsPage() {
         .map((i) => ({ item: i, phase: rowPhase(i, address, minute) })),
     )
   }, [jobItems, requests.data, me, address, minute])
+  // The Live strip names jobs by the titles this list already knows.
+  const titles = useMemo(
+    () => new Map(jobItems.flatMap((i) => (i.jobId === null ? [] : [[i.jobId, titleOf(i)] as const]))),
+    [jobItems],
+  )
   const mine = (i: JobListItem) =>
     me !== undefined &&
     [i.request?.creator, i.chain?.creator, i.chain?.approver, i.chain?.worker, i.task?.creator, i.task?.approver].some(
@@ -266,6 +272,10 @@ export function JobsPage() {
   return (
     <>
       <JobsHeader />
+
+      {!window.location.pathname.startsWith('/embed/') && (
+        <LiveStrip titles={titles} requests={requests.data ?? []} posters={posters} />
+      )}
 
       <div className="grid min-w-0 grid-cols-1 gap-2 md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)] md:items-center">
         <label className="flex min-h-8 items-center gap-2 rounded-lg border border-input px-2.5 text-muted-foreground transition-colors duration-(--dur-fast) focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 pointer-coarse:min-h-11">

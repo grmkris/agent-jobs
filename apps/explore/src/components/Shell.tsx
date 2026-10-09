@@ -11,6 +11,7 @@ import { Link, useLocation } from '@tanstack/react-router'
 import { Bot, BriefcaseBusiness, type LucideIcon, Plus } from 'lucide-react'
 import type { ComponentProps, ReactNode } from 'react'
 import { currentBoardId } from '../api.ts'
+import { JOBS_LABEL } from '../places.ts'
 import { agentHome, managedLiveness, pendingByAgent, useManagedAgents, useManagedApprovals } from '../managed.ts'
 import { usePaused } from '../wallet.ts'
 import { AccountAvatar, AccountLink, Count } from './AccountLink.tsx'
@@ -49,7 +50,7 @@ function places(mine: ReadonlySet<string>): Place[] {
   const agents = (p: string) => AGENT_PATHS.some((a) => p.startsWith(a)) || ownAgent(p)
   return [
     {
-      label: 'Jobs',
+      label: JOBS_LABEL,
       icon: BriefcaseBusiness,
       target: r.boardId === 'public' ? { to: '/jobs' } : r.jobs(),
       active: (p) => p !== '/' && !agents(p) && !onAccount(p),

@@ -6,6 +6,7 @@ import { type BoardInfo, data } from '../api.ts'
 import { boardRoutes } from './BoardLink.tsx'
 import { Sheet } from './Sheet.tsx'
 import { PostHint } from './PostHint.tsx'
+import { JOBS_LABEL } from '../places.ts'
 
 /** Every hosted board (ADR-0008), shared with the Boards page. */
 const useBoards = () =>
@@ -21,7 +22,7 @@ export function JobsHeader() {
   return (
     <header className="grid min-w-0 grid-cols-1 gap-3">
       <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-        <h1 className="text-2xl leading-tight font-semibold tracking-tight">Jobs</h1>
+        <h1 className="text-2xl leading-tight font-semibold tracking-tight">{JOBS_LABEL}</h1>
         <BoardName />
       </div>
       {!embedded && (

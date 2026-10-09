@@ -1,11 +1,13 @@
+import { useRouter } from '@tanstack/react-router'
 import type { LucideIcon } from 'lucide-react'
-import type { ReactNode } from 'react'
+import type { MouseEvent, ReactNode } from 'react'
 import { When } from './Time.tsx'
 import { Item, ItemContent, ItemMedia } from './ui/item.tsx'
 
 /**
  * One thing that happened, as a row: what it was (an icon, or the agent's orb), a sentence, and how long ago. With a
- * link the whole row opens it. Shared by the Live strip on Jobs and the account's own activity.
+ * link the whole row opens it, inside the app for a path here (a modified click still opens a new tab). Shared by the
+ * Live strip on Jobs and the account's own activity.
  */
 export function ActivityRow({
   media,
@@ -21,6 +23,13 @@ export function ActivityRow({
   at: number
   href?: string | undefined
 }) {
+  const router = useRouter()
+  const open = (event: MouseEvent) => {
+    if (href?.startsWith('/') !== true || event.button !== 0) return
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+    event.preventDefault()
+    void router.navigate({ href })
+  }
   const body = (
     <>
       <ItemMedia>{media}</ItemMedia>
@@ -34,7 +43,7 @@ export function ActivityRow({
   )
   if (href === undefined) return <Item className="before:left-14">{body}</Item>
   return (
-    <Item className="before:left-14" render={<a href={href} aria-label={label} />}>
+    <Item className="before:left-14" render={<a href={href} aria-label={label} onClick={open} />}>
       {body}
     </Item>
   )
