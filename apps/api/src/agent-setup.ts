@@ -128,14 +128,15 @@ export class AgentSetup {
         'This setup connection is already creating another agent; resume its operationKey',
       )
     const creation = { id, operator: getAddress(family.operator), userId: identity.privy_user_id, name: profile.name! }
-    this.agents.create({
-      id,
-      operator: creation.operator,
-      privyUserId: creation.userId,
-      name: creation.name,
-      registry: this.deps.context.deployment.identity,
-      chainId: this.deps.context.deployment.chainId,
-    })
+    if (this.deps.sql.all('SELECT id FROM agents WHERE id=?', id).length === 0)
+      this.agents.create({
+        id,
+        operator: creation.operator,
+        privyUserId: creation.userId,
+        name: creation.name,
+        registry: this.deps.context.deployment.identity,
+        chainId: this.deps.context.deployment.chainId,
+      })
     const operation = this.agents.begin(id, 'setup-create', family.board_id, 'create_agent', {
       ...profile,
       operationKey: key,

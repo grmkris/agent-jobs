@@ -111,6 +111,16 @@ it('refuses caller-supplied ownership, missing Privy proof, changed operation ar
   expect(f.onboard).toHaveBeenCalledTimes(1)
 })
 
+it('replays the frozen creation result after an owner renames the pending agent', async () => {
+  const f = await fixture(),
+    created = await f.boot().create(f.grant, args)
+  f.agents.rename(created.agentKey, 'Quill reviewed')
+  expect(await f.boot().create(f.grant, args)).toEqual(created)
+  expect(f.agents.get(created.agentKey).name).toBe('Quill reviewed')
+  expect(f.onboard).toHaveBeenCalledTimes(1)
+  expect(f.generate).toHaveBeenCalledTimes(1)
+})
+
 it('recovers an interrupted provider call under the same creation identity and stores only a fixed message', async () => {
   const f = await fixture()
   f.onboard.mockRejectedValueOnce(new Error('provider request details'))

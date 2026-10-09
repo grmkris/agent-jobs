@@ -21,6 +21,8 @@ const allTools = Object.keys({
   ...tenantTools,
   ...directoryTools,
   ...telegramTools,
+  create_agent: agentTools.create_agent,
+  setup_status: agentTools.setup_status,
   update_profile: agentTools.update_profile,
 })
 const policy = parseHostedAdmission('0')
