@@ -74,8 +74,8 @@ function LiveRecords({
     return (
       <Empty>
         <EmptyHeader>
-          <EmptyTitle>No indexed work yet</EmptyTitle>
-          <EmptyDescription>Published jobs appear after the indexer observes their receipts.</EmptyDescription>
+          <EmptyTitle>The board is quiet right now</EmptyTitle>
+          <EmptyDescription>New published jobs appear here after the indexer observes their receipts.</EmptyDescription>
         </EmptyHeader>
       </Empty>
     )

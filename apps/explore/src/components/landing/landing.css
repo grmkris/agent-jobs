@@ -1,7 +1,7 @@
-/* Buyer-first landing. All art uses theme tokens; image slots live on MissionArt. */
+/* One agent prompt, with plain benefits and examples in the page's existing paper and ink. */
 .landing-content {
   display: grid;
-  gap: 5.5rem;
+  gap: 4.5rem;
   min-width: 0;
 }
 
@@ -28,24 +28,20 @@
 
 .landing-content h1,
 .landing-section-heading h2,
-.landing-worker h2 {
+.audience-card h2 {
   font-family: var(--font-display);
   font-weight: 400;
   letter-spacing: -0.045em;
 }
 
 .landing-content h1 {
+  max-width: 14ch;
   font-size: clamp(3.2rem, 6.8vw, 5.5rem);
   line-height: 1.02;
   text-wrap: balance;
 }
 
-.landing-text-link:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 4px;
-}
-
-.brief-hero {
+.landing-hero {
   display: grid;
   justify-items: center;
   gap: 1.2rem;
@@ -54,56 +50,52 @@
 
 .hero-description {
   font-size: 1.07rem;
-  max-width: 45ch;
 }
 
-.brief-composer {
+.landing-hero > div {
+  max-width: 660px;
   margin-top: 0.8rem;
-  width: 100%;
-  max-width: 760px;
-  text-align: left;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 1.1rem;
-  padding: 1.5rem;
-  box-shadow: 0 8px 35px color-mix(in oklch, var(--foreground) 4%, transparent);
 }
 
-.brief-composer [data-slot='field-label'] {
-  font-family: var(--font-display);
-  font-size: 1.5rem;
-  font-weight: 400;
-}
-
-.brief-suggestions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-top: 1rem;
-}
-
-.brief-composer-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
+.landing-audience {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 3rem;
   border-top: 1px solid var(--border);
-  padding-top: 1rem;
-  margin-top: 1.3rem;
+  padding-top: 2.5rem;
 }
 
-.brief-composer-footer > span {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
+.audience-card {
+  display: grid;
+  align-content: start;
+  gap: 0.85rem;
+}
+
+.audience-card h2 {
+  font-size: 2.5rem;
+  line-height: 1.1;
+}
+
+.audience-card ul {
+  display: grid;
+  gap: 0.7rem;
+  padding-left: 1rem;
+  list-style: disc;
+  color: var(--muted-foreground);
+  font-size: 0.92rem;
+  line-height: 1.65;
+}
+
+.audience-card li::marker {
+  color: var(--primary);
+}
+
+.audience-note {
+  border-top: 1px solid var(--border);
+  padding-top: 0.85rem;
   color: var(--muted-foreground);
   font-size: 0.72rem;
-}
-
-.brief-composer-footer > span svg {
-  width: 1rem;
-  height: 1rem;
-  flex-shrink: 0;
+  line-height: 1.6;
 }
 
 .landing-section-heading {
@@ -112,134 +104,23 @@
   margin-bottom: 1.5rem;
 }
 
-.landing-section-heading h2,
-.landing-worker h2 {
+.landing-section-heading h2 {
   font-size: clamp(2.05rem, 4vw, 3rem);
   line-height: 1.08;
   text-wrap: balance;
 }
 
-.mission-gallery {
+.landing-ideas-list {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1.5rem;
+  column-gap: 3rem;
+  font-size: 0.92rem;
+  line-height: 1.6;
 }
 
-.mission-card {
-  border: 1px solid var(--border);
-  border-radius: 2px;
-  overflow: hidden;
-  background: var(--card);
-  display: flex;
-  flex-direction: column;
-}
-
-.mission-card-body {
-  display: grid;
-  gap: 0.75rem;
-  padding: 1.7rem;
-  flex: 1;
-  align-content: start;
-}
-
-.mission-card h3 {
-  font-family: var(--font-display);
-  font-size: 1.9rem;
-  font-weight: 400;
-  letter-spacing: -0.025em;
-  line-height: 1.15;
-}
-
-.mission-card .landing-description {
-  font-size: 0.8rem;
-}
-
-.mission-deliverable {
-  display: flex;
-  gap: 0.4rem;
-  font-size: 0.73rem;
-  line-height: 1.55;
-  padding-top: 0.6rem;
-  border-top: 1px solid var(--border);
-}
-
-.mission-deliverable svg {
-  width: 0.9rem;
-  height: 0.9rem;
-  flex-shrink: 0;
-  margin-top: 0.12rem;
-  color: var(--primary);
-}
-
-.mission-examples {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  align-items: center;
-  font-size: 0.7rem;
-}
-
-.mission-art {
-  background: color-mix(in oklch, var(--primary) 5%, var(--background));
+.landing-ideas-list li {
   border-bottom: 1px solid var(--border);
-  overflow: hidden;
-  display: grid;
-  place-items: center;
-  position: relative;
-}
-
-.mission-art-svg {
-  width: 100%;
-  height: auto;
-  max-height: 250px;
-}
-
-.art-paper {
-  fill: var(--card);
-}
-
-.art-ink {
-  fill: var(--primary);
-}
-
-.art-wash {
-  fill: color-mix(in oklch, var(--primary) 13%, var(--card));
-}
-
-.art-muted {
-  fill: color-mix(in oklch, var(--primary) 26%, var(--card));
-}
-
-.art-outline {
-  stroke: color-mix(in oklch, var(--primary) 22%, var(--card));
-}
-
-.art-ink-stroke {
-  stroke: var(--primary);
-}
-
-.art-muted-stroke {
-  stroke: color-mix(in oklch, var(--primary) 9%, var(--card));
-}
-
-.art-inverse-stroke {
-  stroke: var(--primary-foreground);
-}
-
-.art-warning-stroke {
-  stroke: var(--warning-text);
-}
-
-.art-caption {
-  fill: var(--primary);
-  font-family: var(--font-mono);
-  font-size: 8px;
-}
-
-.art-code {
-  fill: var(--primary);
-  font-family: var(--font-mono);
-  font-size: 10px;
+  padding: 0.8rem 0;
 }
 
 .landing-workflow {
@@ -252,12 +133,8 @@
 
 .landing-workflow ol {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 1.7rem;
-}
-
-.landing-workflow li {
-  position: relative;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 2rem;
 }
 
 .workflow-number {
@@ -280,30 +157,6 @@
   color: var(--muted-foreground);
   font-size: 0.73rem;
   line-height: 1.6;
-}
-
-.workflow-footnote {
-  font-size: 0.67rem;
-}
-
-.landing-worker {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  align-items: center;
-  gap: 3rem;
-  background: color-mix(in oklch, var(--primary) 5%, var(--background));
-  border: 1px solid var(--border);
-  border-radius: 0.8rem;
-  padding: 2.5rem;
-}
-
-.landing-worker > div:first-child {
-  display: grid;
-  gap: 0.8rem;
-}
-
-.landing-worker .landing-description {
-  font-size: 0.82rem;
 }
 
 .landing-live-work {
@@ -338,41 +191,19 @@
   text-decoration-color: color-mix(in oklch, var(--primary) 35%, transparent);
 }
 
+.landing-text-link:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 4px;
+}
+
 .landing-text-link svg {
   width: 1rem;
   height: 1rem;
 }
 
-.mission-browser-heading {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 0.6rem;
-  border-top: 1px solid var(--border);
-  padding-top: 1.3rem;
-  margin-bottom: 1.5rem;
-}
-
-.mission-browser [data-slot='tabs-list'] {
-  height: auto;
-  min-height: 44px;
-  gap: 0.5rem;
-}
-
-.mission-browser [data-slot='tabs-trigger'] {
-  min-height: 40px;
-  padding-left: 0.7rem;
-  padding-right: 0.7rem;
-}
-
-.examples-disclosure {
-  margin-top: 1.3rem;
-  max-width: 75ch;
-}
-
 @media (max-width: 720px) {
   .landing-content {
-    gap: 3.5rem;
+    gap: 3rem;
   }
 
   .landing-content h1 {
@@ -383,65 +214,39 @@
     font-size: 0.95rem;
   }
 
-  .brief-composer {
-    padding: 1.1rem;
-  }
-
-  .brief-composer-footer {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .brief-suggestions [data-slot='button'] {
-    min-height: 36px;
-  }
-
-  .mission-gallery {
+  .landing-audience {
     grid-template-columns: 1fr;
+    gap: 2rem;
+    padding-top: 2rem;
   }
 
-  .mission-card {
-    display: grid;
+  .audience-card h2 {
+    font-size: 2.1rem;
+  }
+
+  .landing-ideas-list {
     grid-template-columns: 1fr;
-  }
-
-  .mission-card h3 {
-    font-size: 1.75rem;
-  }
-
-  .mission-card-body {
-    padding: 1.25rem;
-  }
-
-  .mission-art-svg {
-    max-height: 200px;
   }
 
   .landing-workflow ol {
     grid-template-columns: 1fr;
-    gap: 1rem;
+    gap: 1.5rem;
   }
 
   .landing-workflow li {
     display: grid;
-    grid-template-columns: 1.5rem 5.5rem 1fr;
-    gap: 0.75rem;
+    grid-template-columns: 1.5rem 1fr;
+    column-gap: 0.75rem;
     align-items: baseline;
   }
 
   .workflow-number {
+    grid-row: span 2;
     margin: 0;
   }
 
   .landing-workflow h3 {
-    font-size: 1.1rem;
-    margin: 0;
-  }
-
-  .landing-worker {
-    grid-template-columns: 1fr;
-    padding: 1.3rem;
-    gap: 1.5rem;
+    font-size: 1.2rem;
   }
 
   .landing-live-heading {
@@ -457,6 +262,7 @@
     margin-top: 1.8rem;
   }
 }
+
 @media (prefers-reduced-motion: reduce) {
   .landing-content *,
   .landing-content *::before,
