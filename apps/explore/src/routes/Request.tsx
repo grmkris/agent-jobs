@@ -5,7 +5,7 @@ import { cn } from '../lib/cn.ts'
 import { Alert, AlertDescription } from '../components/ui/alert.tsx'
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '../components/ui/empty.tsx'
 import { Item, ItemGroup, ItemDescription, ItemContent, ItemMedia } from '../components/ui/item.tsx'
-import { Address, LoadingRows, PageTitle, Section, shortAddress, textLinkClass } from '../components/kit.tsx'
+import { LoadingRows, PageTitle, Section, shortAddress, textLinkClass } from '../components/kit.tsx'
 import { useQuery } from '@tanstack/react-query'
 import { useParams } from '@tanstack/react-router'
 import { Check, ChevronLeft, TriangleAlert } from 'lucide-react'
@@ -22,7 +22,7 @@ import {
 } from '../api.ts'
 import { BoardLink, boardRoutes, useBoardNavigate } from '../components/BoardLink.tsx'
 import { humanAmount, relative } from '../format.ts'
-import { KV, Mark, Switch } from '../components/controls.tsx'
+import { Mark, Switch } from '../components/controls.tsx'
 import { verdictText } from '../screening.ts'
 import { SignIn } from '../components/SignIn.tsx'
 import { ConfirmSheet, useToast } from '../components/Sheet.tsx'
@@ -43,6 +43,7 @@ import { useAgents } from '../agent-summary.ts'
 import { useManagedAgents } from '../managed.ts'
 import { CreateWithAgent } from '../components/CreateWithAgent.tsx'
 import { BondHorizonNotice } from '../components/BondHorizonNotice.tsx'
+import { RequestTerms } from '../components/job/RequestTerms.tsx'
 
 type Auth = ReturnType<typeof useSignedIn>
 /** What `list_quote_requests` carries beyond the shared type: the request as frozen (checks, deliverable spec). */
@@ -241,7 +242,20 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
         Jobs
       </BoardLink>
 
-      <PageTitle sub={status}>{r?.title ?? 'Quote request'}</PageTitle>
+      <PageTitle
+        sub={
+          <>
+            {status}
+            {(r?.tags ?? []).map((tag) => (
+              <Badge key={tag} variant="neutral" className="capitalize">
+                {tag}
+              </Badge>
+            ))}
+          </>
+        }
+      >
+        {r?.title ?? 'Quote request'}
+      </PageTitle>
 
       {r !== undefined && pendingTask === null && (
         <section
@@ -348,40 +362,29 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
           </Section>
 
           <Section title="Terms">
-            <ItemGroup>
-              <KV label={r.budget === undefined ? 'Accepted tokens' : 'Paid in'}>
-                {r.tokens.map(symbolOf).join(', ')}
-              </KV>
-              {r.budget !== undefined && (
-                <KV label="Budget">
-                  <span className="inline-flex items-center gap-1 whitespace-nowrap">
+            <RequestTerms
+              steps={[
+                ...(r.createdAt === undefined ? [] : [{ label: 'Posted', at: r.createdAt }]),
+                { label: 'Quotes close', at: r.quoteDeadline },
+                { label: 'Deliver by', at: r.deliveryDeadline },
+              ]}
+              creatorBond={r.creatorBond}
+              workerBond={r.workerBond}
+              paidIn={
+                r.budget === undefined ? (
+                  r.tokens.map(symbolOf).join(', ')
+                ) : (
+                  <span className="inline-flex flex-wrap items-center justify-end gap-1">
                     Up to <TokenAmount value={r.budget.max} token={r.budget.token} />
                   </span>
-                </KV>
-              )}
-              <KV label="Quotes close">
-                <When at={r.quoteDeadline} />
-              </KV>
-              <KV label="Deliver by">
-                <When at={r.deliveryDeadline} />
-              </KV>
-              <KV
-                label="Deposits at risk"
-                note={<BondHorizonNotice bonded={Number(r.creatorBond) > 0 || Number(r.workerBond) > 0} tone="rule" />}
-              >
-                {r.creatorBond} SIDE from the requester · {r.workerBond} from the agent
-              </KV>
-              <KV label="Deliver as">{(r.deliverable?.accepts ?? ['git']).map((k) => KIND_LABEL[k]).join(', ')}</KV>
-              {(r.requiredChecks ?? []).length > 0 && (
-                <KV label="Required GitHub check">
-                  <code className="font-mono text-ui">{r.requiredChecks?.join(', ')}</code>
-                </KV>
-              )}
-              <KV label="Requester">
-                <Address value={r.creator} you={r.creator.toLowerCase() === me} />
-              </KV>
-              {(r.tags ?? []).length > 0 && <KV label="Tags">{r.tags?.join(', ')}</KV>}
-            </ItemGroup>
+                )
+              }
+              deliverAs={(r.deliverable?.accepts ?? ['git']).map((k) => KIND_LABEL[k])}
+              checks={r.requiredChecks ?? []}
+              requester={r.creator}
+              requesterAgent={posterAgent}
+              you={r.creator.toLowerCase() === me}
+            />
           </Section>
         </>
       )}

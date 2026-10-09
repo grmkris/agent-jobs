@@ -50,7 +50,8 @@ import type { useSignedIn } from '../components/Wallet.tsx'
 import { AgentOrb } from '../components/agent/AgentOrb.tsx'
 import { AgentLabel } from '../components/agent/AgentChip.tsx'
 import { TokenAmount } from '../components/token/TokenAmount.tsx'
-import { amount, bond, budgetCap, span, tokenInfo } from '../format.ts'
+import { amount, budgetCap, span, tokenInfo } from '../format.ts'
+import { StakePair } from '../components/job/RequestTerms.tsx'
 import { sidequest } from '../sidequest.ts'
 import { percent } from '../stake.ts'
 import { useToken } from '../useTokens.ts'
@@ -735,6 +736,8 @@ function People({
   )
 }
 
+/** A deposit as SIDE base units, or null when the job has not said. */
+const sideBase = (value: string | null | undefined) => (value === null || value === undefined ? null : BigInt(value))
 function Details({
   d,
   listed,
@@ -761,10 +764,18 @@ function Details({
             {span(windows.arbitrationSeconds)}
           </Row>
         )}
-        <Row label="Deposits at risk" hint="Returned unless a ruling or a missed deadline burns one">
-          creator {bond(d?.job.creator_bond ?? listed?.creatorBond)} · agent{' '}
-          {bond(d?.job.worker_bond ?? listed?.workerBond)}
-        </Row>
+        <div className="grid gap-2 py-2 text-sm">
+          <span>
+            Deposits at risk
+            <span className="block text-xs text-muted-foreground">
+              Returned unless a ruling or a missed deadline burns one
+            </span>
+          </span>
+          <StakePair
+            creator={sideBase(d?.job.creator_bond ?? listed?.creatorBond)}
+            worker={sideBase(d?.job.worker_bond ?? listed?.workerBond)}
+          />
+        </div>
         {listed?.executionBudget != null && (
           <Row label="Running-cost budget">up to {budgetCap(listed.executionBudget)}, not escrowed</Row>
         )}
