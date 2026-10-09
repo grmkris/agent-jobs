@@ -15,6 +15,8 @@ export default defineConfig({
     'bun.lock',
     // Vendored from dmmulroy/anti-slop in upstream style (tools/oxlint/anti-slop/PROVENANCE.md).
     'tools/oxlint/anti-slop/**',
+    // Vendored from grmkris/personal tools/agents-sync, upstream style (tools/vendored.ts agentIgnorePatterns).
+    'scripts/agents-sync.ts',
     '**/.alchemy/**',
     '**/dist/**',
     '**/.output/**',
