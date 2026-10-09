@@ -32,8 +32,9 @@ import { stageProfile } from '../../infra/stage.ts'
 
 const crewDir = resolve(import.meta.dir, '..')
 const repo = resolve(crewDir, '..')
-const stateRoot = join(repo, '.crew', 'hosted')
 const crew = withBoard(JSON.parse(readFileSync(join(crewDir, 'crew.json'), 'utf8')) as CrewFile)
+const stateRoot =
+  crew.board.stage === 'dev' ? join(repo, '.crew', 'hosted') : join(repo, '.crew', 'hosted', crew.board.stage)
 const REDIRECT = 'http://127.0.0.1:8765/callback'
 const IMAGE = 'sidequest-crew'
 
@@ -76,15 +77,24 @@ interface Crew {
   members: Record<string, Member>
 }
 
-/** The board comes from the stage profile named by crew.json's `board.stage`; V1_BOARD_URL points the crew elsewhere. */
+/** CREW_STAGE overrides crew.json's `board.stage`; its profile defines the board, with V1_BOARD_URL overriding origin. */
 function withBoard(file: CrewFile): Crew {
-  const profile = stageProfile(file.board.stage)
-  if (profile === undefined) throw new Error(`crew.json board.stage must be dev or prod, not ${file.board.stage}`)
+  const stage = process.env.CREW_STAGE ?? file.board.stage
+  const profile = stageProfile(stage)
+  if (profile === undefined) throw new Error(`crew board.stage must be dev or prod, not ${stage}`)
   const origin = new URL(process.env.V1_BOARD_URL ?? profile.origin).origin
   const chain = profile.network === 'monad-mainnet' ? 'Monad mainnet' : 'Monad testnet'
   return {
     ...file,
-    board: { ...file.board, origin, mcp: `${origin}/mcp`, relay: profile.relay, chainId: profile.chainId, chain },
+    board: {
+      ...file.board,
+      stage,
+      origin,
+      mcp: `${origin}/mcp`,
+      relay: profile.relay,
+      chainId: profile.chainId,
+      chain,
+    },
   }
 }
 interface Token {

@@ -25,8 +25,13 @@ weighted below CI (`cpuShares` 512); `loop` runs members in parallel, at most `m
 after `runTimeoutMinutes`. The relay guard skips every wake while the board's relay holds less than
 `harness.relayFloorMon` (2.5 MON), so the crew never drains the gas that sponsors everyone else.
 
-The definition is versioned here; everything else is local state in `.crew/hosted/<member>/` (git-ignored, mode 700):
+The definition is versioned here; everything else is local state (git-ignored, mode 700):
 the OAuth client and tokens, the harness home, scratch work, the inbox cursor, and run transcripts.
+
+Set `CREW_STAGE=prod` on every command (including both login steps) to override `crew.json`'s `board.stage`;
+the stage profile supplies origin, relay and chain. `V1_BOARD_URL` overrides only the origin.
+Dev state stays in `.crew/hosted/<member>/`; other stages use `.crew/hosted/<stage>/<member>/`.
+The state paths below show dev; prod inserts `prod/` after `hosted/`.
 
 ## Layout
 
