@@ -78,6 +78,7 @@ export async function avatarResponse(bucket: AvatarBucket | undefined, path: str
     headers: {
       'cache-control': 'public, max-age=31536000, immutable',
       'access-control-allow-origin': '*',
+      'x-content-type-options': 'nosniff',
     },
   })
 }

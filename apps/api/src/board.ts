@@ -46,6 +46,7 @@ import { permittedTool } from './mcp-policy.ts'
 import { resourceBoard } from './oauth-validation.ts'
 import { runAgent, type AgentExecuteRequest } from './agent-runtime.ts'
 import { agentManagement } from './agent-management.ts'
+import { profileReader } from './profiles.ts'
 import { recordBoardEvent } from './feed-board.ts'
 import { configurePublicSite } from './telegram.ts'
 import { operatorRequest, type AgentManagementRequest } from './agent-requests.ts'
@@ -425,6 +426,29 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
               config.identity,
               req.agentIds,
             ),
+          )
+        }),
+      /**
+       * Hosted agents' public profiles, for their registration files (`agentKey`) and `/data/profiles` (every minted
+       * agent, or one `agentId`): name, description, tagline and avatar key. No operator, grant or approval data.
+       */
+      managedProfiles: (req: { agentKey?: string; agentId?: string }) =>
+        Effect.promise(async () => {
+          const bindings = runtimeEnv as Record<string, unknown>
+          // SAFETY: Board is this Worker's own Durable Object namespace binding, declared in worker.ts.
+          const namespace = bindings.Board as { idFromName(name: string): { toString(): string } }
+          if (namespace.idFromName(SPONSOR_OBJECT_NAME).toString() !== state.id.toString())
+            throw new Error('management object identity mismatch')
+          const sql = fromDurableObjectSql(state.storage.sql.raw, (write) => state.raw.storage.transactionSync(write))
+          migrateAgentSchema(sql)
+          const reader = profileReader(
+            sql,
+            () => Math.floor(Date.now() / 1000),
+            // SAFETY: NETWORK is the Worker's configured network name, checked by sdk.deployment.
+            sdk.deployment(bindings.NETWORK as sdk.Network),
+          )
+          return toJson(
+            req.agentKey === undefined ? await reader.profiles(req.agentId) : await reader.registration(req.agentKey),
           )
         }),
       /** Public quote-request facts about hosted posters: agent IDs and one grant's headroom. No operator, grant or approval data. */

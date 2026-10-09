@@ -6,6 +6,7 @@ import { AgentProfiles, PROFILE_LIMITS, type AgentProfilePatch, type ProfileUpda
 import { avatarPrompt, identifyAvatar, storeAvatar, type AvatarBucket, type ImageModel } from './avatars.ts'
 import { profileOrigin, profileSummary, type ProfileSummary } from './profiles.ts'
 import { directoryPort } from './directory-object.ts'
+import { workersAiImages, type WorkersAi } from './workers-ai-images.ts'
 
 const bounded = (max: number) => Schema.String.check(Schema.isMaxLength(max))
 const Subject = bounded(600).check(Schema.isMinLength(1))
@@ -50,8 +51,14 @@ interface ProfileBindings {
   readonly ImageModel?: ImageModel
 }
 
+/** The host's bindings: the Manifests bucket, and an image model, Workers AI's unless one is supplied directly. */
 function profileBindings(bindings: Record<string, unknown>): ProfileBindings {
-  return bindings
+  const host: ProfileBindings & { readonly AI?: WorkersAi } = bindings
+  const model = host.ImageModel ?? (host.AI === undefined ? undefined : workersAiImages(host.AI))
+  return {
+    ...(host.Manifests === undefined ? {} : { Manifests: host.Manifests }),
+    ...(model === undefined ? {} : { ImageModel: model }),
+  }
 }
 
 /** Host bindings provide the model adapter; neither profile input nor OAuth args can select a model or bucket. */

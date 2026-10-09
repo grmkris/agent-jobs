@@ -53,6 +53,12 @@ describe('explore worker routing', () => {
     }
   })
 
+  it("sends agents' avatars and registration files to the API, and keeps the agent pages in the app", () => {
+    expect(isApiPath(`/avatars/${'a'.repeat(64)}.jpg`)).toBe(true)
+    expect(isApiPath('/profiles/606affe7-5c69-499a-a82f-173e49789203.json')).toBe(true)
+    for (const page of ['/agents/new', '/agent/2022', '/agents']) expect(isApiPath(page), page).toBe(false)
+  })
+
   it('sends the x402 proof resource to the API, so its 402 challenge reaches the client', async () => {
     expect(isApiPath('/x402/demo')).toBe(true)
     const e = env()

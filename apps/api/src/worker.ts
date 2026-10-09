@@ -69,6 +69,9 @@ import { isStakingDataPath, stakingDataRoute } from './routes/staking.ts'
 import { agentDataBody, identityReads } from './routes/agent-data.ts'
 import { workerFailure as failure } from './worker-failure.ts'
 import { x402Demo } from './x402-demo.ts'
+import { isProfilePath, profileRoute } from './routes/profiles.ts'
+import { MAX_AVATAR_BYTES, type AvatarBucket } from './avatars.ts'
+import { avatarRouteRequest } from './agent-profile-management.ts'
 
 const STATUS: Record<string, number> = {
   unauthenticated: 401,
@@ -172,6 +175,8 @@ export default class Api extends Cloudflare.Worker<Api>()(
     const runtimeEnv = yield* Cloudflare.WorkerEnvironment
     const directory = yield* DirectoryObject
     const manifests = yield* Cloudflare.R2.ReadWriteBucket(Manifests)
+    // Workers AI, bound as env.AI: agents' generated avatars (workers-ai-images.ts), in the management object.
+    yield* Cloudflare.Workers.AI()
     // Explore's chain facts (read-only here; the indexer is the only writer of its tables) and the board registry.
     const facts = yield* Cloudflare.D1.QueryDatabase(Database)
 
@@ -554,8 +559,16 @@ export default class Api extends Cloudflare.Worker<Api>()(
             return reply
           })
 
+        // An avatar upload is raw image bytes: read as bytes, at most 1 MiB by its length, before any text parsing.
+        const avatarUpload =
+          request.method === 'POST' &&
+          /^\/api\/agents\/[A-Za-z0-9_-]{1,128}\/avatar$/.test(path) &&
+          (request.headers['content-type'] ?? '').toLowerCase().startsWith('image/')
+        if (avatarUpload && !(Number(request.headers['content-length']) <= MAX_AVATAR_BYTES))
+          return json({ ok: false, code: 'invalid', message: 'An avatar upload is at most 1 MiB' }, 413)
+        const avatarBytes = avatarUpload ? new Uint8Array(yield* request.arrayBuffer) : undefined
         // Hosted MCP OAuth is deliberately separate from the legacy website SIWE session.
-        const rawBody = request.method === 'POST' ? yield* request.text : ''
+        const rawBody = request.method === 'POST' && !avatarUpload ? yield* request.text : ''
         const oauthBody: Record<string, unknown> =
           rawBody === ''
             ? {}
@@ -569,7 +582,17 @@ export default class Api extends Cloudflare.Worker<Api>()(
                 }
               })()
         const lifecycleRequest =
-          agentRoute(request.method, path, oauthBody) ?? approvalRoute(request.method, path, oauthBody)
+          avatarBytes === undefined
+            ? (agentRoute(request.method, path, oauthBody) ?? approvalRoute(request.method, path, oauthBody))
+            : avatarRouteRequest({
+                method: request.method,
+                path,
+                contentType: request.headers['content-type'],
+                bytes: avatarBytes,
+                ...(request.headers['idempotency-key'] === undefined
+                  ? {}
+                  : { operationKey: request.headers['idempotency-key'] }),
+              })
         if (lifecycleRequest !== undefined) {
           if (request.method === 'POST' && (origin === undefined || !allowed))
             return json({ ok: false, code: 'forbidden', message: 'Agent decisions require the website origin' }, 403)
@@ -654,6 +677,16 @@ export default class Api extends Cloudflare.Worker<Api>()(
           return reply.status === 204 || reply.status === 202
             ? HttpServerResponse.empty({ status: reply.status, headers: { ...cors, ...reply.headers } })
             : json(reply.body, reply.status, reply.headers)
+        }
+        if (request.method === 'GET' && isProfilePath(path)) {
+          const publicOrigin = yield* Config.String('PUBLIC_ORIGIN')
+          return yield* Effect.promise(() =>
+            profileRoute(path, publicOrigin, {
+              // SAFETY: Manifests is this Worker's R2 binding (manifests.ts); its raw form serves the stored bytes.
+              bucket: (runtimeEnv as Record<string, unknown>).Manifests as AvatarBucket | undefined,
+              read: (req) => Effect.runPromise(boards.getByName(SPONSOR_OBJECT_NAME).managedProfiles(req)),
+            }),
+          )
         }
         if (path.startsWith('/data/') && request.method === 'GET') {
           if (isStakingDataPath(path)) {
@@ -767,5 +800,13 @@ export default class Api extends Cloudflare.Worker<Api>()(
         return HttpServerResponse.text('not found', { status: 404 })
       }).pipe(Effect.orDie),
     }
-  }).pipe(Effect.provide(Layer.mergeAll(Cloudflare.R2.ReadWriteBucketBinding, Cloudflare.D1.QueryDatabaseBinding))),
+  }).pipe(
+    Effect.provide(
+      Layer.mergeAll(
+        Cloudflare.R2.ReadWriteBucketBinding,
+        Cloudflare.D1.QueryDatabaseBinding,
+        Cloudflare.Workers.AIBinding,
+      ),
+    ),
+  ),
 ) {}
