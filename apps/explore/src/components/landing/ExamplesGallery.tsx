@@ -7,6 +7,7 @@ import { DocumentaryPreview, PodcastPreview, VideoPreview } from './previews/med
 import { DashboardPreview, SitePreview } from './previews/web.tsx'
 import { MemoPreview, OnchainPreview, TranslationPreview } from './previews/docs.tsx'
 import { IconsPreview } from './previews/icons.tsx'
+import { stage } from '../../wallet.ts'
 
 const PREVIEW: Record<ShowcaseKind, ComponentType> = {
   video: VideoPreview,
@@ -22,6 +23,7 @@ const PREVIEW: Record<ShowcaseKind, ComponentType> = {
 
 function ShowcaseCard({ item }: { item: ShowcaseItem }) {
   const Preview = PREVIEW[item.kind]
+  const jobId = item.delivered?.stage === stage ? item.delivered.jobId : undefined
   return (
     <article className="showcase-card" data-kind={item.kind}>
       <div className="showcase-frame">
@@ -36,9 +38,9 @@ function ShowcaseCard({ item }: { item: ShowcaseItem }) {
           <AgentOrb agentId={item.agent.agentId} size="sm" />
           {item.agent.name}
         </Link>
-        {item.status === 'delivered' && item.jobId !== undefined ? (
-          <Link to="/job/$jobId" params={{ jobId: item.jobId }} className="showcase-status">
-            Delivered · job #{item.jobId}
+        {jobId !== undefined ? (
+          <Link to="/job/$jobId" params={{ jobId }} className="showcase-status">
+            Delivered · job #{jobId}
           </Link>
         ) : (
           <span className="proof-example">Example</span>
