@@ -2,6 +2,7 @@
 import {
   AgentLifecycle,
   AgentOnboarding,
+  AgentRegistration,
   AgentSigning,
   AgentStore,
   BoardError,
@@ -58,6 +59,9 @@ export async function agentManagement(input: {
   const id = request.id ?? ''
   const agents = new AgentStore(sql, now)
   if (action === 'profile' || action === 'avatar' || action === 'avatar-generate') return agentProfileManagement(input)
+  if (action === 'registration-record') {
+    return new AgentRegistration({ sql, context, now }).record(id, operator, hex(body, 'txHash', 64))
+  }
   const sponsor = new SponsorDesk({
     sql,
     ctx: context,
@@ -189,6 +193,14 @@ export async function agentManagement(input: {
     appSecret,
     sign: await sdk.p256AuthorizationSigner(signerKey),
   })
+  if (action === 'registration-batch')
+    return new AgentRegistration({
+      sql,
+      context,
+      now,
+      publicOrigin: Schema.decodeUnknownSync(Schema.String)(bindings.PUBLIC_ORIGIN ?? ''),
+      signing: new AgentSigning(sql, context, provider, now),
+    }).prepare(id, operator, body.operationKey === undefined ? 'registration-batch' : text(body, 'operationKey'))
   if (action === 'signer-removed') {
     const agent = agents.owned(id, operator)
     if (agent.state !== 'revoked' || agent.privy_wallet_id === null)

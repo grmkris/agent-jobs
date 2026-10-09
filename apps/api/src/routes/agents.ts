@@ -22,6 +22,8 @@ export function agentRoute(method: string, path: string, body: Record<string, un
       'resume',
       'registration-prepare',
       'registration-confirm',
+      'registration-batch',
+      'registration-record',
       'allowance-prepare',
       'allowance-confirm',
       'stop-access',

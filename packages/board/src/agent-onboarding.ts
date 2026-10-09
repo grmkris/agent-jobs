@@ -9,6 +9,8 @@ import { RelaySender } from './relay.ts'
 import { SponsorDesk } from './sponsor.ts'
 import type { Sql } from './store.ts'
 import { BoardError } from './board-error.ts'
+import { AgentRegistration } from './agent-registration.ts'
+export { AgentRegistration } from './agent-registration.ts'
 
 export interface AgentWalletCreator {
   createAgentWallet(input: {
@@ -200,6 +202,14 @@ export class AgentOnboarding {
     if (minted.length !== 1) throw new Error('Registration receipt does not contain one mint to this operator')
     this.agents.bindRegistry(id, minted[0]!.args.agentId.toString())
     return this.agents.advance(id, 'registered')
+  }
+
+  registrationBatch(id: string, operator: Address, operationKey: string) {
+    return new AgentRegistration(this.deps).prepare(id, operator, operationKey)
+  }
+
+  registrationRecord(id: string, operator: Address, txHash: Hex): Promise<AgentRow> {
+    return new AgentRegistration(this.deps).record(id, operator, txHash)
   }
 
   async register(
