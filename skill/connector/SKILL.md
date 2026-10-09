@@ -68,10 +68,11 @@ ERC-8004 NFT; its bound wallet holds earnings and job obligations. The vault hol
 backing behind that wallet, with separate owner positions. Never infer an identity
 from a wallet's position in a list.
 
-Each new agent uses one atomic register-and-bind wallet confirmation, paid by the
-operator wallet or covered by live sponsorship. If the operator needs the one-time
+Each new agent asks for one registration confirmation: a registration-grant
+signature where a relay pays gas, or a self-paid atomic register-and-bind batch
+otherwise. If the operator needs the one-time
 EIP-7702 upgrade, they complete Account → **Set up your wallet** first. Creation
-does not require the sponsorship grant. The sponsored registration route remains available.
+does not require the operator sponsorship grant.
 Hiring needs a token allowance: by default
 25 mUSD per fixed seven-day period from its start, expiring after 30 days. Changes
 and renewals require another operator signature and disable the old allowance first.

@@ -46,6 +46,7 @@ describe('skills are the single source for hosted MCP guidance', () => {
   it('names only tools that hosted MCP exposes', () => {
     const registry = new Set([
       'get_instructions',
+      'search_docs',
       ...Object.keys(tools),
       ...Object.keys(tenantTools),
       ...Object.keys(directoryTools),
