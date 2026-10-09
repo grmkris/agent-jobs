@@ -1,17 +1,31 @@
 import { AgentStore, migrateAgentSchema, type Sql } from '@sidequest/board'
 import type { Statement } from '@sidequest/indexer'
 import {
-  parseScopes,
+  parseScopes as parseAgentScopes,
   pkceChallenge,
   randomToken,
   resourceBoard,
   tokenHash,
   validRedirect,
-  OAUTH_SCOPES,
+  OAUTH_SCOPES as AGENT_SCOPES,
 } from './oauth-validation.ts'
 
-import type { OAuthGrant } from '@sidequest/indexer/oauth-types'
-export type { OAuthGrant } from '@sidequest/indexer/oauth-types'
+import { Schema } from 'effect'
+import type { OAuthGrant as AgentOAuthGrant } from '@sidequest/indexer/oauth-types'
+import { resolveSetupOAuth, setupOAuthRoute } from './oauth-setup.ts'
+export type OAuthGrant = AgentOAuthGrant & { readonly setup?: boolean; readonly setupFamilyId?: string }
+export const OAUTH_SCOPES = [...AGENT_SCOPES, 'sidequest:setup'] as const
+
+function parseScopes(value: string): string[] | undefined {
+  const roles = value
+    .split(' ')
+    .filter((scope) => scope !== 'sidequest:setup')
+    .join(' ')
+  const parsed = roles.trim() === '' ? [] : parseAgentScopes(roles)
+  if (parsed === undefined) return undefined
+  if (value.split(' ').includes('sidequest:setup')) parsed.push('sidequest:setup')
+  return parsed.length === 0 ? undefined : parsed
+}
 
 export interface OAuthReply {
   readonly status: number
@@ -65,6 +79,8 @@ export async function resolveOAuth(
 ): Promise<OAuthGrant | undefined> {
   if (token === undefined || token === '') return undefined
   const hash = await tokenHash(token)
+  const setup = resolveSetupOAuth(sql, hash, resource, now)
+  if (setup !== undefined) return setup
   const row = sql.all<{
     operator: string
     state: string
@@ -109,6 +125,8 @@ export async function oauthRoute(input: {
 }): Promise<OAuthReply | undefined> {
   const { sql, method, path, query, body, origin, siteOrigin, owner, now } = input
   migrateAgentSchema(sql)
+  const setupReply = await setupOAuthRoute(input)
+  if (setupReply !== undefined) return setupReply
   const terminateFamily = async (familyId: string) => {
     const agent = sql.all<{ address: string }>(
       'SELECT a.address FROM agents a JOIN agent_oauth_families f ON f.agent_id = a.id WHERE f.id = ?',
@@ -250,6 +268,12 @@ export async function oauthRoute(input: {
             expiresAt: request.expires_at,
           },
           agents,
+          setup: {
+            available: Schema.decodeUnknownSync(Schema.Array(Schema.String))(JSON.parse(request.scopes_json)).includes(
+              'sidequest:setup',
+            ),
+            scope: 'sidequest:setup',
+          },
         },
       })
     if (method !== 'POST' || consent[2] === undefined)
@@ -265,7 +289,9 @@ export async function oauthRoute(input: {
         !agents.some((agent) => agent.id === selectedAgentId && agent.state === 'active'))
     )
       return failure('invalid_request', 'Select one active agent owned by this operator')
-    const requested = JSON.parse(request.scopes_json) as string[]
+    const requested = Schema.decodeUnknownSync(Schema.Array(Schema.String))(JSON.parse(request.scopes_json)).filter(
+      (scope) => scope !== 'sidequest:setup',
+    )
     const selectedScopes = body.scopes === undefined ? requested : body.scopes
     if (
       !Array.isArray(selectedScopes) ||

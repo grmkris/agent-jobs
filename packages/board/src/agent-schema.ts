@@ -105,6 +105,23 @@ export function migrateAgentSchema(sql: Sql): void {
     )`)
   })
   createAgentProfiles(sql)
+  createSetupOAuth(sql)
+}
+
+function createSetupOAuth(sql: Sql): void {
+  sql.run(`CREATE TABLE IF NOT EXISTS agent_oauth_setup_codes (
+    hash TEXT PRIMARY KEY, request_id TEXT NOT NULL UNIQUE, operator TEXT NOT NULL,
+    requested_scopes_json TEXT NOT NULL, expires_at INTEGER NOT NULL, consumed_at INTEGER
+  )`)
+  sql.run(`CREATE TABLE IF NOT EXISTS agent_oauth_setup_families (
+    id TEXT PRIMARY KEY, client_id TEXT NOT NULL, operator TEXT NOT NULL,
+    board_id TEXT NOT NULL, scopes_json TEXT NOT NULL, requested_scopes_json TEXT NOT NULL,
+    resource TEXT NOT NULL, agent_id TEXT, revoked_at INTEGER, created_at INTEGER NOT NULL
+  )`)
+  sql.run(`CREATE TABLE IF NOT EXISTS agent_oauth_setup_tokens (
+    hash TEXT PRIMARY KEY, family_id TEXT NOT NULL, kind TEXT NOT NULL,
+    expires_at INTEGER NOT NULL, consumed_at INTEGER
+  )`)
 }
 
 function createAgentProfiles(sql: Sql): void {
