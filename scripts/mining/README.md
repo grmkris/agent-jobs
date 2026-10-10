@@ -27,16 +27,24 @@ Unit tests use fake R2 only; the
 coordinator runs live publication.
 
 `bun run mining:epoch <n>` computes epoch `n`'s rewards from chain data alone, then writes the Merkle tree the
-`EpochDistributor` pays from, plus the Safe's two calls. It never reads the indexer or D1. Rules: ADR-0011, D12 #2, D17.
+`EpochDistributor` pays from, plus the Safe's two calls. It never reads the indexer or D1. Rules: ADR-0011, D12 #2, D17
+(rule v1, below); [ADR-0020](../../docs/adr/0020-mining-volume-credit.md) (rule v2, from `mining.creditRule.fromEpoch`).
 
 ```
 bun run mining:epoch <n> [--network monad-testnet|monad-mainnet] --prices <signed price list JSON> --out <dir>
                       [--rpc <url>] [--config <config JSON>] [--page <blocks>] [--previous-prices <signed JSON>]
+bun run mining:epoch <n> --recompute <published epoch-n.json> [--network ...] [--rpc <url>] [--config <config JSON>]
 ```
 
 - **RPC.** `--rpc`, else `MONAD_TESTNET_RPC_URL` or `MONAD_MAINNET_RPC_URL`. It reads only and is never printed.
 - **Config.** `--config` defaults to `contracts/config/<network>.json`; its `deployment.sidequest` and every
   `sidequest-v1` pair are used. The fork rehearsal passes a scratch config.
+- **Rule choice.** The config's `mining.creditRule.fromEpoch` picks the rule per epoch: epochs below it run rule v1,
+  epochs from it run rule v2. With no `creditRule`, every epoch is v1. Published epochs keep v1; mainnet sets
+  `fromEpoch` 0, and testnet sets the first epoch after release.
+- **`--recompute <file>`.** Re-derives a published epoch, v1 or v2, from chain data and the signed prices inside the
+  file, and compares it with the file: same root, same `dataHash`. It works even after later epochs are funded, which a
+  normal run refuses. It writes nothing and sends nothing.
 - **Paging.** Logs are read with `eth_getLogs` in pages of `--page` blocks (default 1000; it must be a positive integer). A page the RPC refuses is
   halved and retried.
 - **Tests.** `bun test scripts/mining` runs the fixture tests. The anvil fork run is step 7 of
@@ -45,7 +53,9 @@ bun run mining:epoch <n> [--network monad-testnet|monad-mainnet] --prices <signe
     `heavy bun --no-env-file test scripts/mining` and RPC variables unset. The coordinator runs the three fork tests;
     the backer-share and credit fork tests check that a backer claim grows `positionOf(backer, backer)`.
 
-## What it counts
+## What it counts (rule v1)
+
+This is the rule every epoch below `fromEpoch` keeps. Rule v2 is the next section.
 
 1. **Window.** From `MiningReserve.epochStart(n)` to `epochEnd(n)`, using the deployed reserve's clock getters.
    Production epochs are 72 h then 7 days; testnet may use minute-scale constructor clocks. Never infer the window
@@ -101,6 +111,44 @@ bun run mining:epoch <n> [--network monad-testnet|monad-mainnet] --prices <signe
      The worker keeps `W - sum(backer payments)`, absorbing backer rounding. With no weighted backers it keeps
      all of `W`. Creators are unchanged; worker, creator and backer roles merge into one leaf per account.
      `EpochDistributor.claim` stakes every leaf into that account's own pool with `delegateFor(account, account, amount)`.
+
+## Rule v2: volume credit with a backing boost
+
+[ADR-0020](../../docs/adr/0020-mining-volume-credit.md) is the source. Window, finalized head, events, priced-token
+and received-fee tests are as above; what changes is what a counted fee is worth, and who shares it.
+
+1. **Inputs per counted fee.** The activation's exact amounts: `gross = fee + net + bonus`, from `Activated` and the
+   job's last `ToppedUp` before the fee. The fee schedule in force at activation comes from `ScheduleExecuted` logs.
+2. **Boost.** The lower of two tiers (rank 0-3, boost 0.4, 0.6, 0.8, 1.0):
+   - the tier snapshotted at activation;
+   - the tier of the backing the worker held through the epoch: the smaller of its `stakeOf` at the epoch's start and
+     at its end, replayed from vault events.
+
+   Backing borrowed for one activation lowers the fee but does not raise mining.
+3. **Credit.** `credit = min(gross × lowest tier rate × boost, fee)`. With today's tiers, a $100 job credits $0.40,
+   $0.60, $0.80 or $1.00. `feeUsd` is what the treasury received; `creditUsd` is what the rule counts.
+4. **Emission.** `min(budget, 0.5 × Σ credit USD ÷ max(factoryUsdPrice, 10^14))`, in SIDE wei. The 60/40 worker and
+   creator split, contributor split and funding rule are as in v1, but weighted by credit USD instead of fee USD.
+5. **Refusals.** The tool refuses the run when:
+   - an activation does not match its fee;
+   - a bonus fee does not round as the contract does;
+   - the replayed backing disagrees with an activation's snapshotted tier;
+   - the fee schedule is degenerate (not four strictly falling rates, or a lowest rate of 0).
+
+**Backer share, v2.** Per wallet, not per agent ID.
+- A wallet's share is the MAX share among the agent IDs it has worked under, before the epoch and inside it, over the
+  **share window**: from one unstake delay before the epoch's start to its first block. So a raise applies from the next
+  epoch, and a cut applies only after the vault's unstake delay (3 days on testnet, 14 on mainnet).
+- **Dust.** Positions below 100 SIDE of weight carry no weight. A backer payment below 1 SIDE stays with the worker, and
+  a leaf below 1 SIDE is not created (its SIDE stays in the reserve). `backerPositions` lists only weighted rows.
+
+**Price rules.** SIDE as a fee token must have 18 decimals and be priced at the SIDE reference price (the factory
+price). On mainnet the list may hold only tokens in the config's `usdPegged` list, each priced within 1 % of $1. Signed
+price tokens must be in address order. A list that breaks a rule refuses the run.
+
+**Verifiable, not trustless.** Anyone can recompute an epoch from public chain data, but the Safe still funds each epoch
+and publishes its root. The reference price depends on the official pool, which is not yet configured
+(`docs/mainnet-gate-findings.md`, G2).
 
 ## Leaves
 
@@ -201,6 +249,8 @@ unless the network is testnet.
   calls: { fund: { to, data }, setRoot: { to, data } } }
 ```
 
+A v2 file also has `rule: 2` and `creditUsd`. Under v2, `demand` and `emission` come from `creditUsd`, not `feeUsd`.
+
 Integers are decimal strings, and addresses are lowercase.
 
 - **`inputs`** is the canonical record:
@@ -214,6 +264,18 @@ Integers are decimal strings, and addresses are lowercase.
     `bps` and `set` (`block`, `logIndex`, `tx`, or null when unset), sorted by worker address. `backerPositions`
     lists each positive-share worker's `account`, `delegator`, `start`, `end`, `weight`, sorted by account then
     delegator. With all shares 0, **both keys are omitted** so legacy inputs, `dataHash` and roots remain identical.
+- **Inputs, rule v2.** Keys in this order:
+  `{ chainId, epoch, rule, window, shareWindow, holdings, priceList, factoryPriceEvidence, budget, feeSchedules, fees,
+  topUps, backing, backerShares, backerPositions }`.
+  - `rule` records the version, `fromEpoch`, `payoutBps`, the 60/40 split, `boostBps`, `minBackerWeight`, `minLeaf`,
+    `unstakeDelay` and the price rules (`peggedOnly`, tolerance, pegged tokens).
+  - `shareWindow` is `{ start, block }`: the share window's first timestamp and first block.
+  - `feeSchedules` lists every fee schedule set, in chain order.
+  - Each fee's `credit` is `null` when it earns none, else its activation, `agentId`, `feeBps`, `fee`, `net`, `bonus`,
+    `gross`, the schedule used, `floorBps`, `tier` (`activation` and `backing`), `boost`, `amount` and `usd`.
+  - `backing` lists each worker's `stakeStart` and `stakeEnd`.
+  - `backerShares` has one row per worker wallet, with `bps`, the sorted `agentIds` it worked under and the `source`
+    setting event. `backerShares` and `backerPositions` are always present under v2.
 - **`dataHash`** = `keccak256(utf8(JSON.stringify(inputs)))`, over `inputs` exactly as written. Parse the file,
   stringify `inputs`, and hash it to check.
 - **`tree`** is `StandardMerkleTree.dump()`, and **`claims`** carries each account's amount and proof for
