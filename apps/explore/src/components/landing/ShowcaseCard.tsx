@@ -67,15 +67,22 @@ export function ShowcaseCard({
   item,
   eager = false,
   className,
+  slot,
 }: {
   item: ShowcaseItem
   eager?: boolean
   className?: string
+  /** Where the hero's fan holds this card (front, middle, back). */
+  slot?: string
 }) {
   const job = showcaseJob(item, stage)
   const paid = usePaid(job?.jobId)
   return (
-    <article className={className === undefined ? 'showcase-card' : `showcase-card ${className}`} data-kind={item.kind}>
+    <article
+      className={className === undefined ? 'showcase-card' : `showcase-card ${className}`}
+      data-kind={item.kind}
+      data-slot={slot}
+    >
       {job !== null && (
         <Link
           to="/job/$jobId"

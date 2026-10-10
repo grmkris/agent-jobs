@@ -69,10 +69,10 @@
 }
 
 .landing-hero h1 {
-  max-width: 11ch;
+  max-width: 12ch;
   font-family: var(--font-display);
   font-optical-sizing: auto;
-  font-size: clamp(2.9rem, 5.6vw, 4.75rem);
+  font-size: clamp(2.7rem, 5vw, 4.25rem);
   font-weight: 420;
   line-height: 0.98;
   letter-spacing: -0.032em;
@@ -80,14 +80,50 @@
 }
 
 .landing-hero h1 em {
+  display: block;
   font-style: italic;
   font-weight: 400;
   color: var(--primary);
 }
 
+/* "Your agent needs …": the end of the line rolls through what the cards beside it delivered. */
+.hero-need {
+  margin-top: 1.25rem;
+  font-family: var(--font-display);
+  font-size: clamp(1.35rem, 2.2vw, 1.7rem);
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+
+.hero-need-word {
+  display: inline-grid;
+  overflow: hidden;
+  vertical-align: bottom;
+  color: var(--primary);
+  font-style: italic;
+}
+
+.hero-need-word > span {
+  grid-area: 1 / 1;
+  white-space: nowrap;
+  transition:
+    transform 0.55s var(--ease-out),
+    opacity 0.55s var(--ease-out);
+}
+
+.hero-need-word > [data-state='next'] {
+  opacity: 0;
+  transform: translateY(70%);
+}
+
+.hero-need-word > [data-state='gone'] {
+  opacity: 0;
+  transform: translateY(-70%);
+}
+
 .landing-hero-lede {
-  max-width: 33ch;
-  margin-top: 1.15rem;
+  max-width: 40ch;
+  margin-top: 0.75rem;
   color: var(--muted-foreground);
   font-size: 1.12rem;
   line-height: 1.55;
@@ -238,12 +274,21 @@
 }
 
 /* The proof stack: three delivered jobs fanned like papers on a desk. */
+/* The cards and, under them, the front card's job in one line. */
+.hero-proof {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
 .proof-stack {
   position: relative;
   isolation: isolate;
   display: grid;
   min-width: 0;
-  padding-block: 0.5rem 1.5rem;
+  container-type: inline-size;
+  /* The front card hangs 14.5rem below the back one: the cells only hold the tallest card. */
+  padding-block: 0.5rem 15.25rem;
   padding-right: 0.75rem;
 }
 
@@ -257,42 +302,91 @@
 
 .proof-card {
   --r: 0deg;
+  --x: 0px;
+  --y: 0px;
   grid-area: 1 / 1;
   align-self: start;
+  justify-self: end;
   width: min(100%, 22rem);
   box-shadow: var(--proof-shadow);
-  transform: rotate(var(--r));
-  transition: transform 0.4s var(--ease-out);
+  transform: translate(var(--x), var(--y)) rotate(var(--r));
+  transition: transform 0.75s var(--ease-out);
   animation: proof-deal 0.85s var(--ease-out) backwards;
 }
 
-.proof-card:nth-child(1) {
+/* The slots: the cards glide between them as the front one changes. The deal-in delay follows the DOM order. */
+.proof-card[data-slot='back'] {
   --r: 2.5deg;
-  justify-self: end;
   z-index: 1;
+}
+
+.proof-card[data-slot='middle'] {
+  --r: -2.5deg;
+  --x: calc(min(100cqw, 22rem) - 100cqw);
+  --y: 7.25rem;
+  z-index: 2;
+}
+
+.proof-card[data-slot='front'] {
+  --r: 1.25deg;
+  --x: -1.25rem;
+  --y: 14.5rem;
+  z-index: 3;
+}
+
+.proof-card:nth-child(1) {
   animation-delay: 0.3s;
 }
 
 .proof-card:nth-child(2) {
-  --r: -2.5deg;
-  justify-self: start;
-  margin-top: 7.25rem;
-  z-index: 2;
   animation-delay: 0.42s;
 }
 
 .proof-card:nth-child(3) {
-  --r: 1.25deg;
-  justify-self: end;
-  margin-top: 14.5rem;
-  margin-right: 1.25rem;
-  z-index: 3;
   animation-delay: 0.54s;
 }
 
 .proof-stack > .proof-card:hover {
   z-index: 4;
-  transform: rotate(0deg) translateY(-6px);
+  transform: translate(var(--x), calc(var(--y) - 6px)) rotate(0deg);
+}
+
+/* Who hired whom for the front card, and what it paid, rolling as the card changes. */
+.hero-ticket {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem 1rem;
+  justify-self: end;
+  width: min(100%, 22rem);
+  margin-right: 1.25rem;
+  padding: 0.6rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--card);
+  font-size: 0.78rem;
+}
+
+.hero-ticket-people {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-weight: 500;
+}
+
+.hero-ticket-arrow {
+  color: var(--muted-foreground);
+  font-weight: 400;
+}
+
+.hero-ticket-paid {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--primary);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
 }
 
 .proof-icon-tile {
@@ -436,13 +530,103 @@
 @keyframes proof-deal {
   from {
     opacity: 0;
-    transform: translateY(32px) rotate(calc(var(--r) * 2.5));
+    transform: translate(var(--x), calc(var(--y) + 32px)) rotate(calc(var(--r) * 2.5));
   }
 }
 
 @keyframes prompt-caret {
   50% {
     opacity: 0;
+  }
+}
+
+/* The board in numbers: four live figures under the hero, rolling up when they come into view. */
+.live-numbers {
+  display: grid;
+  gap: 0.8rem;
+  min-width: 0;
+}
+
+.live-numbers-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.live-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: var(--success-text);
+  animation: live-pulse 2s ease-in-out infinite;
+}
+
+@keyframes live-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.live-numbers dl {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+  border-block: 1px solid var(--border);
+}
+
+.live-number {
+  display: grid;
+  align-content: start;
+  gap: 0.45rem;
+  min-width: 0;
+  padding: 1.15rem 1.25rem 1.2rem;
+}
+
+.live-number + .live-number {
+  border-left: 1px solid var(--border);
+}
+
+.live-number dt {
+  color: var(--muted-foreground);
+  font-size: 0.78rem;
+}
+
+.live-number dd {
+  display: flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.9rem, 3.4vw, 2.7rem);
+  font-weight: 420;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.live-number-unit {
+  color: var(--muted-foreground);
+  font-family: var(--font-sans);
+  font-size: 0.36em;
+  letter-spacing: 0;
+}
+
+@media (max-width: 760px) {
+  .live-numbers dl {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .live-number:nth-child(3) {
+    border-left: 0;
+  }
+
+  .live-number:nth-child(n + 3) {
+    border-top: 1px solid var(--border);
   }
 }
 
@@ -463,6 +647,7 @@
     margin-inline: -0.25rem;
     padding: 0.5rem 0.25rem 1.25rem;
     overflow-x: auto;
+    container-type: normal;
     scroll-snap-type: x mandatory;
     scrollbar-width: none;
   }
@@ -471,9 +656,16 @@
     display: none;
   }
 
+  /* The cards do not rotate here, so the ticket would name a job other than the card on screen. */
+  .hero-ticket {
+    display: none;
+  }
+
   .proof-card,
-  .proof-card:nth-child(n) {
+  .proof-card[data-slot] {
     --r: 0deg;
+    --x: 0px;
+    --y: 0px;
     flex: 0 0 min(86%, 23.5rem);
     margin: 0;
     scroll-snap-align: start;
