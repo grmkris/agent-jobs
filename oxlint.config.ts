@@ -23,7 +23,7 @@ export default defineConfig({
     'contracts/cache/**',
     // Vendored from dmmulroy/anti-slop (tools/oxlint/anti-slop/PROVENANCE.md): upstream code, upstream style.
     'tools/oxlint/anti-slop/**',
-    // vendored skills, harness dirs, scripts/agents-sync.ts and generated MCP files (tools/vendored.ts)
+    // vendored skills, harness dirs, generated MCP files (tools/vendored.ts)
     ...agentIgnorePatterns(),
   ],
   // Type-aware rules run through oxlint-tsgolint, pinned with TypeScript (the root catalog). A bare `oxlint`

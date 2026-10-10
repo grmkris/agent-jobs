@@ -17,7 +17,7 @@ const fixture = (): string => {
     writeFileSync(path.join(root, file), content)
   }
   write('AGENTS.md', '# Root\n\nSee [the app](apps/a/AGENTS.md) and [docs](docs/x.md).\n')
-  // CLAUDE.md is a symlink to its sibling AGENTS.md (tools/agents.ts, scripts/agents-sync.ts).
+  // CLAUDE.md is a symlink to its sibling AGENTS.md (tools/agents.ts, repoagents).
   symlinkSync('AGENTS.md', path.join(root, 'CLAUDE.md'))
   write('apps/a/AGENTS.md', '# apps/a\n\nRead [docs](../../docs/x.md).\n')
   symlinkSync('AGENTS.md', path.join(root, 'apps/a/CLAUDE.md'))
@@ -79,7 +79,7 @@ describe('agents:check', () => {
     ])
   })
 
-  test('vendored skills skip the repo-authored checks; agents-sync verifies them', () => {
+  test('vendored skills skip the repo-authored checks; repoagents verifies them', () => {
     const root = fresh()
     writeFileSync(
       path.join(root, '.agents/skills/vend/SKILL.md'),
@@ -93,7 +93,7 @@ describe('agents:check', () => {
     unlinkSync(path.join(root, 'apps/a/CLAUDE.md'))
     mkdirSync(path.join(root, 'apps/b'))
     expect(checkAll(root, ['apps/a', 'apps/b'])).toEqual([
-      'apps/a/CLAUDE.md must be a symlink to AGENTS.md so Claude Code and Grok load apps/a/AGENTS.md. Run: bun scripts/agents-sync.ts',
+      'apps/a/CLAUDE.md must be a symlink to AGENTS.md so Claude Code and Grok load apps/a/AGENTS.md. Run: bunx repoagents',
       'apps/b has no AGENTS.md. Add one (role, checks, test floor, landmines) and a CLAUDE.md symlink.',
     ])
   })

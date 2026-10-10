@@ -16,7 +16,7 @@ export default defineConfig({
     'bun.lock',
     // Vendored from dmmulroy/anti-slop in upstream style (tools/oxlint/anti-slop/PROVENANCE.md).
     'tools/oxlint/anti-slop/**',
-    // vendored skills, harness dirs, scripts/agents-sync.ts and generated MCP files (tools/vendored.ts)
+    // vendored skills, harness dirs, generated MCP files (tools/vendored.ts)
     ...agentIgnorePatterns(),
     '**/.alchemy/**',
     '**/dist/**',

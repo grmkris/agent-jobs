@@ -2,7 +2,7 @@
 
 [`AGENTS.md`](../../AGENTS.md) is the shared instruction source. Codex reads ancestor files down to its working
 directory; a session at the root must explicitly read the linked workspace instructions before editing a workspace.
-Every `CLAUDE.md` is a symlink to its sibling `AGENTS.md` (Grok reads only `CLAUDE.md` and ignores `@AGENTS.md` imports); Claude-only notes live in `.claude/rules/claude-code.md`. MCP servers live in `.mcp.json`; `bun scripts/agents-sync.ts` regenerates `.codex/config.toml` and `.cursor/mcp.json` (standard: grmkris/personal `infra/agents.md`).
+Every `CLAUDE.md` is a symlink to its sibling `AGENTS.md` (Grok reads only `CLAUDE.md` and ignores `@AGENTS.md` imports); Claude-only notes live in `.claude/rules/claude-code.md`. MCP servers live in `.mcp.json`; `bunx repoagents` regenerates `.codex/config.toml` and `.cursor/mcp.json` (standard: grmkris/personal `infra/agents.md`).
 Cursor always loads the pointer in `.cursor/rules/sidequest.mdc`.
 
 ## Development and product skills
@@ -35,5 +35,5 @@ license, tree hashes, recorded adaptations); `.claude/skills` holds per-skill li
 review and grilling skills (from grmkris/personal), Cloudflare (cloudflare/skills), effect-ts (Effect-TS/skills),
 domain-modeling, and contracts: ethskills (adapted: local links) plus Trail of Bits building-secure-contracts
 (CC-BY-SA-4.0, unmodified). `.mcp.json`: myplan, myinbox, mytab, mytmux, mygram, cloudflare. Change them with
-`bun scripts/agents-sync.ts skills add|rehash|update`; `bun run agents:check` runs `agents-sync --check` first.
+`bunx repoagents skills add|rehash|update`; `bun run agents:check` runs `repoagents check` first.
 

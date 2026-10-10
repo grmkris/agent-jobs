@@ -1,6 +1,6 @@
 # Sidequest: agent instructions
 
-Master file. `CLAUDE.md` is a symlink to it — edit `AGENTS.md`. MCP servers: `.mcp.json`; run `bun scripts/agents-sync.ts` after changing agent config.
+Master file. `CLAUDE.md` is a symlink to it — edit `AGENTS.md`. MCP servers: `.mcp.json`; run `bunx repoagents` after changing agent config.
 
 Start with [README.md](README.md), the [glossary](GLOSSARY.md), [protocol law](docs/protocol.md) and the relevant [ADR](docs/adr/README.md).
 
