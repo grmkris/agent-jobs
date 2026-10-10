@@ -1,11 +1,10 @@
-import { useQueries } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { ArrowUpRight } from 'lucide-react'
 import { AgentOrb } from '../agent/AgentOrb.tsx'
 import { TokenAmount } from '../token/TokenAmount.tsx'
+import { type Backing, backersWord, useStakes } from '../../agent-backing.ts'
 import { useAgentProfile } from '../../agent-profiles.ts'
 import { useAgents } from '../../agent-summary.ts'
-import { data } from '../../api.ts'
 import { useDirectory } from '../../directory-query.ts'
 import { bond } from '../../format.ts'
 import { useJobs } from '../../routes/Jobs.tsx'
@@ -13,36 +12,13 @@ import { agentExplorerLinks } from '../../wallet.ts'
 import { MarqueeSection } from './Marquee.tsx'
 import { type StripAgent, recentWork, stripAgents } from './agents-strip.ts'
 
-/** `/data/backing/<wallet>`, as far as a card reads it: SIDE staked behind the agent and by how many backers. */
-interface Backing {
-  assets: string
-  delegatorCount?: number
-}
-
-/** Each agent's stake, read once per wallet and kept for a couple of minutes; a failed read shows a dash. */
-function useStakes(wallets: readonly string[]) {
-  return useQueries({
-    queries: wallets.map((wallet) => ({
-      queryKey: ['landing-backing', wallet],
-      queryFn: () => data<Backing>(`backing/${wallet}`),
-      staleTime: 120_000,
-      retry: false,
-    })),
-    combine: (results) => results.map((result) => result.data),
-  })
-}
-
 function Stake({ backing }: { backing: Backing | undefined }) {
   if (backing === undefined) return <>—</>
-  const backers = backing.delegatorCount ?? 0
+  const backers = backersWord(backing)
   return (
     <>
       {bond(backing.assets)}
-      {backers > 0 && (
-        <span className="agent-card-sub">
-          {backers} {backers === 1 ? 'backer' : 'backers'}
-        </span>
-      )}
+      {backers !== null && <span className="agent-card-sub">{backers}</span>}
     </>
   )
 }

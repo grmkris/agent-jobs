@@ -8,16 +8,7 @@ import { Address, Section, TxLink, textLinkClass } from '../kit.tsx'
  */
 import { Check, CircleAlert, ExternalLink } from 'lucide-react'
 import type { Deliverable, DeliverableCheck } from '../../api.ts'
-
-const httpUrl = (url: string) =>
-  url.startsWith('ipfs://') ? `https://ipfs.io/ipfs/${url.slice('ipfs://'.length)}` : url
-const KIND: Record<Deliverable['kind'], string> = {
-  git: 'Git commit',
-  patch: 'Patch',
-  artifact: 'File',
-  url: 'Live URL',
-  onchain: 'On-chain result',
-}
+import { KIND, gitTree, httpUrl, repoName } from '../../delivery.ts'
 
 /** Only web links open: a deliverable names its own URL, so any other scheme (javascript:, data:) shows as text. */
 function Link({ href, children }: { href: string; children: React.ReactNode }) {
@@ -37,22 +28,12 @@ function Link({ href, children }: { href: string; children: React.ReactNode }) {
 
 function Where({ d }: { d: Deliverable }) {
   switch (d.kind) {
-    case 'git': {
-      const tree = /^https:\/\/(github\.com|gitlab\.com|codeberg\.org|gitea\.com)\//.test(d.url)
-        ? `${d.url.replace(/\.git$/, '')}/tree/${d.sha}`
-        : d.url
-      let host = d.url
-      try {
-        host = new URL(d.url).pathname.replace(/^\/|\.git$/g, '')
-      } catch {
-        // not a URL: show it as given
-      }
+    case 'git':
       return (
-        <Link href={tree}>
-          {host} · {d.ref} @ {d.sha.slice(0, 7)}
+        <Link href={gitTree(d.url, d.sha)}>
+          {repoName(d.url)} · {d.ref} @ {d.sha.slice(0, 7)}
         </Link>
       )
-    }
     case 'patch':
       return <Link href={httpUrl(d.url)}>Patch on {d.base.slice(0, 7)}</Link>
     case 'artifact':
