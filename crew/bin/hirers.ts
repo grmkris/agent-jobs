@@ -83,6 +83,8 @@ const listings = Object.values(crewJson.members)
 const MAX_JOBS = Number(process.env.ACTIVITY_MAX_JOBS ?? 40)
 const POST_MINUTES = Number(process.env.ACTIVITY_POST_MINUTES ?? 20)
 const MODEL = process.env.ACTIVITY_MODEL ?? 'grok-4.7'
+const JSON_ONLY =
+  'Answer with one strict JSON object and nothing else: double-quoted keys, string values in double quotes, no comments.'
 const LLM = `${process.env.CLIPROXY_URL ?? 'http://100.105.51.45:8317/v1'}/chat/completions`
 const MIN_MON = 0.3
 const TAGS: readonly string[] = sdk.JOB_TAGS
@@ -125,6 +127,7 @@ async function grok<S extends Schema.ConstraintDecoder<unknown>>(
   user: string,
 ): Promise<S['Type'] | null> {
   for (let attempt = 0; attempt < 2; attempt++) {
+    let text = ''
     try {
       const res = await fetch(LLM, {
         method: 'POST',
@@ -133,20 +136,21 @@ async function grok<S extends Schema.ConstraintDecoder<unknown>>(
           model: MODEL,
           temperature: 1,
           messages: [
-            { role: 'system', content: `${system}\nAnswer with one JSON object and nothing else.` },
+            { role: 'system', content: `${system}\n${JSON_ONLY}` },
             { role: 'user', content: user },
           ],
         }),
         signal: AbortSignal.timeout(120_000),
       })
-      const text = Schema.decodeUnknownSync(Completion)(await res.json()).choices[0]?.message.content ?? ''
+      text = Schema.decodeUnknownSync(Completion)(await res.json()).choices[0]?.message.content ?? ''
       const start = text.indexOf('{')
       const end = text.lastIndexOf('}')
       const raw: unknown = JSON.parse(text.slice(start, end + 1))
       const answer = Schema.decodeUnknownOption(schema)(raw)
       if (Option.isSome(answer)) return answer.value
+      log('grok', 'unexpected', { text: text.slice(0, 300) })
     } catch (error) {
-      log('grok', 'error', { message: String(error).slice(0, 200) })
+      log('grok', 'error', { message: String(error).slice(0, 200), text: text.slice(0, 300) })
     }
   }
   return null

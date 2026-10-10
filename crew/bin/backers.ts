@@ -116,24 +116,36 @@ async function topUp(b: Backer, key: string) {
   b.log('bought', { mUSD: formatUnits(amountIn, decimals), SIDE: Number(formatEther(quoted.amountOut)).toFixed(0) })
 }
 
-/** Stakes 100 to 600 SIDE behind one to three crew agents, weighted towards those already backed. */
+/**
+ * Stakes 100 to 600 SIDE (never more than it holds) behind one to three crew agents, some behind ones it already
+ * backs. Each stake's plan is journaled, so a retried cycle sends and records the same stake once.
+ */
 async function stake(b: Backer, key: string) {
   const j = b.state.journal
   const agents = await crewAgents()
   if (agents.length === 0) return
   await j.contract('approve-vault', b.wallet, ctx.deployment.factory, erc20Abi, 'approve', [v1.vault, maxUint256])
-  const count = 1 + Math.floor(Math.random() * 3)
+  const count = await j.once(`${key}/count`, async () => 1 + Math.floor(Math.random() * 3))
   for (let i = 0; i < count; i++) {
-    const favourite = b.data.positions.length > 0 && Math.random() < 0.3 ? pick(b.data.positions) : undefined
-    const agent = favourite ?? pick(agents)
-    if (agent === undefined) return
-    const amount = Math.round(between(100, 600))
+    const plan = await j.once(`${key}/plan-${i}`, async () => {
+      const held = Math.floor(Number(formatEther(await sdk.balanceOf(ctx, ctx.deployment.factory, b.address))))
+      const favourite = b.data.positions.length > 0 && Math.random() < 0.3 ? pick(b.data.positions) : undefined
+      const agent = favourite ?? pick(agents)
+      const amount = Math.min(Math.round(between(100, 600)), held - 1)
+      return agent === undefined || amount < 50
+        ? null
+        : { agentId: agent.agentId, name: agent.name, account: agent.account, amount: String(amount) }
+    })
+    if (plan === null) return
     await j.contract(`${key}/delegate-${i}`, b.wallet, v1.vault, sdk.stakeVaultAbi, 'delegate', [
-      agent.account,
-      parseEther(String(amount)),
+      plan.account,
+      parseEther(plan.amount),
     ])
-    b.data.positions.push({ agentId: agent.agentId, name: agent.name, account: agent.account, amount: String(amount) })
-    b.log('staked', { agentId: agent.agentId, name: agent.name, SIDE: amount })
+    if (j.state.values[`${key}/recorded-${i}`] === true) continue
+    b.data.positions.push(plan)
+    j.state.values[`${key}/recorded-${i}`] = true
+    b.state.save()
+    b.log('staked', { agentId: plan.agentId, name: plan.name, SIDE: Number(plan.amount) })
   }
 }
 
