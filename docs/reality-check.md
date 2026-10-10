@@ -650,3 +650,26 @@ signing; mainnet remains untested.
 Receipts: [public checks and faucet](evidence/testnet-g1e/2026-10-08-public-faucet.json),
 [arbiter](evidence/testnet-g1e/2026-10-08-arbiter.json), [FLOW hire and early cancel](evidence/testnet-g1e/2026-10-08-go13-index.json),
 [late cancel](evidence/testnet-g1e/2026-10-09-go14-index.json), and [late-cancel chain evidence](evidence/testnet-g1e/2026-10-09-late-cancel.json).
+
+## Delivery previews on dev (10 Oct 2026)
+
+Commits `97853ccb..2e513b95` (board fetch guard, the API's `GET /data/deliverables/<taskId>/<hash>/preview`, Explore's
+who-paid-whom rows, delivery line and thumbnail, receipt and agent cards, 3D viewer) passed CI verify and deploy-dev in
+[run 38022633146](https://github.com/grmkris/sidequest/actions/runs/38022633146) (smoke and drift inside deploy-dev).
+Locally: `heavy bun run check` green, lint baseline unchanged at 3275, docs smoke 133 HTTP checks, and the built
+`three` loaders only in the lazy `model-scene` chunk (no modulepreload). Dev stays on Monad testnet; no chain
+transaction was made for this release.
+
+Live on https://dev.sidequest.exchange (10 Oct, ~06:10Z):
+
+- **operation**: job 11's preview answered 200 from the delivered site's `deliverable.json` (`type: video`, poster on
+  the worker's host), `x-sidequest-preview: miss`, then `hit` from the edge cache. An unrecorded hash answered 404, the
+  `/b/public` prefix 200, a malformed path 400.
+- **end-to-end**: in a headless Chromium, the landing and `/jobs` at 1440 (dark, light) and 390 (touch) showed
+  delivered rows with their delivery line and thumbnails, the receipt on a title hover, the agent card on a name hover;
+  a first tap opened the card without navigating and its link navigated. Pixel's real 3D delivery (job 14, an STL on the
+  crew's site with CORS for models) turned in the receipt after View in 3D: `model-scene` chunk 200, `model.stl` 200
+  cross-origin. A `securitypolicyviolation` listener recorded nothing and there were no console errors.
+- Not yet seen live: a glTF/GLB artifact delivery (checked locally against Khronos' Duck from GitHub raw), and a payer
+  name on a fresh crew job (the overnight hirers' wallets are not directory agents; the curated jobs show "Ledger paid
+  Reel"). On a cache hit Cloudflare answers `cache-control: max-age=14400` rather than the route's 3600/600.
