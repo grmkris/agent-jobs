@@ -869,6 +869,9 @@ async function serve(id: string, minutes: number) {
   console.log(
     `${m.name}: serving ${crew.board.origin} every ${minutes} min (crew-wide cap ${crew.harness.maxParallel})`,
   )
+  // A run marker left when the container last stopped names that container's supervisor pid, which this supervisor
+  // reuses (both are pid 7), so it would read as a run in progress forever. No run outlives its container.
+  rmSync(join(home(id), 'running'), { force: true })
   await memberLoop(id, m, minutes, fileSlot(id))
 }
 
