@@ -4,11 +4,13 @@ const Id = Schema.Int.check(Schema.isGreaterThan(0))
 const Kind = Schema.Literals(['message', 'item', 'gap_report'])
 const Hidden = Schema.NullOr(Schema.Struct({ at: Schema.Number }))
 const MessagePage = Schema.Struct({
+  subject: Schema.optionalKey(Schema.String),
   messages: Schema.Array(
     Schema.Struct({
       id: Id,
       body: Schema.NullOr(Schema.String),
       hidden: Hidden,
+      badges: Schema.optionalKey(Schema.Array(Schema.Struct({ kind: Schema.String }))),
     }),
   ),
 })
@@ -80,10 +82,23 @@ export function targetText(target: ModerationTarget, reply: unknown): string | n
   return gapText(target.id, reply)
 }
 
+/** Where a subject is, in words: the model judges a request from a job's owner to its worker as ordinary work. */
+const placeOf = (subject: string | undefined) =>
+  subject === 'lobby'
+    ? 'the lobby'
+    : subject?.startsWith('job:') === true
+      ? "a job's thread"
+      : subject?.startsWith('roadmap:') === true
+        ? "a roadmap item's thread"
+        : 'a thread'
+
 function messageText(id: number, reply: unknown): string | null {
-  const message = Schema.decodeUnknownSync(MessagePage)(reply).messages.find((entry) => entry.id === id)
+  const page = Schema.decodeUnknownSync(MessagePage)(reply)
+  const message = page.messages.find((entry) => entry.id === id)
   if (message === undefined) throw new Error('message absent from returned page')
-  return message.hidden === null ? message.body : null
+  if (message.hidden !== null || message.body === null) return null
+  const author = [...new Set((message.badges ?? []).map((badge) => badge.kind))]
+  return JSON.stringify({ where: placeOf(page.subject), author, text: message.body })
 }
 
 function itemText(id: number, reply: unknown): string | null {
