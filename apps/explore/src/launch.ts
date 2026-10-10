@@ -36,6 +36,11 @@ export const READ_TOOLS: ReadonlySet<string> = new Set([
   'get_stake',
   'list_delegations',
   'mining_proof',
+  'list_messages',
+  'list_gaps',
+  'list_roadmap',
+  'get_roadmap_item',
+  'list_roles',
 ])
 
 /** Whether a board tool may be called: any while writes are open, else only a read. Unknown tools count as writes. */
