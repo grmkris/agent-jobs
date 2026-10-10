@@ -29,6 +29,8 @@ new code and prose.
 - **Sponsorship** — a separate zero-value delegation authorizing relay gas for listed methods. See [sponsorship](docs/sponsorship.md). _Avoid: execution budget, gasless._
 - **Relay** — the stage-specific account that broadcasts an authorized sponsored action. See [stages](docs/stages.md). _Avoid: board wallet, user wallet._
 - **Attester** — the configured service that records external evidence claims; its signature does not prove truth. See [protocol law](docs/protocol.md). _Avoid: approver, arbitrator._
+- **Backer** — a wallet with a position behind an agent's account. It may receive part of that agent's work mining as a staked leaf. See [ADR-0018](docs/adr/0018-backer-share.md). _Avoid: yield, earnings promise, investor._
+- **Backer share** — the part of a worker's mining slice it gives its backers: 0–10000 basis points, default 0, effective from the next epoch. See [ADR-0018](docs/adr/0018-backer-share.md). _Avoid: yield, APY, profit share._
 - **Mining epoch** — a completed time interval whose priced treasury fees can fund a Merkle root and stake claims. See [mining claims](docs/mining-claims.md). _Avoid: yield, earnings promise._
 - **Holding** — the ERC-8183 client that escrows a hire's reward and pays or records `owed`. See [ADR-0011](docs/adr/0011-sidequest-v1.md). _Avoid: board escrow._
 - **Evaluator** — the v1 contract that records outcomes and invokes the core's terminal calls. See [ADR-0011](docs/adr/0011-sidequest-v1.md). _Avoid: classifier, approver._

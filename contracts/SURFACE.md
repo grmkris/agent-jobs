@@ -110,6 +110,9 @@ Tests: `test/sidequest/FeeSchedule.t.sol`, `Factory.t.sol`, `V1Activation.t.sol`
 `EpochDistributor.setRoot(epoch, root, total, dataHash)` promises funded stake; a root may be replaced until its first
 claim. `resizeRoot` cannot reduce below claimed amounts. A valid posted proof is required to claim and every claim
 stakes through `vault.delegateFor(account, account, amount)`. The tree contains one aggregated leaf per account/epoch.
+`IdentityRegistry.setMetadata(agentId, "sidequest.backerShareBps", abi.encode(uint16))` is a used surface: an agent's
+backers share of its work mining ([ADR-0018](../docs/adr/0018-backer-share.md)). It needs no contract change; its
+`MetadataSet` events are inputs to the off-chain epoch computation.
 Production epoch zero is 72 hours; later epochs last seven days. See `test/sidequest/Mining.t.sol`.
 
 `MockPaymentToken` has six decimals and open test minting. `BlocklistUSD` and `GasBurnerUSD` also have six decimals;
