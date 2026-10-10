@@ -104,6 +104,14 @@ export const nodes: readonly Node[] = [
     mayImport: ['@sidequest/sdk'],
   },
   {
+    dir: 'packages/commons',
+    name: '@sidequest/commons',
+    role: 'public threads, gaps and stake-weighted roadmap.',
+    runtime: 'shared',
+    mayImport: [],
+    seam: { consumer: 'the API Commons lane', reason: 'The frozen contract lands before the API dependency.' },
+  },
+  {
     dir: 'packages/indexer',
     name: '@sidequest/indexer',
     role: 'indexing and notification domain logic.',

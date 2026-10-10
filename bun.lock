@@ -171,6 +171,20 @@
         "vitest": "catalog:",
       },
     },
+    "packages/commons": {
+      "name": "@sidequest/commons",
+      "version": "0.0.0",
+      "dependencies": {
+        "effect": "catalog:",
+        "viem": "catalog:",
+      },
+      "devDependencies": {
+        "@effect/vitest": "catalog:",
+        "@types/node": "catalog:",
+        "typescript": "catalog:",
+        "vitest": "catalog:",
+      },
+    },
     "packages/indexer": {
       "name": "@sidequest/indexer",
       "version": "0.0.0",
@@ -1056,6 +1070,8 @@
     "@sidequest/arbiter": ["@sidequest/arbiter@workspace:apps/arbiter"],
 
     "@sidequest/board": ["@sidequest/board@workspace:packages/board"],
+
+    "@sidequest/commons": ["@sidequest/commons@workspace:packages/commons"],
 
     "@sidequest/contracts": ["@sidequest/contracts@workspace:contracts"],
 

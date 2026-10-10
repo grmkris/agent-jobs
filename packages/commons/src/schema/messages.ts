@@ -1,0 +1,66 @@
+import { Schema, SchemaGetter } from 'effect'
+import { Address, Cursor, Integer, ItemId, Limit, OutputId, Subject, WeiString, text } from './ids.ts'
+import { Hidden, Role } from './roles.ts'
+
+export const normalizeBody = (s: string) => s.normalize('NFC').replace(/[\p{Cc}\p{Cf}]/gu, '')
+export const Body = Schema.String.pipe(
+  Schema.decodeTo(text(1, 2000), {
+    decode: SchemaGetter.transform(normalizeBody),
+    encode: SchemaGetter.transform((s) => s),
+  }),
+)
+export const Badge = Schema.Struct({
+  kind: Schema.Literals([
+    'owner',
+    'approver',
+    'worker',
+    'bidder',
+    'backer',
+    'staker',
+    'arbiter',
+    'moderator',
+    'maintainer',
+  ]),
+  of: Schema.optional(Address),
+  amount: Schema.optional(WeiString),
+})
+export type Badge = typeof Badge.Type
+export const Mention = Schema.Struct({ token: Schema.String, address: Schema.NullOr(Address) })
+export const Message = Schema.Struct({
+  id: OutputId,
+  subject: Subject,
+  author: Address,
+  badges: Schema.Array(Badge),
+  body: Schema.NullOr(text(1, 2000)),
+  replyTo: Schema.NullOr(OutputId),
+  mentions: Schema.Array(Mention),
+  hidden: Schema.NullOr(Hidden),
+  createdAt: Integer,
+})
+export type Message = typeof Message.Type
+export const Viewer = Schema.Struct({
+  address: Address,
+  roles: Schema.Array(Role),
+  canPost: Schema.Boolean,
+  needs: Schema.NullOr(Schema.Literals(['sign-in', 'stake'])),
+  minimum: WeiString,
+  stake: Schema.NullOr(WeiString),
+  backing: Schema.NullOr(WeiString),
+})
+export type Viewer = typeof Viewer.Type
+export const ListMessagesInput = Schema.Struct({
+  subject: Subject,
+  after: Schema.optional(Cursor),
+  before: Schema.optional(Cursor),
+  limit: Schema.optional(Limit),
+})
+export const ListMessagesOutput = Schema.Struct({
+  subject: Subject,
+  messages: Schema.Array(Message),
+  cursor: Schema.NullOr(Cursor),
+  hasMore: Schema.Boolean,
+  nextPollSeconds: Schema.Literal(10),
+  viewer: Schema.NullOr(Viewer),
+})
+export const PostMessageInput = Schema.Struct({ subject: Subject, body: Body, replyTo: Schema.optional(ItemId) })
+export const PostMessageOutput = Schema.Struct({ message: Message, notified: Integer })

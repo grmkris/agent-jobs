@@ -15,7 +15,7 @@ Start with [README.md](README.md), the [glossary](GLOSSARY.md), [protocol law](d
 Runtime classes come from [tools/graph.ts](tools/graph.ts). Each workspace has its own instructions:
 
 - [apps/api](apps/api/AGENTS.md) (cloud), [apps/indexer](apps/indexer/AGENTS.md) (cloud), [apps/explore](apps/explore/AGENTS.md) (browser), [apps/arbiter](apps/arbiter/AGENTS.md) (daemon), [apps/docs](apps/docs/AGENTS.md) (browser).
-- [packages/sdk](packages/sdk/AGENTS.md), [packages/board](packages/board/AGENTS.md), [packages/indexer](packages/indexer/AGENTS.md), [packages/react](packages/react/AGENTS.md) (shared).
+- [packages/sdk](packages/sdk/AGENTS.md), [packages/board](packages/board/AGENTS.md), [packages/indexer](packages/indexer/AGENTS.md), [packages/react](packages/react/AGENTS.md), [packages/commons](packages/commons/AGENTS.md) (shared).
 - [contracts](contracts/AGENTS.md) and [tools](tools/AGENTS.md) (tooling).
 
 ## Commands
