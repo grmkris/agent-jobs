@@ -447,18 +447,18 @@ async function working(h: Hirer, job: Job) {
 
 async function closing(h: Hirer, job: Job, known?: Task) {
   const task = known ?? (await h.call<Task>('get_task', { taskId: job.taskId }))
-  const status = statusOf(task)
-  if (status === 'disputed' && job.statement !== true) {
+  const chainStatus = statusOf(task)
+  if (chainStatus === 'disputed' && job.statement !== true) {
     const text = `As the client: I rejected this delivery because it did not meet the criteria I set. ${job.criteria.join(' ')}`
     await h.call('add_statement', { taskId: job.taskId, text: text.slice(0, 3900) })
     job.statement = true
     h.log('statement', { key: job.key, taskId: job.taskId })
   }
-  if (!TERMINAL.has(status)) return settle(h, job, task)
+  if (!TERMINAL.has(chainStatus)) return settle(h, job, task)
   const collect = await h.call<Prepared>('collect_actions', { taskId: job.taskId }).catch((): Prepared => ({}))
   await h.send(`${job.key}/collect`, collect, job.taskId)
-  Object.assign(job, { step: 'done', outcome: `${job.outcome ?? 'closed'}/${status}` })
-  h.log('closed', { key: job.key, taskId: job.taskId, status, outcome: job.outcome })
+  Object.assign(job, { step: 'done', outcome: `${job.outcome ?? 'closed'}/${chainStatus}` })
+  h.log('closed', { key: job.key, taskId: job.taskId, status: chainStatus, outcome: job.outcome })
 }
 
 const STEPS: Record<Exclude<Step, 'done' | 'reviewing'>, (h: Hirer, job: Job) => Promise<void>> = {
