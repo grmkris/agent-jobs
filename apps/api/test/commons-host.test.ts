@@ -16,6 +16,7 @@ const maintainer = '0x5f3d114a607b5bbb71a2e11ba045fc9f4f239ce7'
 const peer = '0x1111111111111111111111111111111111111111'
 // The dev stage's moderators get a metadata row for every post, besides the people a post mentions.
 const moderators = (stageProfile('dev')?.roles?.moderator ?? []).map((address) => address.toLowerCase())
+const sorted = (list: readonly string[]) => list.toSorted((a, b) => a.localeCompare(b))
 const env: BoardCall['env'] = {
   network: 'monad-testnet',
   boardId: 'public',
@@ -145,7 +146,7 @@ it('runs the real post program, persists metadata-only feed rows and reuses the 
   const result = await f.host.run('post_message', { address: maintainer }, { subject: 'lobby', body: `hello @${peer}` })
   expect(result).toMatchObject({ message: { id: 1, body: `hello @${peer}` }, notified: 1 + moderators.length })
   const rows = f.index.prepare('SELECT address, data_json FROM feed_events').all()
-  expect(rows.map((row) => row.address).toSorted()).toEqual([peer, ...moderators].toSorted())
+  expect(sorted(rows.map((row) => String(row.address)))).toEqual(sorted([peer, ...moderators]))
   expect(JSON.stringify(rows)).not.toContain('hello')
   expect(JSON.stringify(rows)).not.toContain('body')
   expect(await f.host.run('list_messages', {}, { subject: 'lobby', limit: '1' })).toMatchObject({
