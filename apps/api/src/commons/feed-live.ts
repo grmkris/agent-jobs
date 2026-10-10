@@ -7,12 +7,6 @@ import { reportFeedFailure, writeFeed } from '../feed.ts'
 export const feedLayer = (sql: AsyncSql, network: Network) =>
   Layer.succeed(FeedSink, {
     write: (events) =>
-      Effect.promise(() =>
-        writeFeed(
-          sql,
-          network,
-          events.map((event) => ({ ...event, occurredAt: Math.floor(event.occurredAt / 1000) })),
-          Math.floor(Date.now() / 1000),
-        ).catch(reportFeedFailure),
-      ),
+      // Commons events already carry Unix seconds (packages/commons/src/time.ts), as writeFeed expects.
+      Effect.promise(() => writeFeed(sql, network, events, Math.floor(Date.now() / 1000)).catch(reportFeedFailure)),
   })

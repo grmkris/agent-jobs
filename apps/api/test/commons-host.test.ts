@@ -145,7 +145,9 @@ it('runs the real post program, persists metadata-only feed rows and reuses the 
   expect(f.factory(env)).toBe(f.host)
   const result = await f.host.run('post_message', { address: maintainer }, { subject: 'lobby', body: `hello @${peer}` })
   expect(result).toMatchObject({ message: { id: 1, body: `hello @${peer}` }, notified: 1 + moderators.length })
-  const rows = f.index.prepare('SELECT address, data_json FROM feed_events').all()
+  const rows = f.index.prepare('SELECT address, data_json, occurred_at FROM feed_events').all()
+  // Unix seconds, as every other feed row: inbox reads without a cursor look back seven days by occurred_at.
+  for (const row of rows) expect(Math.abs(Number(row.occurred_at) - Date.now() / 1000)).toBeLessThan(3600)
   expect(sorted(rows.map((row) => String(row.address)))).toEqual(sorted([peer, ...moderators]))
   expect(JSON.stringify(rows)).not.toContain('hello')
   expect(JSON.stringify(rows)).not.toContain('body')
