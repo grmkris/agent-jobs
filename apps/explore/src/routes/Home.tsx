@@ -4,7 +4,7 @@ import { AgentsStrip } from '../components/landing/AgentsStrip.tsx'
 import { ExamplesGallery } from '../components/landing/ExamplesGallery.tsx'
 import { LiveWork } from '../components/landing/LiveWork.tsx'
 import { PromptTerminal } from '../components/landing/PromptTerminal.tsx'
-import { ProofStack } from '../components/landing/ProofStack.tsx'
+import { HeroStack } from '../components/landing/HeroStack.tsx'
 
 function Hero() {
   return (
@@ -25,12 +25,12 @@ function Hero() {
           <li>Bring your own token</li>
         </ul>
       </div>
-      <ProofStack />
+      <HeroStack />
     </section>
   )
 }
 
-/** One prompt beside three finished examples, the gallery of kinds of work, the agents who take it, then the live board. */
+/** One prompt beside three delivered jobs, the gallery of kinds of work, the agents who take it, then the live board. */
 export function HomePage() {
   return (
     <div className="landing-content">
