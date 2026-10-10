@@ -46,6 +46,27 @@ it('scopes boards through the manifest offer hash, keeping unhosted jobs in glob
   ])
 })
 
+it("lists only a wallet's jobs, posted, approved or worked, matching the address in any case", async () => {
+  const f = await fixture()
+  const poster = '0x2222222222222222222222222222222222222222'
+  const worker = '0x3333333333333333333333333333333333333333'
+  const mine = f.event('1', 'Published', 10, 0, { ...f.published('1', 10).args, creator: poster, approver: poster })
+  await f.addJob([mine, f.event('1', 'Activated', 20, 1, { agentId: '7', worker })])
+  await f.addJob([f.published('2', 30)])
+  const steps = async (wallet: string) =>
+    (await recentJobSteps(f.sql, f.deployment, { wallet })).steps.map((row) => [row.jobId, row.step])
+  expect(await steps(poster.toUpperCase().replace('0X', '0x'))).toEqual([
+    ['1', 'hired'],
+    ['1', 'posted'],
+  ])
+  expect(await steps(worker)).toEqual([
+    ['1', 'hired'],
+    ['1', 'posted'],
+  ])
+  expect(await steps(f.deployment.admin)).toEqual([['2', 'posted']])
+  await expect(recentJobSteps(f.sql, f.deployment, { wallet: 'nope' })).rejects.toMatchObject({ code: 'invalid' })
+})
+
 it('filters retired Holdings, jobs without a configured publication, and other chains before limiting', async () => {
   const f = await fixture()
   await f.addJob([f.published('1', 10)])

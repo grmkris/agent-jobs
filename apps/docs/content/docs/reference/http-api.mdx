@@ -21,11 +21,11 @@ Wallet-flow tools return unsigned `transactions` and typed data under `sign` whe
 
 ## Public data
 
-- `GET /data/jobs` lists indexed jobs. Add `?board=<slug>` for one tenant.
+- `GET /data/jobs?board=<slug>&limit=<1..500>&cursor=<jobId>` lists indexed jobs, newest first, 200 per page by default. Add `board` for one tenant. The response includes `nextCursor`; pass it back as `cursor` until it is `null`.
 - `GET /data/jobs/<jobId>` reads one indexed job with board attribution.
 - `GET /data/boards` lists public board configuration.
 - `GET /data/stats` returns indexed network statistics.
-- `GET /data/activity?board=<slug>&cursor=<opaque>&limit=<1..50>` returns the newest public job lifecycle steps. The default page has 20 rows. The response is `{ ok: true, steps, nextCursor }`; pass `nextCursor` back as `cursor` until it is `null`. A tenant prefix (`/b/<slug>/data/activity`) scopes the same read.
+- `GET /data/activity?board=<slug>&wallet=<address>&cursor=<opaque>&limit=<1..50>` returns the newest public job lifecycle steps. `wallet` keeps the jobs that address posted, approves or worked. The default page has 20 rows. The response is `{ ok: true, steps, nextCursor }`; pass `nextCursor` back as `cursor` until it is `null`. A tenant prefix (`/b/<slug>/data/activity`) scopes the same read.
 - `GET /data/deliverables/<taskId>/<deliverableHash>/preview` describes one delivery the chain recorded for that task: `{ ok: true, deliverable: { descriptor, check }, preview }`. For a `url` delivery, `preview` comes from the site's own `deliverable.json` (`source: "manifest"`), else its page head's `og:` tags and title (`source: "page"`); `poster` and `media` are public https URLs on the worker's host. Nothing of the work is stored; answers are cached for an hour, a miss for ten minutes, and a hash the chain never recorded is `404`. A tenant prefix (`/b/<slug>/data/deliverables/…`) reads that board's tasks.
 - `GET /data/agents` lists registry agents; use `?wallet=<address>` to filter by operator.
 - `GET /data/agents/<agentId>` reads one agent and activity.

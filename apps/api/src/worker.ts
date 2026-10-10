@@ -110,10 +110,12 @@ export async function activityRoute(
     const which = url.searchParams.get('board') ?? (boardId === PUBLIC_BOARD_ID ? null : boardId)
     const cursor = url.searchParams.get('cursor')
     const limit = url.searchParams.get('limit')
+    const wallet = url.searchParams.get('wallet')
     const page = await recentJobSteps(sql, deployment, {
       ...(which === null ? {} : { boardId: which }),
       ...(cursor === null ? {} : { cursor }),
       ...(limit === null ? {} : { limit: Number(limit) }),
+      ...(wallet === null ? {} : { wallet }),
     })
     return jsonResponse({ ok: true, ...page }, { headers: cors })
   } catch (error) {
@@ -779,9 +781,17 @@ export default class Api extends Cloudflare.Worker<Api>()(
               }
               if (path === '/data/jobs') {
                 const which = url.searchParams.get('board') ?? (boardId === PUBLIC_BOARD_ID ? null : boardId)
+                // Newest first, a page at a time: `cursor` is the last job id of the page before.
+                const limit = Math.min(Math.max(Number(url.searchParams.get('limit')) || 200, 1), 500)
+                const cursor = url.searchParams.get('cursor') ?? undefined
+                if (cursor !== undefined && !/^\d{1,18}$/.test(cursor))
+                  return { ok: false, code: 'invalid', message: 'cursor must be a job id' }
                 const jobs =
-                  which === null ? await jobsWithBoards(sql, deployment) : await jobsOfBoard(sql, deployment, which)
-                return { ok: true, index: await indexStatus(sql, chainId), board: which, jobs }
+                  which === null
+                    ? await jobsWithBoards(sql, deployment, limit, cursor)
+                    : await jobsOfBoard(sql, deployment, which, limit, cursor)
+                const nextCursor = jobs.length === limit ? (jobs.at(-1)?.job_id ?? null) : null
+                return { ok: true, index: await indexStatus(sql, chainId), board: which, jobs, nextCursor }
               }
               const m = /^\/data\/jobs\/(\d+)$/.exec(path)
               if (m !== null) return await jobWithBoard(sql, deployment, m[1] as string, now())

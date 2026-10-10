@@ -184,12 +184,22 @@ export async function boardsOfTerms(
   return out
 }
 
-export async function jobsWithBoards(sql: AsyncSql, deployment: Deployment, limit = 200): Promise<JobWithBoard[]> {
+/** A page of jobs below `before` (a job id), newest first: what `/data/jobs?cursor=` continues from. */
+const beforeClause = (before: string | undefined) => (before === undefined ? '' : 'AND CAST(j.job_id AS INTEGER) < ?')
+const beforeParams = (before: string | undefined) => (before === undefined ? [] : [Number(before)])
+
+export async function jobsWithBoards(
+  sql: AsyncSql,
+  deployment: Deployment,
+  limit = 200,
+  before?: string,
+): Promise<JobWithBoard[]> {
   const configured = configuredJobs(deployment, 'j')
   const rows = await sql.all<JobWithBoard>(
-    `SELECT j.*, o.board_id FROM jobs j LEFT JOIN board_offers o ON lower(${OFFER_HASH_SQL}) = o.terms_hash WHERE j.chain_id = ? AND ${configured.clause} ORDER BY CAST(j.job_id AS INTEGER) DESC LIMIT ?`,
+    `SELECT j.*, o.board_id FROM jobs j LEFT JOIN board_offers o ON lower(${OFFER_HASH_SQL}) = o.terms_hash WHERE j.chain_id = ? AND ${configured.clause} ${beforeClause(before)} ORDER BY CAST(j.job_id AS INTEGER) DESC LIMIT ?`,
     deployment.chainId,
     ...configured.params,
+    ...beforeParams(before),
     limit,
   )
   const offers = await foreignOffersForJobs(
@@ -205,13 +215,15 @@ export async function jobsOfBoard(
   deployment: Deployment,
   boardId: string,
   limit = 200,
+  before?: string,
 ): Promise<JobWithBoard[]> {
   const configured = configuredJobs(deployment, 'j')
   return sql.all<JobWithBoard>(
-    `SELECT j.*, o.board_id FROM jobs j JOIN board_offers o ON lower(${OFFER_HASH_SQL}) = o.terms_hash WHERE j.chain_id = ? AND o.board_id = ? AND ${configured.clause} ORDER BY CAST(j.job_id AS INTEGER) DESC LIMIT ?`,
+    `SELECT j.*, o.board_id FROM jobs j JOIN board_offers o ON lower(${OFFER_HASH_SQL}) = o.terms_hash WHERE j.chain_id = ? AND o.board_id = ? AND ${configured.clause} ${beforeClause(before)} ORDER BY CAST(j.job_id AS INTEGER) DESC LIMIT ?`,
     deployment.chainId,
     boardId,
     ...configured.params,
+    ...beforeParams(before),
     limit,
   )
 }
@@ -288,29 +300,53 @@ function recentStep(row: JobStepRow): RecentJobStep {
   }
 }
 
+interface StepFilterOptions {
+  boardId?: string
+  cursor?: string
+  wallet?: string
+}
+
+/**
+ * The activity read's optional narrowing, checked and turned into SQL with its parameters in placeholder order: a
+ * board, a wallet (the jobs it posted, approves or worked) and the page cursor.
+ */
+function stepFilters(opts: StepFilterOptions): { sql: string; params: (string | number)[] } {
+  if (opts.boardId !== undefined && !/^[a-z0-9-]{3,32}$/.test(opts.boardId))
+    throw new BoardError('invalid', 'board must be a board slug (3–32 lowercase letters, digits or hyphens)')
+  if (opts.wallet !== undefined && !/^0x[0-9a-fA-F]{40}$/.test(opts.wallet))
+    throw new BoardError('invalid', 'wallet must be a 0x address')
+  const cursor = opts.cursor === undefined ? undefined : decodeJobStepCursor(opts.cursor)
+  if (opts.cursor !== undefined && cursor === undefined) throw new BoardError('invalid', 'invalid activity cursor')
+  const parts: { sql: string; params: (string | number)[] }[] = []
+  if (opts.boardId !== undefined) parts.push({ sql: 'AND o.board_id = ?', params: [opts.boardId] })
+  if (opts.wallet !== undefined) {
+    const wallet = opts.wallet.toLowerCase()
+    parts.push({
+      sql: 'AND (lower(j.creator) = ? OR lower(j.approver) = ? OR lower(j.worker) = ?)',
+      params: [wallet, wallet, wallet],
+    })
+  }
+  if (cursor !== undefined)
+    parts.push({
+      sql: 'AND (e.block < ? OR (e.block = ? AND e.log_index < ?))',
+      params: [cursor.block, cursor.block, cursor.logIndex],
+    })
+  return { sql: parts.map((p) => p.sql).join('\n      '), params: parts.flatMap((p) => p.params) }
+}
+
 /** Anonymous chain activity, attributed to boards without exposing event arguments or private quote terms. */
 export async function recentJobSteps(
   sql: AsyncSql,
   deployment: Deployment,
-  opts: { boardId?: string; cursor?: string; limit?: number } = {},
+  opts: StepFilterOptions & { limit?: number } = {},
 ): Promise<{ steps: RecentJobStep[]; nextCursor: string | null }> {
   const limit = opts.limit ?? 20
   if (!Number.isInteger(limit) || limit < 1 || limit > 50)
     throw new BoardError('invalid', 'limit must be an integer between 1 and 50')
-  if (opts.boardId !== undefined && !/^[a-z0-9-]{3,32}$/.test(opts.boardId))
-    throw new BoardError('invalid', 'board must be a board slug (3–32 lowercase letters, digits or hyphens)')
-  const cursor = opts.cursor === undefined ? undefined : decodeJobStepCursor(opts.cursor)
-  if (opts.cursor !== undefined && cursor === undefined) throw new BoardError('invalid', 'invalid activity cursor')
+  const filters = stepFilters(opts)
   const configured = configuredJobs(deployment, 'j')
   const names = Object.keys(JOB_STEP_EVENTS)
-  const params = [
-    deployment.chainId,
-    ...configured.params,
-    ...names,
-    ...(opts.boardId === undefined ? [] : [opts.boardId]),
-    ...(cursor === undefined ? [] : [cursor.block, cursor.block, cursor.logIndex]),
-    limit + 1,
-  ]
+  const params = [deployment.chainId, ...configured.params, ...names, ...filters.params, limit + 1]
   const query = (withTimes: boolean) => `SELECT e.job_id, e.name, e.block, e.log_index, e.tx_hash,
     ${withTimes ? 'b.timestamp' : 'NULL AS timestamp'}, o.board_id, j.agent_id, j.token, j.reward, j.net,
     CASE WHEN e.name = 'JobCompleted' THEN (
@@ -322,8 +358,7 @@ export async function recentJobSteps(
     LEFT JOIN board_offers o ON lower(${OFFER_HASH_SQL}) = o.terms_hash
     ${withTimes ? 'LEFT JOIN block_times b ON b.chain_id = e.chain_id AND b.block = e.block' : ''}
     WHERE e.chain_id = ? AND ${configured.clause} AND e.name IN (${names.map(() => '?').join(', ')})
-      ${opts.boardId === undefined ? '' : 'AND o.board_id = ?'}
-      ${cursor === undefined ? '' : 'AND (e.block < ? OR (e.block = ? AND e.log_index < ?))'}
+      ${filters.sql}
       AND NOT (e.name = 'JobRejected' AND EXISTS (
         SELECT 1 FROM events prior WHERE prior.chain_id = e.chain_id AND prior.job_id = e.job_id
           AND (prior.name = 'Rejected' OR (prior.name = 'Cancelled' AND prior.tx_hash = e.tx_hash))

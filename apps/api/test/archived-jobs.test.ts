@@ -45,6 +45,30 @@ it('discovery uses the original Holding, keeps the current v1 jobs and filters b
   expect(f.db.prepare('SELECT COUNT(*) AS n FROM jobs').get()).toEqual({ n: 3 })
 })
 
+const ids = (jobs: readonly { job_id: string }[]) => jobs.map((job) => job.job_id)
+
+it('pages newest first below a cursor job id', async () => {
+  const f = await fixture()
+  const holding = f.deployment.stacks.main!.holding
+  for (const jobId of ['82', '83', '84']) {
+    f.db
+      .prepare(
+        "INSERT INTO jobs (chain_id,job_id,stack,status,policy_hash,updated_block) VALUES (?,?,'main','open',?,1)",
+      )
+      .run(f.deployment.chainId, jobId, `policy-${jobId}`)
+    f.db
+      .prepare(
+        "INSERT INTO events (chain_id,contract,block,log_index,tx_hash,job_id,name,args_json) VALUES (?,?,1,?,?,?,'Published','{}')",
+      )
+      .run(f.deployment.chainId, holding, Number(jobId), `publish-${jobId}`, jobId)
+    await recordOffer(f.sql, { boardId: 'public', termsHash: `policy-${jobId}`, taskId: `task-${jobId}`, now: 0 })
+  }
+  expect(ids(await jobsWithBoards(f.sql, f.deployment, 2))).toEqual(['84', '83'])
+  expect(ids(await jobsWithBoards(f.sql, f.deployment, 2, '83'))).toEqual(['82', '80'])
+  expect(ids(await jobsWithBoards(f.sql, f.deployment, 2, '80'))).toEqual([])
+  expect(ids(await jobsOfBoard(f.sql, f.deployment, 'public', 10, '84'))).toEqual(['83', '82', '80'])
+})
+
 it('direct archived reads explicitly refuse actions and preserve the old job, evidence and timeline', async () => {
   const f = await fixture()
   const result = await jobWithBoard(f.sql, f.deployment, '62', 1000)
