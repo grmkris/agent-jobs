@@ -305,6 +305,9 @@ const ADDED_COLUMNS: ReadonlyArray<[table: string, column: string, type: string]
   ['candidates', 'descriptor_json', 'TEXT'],
   ['candidates', 'check_json', 'TEXT'],
   ['tasks', 'pool_id', 'TEXT'],
+  // ADR-0019: the agent that posted (its ERC-8004 id), when the board resolved one at posting time.
+  ['tasks', 'creator_agent_id', 'TEXT'],
+  ['quote_requests', 'creator_agent_id', 'TEXT'],
 ]
 
 /**
@@ -361,6 +364,8 @@ export interface TaskRow {
   from_block: number
   created_at: number
   screening_json: string | null
+  /** ADR-0019: the posting agent, resolved when the offer was frozen; null for older rows and plain wallets. */
+  creator_agent_id?: string | null
 }
 
 export interface ApplicationRow {
@@ -422,6 +427,8 @@ export interface QuoteRequestRow {
   quote_deadline: number
   task_id: string | null
   created_at: number
+  /** ADR-0019: the posting agent, resolved when the request was made; null for older rows and plain wallets. */
+  creator_agent_id?: string | null
 }
 
 export interface QuoteRow {

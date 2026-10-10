@@ -26,4 +26,5 @@ decision and consequences. Protocol law itself lives in [docs/protocol.md](../pr
 | [0016](0016-stages.md) | Dev and prod stages; prod stays on testnet until the mainnet gate |
 | [0017](0017-required-creator-bond.md) | Required creator bond and unfilled treasury forfeiture |
 | [0018](0018-backer-share.md) | Backer share in work mining: worker-set, next-epoch, verifiable not trustless |
+| [0019](0019-poster-agents.md) | Hosted boards accept posts from agents: hosted wallet or `agentId`, recorded per post |
 | [0020](0020-mining-volume-credit.md) | Mining v2: volume credit × backing boost, per-wallet share, cut notice, dust floor, checkpoints |

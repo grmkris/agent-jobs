@@ -68,6 +68,8 @@ export interface BoardCall {
     readonly domain: string
     readonly uri: string
     readonly manifestBaseUrl: string
+    /** ADR-0019: whether this stage's boards accept posts only from agents. */
+    readonly requirePosterAgent?: boolean
     /** Jev's model endpoint; an empty key means "unscreened". */
     readonly screening: { readonly baseUrl: string; readonly apiKey: string; readonly model: string }
     /** Attester and relay keys and the GitHub App; empty means evidence is unavailable. */
@@ -131,6 +133,7 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
           domain: env.domain,
           uri: env.uri,
           manifestBaseUrl: env.manifestBaseUrl,
+          requirePosterAgent: env.requirePosterAgent === true,
           collectSnapshot: (wallet) =>
             collectSnapshot(
               fromD1((runtimeEnv as Record<string, unknown>).Database as never),

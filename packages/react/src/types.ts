@@ -84,6 +84,8 @@ export interface TaskIndexEntry {
   manifestUrl: string
   screening: { verdict: string; reasons: string[] }
   createdAt: number
+  /** ADR-0019: the agent that posted it, when the board resolved one at posting time. */
+  creatorAgentId?: string | null
 }
 
 export interface ChainJob {

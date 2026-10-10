@@ -170,6 +170,8 @@ export default class Api extends Cloudflare.Worker<Api>()(
       PROD_APPROVED_BOARDS: '',
       PROD_APPROVED_ACTIONS: '',
       PROD_ADMISSION_DRAIN: admissionDrainBinding(process.env.PROD_ADMISSION_DRAIN),
+      // ADR-0019, from the stage profile: '1' when hosted boards accept posts only from agents.
+      REQUIRE_POSTER_AGENT: stageProfile()?.boards?.requirePosterAgent === true ? '1' : '0',
     },
   },
   Effect.gen(function* () {
@@ -336,6 +338,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
           })
 
         const admission = parseHostedAdmission(yield* Config.String('PROD_ADMISSION_DRAIN'))
+        const requirePosterAgent = (yield* Config.withDefault(Config.String('REQUIRE_POSTER_AGENT'), '0')) === '1'
         const env: BoardCall['env'] = {
           network,
           boardId: tenant.id,
@@ -343,6 +346,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
           domain: url.host,
           uri: url.origin,
           manifestBaseUrl: `${url.origin}/offers`,
+          requirePosterAgent,
           screening: {
             baseUrl: yield* Config.String('SCREENING_BASE_URL'),
             model: yield* Config.String('SCREENING_MODEL'),

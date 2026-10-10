@@ -149,6 +149,11 @@ export interface BoardConfig {
    * weekly-budget grant can still fund. Absent: no poster is hosted (local and test boards).
    */
   readonly hostedCreators?: (query: HostedCreatorQuery) => Promise<HostedCreatorFacts>
+  /**
+   * ADR-0019: accept quote requests and offers only from agents, a hosted agent's wallet or the wallet of the ERC-8004
+   * agent the caller names. Off: anyone may post, and the posting agent is still recorded when it resolves.
+   */
+  readonly requirePosterAgent?: boolean
   readonly evidence?: {
     readonly attester: import('viem').LocalAccount
     readonly relay: import('viem').LocalAccount
@@ -717,6 +722,50 @@ export class Board {
     return caller.address
   }
 
+  /**
+   * ADR-0019: the ERC-8004 agent posting as `creator`: the one the caller names, when that agent's wallet is the
+   * caller's, else the hosted agent behind the wallet. Null when neither resolves; a board that requires poster agents
+   * then refuses the post. A failed hosted lookup is unavailable there, never a refusal.
+   */
+  async #posterAgent(ctx: sdk.Ctx, creator: Address, agentId: string | undefined): Promise<string | null> {
+    if (agentId !== undefined) {
+      if (!/^\d{1,78}$/.test(agentId)) throw new BoardError('invalid', 'agentId must be a decimal ERC-8004 agent ID')
+      const wallet = await ctx.publicClient.readContract({
+        address: ctx.deployment.identity,
+        abi: sdk.identityAbi,
+        functionName: 'getAgentWallet',
+        args: [BigInt(agentId)],
+      })
+      if (!eq(wallet, creator))
+        throw new BoardError(
+          'forbidden',
+          `agent ${agentId}'s wallet is not the signed-in wallet: sign in with the agent's wallet to post as it`,
+        )
+      return agentId
+    }
+    if (this.#config.hostedCreators === undefined) return this.#noPosterAgent()
+    const facts = await settleWithin(
+      this.#config.hostedCreators({ addresses: [creator], allowances: [] }),
+      POSTER_READ_MS,
+    )
+    if (facts === undefined) {
+      if (this.#config.requirePosterAgent === true)
+        throw new BoardError('unavailable', 'the hosted agent lookup did not answer; retry the same call')
+      return null
+    }
+    return facts.agents.find((a) => eq(a.address, creator))?.agentId ?? this.#noPosterAgent()
+  }
+
+  /** A post from a wallet no agent resolves to: refused where the board requires poster agents, else unattributed. */
+  #noPosterAgent(): null {
+    if (this.#config.requirePosterAgent === true)
+      throw new BoardError(
+        'forbidden',
+        `posting on this board needs an agent: post through your hosted agent, or register this wallet as an ERC-8004 agent and pass its agentId (${this.#config.uri}/agents/new)`,
+      )
+    return null
+  }
+
   #task(taskId: string): TaskRow {
     const [row] = this.#sql.all<TaskRow>('SELECT * FROM tasks WHERE id = ?', taskId)
     if (row === undefined) throw new BoardError('not-found', `no task ${taskId}`)
@@ -874,6 +923,8 @@ export class Board {
       deliverable?: DeliverableSpec
       /** Stable client key: a retry after losing the response returns this same preparation. */
       idempotencyKey?: string
+      /** ADR-0019: the ERC-8004 agent posting, when the signed-in wallet is that agent's own (not needed when hosted). */
+      agentId?: string
     },
     /** Set only by `pickQuote`: the offer carries the request and the picked quote. */
     quote: { requestHash: Hex; quoteHash: Hex } | null = null,
@@ -893,6 +944,14 @@ export class Board {
     const stack = input.stack ?? 'main'
     const ctx = this.#ctx(stack)
     await this.#requireUnpaused(stack)
+    // A picked hire inherits the agent its request was admitted as.
+    const posterAgent =
+      quote === null
+        ? await this.#posterAgent(ctx, creator, input.agentId)
+        : (this.#sql.all<{ creator_agent_id: string | null }>(
+            'SELECT creator_agent_id FROM quote_requests WHERE request_hash = ?',
+            quote.requestHash,
+          )[0]?.creator_agent_id ?? null)
     const bondPolicy = await sdk.readBondPolicy(ctx)
     const creatorBond = input.creatorBond ?? formatUnits(bondPolicy.minimumCreatorBond, 18)
     const workerBond = input.workerBond ?? '0'
@@ -988,7 +1047,7 @@ export class Board {
         return prepared
       }
       this.#sql.run(
-        'INSERT INTO tasks (id, creator, stack, terms_json, terms_hash, job_id, publish_tx, from_block, created_at, screening_json) VALUES (?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?)',
+        'INSERT INTO tasks (id, creator, stack, terms_json, terms_hash, job_id, publish_tx, from_block, created_at, screening_json, creator_agent_id) VALUES (?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?, ?)',
         taskId,
         creator,
         stack,
@@ -997,6 +1056,7 @@ export class Board {
         Number(block),
         this.#now(),
         JSON.stringify(screening),
+        posterAgent,
       )
       this.#operation(taskId, 'publish', creator, { termsHash: hash })
       if (executionBudget !== undefined) this.#budget.promise(taskId, creator, executionBudget)
@@ -1633,6 +1693,8 @@ export class Board {
       /** A public maximum price in one token; the request then accepts only that token and refuses quotes above it. */
       budget?: { token: string; max: string }
       idempotencyKey?: string
+      /** ADR-0019: the ERC-8004 agent posting, when the signed-in wallet is that agent's own (not needed when hosted). */
+      agentId?: string
     },
   ) {
     const creator = this.#requireCaller(caller)
@@ -1641,6 +1703,7 @@ export class Board {
     const tags = input.tags === undefined ? [] : normalizeTags(input.tags)
     const stack = input.stack ?? 'main'
     const ctx = this.#ctx(stack)
+    const posterAgent = await this.#posterAgent(ctx, creator, input.agentId)
     const bondPolicy = await sdk.readBondPolicy(ctx)
     const creatorBond = input.creatorBond ?? formatUnits(bondPolicy.minimumCreatorBond, 18)
     const workerBond = input.workerBond ?? '0'
@@ -1726,7 +1789,7 @@ export class Board {
       const prior = this.#idempotent<QuotePreparation>(creator, 'request_quotes', input.idempotencyKey)
       if (prior !== undefined) return this.#withRequestDeadlines(prior)
       this.#sql.run(
-        'INSERT INTO quote_requests (id, creator, stack, request_json, request_hash, quote_deadline, task_id, created_at) VALUES (?, ?, ?, ?, ?, ?, NULL, ?)',
+        'INSERT INTO quote_requests (id, creator, stack, request_json, request_hash, quote_deadline, task_id, created_at, creator_agent_id) VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?)',
         id,
         creator,
         stack,
@@ -1734,6 +1797,7 @@ export class Board {
         requestHash,
         input.quoteDeadline,
         now,
+        posterAgent,
       )
       return this.#withRequestDeadlines(
         this.#remember(creator, 'request_quotes', input.idempotencyKey, {
@@ -1875,6 +1939,7 @@ export class Board {
       createdAt: r.created_at,
       // One quote per bidder (UNIQUE request_id, worker), so this counts bidders.
       quotesCount: counts.get(r.id) ?? 0,
+      ...(r.creator_agent_id == null ? {} : { creatorAgentId: r.creator_agent_id }),
     }))
   }
 
@@ -1976,7 +2041,7 @@ export class Board {
       const cover = b === undefined ? undefined : fresh(this.#coverCache.get(b.key), 30)
       return {
         ...read,
-        creatorAgentId: agentId ?? null,
+        creatorAgentId: read.creatorAgentId ?? agentId ?? null,
         ...(b === undefined ? {} : { budgetCovered: cover === undefined ? null : cover.funds >= b.max }),
       }
     })
@@ -3243,6 +3308,7 @@ export class Board {
           jobId: t.job_id,
           stack: t.stack,
           kind,
+          creatorAgentId: t.creator_agent_id ?? null,
           title: terms.title,
           brief: terms.brief,
           acceptanceCriteria: terms.acceptanceCriteria,

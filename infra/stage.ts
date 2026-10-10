@@ -12,6 +12,8 @@ export interface StageProfile {
   cloudflare: { accountId?: string; zoneId: string; zoneName: string }
   resources: Record<'Api' | 'Indexer' | 'Explore' | 'Database' | 'Manifests', string>
   safeInfrastructure: { factory: `0x${string}`; singleton: `0x${string}`; fallbackHandler: `0x${string}` }
+  /** Hosted board policy. `requirePosterAgent` (ADR-0019): only agents post; absent or false, anyone may. */
+  boards?: { requirePosterAgent?: boolean }
 }
 
 const profiles = { dev, prod }
