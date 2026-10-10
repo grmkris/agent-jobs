@@ -28,6 +28,9 @@ export const distributorAbi = parseAbi([
 const safeAbi = parseAbi(['function getOwners() view returns (address[])'])
 const erc20Abi = parseAbi(['function decimals() view returns (uint8)'])
 
+export const logClient = (rpc: string): PublicClient =>
+  createPublicClient({ transport: http(rpc, { retryCount: 0, timeout: 30_000 }) })
+
 export const client = (rpc: string): PublicClient =>
   createPublicClient({ transport: http(rpc, { retryCount: 3, timeout: 30_000 }) }) as PublicClient
 
@@ -53,25 +56,72 @@ export async function firstBlockAtOrAfter(c: PublicClient, t: bigint, lo: bigint
   return left
 }
 
-/** eth_getLogs over [from, to] in pages; a page the RPC refuses is halved and retried, and grows back after. */
+export interface LogPager {
+  page: bigint
+}
+
+const isErrorRecord = (
+  value: unknown,
+): value is { code?: unknown; status?: unknown; statusCode?: unknown; message?: unknown; cause?: unknown } =>
+  typeof value === 'object' && value !== null
+const isString = (value: unknown): value is string => typeof value === 'string'
+const isBigint = (value: bigint | LogPager): value is bigint => typeof value === 'bigint'
+
+/** viem wraps JSON-RPC and HTTP errors; keep walking causes without exposing provider bodies. */
+export function isRangeError(error: unknown): boolean {
+  const seen = new Set<unknown>()
+  let current = error
+  while (isErrorRecord(current) && !seen.has(current)) {
+    seen.add(current)
+    if (
+      current.code === -32005 ||
+      current.code === -32602 ||
+      current.code === -32614 ||
+      current.status === 413 ||
+      current.statusCode === 413
+    )
+      return true
+    if (isString(current.message) && /range|limit|too many|exceed|max.*block/i.test(current.message)) return true
+    current = current.cause
+  }
+  return false
+}
+
+async function logsWithRetry<T>(
+  fetch: (from: bigint, to: bigint) => Promise<T[]>,
+  from: bigint,
+  to: bigint,
+): Promise<T[]> {
+  for (let retries = 0; ; retries++) {
+    try {
+      return await fetch(from, to)
+    } catch (error) {
+      if (isRangeError(error) || retries === 3) throw error
+      await new Promise((resolve) => setTimeout(resolve, 100 * 2 ** retries))
+    }
+  }
+}
+
+/** Shared page sizes only shrink, including across histories that reuse the same pager. */
 export async function pagedLogs<T>(
   from: bigint,
   to: bigint,
-  pageSize: bigint,
+  pageSize: bigint | LogPager,
   fetch: (from: bigint, to: bigint) => Promise<T[]>,
 ): Promise<T[]> {
-  if (pageSize < 1n) throw new Error('the page size must be at least one block')
+  const pager = isBigint(pageSize) ? { page: pageSize } : pageSize
+  if (pager.page < 1n) throw new Error('the page size must be at least one block')
   const out: T[] = []
-  let page = pageSize
   for (let start = from; start <= to;) {
+    const page = pager.page
     const end = start + page - 1n < to ? start + page - 1n : to
     try {
-      out.push(...(await fetch(start, end)))
+      out.push(...(await logsWithRetry(fetch, start, end)))
       start = end + 1n
-      if (page < pageSize) page *= 2n
     } catch (error) {
-      if (page === 1n) throw error
-      page /= 2n
+      if (!isRangeError(error) || page === 1n) throw error
+      const smaller = page / 2n
+      if (smaller < pager.page) pager.page = smaller
     }
   }
   return out

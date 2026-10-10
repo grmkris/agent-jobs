@@ -35,33 +35,40 @@ async function vaultPositions(input: {
   fromBlock: bigint
   toBlock: bigint
   page: bigint
+  accounts: Address[]
 }) {
-  const { c, vault, deploymentBlock, fromBlock, toBlock, page } = input
-  const logs = await pagedLogs(deploymentBlock, toBlock, page, (from, to) =>
-    c.getLogs({ address: vault, events: stakeVaultEvents, fromBlock: from, toBlock: to, strict: true }),
-  )
-  const records: VaultEventRecord[] = logs.map((log) => {
-    const base = { block: log.blockNumber, logIndex: log.logIndex, account: lower(log.args.account) }
-    switch (log.eventName) {
-      case 'Delegated':
-      case 'Withdrawn':
-        return { ...base, eventName: log.eventName, delegator: lower(log.args.delegator), shares: log.args.shares }
-      case 'UndelegateRequested':
-        return {
-          ...base,
-          eventName: log.eventName,
-          delegator: lower(log.args.delegator),
-          queuedShares: log.args.queuedShares,
+  const { c, vault, deploymentBlock, fromBlock, toBlock, page, accounts } = input
+  const pager = { page }
+  const records: VaultEventRecord[] = []
+  for (const event of stakeVaultEvents) {
+    const logs = await pagedLogs(deploymentBlock, toBlock, pager, (from, to) =>
+      c.getLogs({ address: vault, event, args: { account: accounts }, fromBlock: from, toBlock: to, strict: true }),
+    )
+    records.push(
+      ...logs.map((log): VaultEventRecord => {
+        const base = { block: log.blockNumber, logIndex: log.logIndex, account: lower(log.args.account) }
+        switch (log.eventName) {
+          case 'Delegated':
+          case 'Withdrawn':
+            return { ...base, eventName: log.eventName, delegator: lower(log.args.delegator), shares: log.args.shares }
+          case 'UndelegateRequested':
+            return {
+              ...base,
+              eventName: log.eventName,
+              delegator: lower(log.args.delegator),
+              queuedShares: log.args.queuedShares,
+            }
+          case 'UndelegateCancelled':
+            return { ...base, eventName: log.eventName, delegator: lower(log.args.delegator) }
+          case 'PoolReset':
+            return { ...base, eventName: log.eventName, generation: log.args.generation }
+          case 'Slashed':
+          case 'Forfeited':
+            return { ...base, eventName: log.eventName }
         }
-      case 'UndelegateCancelled':
-        return { ...base, eventName: log.eventName, delegator: lower(log.args.delegator) }
-      case 'PoolReset':
-        return { ...base, eventName: log.eventName, generation: log.args.generation }
-      case 'Slashed':
-      case 'Forfeited':
-        return { ...base, eventName: log.eventName }
-    }
-  })
+      }),
+    )
+  }
   return replayVaultEvents(records, fromBlock, toBlock)
 }
 
@@ -115,6 +122,7 @@ export async function readBackerWorkers(input: {
   }))
   const resolved = resolveBackerWorkers({ fees, metadata, activations, positions: [], fromBlock })
   if (!resolved.some((worker) => worker.bps > 0n)) return resolved
-  const positions = await vaultPositions({ c, vault, deploymentBlock, fromBlock, toBlock, page })
+  const accounts = resolved.filter((worker) => worker.bps > 0n).map((worker) => worker.worker)
+  const positions = await vaultPositions({ c, vault, deploymentBlock, fromBlock, toBlock, page, accounts })
   return resolveBackerWorkers({ fees, metadata, activations, positions, fromBlock })
 }

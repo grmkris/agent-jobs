@@ -105,7 +105,8 @@ function rpcFixture(events = logs, maxPage = 100n) {
           // SAFETY: viem's getLogs is the sole caller; it supplies one standard eth_getLogs filter.
           const [filter] = params as [Filter]
           requests.push(filter)
-          if (BigInt(filter.toBlock) - BigInt(filter.fromBlock) + 1n > maxPage) throw new Error('page refused')
+          if (BigInt(filter.toBlock) - BigInt(filter.fromBlock) + 1n > maxPage)
+            throw Object.assign(new Error('block range refused'), { code: -32005 })
           const addresses = Array.isArray(filter.address) ? filter.address : [filter.address]
           return events
             .filter(
