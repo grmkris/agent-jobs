@@ -56,6 +56,7 @@ const WORK_TOOLS = new Set([
   'withdraw_stake',
   'sweep_earnings',
   'request_permissions',
+  'set_backer_share',
   'use_permission',
   'revoke_permission',
 ])
@@ -133,6 +134,7 @@ const REVIEW: Readonly<Record<string, readonly [boolean, boolean, boolean]>> = {
   sweep_earnings: [false, true, true],
   request_permissions: [false, true, true],
   use_permission: [false, true, true],
+  set_backer_share: [false, true, true],
   revoke_permission: [false, true, false],
 }
 
@@ -145,6 +147,7 @@ export function toolAnnotations(name: string) {
 
 /** Permissions on demand (ADR-0015) stay testnet-only until their mainnet promotion. */
 export const PERMISSION_TOOLS = new Set([
+  'set_backer_share',
   'get_supported_permissions',
   'get_permissions',
   'request_permissions',

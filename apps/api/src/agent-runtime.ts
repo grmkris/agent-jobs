@@ -14,7 +14,8 @@ import {
   type Sql,
 } from '@sidequest/board'
 import * as sdk from '@sidequest/sdk'
-import { type Address, type Hex, encodeFunctionData, erc20Abi } from 'viem'
+import { type Address, type Hex, encodeFunctionData, erc20Abi, isHex } from 'viem'
+import { Schema } from 'effect'
 import { privateKeyToAccount } from 'viem/accounts'
 import type { BoardCall, BoardReply } from './board.ts'
 import { resolveOAuth } from './oauth.ts'
@@ -112,8 +113,19 @@ export async function runAgent(runtime: {
   if (req.tool === 'get_supported_permissions')
     return toJson({ ok: true, result: sdk.supportedPermissions(ctx.deployment) })
   if (req.tool === 'get_permissions') return toJson({ ok: true, result: { permissions: permissions.list(agent) } })
-  if (req.tool === 'revoke_permission')
-    return toJson({ ok: true, result: permissions.stop(agent, String(args.permissionId ?? '')) })
+  if (req.tool === 'revoke_permission') {
+    const permissionId = permissionHash(args.permissionId)
+    const result =
+      req.operator === undefined
+        ? permissions.stop(agent, permissionId)
+        : await new AgentLifecycle({
+            sql,
+            context: ctx,
+            now: () => Math.floor(Date.now() / 1000),
+            sponsor,
+          }).disablePermission(agent.id, req.operator, permissionId)
+    return toJson({ ok: true, result: req.operator === undefined ? result : { status: 'confirmed', result } })
+  }
   if (req.tool === 'check_operation') {
     const operation = agents.operation(String(args.operationId ?? ''))
     if (operation.agent_id !== agent.id) throw new BoardError('forbidden', 'Operation belongs to another agent')
@@ -234,13 +246,7 @@ export async function runAgent(runtime: {
         }
       }
       if (input.tool === 'use_permission') {
-        return permissions.use(
-          agent,
-          String(input.args.permissionId ?? ''),
-          typeof input.args.transfer === 'object' && input.args.transfer !== null
-            ? { transfer: input.args.transfer as { amount?: unknown } }
-            : {},
-        )
+        return permissions.use(agent, permissionHash(input.args.permissionId), permissionUseInput(input.args))
       }
       const reply = JSON.parse(await tenant.call(prepare(input.tool, input.args))) as BoardReply
       if (!reply.ok) throw failureFromReply(reply)
@@ -288,4 +294,20 @@ export async function runAgent(runtime: {
     }
     throw error
   }
+}
+
+function permissionUseInput(args: Record<string, unknown>): { transfer?: { amount?: unknown }; bps?: number } {
+  const transfer = Schema.decodeUnknownSync(
+    Schema.UndefinedOr(
+      Schema.Struct({ amount: Schema.optional(Schema.Unknown), recipient: Schema.optional(Schema.Unknown) }),
+    ),
+  )(args.transfer)
+  const bps = Schema.decodeUnknownSync(Schema.UndefinedOr(Schema.Number))(args.bps)
+  return { ...(transfer === undefined ? {} : { transfer }), ...(bps === undefined ? {} : { bps }) }
+}
+
+function permissionHash(value: unknown): Hex {
+  const hash = Schema.decodeUnknownSync(Schema.String)(value)
+  if (!isHex(hash) || !/^0x[0-9a-fA-F]{64}$/.test(hash)) throw new BoardError('invalid', 'Invalid permissionId')
+  return hash
 }
