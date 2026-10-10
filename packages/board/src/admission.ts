@@ -22,7 +22,6 @@ export const readOnlyHostedTools = new Set([
   'sponsor_status',
   'sponsor_operation',
   'get_stake',
-  'set_backer_share',
   'list_delegations',
   'fee_quote',
   'collect_actions',
@@ -71,6 +70,7 @@ export const recoveryHostedTools = new Set([
  * Keep this list alongside the API tool registry when adding a new hosted tool.
  */
 export const hostedToolNames = new Set([
+  'set_backer_share',
   ...readOnlyHostedTools,
   ...drainHostedTools,
   'auth_challenge',

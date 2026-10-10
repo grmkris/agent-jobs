@@ -1,6 +1,6 @@
 /** Execute a hosted agent action from one frozen intent, signing request and relay journal. */
 import * as sdk from '@sidequest/sdk'
-import { type Address, type Hex, keccak256, stringToHex } from 'viem'
+import { type Address, type Hex, keccak256, parseAbi, stringToHex } from 'viem'
 import { AgentStore, canonicalAgentArgs, type AgentOperationRow, type AgentRow, type ApprovalRow } from './agents.ts'
 import { AgentPermissions, type PermissionApprovalRequest, type PermissionDecision } from './agent-permissions.ts'
 import { AgentSigning } from './agent-signing.ts'
@@ -245,7 +245,7 @@ export class AgentExecutor {
    * request_permissions sends nothing. A live standing rule that covers the request grants it at once; otherwise the
    * operator decides in Explore, and the approved retry returns the permission the operator signed.
    */
-  #permission(operationId: Hex, agent: AgentRow, action: AgentPreparedCall): AgentExecuteResult {
+  async #permission(operationId: Hex, agent: AgentRow, action: AgentPreparedCall): Promise<AgentExecuteResult> {
     const permissions = new AgentPermissions({ sql: this.deps.sql, context: this.deps.context, now: this.deps.now })
     const current = this.agents.operation(operationId)
     let hash: Hex
@@ -259,7 +259,7 @@ export class AgentExecutor {
       hash = decision.permissionHash
     } else {
       const request = action.request as PermissionApprovalRequest
-      const covered = permissions.covering(agent, request)
+      const covered = await permissions.covering(agent, request)
       if (covered === undefined)
         return {
           status: 'approval',
@@ -274,6 +274,82 @@ export class AgentExecutor {
     this.agents.saveOperation(operationId, 'confirmed', { result })
     this.deps.sql.run("UPDATE approvals SET status='executed' WHERE operation_id=? AND status='approved'", operationId)
     return { status: 'confirmed', operationId, result }
+  }
+
+  async #backerShare(input: AgentExecuteInput, operation: AgentOperationRow, agent: AgentRow) {
+    const saved = this.agents.step<AgentPreparedCall>(operation.id, 'action')
+    if (saved !== undefined) return { action: saved }
+    const bps = Number(input.args.bps)
+    if (bps !== input.args.bps || Object.keys(input.args).some((key) => key !== 'bps'))
+      throw new AgentFailure(
+        'invalid',
+        'Require bps only; this connection supplies the agent ID',
+        'permission-request',
+        'new-key',
+      )
+    sdk.encodeBackerShare(bps)
+    if (agent.agent_id === null || agent.registry.toLowerCase() !== this.deps.context.deployment.identity.toLowerCase())
+      throw new AgentFailure('forbidden', 'Register this agent on this deployment first', 'outside-policy', 'none')
+    const authorized = await this.deps.context.publicClient.readContract({
+      address: agent.registry,
+      abi: parseAbi(['function isAuthorizedOrOwner(address spender,uint256 agentId) view returns (bool)']),
+      functionName: 'isAuthorizedOrOwner',
+      args: [agent.operator, BigInt(agent.agent_id)],
+    })
+    if (!authorized)
+      throw new AgentFailure('forbidden', 'The operator cannot update this identity', 'outside-policy', 'none')
+    const permissions = new AgentPermissions(this.deps)
+    const request =
+      this.agents.step<PermissionApprovalRequest>(operation.id, 'backer-share-request') ??
+      this.agents.freezeStep(
+        operation.id,
+        'backer-share-request',
+        permissions.parse(
+          agent,
+          {
+            chainId: agent.chain_id,
+            to: agent.address!,
+            permission: {
+              type: 'sidequest:backer-share',
+              isAdjustmentAllowed: true,
+              data: { registry: agent.registry, agentId: agent.agent_id, calls: sdk.BACKER_SHARE_DEFAULT_CALLS },
+            },
+            rules: [
+              {
+                type: 'expiry',
+                data: { timestamp: this.deps.now() + sdk.PERMISSION_MAX_EXPIRY['sidequest:backer-share'] },
+              },
+            ],
+          },
+          true,
+        ),
+      )
+    const hash = await this.#backerSharePermission(operation, agent, permissions, request)
+    if (hash === undefined)
+      return { approval: this.agents.requestApproval(this.agents.operation(operation.id), 'permission', request) }
+    const action = jsonOutput({ ...permissions.use(agent, hash, { bps }), bps, agentId: agent.agent_id })
+    return { action: this.agents.freezeStep(operation.id, 'action', action) }
+  }
+
+  async #backerSharePermission(
+    operation: AgentOperationRow,
+    agent: AgentRow,
+    permissions: AgentPermissions,
+    request: PermissionApprovalRequest,
+  ): Promise<Hex | undefined> {
+    if (this.agents.operation(operation.id).stage === 'approval') {
+      // SAFETY: only an operator-confirmed permission decision reaches this branch, via recoverApproval above.
+      const decision = JSON.parse(this.agents.approval(operation.id).decision_json ?? '{}') as PermissionDecision
+      return decision.permissionHash
+    }
+    const want = JSON.parse(request.terms)
+    return (
+      await permissions.covering(agent, {
+        ...request,
+        expiry: this.deps.now() + 1,
+        terms: JSON.stringify({ ...want, calls: 1 }),
+      })
+    )?.delegation_hash
   }
 
   #freezeEntries(operationId: Hex, scope: string, entries: NamedSponsorEntry[]): NamedSponsorEntry[] {
@@ -366,7 +442,13 @@ export class AgentExecutor {
       }
     }
     await this.deps.sponsor.ready()
-    const action = await this.#action(input, operation, agent.address)
+    let action: AgentPreparedCall
+    if (input.tool === 'set_backer_share') {
+      const prepared = await this.#backerShare(input, operation, agent)
+      if (prepared.approval !== undefined)
+        return { status: 'approval', operationId: operation.id, approval: prepared.approval }
+      action = prepared.action!
+    } else action = await this.#action(input, operation, agent.address)
     if (input.tool === 'request_permissions') return this.#permission(operation.id, agent, action)
     await this.deps.verifyAction?.(action)
     if (input.tool === 'request_unstake' && this.agents.operation(operation.id).stage !== 'approval') {
@@ -385,7 +467,8 @@ export class AgentExecutor {
       })
       return { status: 'approval', operationId: operation.id, approval }
     }
-    if (this.agents.operation(operation.id).stage === 'approval') approved = await this.#approved(operation)
+    if (input.tool !== 'set_backer_share' && this.agents.operation(operation.id).stage === 'approval')
+      approved = await this.#approved(operation)
     const transactions = action.transactions ?? []
     if (transactions.length === 0) {
       const result = publicOutput(action)

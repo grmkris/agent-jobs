@@ -5,7 +5,7 @@
  * permission is built, asserted, stored, sponsored and revoked like any other grant.
  */
 import * as sdk from '@sidequest/sdk'
-import { type Address, type Hex, encodeFunctionData, erc20Abi, keccak256, stringToHex } from 'viem'
+import { type Address, type Hex, encodeFunctionData, erc20Abi, keccak256, parseAbi, stringToHex } from 'viem'
 import { AgentFailure } from './agent-failure.ts'
 import { AgentStore, type AgentRow, type ApprovalRow } from './agents.ts'
 import { GrantStore, type GrantRow } from './grants.ts'
@@ -48,6 +48,12 @@ function parseTerms(json: string): sdk.PermissionTerms {
 /** Whether a live standing permission already allows everything the request asks for. */
 function covers(have: sdk.PermissionTerms, want: sdk.PermissionTerms): boolean {
   if (have.type !== want.type) return false
+  if (have.type === 'sidequest:backer-share' && want.type === 'sidequest:backer-share')
+    return (
+      have.registry.toLowerCase() === want.registry.toLowerCase() &&
+      have.agentId === want.agentId &&
+      want.calls <= have.calls
+    )
   if (have.type === 'sidequest:contract-call' && want.type === 'sidequest:contract-call') {
     return (
       have.target.toLowerCase() === want.target.toLowerCase() &&
@@ -145,16 +151,54 @@ export class AgentPermissions {
    * A live standing permission covering the request, if any: the same token and recipient with at least the amount
    * (or the same exact call), lasting at least as long. Covered requests are granted without asking again.
    */
-  covering(agent: AgentRow, request: PermissionApprovalRequest): GrantRow | undefined {
+  async covering(agent: AgentRow, request: PermissionApprovalRequest): Promise<GrantRow | undefined> {
     const want = parseTerms(request.terms)
-    return this.#rows(agent).find(
-      (row) =>
-        row.status === 'live' &&
-        row.expires_at > this.deps.now() &&
-        row.expires_at >= request.expiry &&
-        this.#decision(row.delegation_hash)?.standing === true &&
-        covers((this.grants.spec(row.delegation_hash) as sdk.PermissionSpec).terms, want),
-    )
+    for (const row of this.#rows(agent)) {
+      if (
+        row.status !== 'live' ||
+        row.expires_at <= this.deps.now() ||
+        row.expires_at < request.expiry ||
+        this.#decision(row.delegation_hash)?.standing !== true
+      )
+        continue
+      const spec = this.grants.spec(row.delegation_hash)
+      if (spec.kind !== 'permission') continue
+      if (!covers(spec.terms, want) || !(await this.#available(row, spec, want))) continue
+      return row
+    }
+    return undefined
+  }
+
+  async #available(row: GrantRow, spec: sdk.PermissionSpec, want: sdk.PermissionTerms): Promise<boolean> {
+    const ctx = this.deps.context
+    const hash = row.delegation_hash
+    if (await sdk.isDisabled(ctx, hash)) return false
+    if (sdk.grantHasCallLimit(spec)) {
+      const needed = want.type === 'sidequest:backer-share' ? want.calls : 1
+      return (await sdk.callsMade(ctx, hash)) + BigInt(needed) <= BigInt(sdk.grantCallLimit(spec))
+    }
+    if (want.type === 'erc20-token-allowance' && spec.terms.type === 'erc20-token-allowance')
+      return (await sdk.drawn(ctx, hash)) + want.amount <= spec.terms.amount
+    if (want.type === 'erc20-token-periodic') return (await this.#periodAvailable(row)) >= want.periodAmount
+    return false
+  }
+
+  async #periodAvailable(row: GrantRow): Promise<bigint> {
+    const ctx = this.deps.context
+    const enforcer = ctx.deployment.delegation.enforcers.erc20PeriodTransfer
+    const caveat = this.grants
+      .signed(row.delegation_hash)
+      .caveats.find((item) => item.enforcer.toLowerCase() === enforcer.toLowerCase())
+    if (caveat === undefined) throw new Error('Permission is missing its period caveat')
+    const [available] = await ctx.publicClient.readContract({
+      address: enforcer,
+      abi: parseAbi([
+        'function getAvailableAmount(bytes32 hash,address manager,bytes terms) view returns (uint256,bool,uint256)',
+      ]),
+      functionName: 'getAvailableAmount',
+      args: [row.delegation_hash, ctx.deployment.delegation.manager, caveat.terms],
+    })
+    return available
   }
 
   /** The ERC-7715 response for a live permission: its context is the signed delegation the agent redeems. */
@@ -187,7 +231,7 @@ export class AgentPermissions {
    * The operator's signing request for a pending permission approval. An adjustment may only shorten the expiry or
    * lower the amount, and only when the agent allowed it; each distinct adjustment freezes its own template.
    */
-  prepare(approval: ApprovalRow, operator: Address, adjust: { expiry?: number; amount?: bigint } = {}) {
+  prepare(approval: ApprovalRow, operator: Address, adjust: { expiry?: number; amount?: bigint; calls?: number } = {}) {
     const agent = this.agents.owned(approval.agent_id, operator)
     if (
       approval.kind !== 'permission' ||
@@ -204,6 +248,7 @@ export class AgentPermissions {
       justification: request.justification,
     }
     const adjustment = {
+      ...(adjust.calls === undefined ? {} : { calls: adjust.calls }),
       ...(adjust.expiry === undefined ? {} : { expiry: adjust.expiry }),
       ...(adjust.amount === undefined
         ? {}
@@ -290,7 +335,11 @@ export class AgentPermissions {
   }
 
   /** The agent's redemption of a live permission: one manager call through its own work grant, sponsored like any. */
-  use(agent: AgentRow, permissionId: string, input: { transfer?: { recipient?: unknown; amount?: unknown } }) {
+  use(
+    agent: AgentRow,
+    permissionId: string,
+    input: { transfer?: { recipient?: unknown; amount?: unknown }; bps?: number },
+  ) {
     const row = this.#rows(agent).find((item) => item.delegation_hash.toLowerCase() === permissionId.toLowerCase())
     if (row === undefined)
       throw new AgentFailure('not-found', 'No such permission for this agent', 'permission-missing', 'none')
@@ -303,35 +352,7 @@ export class AgentPermissions {
       )
     const spec = this.grants.spec(row.delegation_hash) as sdk.PermissionSpec
     const t = spec.terms
-    let execution: sdk.Execution
-    if (t.type === 'sidequest:contract-call') {
-      if (input.transfer !== undefined)
-        throw new AgentFailure(
-          'invalid',
-          'An exact-call permission runs its approved call only',
-          'permission-request',
-          'new-key',
-        )
-      execution = { target: t.target, value: t.value, callData: t.callData }
-    } else {
-      const amount =
-        typeof input.transfer?.amount === 'string' && /^[0-9]{1,78}$/.test(input.transfer.amount)
-          ? BigInt(input.transfer.amount)
-          : undefined
-      const recipient = typeof input.transfer?.recipient === 'string' ? input.transfer.recipient : t.recipient
-      if (amount === undefined)
-        throw new AgentFailure(
-          'invalid',
-          'transfer.amount must be base units as a decimal string',
-          'permission-request',
-          'new-key',
-        )
-      execution = {
-        target: t.token,
-        value: 0n,
-        callData: encodeFunctionData({ abi: erc20Abi, functionName: 'transfer', args: [recipient as Address, amount] }),
-      }
-    }
+    const execution = permissionExecution(t, input)
     try {
       sdk.checkPermissionExecution(spec, execution, this.deps.now())
     } catch (error) {
@@ -360,5 +381,49 @@ export class AgentPermissions {
       throw new AgentFailure('not-found', 'No such permission for this agent', 'permission-missing', 'none')
     this.grants.stop(row.delegation_hash)
     return { permissionId: row.delegation_hash, status: this.grants.get(row.delegation_hash)!.status }
+  }
+}
+
+function permissionExecution(
+  t: sdk.PermissionTerms,
+  input: { transfer?: { recipient?: unknown; amount?: unknown }; bps?: number },
+): sdk.Execution {
+  if (t.type === 'sidequest:backer-share') {
+    if (input.transfer !== undefined || input.bps === undefined)
+      throw new AgentFailure('invalid', 'A backer-share permission requires bps only', 'permission-request', 'new-key')
+    return {
+      target: t.registry,
+      value: 0n,
+      callData: sdk.prepareBackerShare(t.registry, t.agentId, input.bps).data,
+    }
+  }
+  if (t.type === 'sidequest:contract-call') {
+    if (input.transfer !== undefined)
+      throw new AgentFailure(
+        'invalid',
+        'An exact-call permission runs its approved call only',
+        'permission-request',
+        'new-key',
+      )
+    return { target: t.target, value: t.value, callData: t.callData }
+  }
+  {
+    const amount =
+      typeof input.transfer?.amount === 'string' && /^[0-9]{1,78}$/.test(input.transfer.amount)
+        ? BigInt(input.transfer.amount)
+        : undefined
+    const recipient = typeof input.transfer?.recipient === 'string' ? input.transfer.recipient : t.recipient
+    if (amount === undefined)
+      throw new AgentFailure(
+        'invalid',
+        'transfer.amount must be base units as a decimal string',
+        'permission-request',
+        'new-key',
+      )
+    return {
+      target: t.token,
+      value: 0n,
+      callData: encodeFunctionData({ abi: erc20Abi, functionName: 'transfer', args: [recipient as Address, amount] }),
+    }
   }
 }

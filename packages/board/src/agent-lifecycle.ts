@@ -70,6 +70,7 @@ export class AgentLifecycle {
     return {
       connected,
       agent,
+      permissions: new AgentPermissions(this.deps).list(agent),
       allowances: usage,
       grants: this.grants
         .list(agent.address ?? operator)
@@ -176,7 +177,7 @@ export class AgentLifecycle {
     return this.status(id, operator)
   }
 
-  prepareApproval(id: string, operator: Address, adjust: { expiry?: number; amount?: bigint } = {}) {
+  prepareApproval(id: string, operator: Address, adjust: { expiry?: number; amount?: bigint; calls?: number } = {}) {
     const approval = this.agents.approval(id)
     const agent = this.agents.owned(approval.agent_id, operator)
     if (agent.state !== 'active' || approval.status !== 'pending') throw new Error('This approval is unavailable')
@@ -255,6 +256,17 @@ export class AgentLifecycle {
     const current = decision.allowanceHash === undefined ? undefined : this.grants.get(decision.allowanceHash)
     if (current?.status === 'live' && current.expires_at > this.deps.now()) return approval
     return this.agents.reopenApproval(id)
+  }
+
+  async disablePermission(id: string, operator: Address, hash: Hex) {
+    const agent = this.agents.owned(id, operator)
+    const row = this.#allowances(agent).find(
+      (item) => item.delegation_hash.toLowerCase() === hash.toLowerCase() && item.kind === 'permission',
+    )
+    if (row === undefined) throw new Error('No such permission for this agent')
+    await this.deps.sponsor.ready()
+    await this.#disable(operator, row.delegation_hash, `permission-${row.delegation_hash.slice(2)}`)
+    return new AgentPermissions(this.deps).list(agent)
   }
 
   async #disable(wallet: Address, hash: Hex, key: string): Promise<void> {

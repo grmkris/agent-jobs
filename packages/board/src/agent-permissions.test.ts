@@ -3,7 +3,7 @@ import { DatabaseSync } from 'node:sqlite'
 import * as sdk from '@sidequest/sdk'
 import { type Address, type Hex, decodeFunctionData, erc20Abi } from 'viem'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
-import { afterEach, expect, it } from 'vitest'
+import { afterEach, expect, it, vi } from 'vitest'
 import { AgentExecutor, type AgentToolRequest } from './agent-executor.ts'
 import { AgentLifecycle } from './agent-lifecycle.ts'
 import { AgentPermissions } from './agent-permissions.ts'
@@ -17,11 +17,18 @@ const agentAddress = '0x2222222222222222222222222222222222222222' as const
 const recipient = '0x3333333333333333333333333333333333333333' as const
 const databases: DatabaseSync[] = []
 afterEach(() => {
+  vi.restoreAllMocks()
   for (const db of databases.splice(0)) db.close()
 })
 
 function fixture() {
   const ctx = sdk.context('monad-testnet', 'main', 'http://127.0.0.1:1')
+  vi.spyOn(ctx.publicClient, 'readContract').mockImplementation(async (request) => {
+    if (request.functionName === 'disabledDelegations') return false
+    if (request.functionName === 'callCounts' || request.functionName === 'spentMap') return 0n
+    if (request.functionName === 'getAvailableAmount') return [100n, true, 0n]
+    throw new Error(`Unexpected chain read ${request.functionName}`)
+  })
   const operatorAccount = privateKeyToAccount(generatePrivateKey())
   const operator = operatorAccount.address
   const db = new DatabaseSync(':memory:')
