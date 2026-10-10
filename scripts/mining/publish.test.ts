@@ -1,3 +1,4 @@
+import { rejects } from 'node:assert/strict'
 import { expect, test } from 'bun:test'
 import { spawnSync } from 'node:child_process'
 import testnet from '../../contracts/config/monad-testnet.json'
@@ -8,6 +9,7 @@ import {
   CloudflareManifests,
   parseEpoch,
   publishEpoch,
+  publishArgs,
   stageOf,
   type EpochReader,
   type ManifestsStore,
@@ -16,6 +18,10 @@ import {
 } from './publish-lib.ts'
 import { buildTree, proofOf } from './tree.ts'
 import { type Hex } from './viem.ts'
+import { MiningLedger } from './ledger.ts'
+import { stateHashOf, stateOf } from './state.ts'
+import { deploymentFromConfig } from '../../packages/sdk/src/deployment.ts'
+import { canonicalRuleV2 } from './inputs-v2.ts'
 
 const account = `0x${'1'.repeat(40)}` as const
 const account2 = `0x${'2'.repeat(40)}` as const
@@ -415,4 +421,125 @@ test('CLI requires an explicit supported stage and emits no file/provider values
     expect(run.stdout).toBe('')
     expect(run.stderr.trim()).toBe('mining:publish refused: usage')
   }
+})
+
+function v2Publication() {
+  const f = fake(),
+    config = configOf(),
+    d = deploymentFromConfig('monad-testnet', config),
+    h = d.sidequest
+  if (h === null) throw new Error('fixture Sidequest deployment missing')
+  const blockHash = `0x${'2'.repeat(64)}` as const
+  const state = stateOf(new MiningLedger(), {
+    chainId: 10143,
+    epoch: 0n,
+    block: 10n,
+    blockHash,
+    genesisBlock: 1n,
+    pruneBlock: 5n,
+    contracts: {
+      holdings: [d.stacks.main!.holding],
+      vault: h.vault,
+      identity: d.identity,
+      feeSchedule: h.feeSchedule,
+      reserve: h.miningReserve,
+      distributor: h.distributor,
+    },
+  })
+  const inputs = {
+    ...f.file.inputs,
+    window: { toBlock: '10', toBlockHash: blockHash },
+    rule: canonicalRuleV2(0n, 3n, false, []),
+    checkpoint: { previous: null, stateHash: stateHashOf(state) },
+  }
+  const file = { ...f.file, rule: 2, inputs, dataHash: dataHashOf(inputs) }
+  f.live.dataHash = file.dataHash
+  f.store.get = async (_bucket, key) => {
+    const saved = f.puts.findLast((put) => put.key === key)
+    if (saved === undefined) throw new Error('test store key missing')
+    return saved.bytes
+  }
+  return { ...f, file, state, config }
+}
+
+test('v2 publication uploads and reads back the exact state bytes before exposing its epoch artifact', async () => {
+  const f = v2Publication(),
+    state = bytesOf(f.state),
+    epoch = bytesOf(f.file)
+  await publishEpoch({ epoch, state }, targetOf(), f.config, f.reader, f.store)
+  expect(f.puts.map((put) => put.key)).toEqual(['mining/state-0.json', 'mining/epoch-0.json'])
+  expect(Buffer.from(f.puts[0]?.bytes ?? [])).toEqual(state)
+  expect(Buffer.from(f.puts[1]?.bytes ?? [])).toEqual(epoch)
+})
+
+test('a v2 artifact requires a state file and refuses tampering before any upload', async () => {
+  const f = v2Publication()
+  await rejects(publishEpoch(bytesOf(f.file), targetOf(), f.config, f.reader, f.store), /state-required/)
+  await rejects(
+    publishEpoch(
+      { epoch: bytesOf(f.file), state: bytesOf({ ...f.state, epoch: '1' }) },
+      targetOf(),
+      f.config,
+      f.reader,
+      f.store,
+    ),
+    /state-hash-mismatch/,
+  )
+  await rejects(
+    publishEpoch({ epoch: bytesOf(f.file), state: bytesOf({}) }, targetOf(), f.config, f.reader, f.store),
+    /state-invalid/,
+  )
+  expect(f.puts).toEqual([])
+})
+
+test('v2 publication refuses a mismatched state window or deployment even with a matching state hash', async () => {
+  for (const mismatch of ['window', 'contracts']) {
+    const f = v2Publication()
+    const state =
+      mismatch === 'contracts'
+        ? { ...f.state, contracts: { ...f.state.contracts, holdings: [] } }
+        : { ...f.state, block: '11' }
+    const inputs = { ...f.file.inputs, checkpoint: { previous: null, stateHash: stateHashOf(state) } }
+    const file = { ...f.file, inputs, dataHash: dataHashOf(inputs) }
+    await rejects(
+      publishEpoch({ epoch: bytesOf(file), state: bytesOf(state) }, targetOf(), f.config, f.reader, f.store),
+      /state-invalid/,
+    )
+    expect(f.puts).toEqual([])
+  }
+})
+
+test('a failed state readback refuses before uploading the epoch artifact', async () => {
+  const f = v2Publication()
+  f.store.get = async () => Buffer.from('different state')
+  await rejects(
+    publishEpoch({ epoch: bytesOf(f.file), state: bytesOf(f.state) }, targetOf(), f.config, f.reader, f.store),
+    /readback-mismatch/,
+  )
+  expect(f.puts.map((put) => put.key)).toEqual(['mining/state-0.json'])
+})
+
+test('publish arguments accept --state in either order while preserving v1 invocation', () => {
+  expect(publishArgs(['epoch.json', '--stage', 'dev'])).toEqual({ path: 'epoch.json', stage: 'dev', state: undefined })
+  expect(publishArgs(['epoch.json', '--state', 'state.json', '--stage', 'dev'])).toEqual({
+    path: 'epoch.json',
+    stage: 'dev',
+    state: 'state.json',
+  })
+  expect(publishArgs(['epoch.json', '--stage', 'dev', '--state', 'state.json']).state).toBe('state.json')
+  for (const argv of [
+    [],
+    ['epoch.json'],
+    ['epoch.json', '--stage'],
+    ['epoch.json', '--stage', 'dev', '--stage', 'dev'],
+    ['epoch.json', '--stage', 'dev', '--unknown', 'x'],
+  ])
+    expect(() => publishArgs(argv)).toThrow('usage')
+})
+
+test('removing or changing the top-level v2 marker cannot bypass mandatory state publication', () => {
+  const f = v2Publication(),
+    { rule: _rule, ...withoutRule } = f.file
+  expect(() => parseEpoch(bytesOf(withoutRule), targetOf())).toThrow('artifact-invalid')
+  expect(() => parseEpoch(bytesOf({ ...f.file, rule: 1 }), targetOf())).toThrow('artifact-invalid')
 })

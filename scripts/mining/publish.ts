@@ -3,13 +3,12 @@ import { resolve } from 'node:path'
 import { epochDistributorAbi } from '../../packages/sdk/src/abi/epochDistributor.ts'
 import { type DeploymentConfig } from '../../packages/sdk/src/deployment.ts'
 import { client } from './chain.ts'
-import { CloudflareManifests, MiningPublishError, publishEpoch, stageOf } from './publish-lib.ts'
+import { CloudflareManifests, MiningPublishError, publishArgs, publishEpoch, stageOf } from './publish-lib.ts'
 
 // Coordinator-only live command: no deployment, state initialization, signer or on-chain transaction.
 try {
-  const args = process.argv.slice(2)
-  if (args.length !== 3 || args[1] !== '--stage' || !args[0]) throw new MiningPublishError('usage')
-  const selected = stageOf(args[2]!)
+  const args = publishArgs(process.argv.slice(2))
+  const selected = stageOf(args.stage)
   const env = process.env
   if (
     (env.SIDEQUEST_STAGE && env.SIDEQUEST_STAGE !== selected.stage) ||
@@ -18,13 +17,14 @@ try {
     throw new MiningPublishError('stage-chain-mismatch')
   const rpc = env.MONAD_RPC_URL
   if (!rpc || rpc === 'unset') throw new MiningPublishError('credentials-missing')
-  const bytes = readFileSync(resolve(args[0]))
+  const bytes = readFileSync(resolve(args.path))
+  const publication = args.state === undefined ? bytes : { epoch: bytes, state: readFileSync(resolve(args.state)) }
   const config = JSON.parse(
     readFileSync(new URL(`../../contracts/config/${selected.network}.json`, import.meta.url), 'utf8'),
   ) as DeploymentConfig
   const c = client(rpc)
   await publishEpoch(
-    bytes,
+    publication,
     selected,
     config,
     {

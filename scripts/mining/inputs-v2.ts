@@ -153,10 +153,10 @@ export interface InputsV2Args {
   backing: readonly WorkerStake[]
   backerShares: readonly WalletBackerShare[]
   backerPositions: readonly BackerPositionInput[]
-  checkpoint?: { previous: { epoch: string; dataHash: Hex; stateHash: Hex } | null; stateHash: Hex }
+  checkpoint: { previous: { epoch: string; dataHash: Hex; stateHash: Hex } | null; stateHash: Hex }
 }
 
-/** Fixed key order. A checkpoint slot can be appended by M3 without including finalized-head state. */
+/** Fixed key order; the checkpoint commits only to epoch-end state. */
 export function inputsV2Of(args: InputsV2Args) {
   return {
     chainId: args.chainId,
@@ -187,7 +187,7 @@ export function inputsV2Of(args: InputsV2Args) {
       })),
     backerShares: args.backerShares.toSorted((a, b) => addressOrder(a.worker, b.worker)).map(canonicalShare),
     backerPositions: args.backerPositions.toSorted(positionOrder).map(canonicalPosition),
-    ...(args.checkpoint === undefined ? {} : { checkpoint: args.checkpoint }),
+    checkpoint: args.checkpoint,
   }
 }
 

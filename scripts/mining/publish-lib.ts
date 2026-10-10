@@ -2,6 +2,8 @@ import { createHash } from 'node:crypto'
 import { validateStageProfile, stageProfile } from '../../infra/stage.ts'
 import { deploymentFromConfig, type DeploymentConfig, type Network } from '../../packages/sdk/src/deployment.ts'
 import { dataHashOf } from './compute.ts'
+import { checkpointPointerOf } from './checkpoint.ts'
+import { parseState, stateContractsOf, stateHashOf, type StateContracts } from './state.ts'
 import { buildTree, leafHash, verifyProof, type LeafValue } from './tree.ts'
 import { maxUint256, type Address, type Hex } from './viem.ts'
 
@@ -27,6 +29,9 @@ type Refusal =
   | 'worker-identity-invalid'
   | 'bucket-identity-invalid'
   | 'readback-mismatch'
+  | 'state-required'
+  | 'state-invalid'
+  | 'state-hash-mismatch'
 export class MiningPublishError extends Error {
   constructor(readonly code: Refusal) {
     super(code)
@@ -60,6 +65,19 @@ const hash = (value: unknown): Hex => {
   return value.toLowerCase() as Hex
 }
 const sha256 = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex')
+
+function publicationCheckpoint(file: Record<string, unknown>, inputs: Record<string, unknown>) {
+  const v2 = inputs.rule !== undefined && record(inputs.rule).version === 2
+  if (file.rule !== 2 && !v2) return null
+  if (file.rule !== 2 || !v2) return refuse('artifact-invalid')
+  const checkpoint = record(inputs.checkpoint)
+  try {
+    checkpointPointerOf(checkpoint.previous)
+  } catch {
+    return refuse('artifact-invalid')
+  }
+  return { stateHash: hash(checkpoint.stateHash), window: record(inputs.window) }
+}
 
 /** Validate all claims as well as inputs: dataHash commits to inputs, not to the claims table. */
 export function parseEpoch(bytes: Uint8Array, selected: PublishTarget) {
@@ -140,7 +158,36 @@ export function parseEpoch(bytes: Uint8Array, selected: PublishTarget) {
     if (expected.get(`${valueEpoch}:${account}:${amount}`) !== treeIndex) return refuse('claims-invalid')
   }
   if (indexes.size !== leaves.length || rebuilt.tree[0] !== root) return refuse('claims-invalid')
-  return { epoch, root, total, dataHash }
+  return { epoch, root, total, dataHash, checkpoint: publicationCheckpoint(file, inputs) }
+}
+
+export interface PublicationBytes {
+  epoch: Uint8Array
+  state?: Uint8Array
+}
+function verifyPublishedState(
+  bytes: Uint8Array | undefined,
+  file: ReturnType<typeof parseEpoch>,
+  selected: PublishTarget,
+  contracts: StateContracts,
+) {
+  if (file.checkpoint === null) return
+  if (bytes === undefined) return refuse('state-required')
+  let state: ReturnType<typeof parseState>
+  try {
+    state = parseState(JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)))
+  } catch {
+    return refuse('state-invalid')
+  }
+  if (stateHashOf(state) !== file.checkpoint.stateHash) return refuse('state-hash-mismatch')
+  if (
+    state.epoch !== file.epoch ||
+    state.chainId !== String(selected.chainId) ||
+    state.block !== file.checkpoint.window.toBlock ||
+    state.blockHash !== file.checkpoint.window.toBlockHash ||
+    JSON.stringify(state.contracts) !== JSON.stringify(contracts)
+  )
+    return refuse('state-invalid')
 }
 
 export interface EpochReader {
@@ -155,12 +202,14 @@ export interface ManifestsStore {
 
 /** No chain writes. Upload the captured input bytes only after all stage, contract and artifact checks. */
 export async function publishEpoch(
-  bytes: Uint8Array,
+  publication: Uint8Array | PublicationBytes,
   selected: PublishTarget,
   config: DeploymentConfig,
   reader: EpochReader,
   store: ManifestsStore,
 ) {
+  const bytes = publication instanceof Uint8Array ? publication : publication.epoch
+  const stateBytes = publication instanceof Uint8Array ? undefined : publication.state
   const file = parseEpoch(bytes, selected)
   let distributor: Address
   try {
@@ -168,6 +217,23 @@ export async function publishEpoch(
     if (d.chainId !== selected.chainId) return refuse('stage-chain-mismatch')
     if (d.sidequest === null) return refuse('config-unavailable')
     distributor = d.sidequest.distributor
+    verifyPublishedState(
+      stateBytes,
+      file,
+      selected,
+      stateContractsOf({
+        holdings: [
+          ...new Set(
+            Object.values(d.stacks).flatMap((stack) => (stack?.kind === 'sidequest-v1' ? [stack.holding] : [])),
+          ),
+        ],
+        vault: d.sidequest.vault,
+        identity: d.identity,
+        feeSchedule: d.sidequest.feeSchedule,
+        reserve: d.sidequest.miningReserve,
+        distributor,
+      }),
+    )
   } catch (error) {
     if (error instanceof MiningPublishError) throw error
     return refuse('config-unavailable')
@@ -193,9 +259,30 @@ export async function publishEpoch(
   )
     return refuse('root-mismatch')
   const key = `mining/epoch-${file.epoch}.json`
+  if (file.checkpoint !== null && stateBytes !== undefined)
+    await uploadAndVerify(store, bucket, `mining/state-${file.epoch}.json`, stateBytes)
+  await uploadAndVerify(store, bucket, key, bytes)
+}
+
+async function uploadAndVerify(store: ManifestsStore, bucket: string, key: string, bytes: Uint8Array) {
   await store.put(bucket, key, bytes)
-  const readback = await store.get(bucket, key)
-  if (sha256(readback) !== sha256(bytes)) return refuse('readback-mismatch')
+  if (sha256(await store.get(bucket, key)) !== sha256(bytes)) return refuse('readback-mismatch')
+}
+
+export function publishArgs(argv: readonly string[]) {
+  const path = argv[0]
+  if (path === undefined || path.startsWith('--') || (argv.length - 1) % 2 !== 0) return refuse('usage')
+  const flags = new Map<string, string>()
+  for (let i = 1; i < argv.length; i += 2) {
+    const name = argv[i],
+      value = argv[i + 1]
+    if ((name !== '--stage' && name !== '--state') || value === undefined || value.startsWith('--') || flags.has(name))
+      return refuse('usage')
+    flags.set(name, value)
+  }
+  const stage = flags.get('--stage')
+  if (stage === undefined) return refuse('usage')
+  return { path, stage, state: flags.get('--state') }
 }
 
 /** Plain REST only: never initialize Alchemy state or allow a guessed bucket suffix. */
