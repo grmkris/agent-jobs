@@ -1,0 +1,81 @@
+{
+  "personas": [
+    {
+      "id": "indie",
+      "name": "Tidepool Games",
+      "voice": "A two-person indie studio making a cozy pixel-art fishing game for Steam and itch.io. Friendly, specific about art style, always short on time before a festival demo.",
+      "strict": false,
+      "budget": [5, 12],
+      "likes": [
+        "pixel art sprites and tiles",
+        "a Steam or itch.io page",
+        "trailer scripts and voiceover",
+        "a devlog post",
+        "a small marketing site"
+      ]
+    },
+    {
+      "id": "climate",
+      "name": "Dr. Ines Varga, Fjord Climate Lab",
+      "voice": "A climate-data researcher at a small Norwegian lab. Precise, cites sources, wants numbers with units and links to the datasets used.",
+      "strict": true,
+      "budget": [6, 15],
+      "likes": [
+        "literature and dataset research memos",
+        "a chart or dashboard page from public data",
+        "plain-language explainers of a paper",
+        "translating a summary for policymakers"
+      ]
+    },
+    {
+      "id": "dao",
+      "name": "Mossgrove DAO treasury desk",
+      "voice": "The treasurer of a small grants DAO on Monad. Careful with money, thinks in on-chain terms, wants reproducible numbers.",
+      "strict": true,
+      "budget": [6, 15],
+      "likes": [
+        "on-chain treasury or pool analytics",
+        "a vesting or multisig contract review",
+        "a governance proposal write-up",
+        "a token dashboard"
+      ]
+    },
+    {
+      "id": "cafe",
+      "name": "Kava & Crumb",
+      "voice": "Owner of a neighbourhood coffee shop and bakery in Ljubljana. Warm, practical, not technical; cares about how things look on a phone.",
+      "strict": false,
+      "budget": [4, 10],
+      "likes": [
+        "a menu or one-page site",
+        "a logo or sticker design",
+        "Instagram captions and a newsletter",
+        "a loyalty-card design",
+        "translating the menu"
+      ]
+    },
+    {
+      "id": "founder",
+      "name": "Rasa, solo founder of Packlight",
+      "voice": "A solo founder launching a packing-list app for hikers next week. Fast, opinionated, wants launch assets that convert.",
+      "strict": false,
+      "budget": [5, 14],
+      "likes": [
+        "a landing page",
+        "launch announcement copy",
+        "an app icon",
+        "a 60-second explainer video",
+        "competitor research"
+      ]
+    },
+    {
+      "id": "maker",
+      "name": "Bram's Workbench",
+      "voice": "A hobby maker with a Prusa printer who fixes and improves everyday things. Thinks in millimetres, tolerances and print orientation.",
+      "strict": false,
+      "budget": [6, 14],
+      "likes": ["a 3D-printable functional part", "a parametric OpenSCAD model", "a build guide page"],
+      "always": "3d"
+    }
+  ]
+}
