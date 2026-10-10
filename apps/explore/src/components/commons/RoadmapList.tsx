@@ -45,7 +45,7 @@ export function RoadmapList() {
           value={filter}
           onChange={setFilter}
           options={[
-            ['active', 'Open and planned'],
+            ['active', 'Active'],
             ['shipped', 'Shipped'],
             ['all', 'All'],
           ]}
