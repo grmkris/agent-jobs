@@ -136,6 +136,11 @@ function Stake({
       active = false
     }
   }, [key])
+  // "Back an agent" lists every listed agent: while its picker is open, read the directory's remaining pages.
+  const { hasNextPage, isFetchingNextPage, fetchNextPage } = directory
+  useEffect(() => {
+    if (sheet === 'pick' && hasNextPage && !isFetchingNextPage) void fetchNextPage()
+  }, [sheet, hasNextPage, isFetchingNextPage, fetchNextPage])
   const { signTypedDataAsync } = useSignTypedData()
   useEffect(() => {
     setError(null)
@@ -360,9 +365,7 @@ function Stake({
               positions={reads.data.positions}
               wallet={reads.data.wallet}
               owner={owner}
-              cooldown={reads.data.cooldown}
               disabled={disabled}
-              onBackWallet={() => openForm(owner)}
               onBackAgent={() => setSheet('pick')}
             />
           )

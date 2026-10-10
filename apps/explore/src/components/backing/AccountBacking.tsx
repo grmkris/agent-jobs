@@ -69,6 +69,7 @@ export function BackingSheets({
         title={mode === 'leave' ? `Leave ${name}` : own ? 'Back your wallet' : `Back ${name}`}
         walletPrompt={busy}
       >
+        <p className="text-xs leading-relaxed text-muted-foreground">{DELEGATION_RISK}</p>
         {form}
       </Sheet>
       <Sheet open={open === 'pick'} onClose={onClose} title="Back an agent">

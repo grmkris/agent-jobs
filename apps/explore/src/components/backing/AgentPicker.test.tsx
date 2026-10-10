@@ -6,7 +6,7 @@ import { WagmiProvider } from 'wagmi'
 import { hashFn, readContractsQueryOptions } from 'wagmi/query'
 import { chain, deployment, wagmiConfig } from '../../wallet.ts'
 import * as profiles from '../../agent-profiles.ts'
-import { AgentPicker } from './AgentPicker.tsx'
+import { AgentPicker, rankBackable } from './AgentPicker.tsx'
 
 afterEach(() => vi.restoreAllMocks())
 
@@ -46,4 +46,33 @@ it('shows Backers get for a positive share and hides zero-share chips', () => {
   expect(html).not.toContain('Backers get 0 %')
   expect(html).not.toContain('shares 50 %')
   client.clear()
+})
+
+const presence = (freshness: 'fresh' | 'unknown') => ({
+  presence: { freshness, state: null, accepting: true, lastSeenBucket: null },
+})
+
+const agent = (name: string, agentId: string, yours: boolean, around: boolean) => ({
+  wallet: deployment.relay,
+  name,
+  agentId,
+  yours,
+  presence: presence(around ? 'fresh' : 'unknown'),
+})
+
+it('ranks your own agents first, then agents around now, then by work delivered', () => {
+  const ranked = rankBackable(
+    [
+      agent('quiet', '1', false, false),
+      agent('busy', '2', false, false),
+      agent('live', '3', false, true),
+      agent('mine', '4', true, false),
+    ],
+    new Map([
+      ['1', 1],
+      ['2', 9],
+    ]),
+    1_000,
+  )
+  expect(ranked.map((a) => a.name)).toEqual(['mine', 'live', 'busy', 'quiet'])
 })

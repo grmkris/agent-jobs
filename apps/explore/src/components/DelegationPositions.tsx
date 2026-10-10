@@ -9,6 +9,7 @@ import type { Address } from 'viem'
 import type { BackedPosition } from '../delegation-query.ts'
 import { formatNumber } from '../format.ts'
 import { percent } from '../stake.ts'
+import { shareLabel, useBackerShares } from '../backer-share.ts'
 import { Countdown, useNow } from './Time.tsx'
 import { TokenAmount } from './token/TokenAmount.tsx'
 import { deployment } from '../wallet.ts'
@@ -29,6 +30,31 @@ export const walletAgentsKey = (account: string) => [
 export const DELEGATION_RISK =
   'If the agent is slashed for bad work, everyone backing it loses the same share. Your SIDE stays at risk until you withdraw. Leaving starts the configured unstake period (3 days on the fresh testnet clocks; 14 days in production); open jobs secured against the backing remain slashable during that period. Mining rewards depend on the agent’s chosen backer share.'
 
+type Status = 'lost' | 'leaving' | 'bonded' | 'ready' | 'active' | 'exited'
+
+/** Where a position stands: leaving and waiting out the unstake period, held by live deposits, ready, active or out. */
+function statusOf({ position, backing }: BackedPosition, now: number): Status {
+  const queued = position.queuedShares > 0n
+  if (position.staleGeneration) return 'lost'
+  if (queued && position.unlockAt > now) return 'leaving'
+  if (queued && backing.assets - position.queued < backing.reserved) return 'bonded'
+  if (queued) return 'ready'
+  return position.shares > 0n ? 'active' : 'exited'
+}
+
+const CHIP: Record<Exclude<Status, 'active'>, { text: string; variant: 'warning' | 'success' | 'neutral' }> = {
+  lost: { text: 'Lost in a full slash', variant: 'neutral' },
+  leaving: { text: 'Leaving', variant: 'neutral' },
+  bonded: { text: 'Held by live deposits', variant: 'warning' },
+  ready: { text: 'Ready to withdraw', variant: 'success' },
+  exited: { text: 'Exited', variant: 'neutral' },
+}
+
+/**
+ * The wallet's backing positions, one line each: who it backs, how much and what share of that backing, the fee it
+ * pays and what its backers get, and where the position stands when it is not simply active. Adding or leaving opens
+ * the backing form; cancelling a leave and withdrawing are right on the line when they apply.
+ */
 export function DelegationPositions({
   positions,
   sources,
@@ -45,105 +71,108 @@ export function DelegationPositions({
   onWithdraw: (account: Address) => void
 }) {
   const now = useNow()
+  const ids = positions.flatMap(({ position }) => positionLabel(position.account, sources).agentId ?? [])
+  const shares = useBackerShares(ids)
   return (
-    <Section
-      title="My positions"
-      note="Each position belongs to your signed-in wallet. Leaving stops it backing new jobs immediately; its value can still fall after a slash."
-    >
+    <Section title="My positions">
       {positions.length === 0 ? (
         <Empty>
           <EmptyHeader>
             <EmptyTitle>No positions yet</EmptyTitle>
-            <EmptyDescription>Back it with SIDE in the form below.</EmptyDescription>
+            <EmptyDescription>Back an agent and the position shows here.</EmptyDescription>
           </EmptyHeader>
         </Empty>
       ) : (
-        positions.map(({ position, backing }) => {
-          const queued = position.queuedShares > 0n
-          const leaving = queued && position.unlockAt > now
-          const bonded = queued && !leaving && backing.assets - position.queued < backing.reserved
-          const ready = queued && !leaving && !bonded
-          return (
-            <article
-              key={position.account}
-              aria-label={`Position in ${positionLabel(position.account, sources).name}`}
-              className="mb-2 grid gap-3 rounded-xl bg-card p-4 last:mb-0"
-            >
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <PositionIdentity account={position.account} sources={sources} />
-                  <p className="mt-1 text-lg font-semibold">
-                    <TokenAmount value={position.value} token={deployment.factory} />
-                  </p>
-                  <p className="text-sm text-muted-foreground">{percent(position.shareBps)} of total backing</p>
-                </div>
-                <Badge variant={bonded ? 'warning' : ready ? 'success' : 'neutral'}>
-                  {position.staleGeneration
-                    ? 'Lost in a full slash'
-                    : leaving
-                      ? 'Leaving'
-                      : bonded
-                        ? 'Waiting for deposits at risk to clear'
-                        : ready
-                          ? 'Ready to withdraw'
-                          : position.shares > 0n
-                            ? 'Active'
-                            : 'Exited'}
-                </Badge>
-              </div>
-              {queued && (
-                <p className="text-sm text-muted-foreground">
-                  {factoryValue(position.queued)} leaving
-                  {leaving ? (
-                    <>
-                      {' '}
-                      · <Countdown to={position.unlockAt} /> remaining
-                    </>
-                  ) : bonded ? (
-                    ' · live deposits at risk still need this backing'
-                  ) : (
-                    ' · withdraw to your wallet'
-                  )}
-                </p>
-              )}
-              <p className="text-sm text-muted-foreground">
-                {factoryValue(position.activeValue)} active · {percent(backing.tier.feeBps)} worker fee
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  disabled={disabled}
-                  onClick={() => onEdit(position.account, 'add')}
-                >
-                  Add
-                </Button>
-                {position.activeShares > 0n && (
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    disabled={disabled}
-                    onClick={() => onEdit(position.account, 'leave')}
-                  >
-                    Leave
-                  </Button>
-                )}
-                {queued && (
-                  <Button variant="secondary" size="sm" disabled={disabled} onClick={() => onCancel(position.account)}>
-                    Cancel leaving
-                  </Button>
-                )}
-                {queued && (
-                  <Button size="sm" disabled={disabled || !ready} onClick={() => onWithdraw(position.account)}>
-                    Withdraw
-                  </Button>
-                )}
-              </div>
-            </article>
-          )
-        })
+        <ul className="m-0 flex list-none flex-col overflow-hidden rounded-xl bg-card p-0 ring-1 ring-foreground/10">
+          {positions.map((entry) => {
+            const agentId = positionLabel(entry.position.account, sources).agentId
+            return (
+              <PositionRow
+                key={entry.position.account}
+                entry={entry}
+                status={statusOf(entry, now)}
+                sources={sources}
+                backerShare={agentId === undefined ? null : (shares.shares.get(agentId) ?? null)}
+                disabled={disabled}
+                onEdit={onEdit}
+                onCancel={onCancel}
+                onWithdraw={onWithdraw}
+              />
+            )
+          })}
+        </ul>
       )}
     </Section>
+  )
+}
+
+function PositionRow({
+  entry: { position, backing },
+  status,
+  sources,
+  backerShare,
+  disabled,
+  onEdit,
+  onCancel,
+  onWithdraw,
+}: {
+  entry: BackedPosition
+  status: Status
+  sources: PositionLabelSources
+  backerShare: number | null
+  disabled: boolean
+  onEdit: (account: Address, mode: 'add' | 'leave') => void
+  onCancel: (account: Address) => void
+  onWithdraw: (account: Address) => void
+}) {
+  const queued = position.queuedShares > 0n
+  const facts = [
+    `${percent(position.shareBps)} of its backing`,
+    `${percent(backing.tier.feeBps)} fee`,
+    backerShare !== null && backerShare > 0 ? `backers get ${shareLabel(backerShare)}` : null,
+  ].filter((fact) => fact !== null)
+  return (
+    <li
+      aria-label={`Position in ${positionLabel(position.account, sources).name}`}
+      className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 border-t border-border/70 px-4 py-2.5 first:border-t-0"
+    >
+      <div className="grid min-w-0 flex-1 basis-56 gap-0.5">
+        <PositionIdentity account={position.account} sources={sources} />
+        <p className="pl-7 text-xs text-muted-foreground tabular-nums">
+          {facts.join(' · ')}
+          {queued && (
+            <>
+              {' · '}
+              {factoryValue(position.queued)} leaving
+              {status === 'leaving' && (
+                <>
+                  , <Countdown to={position.unlockAt} /> left
+                </>
+              )}
+            </>
+          )}
+        </p>
+      </div>
+      <div className="ml-auto flex items-center gap-2">
+        {status !== 'active' && <Badge variant={CHIP[status].variant}>{CHIP[status].text}</Badge>}
+        <span className="text-sm font-semibold tabular-nums">
+          <TokenAmount value={position.value} token={deployment.factory} />
+        </span>
+        {queued && status !== 'ready' && (
+          <Button variant="ghost" size="sm" disabled={disabled} onClick={() => onCancel(position.account)}>
+            Cancel leaving
+          </Button>
+        )}
+        {status === 'ready' && (
+          <Button size="sm" disabled={disabled} onClick={() => onWithdraw(position.account)}>
+            Withdraw
+          </Button>
+        )}
+        <Button variant="secondary" size="sm" disabled={disabled} onClick={() => onEdit(position.account, 'add')}>
+          Manage
+        </Button>
+      </div>
+    </li>
   )
 }
 
@@ -163,16 +192,15 @@ function PositionIdentity({ account, sources }: { account: Address; sources: Pos
         {label.agentId !== undefined ? (
           <BoardLink
             target={boardRoutes().agent(label.agentId)}
-            className={cn(textLinkClass, 'flex min-h-11 min-w-0 items-center font-semibold')}
+            className={cn(textLinkClass, 'flex min-h-8 min-w-0 items-center text-sm font-medium')}
           >
             <span className="truncate">{label.name}</span>
           </BoardLink>
         ) : label.kind === 'address' ? (
           <AddressText value={account} />
         ) : (
-          <span className="block truncate font-semibold">{label.name}</span>
+          <span className="block truncate text-sm font-medium">{label.name}</span>
         )}
-        {label.hint !== undefined && <span className="block text-ui text-muted-foreground">{label.hint}</span>}
       </span>
     </div>
   )
