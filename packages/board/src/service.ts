@@ -39,6 +39,7 @@ import { collectActions, type CollectSnapshot } from './collect.ts'
 import * as v1Tools from './v1-tools.ts'
 import { miningEpoch, miningProof, type MiningSource } from './mining.ts'
 import { type DisputeBundle, type ViolationName, bundleHash, rulingRefusal } from './arbitration.ts'
+import { type DisputeBundleReply, type DisputeThreadReader, withDisputeThread } from './dispute-thread.ts'
 import { type GitHubApp, checkRuns, installationToken, repoSlug } from './github.ts'
 import type { ModelEndpoint } from './model.ts'
 import { screenOffer } from './screening.ts'
@@ -124,6 +125,7 @@ export interface BoardConfig {
   /** Where manifests are publicly readable: `${manifestBaseUrl}/${termsHash}.json`. */
   readonly manifestBaseUrl: string
   readonly now?: () => number
+  readonly disputeThread?: DisputeThreadReader
   /** Checked, read-only discovery across every hosted board and pair; absent means Collect is unavailable. */
   readonly collectSnapshot?: (wallet: Address) => Promise<CollectSnapshot>
   readonly delegationSnapshot?: (filters: PositionFilters) => Promise<DelegationSnapshot>
@@ -2859,10 +2861,7 @@ export class Board {
    * deliverable, the attested evidence with its label, and both sides' statements. Readable by the arbitrator and
    * the parties. `bundleHash` pins the decision to exactly this bundle.
    */
-  async getDisputeBundle(
-    caller: Caller,
-    input: { taskId: string },
-  ): Promise<{ bundle: DisputeBundle; bundleHash: Hex }> {
+  async getDisputeBundle(caller: Caller, input: { taskId: string }): Promise<DisputeBundleReply> {
     const me = this.#requireCaller(caller)
     const task = this.#task(input.taskId)
     const bundle = await this.#bundle(task)
@@ -2870,7 +2869,7 @@ export class Board {
     const view = await this.#chainView(task)
     if (!eq(bundle.arbitrator, me) && this.#roles(terms, view, me).length === 0)
       throw new BoardError('forbidden', 'only the arbitrator and the parties')
-    return { bundle, bundleHash: bundleHash(bundle) }
+    return withDisputeThread(bundle, this.#config.disputeThread)
   }
 
   async #bundle(task: TaskRow): Promise<DisputeBundle> {

@@ -1,5 +1,10 @@
 import dev from './dev.json' with { type: 'json' }
 import prod from './prod.json' with { type: 'json' }
+import { Schema } from 'effect'
+import type { Address } from 'viem'
+
+const RoleAddresses = Schema.Array(Schema.String.check(Schema.isPattern(/^0x[0-9a-fA-F]{40}$/u)))
+const StageRoles = Schema.Struct({ moderator: RoleAddresses, maintainer: RoleAddresses })
 
 export interface StageProfile {
   product: string
@@ -14,6 +19,7 @@ export interface StageProfile {
   safeInfrastructure: { factory: `0x${string}`; singleton: `0x${string}`; fallbackHandler: `0x${string}` }
   /** Hosted board policy. `requirePosterAgent` (ADR-0019): only agents post; absent or false, anyone may. */
   boards?: { requirePosterAgent?: boolean }
+  roles?: { moderator: Address[]; maintainer: Address[] }
 }
 
 const profiles = { dev, prod }
@@ -28,6 +34,7 @@ export function validateStageProfile(profile: unknown, stage: 'dev' | 'prod'): S
     throw new Error('Stage network/chain mismatch')
   if (new URL(value.origin).origin !== value.origin || !/^0x[0-9a-fA-F]{40}$/.test(value.relay))
     throw new Error('Invalid stage origin/relay')
+  if (value.roles !== undefined) Schema.decodeUnknownSync(StageRoles)(value.roles)
   for (const name of ['Api', 'Indexer', 'Explore', 'Database', 'Manifests'] as const) {
     if (!/^[a-z0-9][a-z0-9-]*$/.test(value.resources?.[name] ?? '')) throw new Error('Invalid stage resource')
   }

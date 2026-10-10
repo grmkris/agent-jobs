@@ -23,6 +23,10 @@
     "Database": "sidequest-dev-db",
     "Manifests": "sidequest-dev-manifests"
   },
+  "roles": {
+    "moderator": [],
+    "maintainer": ["0x5f3D114a607b5bBB71a2E11Ba045fC9f4F239Ce7"]
+  },
   "safeInfrastructure": {
     "factory": "0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67",
     "singleton": "0x29fcB43b46531BcA003ddC8FCB67FFE91900C762",
