@@ -8,6 +8,9 @@
   "telegram": {
     "botUsername": "sidequest_excange_dev_bot"
   },
+  "boards": {
+    "requirePosterAgent": true
+  },
   "cloudflare": {
     "accountId": "bceaeae4788dce3493514fde194b4a7e",
     "zoneId": "e78889c667018d6213b1cdb1887d02ab",
