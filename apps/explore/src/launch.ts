@@ -34,6 +34,7 @@ export const READ_TOOLS: ReadonlySet<string> = new Set([
   'sponsor_operation',
   'fee_quote',
   'get_stake',
+  'set_backer_share',
   'list_delegations',
   'mining_proof',
 ])
