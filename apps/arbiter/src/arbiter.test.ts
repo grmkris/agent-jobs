@@ -3,7 +3,7 @@
  * hosted board): it signs exactly the validated proposal, refuses a
  * proposal the gate forbids, and refuses a board that asks it to sign something else.
  */
-import type { DisputeBundle } from '@sidequest/board'
+import type { DisputeBundle, DisputeThread } from '@sidequest/board'
 import * as sdk from '@sidequest/sdk'
 import { type Hex, type Address, type PublicClient, encodeFunctionData, verifyTypedData } from 'viem'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
@@ -55,6 +55,7 @@ function fakeBoard(
     arbitrator?: Address
     cancellation?: sdk.TxRequest
     chainId?: number
+    thread?: DisputeThread
   } = {},
 ) {
   const disputeChainId = opts.chainId ?? chainId
@@ -79,6 +80,7 @@ function fakeBoard(
           return {
             bundle: { ...bundle, chainId: disputeChainId, arbitrator: opts.arbitrator ?? bundle.arbitrator },
             bundleHash: '0xbb',
+            ...(opts.thread === undefined ? {} : { thread: opts.thread }),
           } as any
         case 'cancel_ruling':
           return {
@@ -136,6 +138,18 @@ const deps = (board: BoardLike, proposal: unknown) => ({
 const reason = 'The "test" check passed on the on-chain deliverable; the rejection names no defect.'
 
 describe('arbitrateOnce', () => {
+  it('passes public thread context through, defaulting to an empty thread', async () => {
+    const thread: DisputeThread = [
+      { id: 1, author: account.address, roles: ['worker'], text: 'Context', hidden: false, replyTo: null, at: NOW },
+    ]
+    for (const context of [undefined, thread]) {
+      const f = fakeBoard(context === undefined ? {} : { thread: context })
+      const propose = vi.fn(async () => ({ forWorker: true, slashLoser: false, reason }))
+      await arbitrateOnce({ ...deps(f.board, {}), propose })
+      expect(propose).toHaveBeenCalledWith(bundle, context ?? [])
+      expect(f.calls.find((c) => c.tool === 'prepare_ruling')?.args.bundleHash).toBe('0xbb')
+    }
+  })
   it('signs exactly the validated proposal and hands it to the board to relay', async () => {
     const f = fakeBoard()
     const { outcomes } = await arbitrateOnce(deps(f.board, { forWorker: true, slashLoser: true, reason }))

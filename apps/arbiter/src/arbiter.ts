@@ -5,7 +5,7 @@
  * from the arbitrator wallet, and never signs a message it did not rebuild itself: the Ruling it signs uses the evaluator domain from the SDK deployment, the
  * job from the bundle and exactly the validated proposal.
  */
-import { type DisputeBundle, checkRulingRequest, validateProposal } from '@sidequest/board'
+import { type DisputeBundle, type DisputeThread, checkRulingRequest, validateProposal } from '@sidequest/board'
 import * as sdk from '@sidequest/sdk'
 import { type Hex, type LocalAccount, encodeFunctionData } from 'viem'
 
@@ -19,7 +19,7 @@ export interface ArbiterDeps {
   readonly network: sdk.Network
   readonly runner: string
   /** The model's proposal for a bundle; anything it returns goes through `validateProposal`. */
-  readonly propose: (bundle: DisputeBundle) => Promise<unknown>
+  readonly propose: (bundle: DisputeBundle, thread: DisputeThread) => Promise<unknown>
   readonly now?: () => number
   readonly log?: (message: string) => void
   readonly leaseSeconds?: number
@@ -78,10 +78,13 @@ export async function arbitrateOnce(deps: ArbiterDeps): Promise<{ lease: boolean
 
 async function decide(deps: ArbiterDeps, d: DisputeRow, now: () => number, log: (m: string) => void): Promise<Outcome> {
   if (now() >= d.arbitrationEndsAt) return { taskId: d.taskId, result: 'skipped', why: 'the window has closed' }
-  const { bundle, bundleHash } = await deps.board.call<{ bundle: DisputeBundle; bundleHash: Hex }>(
-    'get_dispute_bundle',
-    { taskId: d.taskId },
-  )
+  const {
+    bundle,
+    bundleHash,
+    thread = [],
+  } = await deps.board.call<{ bundle: DisputeBundle; bundleHash: Hex; thread?: DisputeThread }>('get_dispute_bundle', {
+    taskId: d.taskId,
+  })
   // The evaluator must be the configured v1 pair on this network.
   const stack = sdk
     .allStacks(sdk.deployment(deps.network))
@@ -142,7 +145,7 @@ async function decide(deps: ArbiterDeps, d: DisputeRow, now: () => number, log: 
   const raw =
     recorded !== null && recorded.reason !== null
       ? { forWorker: recorded.forWorker, slashLoser: recorded.slashLoser, reason: recorded.reason }
-      : await deps.propose(bundle)
+      : await deps.propose(bundle, thread)
   const checked = validateProposal(bundle, raw)
   if (!checked.ok) return { taskId: d.taskId, result: 'skipped', why: `proposal refused: ${checked.error}` }
   const proposal = checked.proposal
