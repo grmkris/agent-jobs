@@ -164,6 +164,12 @@ const alive = (pid: number) => {
   }
 }
 
+/**
+ * The crew's cliproxy key: its own (`CLIPROXY_API_KEY_CREW`, so the gateway's usage collector can tell the crew's model
+ * use from everything else on the box), else the box's main key.
+ */
+const cliproxyKey = (e: Record<string, string>): string => e.CLIPROXY_API_KEY_CREW ?? e.CLIPROXY_API_KEY ?? ''
+
 function env(): Record<string, string> {
   const files = [
     join(repo, '.env.local'),
@@ -381,7 +387,7 @@ function harnessVars(m: Member, token: Token, e: Record<string, string>): Record
     LANG: 'C.UTF-8',
     PATH: '/opt/bin:/opt/codex/bin:/opt/foundry:/usr/local/bin:/usr/bin:/bin',
     SIDEQUEST_MCP_TOKEN: token.access_token,
-    CLIPROXY_API_KEY: e.CLIPROXY_API_KEY ?? '',
+    CLIPROXY_API_KEY: cliproxyKey(e),
     GIT_AUTHOR_NAME: m.name,
     GIT_AUTHOR_EMAIL: m.email,
     GIT_COMMITTER_NAME: m.name,
@@ -915,10 +921,7 @@ interface Mounts {
 /** One bot's compose service: its env file (0600, only the variables its member lists), limits, labels and mounts. */
 function botService(id: string, m: Member, e: Record<string, string>, at: Mounts, agentId: string) {
   const envFile = join(repo, '.crew', 'env', `${id}.env`)
-  const vars = [
-    `CLIPROXY_API_KEY=${e.CLIPROXY_API_KEY ?? ''}`,
-    ...m.env.map((v) => (v.includes('=') ? v : `${v}=${e[v] ?? ''}`)),
-  ]
+  const vars = [`CLIPROXY_API_KEY=${cliproxyKey(e)}`, ...m.env.map((v) => (v.includes('=') ? v : `${v}=${e[v] ?? ''}`))]
   writeFileSync(envFile, `${vars.join('\n')}\n`, { mode: 0o600 })
   chmodSync(envFile, 0o600)
   const keyFile = join(home(id), 'agent-key')

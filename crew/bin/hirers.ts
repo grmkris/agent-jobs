@@ -8,7 +8,8 @@
  *   bun crew/bin/hirers.ts run      the loop (container sq-hirers)
  *   bun crew/bin/hirers.ts status   each hirer's jobs, MON and spend
  *
- * Env: HIRER_<ID>_PRIVATE_KEY per persona, MONAD_RPC_URL, CLIPROXY_URL, CLIPROXY_API_KEY, ACTIVITY_MODEL (grok-4.7),
+ * Env: HIRER_<ID>_PRIVATE_KEY per persona, MONAD_RPC_URL, CLIPROXY_URL, CLIPROXY_API_KEY_CREW (else CLIPROXY_API_KEY),
+ * ACTIVITY_MODEL (grok-4.7),
  * ACTIVITY_MAX_JOBS (40 posts in all), ACTIVITY_POST_MINUTES (20, the mean gap between posts), ACTIVITY_STATE.
  */
 import { Option, Schema } from 'effect'

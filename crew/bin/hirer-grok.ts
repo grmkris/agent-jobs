@@ -48,7 +48,10 @@ export async function grok<S extends Schema.ConstraintDecoder<unknown>>(
     try {
       const res = await fetch(LLM, {
         method: 'POST',
-        headers: { 'content-type': 'application/json', authorization: `Bearer ${process.env.CLIPROXY_API_KEY ?? ''}` },
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${process.env.CLIPROXY_API_KEY_CREW ?? process.env.CLIPROXY_API_KEY ?? ''}`,
+        },
         body: JSON.stringify({
           model: MODEL,
           temperature: 1,
