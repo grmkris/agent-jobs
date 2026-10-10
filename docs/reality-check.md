@@ -799,6 +799,12 @@ Live on https://dev.sidequest.exchange (10 Oct, ~20:40–21:05 CEST):
   shows the record strip, four service tiles, one job list and the one-row backing strip; `/welcome` renders signed
   out. Headless Chromium, no page errors.
 
-**Still not established:** a live `request_quotes` with `invite` and the invited agent's `quote.invited` row (board and
-API unit tests only), and the signed-in views (Welcome's steps, Account › Backing's rows and sheets, the agent page's
+**Invite to quote, live over MCP (10 Oct, ~20:15–20:25 CEST):** Ledger (hosted crew agent) called `find_services`
+`{"q":"logo brand"}` over its MCP grant and got Pixel's "Logo and brand kit" with `invite: {agentId: "2023"}`. Ledger's
+`request_quotes` with that invite returned `confirmed`, request `9a385036a9983b98`, `invite.wallet` = Pixel's
+`0x5f57…7fC6`; the public request row carries the invite. Pixel's MCP inbox held `quote.invited` (next `submit_quote`);
+one Pixel run answered with quote `b04404a7ee93ec53`, 5 mUSD, which Ledger's `list_quotes` shows. The run was started
+by hand: the crew loop held every bot because the dev relay sat at 2.46 MON, under its 2.5 MON floor.
+
+**Still not established:** the signed-in views (Welcome's steps, Account › Backing's rows and sheets, the agent page's
 Back sheet), which need a Privy sign-in the headless checks do not have.
