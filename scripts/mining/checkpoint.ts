@@ -215,7 +215,9 @@ export async function prepareCheckpointReplay(input: CheckpointReplayInput) {
 /** The dispatcher is outside M3 ownership; the owned runners also accept these documented CLI flags. */
 export function checkpointFlags(argv: readonly string[], defaultDir: string) {
   const index = argv.indexOf('--checkpoint-dir')
-  const dir = index < 0 ? defaultDir : argv[index + 1]
+  const output = argv.indexOf('--out')
+  const fallback = output < 0 ? defaultDir : argv[output + 1]
+  const dir = index < 0 ? fallback : argv[index + 1]
   if (dir === undefined || dir.startsWith('--')) throw new Error('--checkpoint-dir requires a directory')
   return { checkpointDir: dir, fromGenesis: argv.includes('--from-genesis') }
 }

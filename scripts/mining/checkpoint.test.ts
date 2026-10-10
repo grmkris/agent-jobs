@@ -5,11 +5,13 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
   checkpointFlags,
+  checkpointBudgetOf,
   findAnchor,
   loadCheckpoint,
   prepareCheckpointReplay,
   verifyCheckpoint,
   type CheckpointReader,
+  type CheckpointPointer,
 } from './checkpoint.ts'
 import { canonicalRuleV2 } from './inputs-v2.ts'
 import { inputsV2Of } from './inputs-v2.ts'
@@ -26,8 +28,18 @@ import {
 } from './ledger-chain.ts'
 import { metadataSetEvent, stakeVaultEvents } from './backers-chain.ts'
 import { buildTree, proofOf } from './tree.ts'
-import { createPublicClient, custom, encodeAbiParameters, encodeEventTopics, type Address, type Hex } from './viem.ts'
+import {
+  createPublicClient,
+  custom,
+  decodeFunctionData,
+  encodeAbiParameters,
+  encodeEventTopics,
+  type Address,
+  type Hex,
+} from './viem.ts'
 import { rebuildRecorded, firstEpochDiff } from './recompute.ts'
+import { reserveAbi } from './chain.ts'
+import { cumulativeBudget, replayLots } from './lots.ts'
 
 const account = '0x0000000000000000000000000000000000000001'
 const tx = `0x${'ab'.repeat(32)}` as const
@@ -203,6 +215,7 @@ test('incremental replay starts strictly after the anchor, including empty epoch
 
 test('checkpoint CLI flags have an output-directory default and reject a missing value', () => {
   expect(checkpointFlags([], '/out')).toEqual({ checkpointDir: '/out', fromGenesis: false })
+  expect(checkpointFlags(['--out', '/artifacts'], '/fallback').checkpointDir).toBe('/artifacts')
   expect(checkpointFlags(['--checkpoint-dir', '/anchor', '--from-genesis'], '/out')).toEqual({
     checkpointDir: '/anchor',
     fromGenesis: true,
@@ -470,7 +483,13 @@ function sequenceReader() {
     },
   }
 }
-async function sequenceEpoch(input: { epoch: bigint; dir: string; roots: Map<bigint, Hex>; fromGenesis: boolean }) {
+async function sequenceEpoch(input: {
+  epoch: bigint
+  dir: string
+  roots: Map<bigint, Hex>
+  fromGenesis: boolean
+  previous?: CheckpointPointer | null
+}) {
   const ctx = sequenceContext(input.epoch),
     fromBlock = 10n + input.epoch * 10n,
     reader = sequenceReader()
@@ -485,6 +504,7 @@ async function sequenceEpoch(input: { epoch: bigint; dir: string; roots: Map<big
     contracts: stateContractsOf(sequenceContracts),
     checkpointDir: input.dir,
     fromGenesis: input.fromGenesis,
+    ...(input.previous === undefined ? {} : { previous: input.previous }),
     reader: { readRoot: async (epoch) => ({ dataHash: input.roots.get(epoch) ?? zero }), blockHash: async () => tx },
     stateContext: async (epoch) => sequenceContext(epoch),
     readRecords: reader.read,
@@ -545,6 +565,23 @@ async function sequenceEpoch(input: { epoch: bigint; dir: string; roots: Map<big
   return { artifact, state, replay, ranges: reader.ranges, computed }
 }
 
+async function sequenceFromFirstAnchor(epoch: bigint, dir: string, roots: Map<bigint, Hex>) {
+  const anchorHash = roots.get(0n)
+  if (anchorHash === undefined) throw new Error('first sequence anchor missing')
+  const anchor = await loadCheckpoint({ epoch: 0n, dataHash: anchorHash }, dir)
+  return sequenceEpoch({
+    epoch,
+    dir,
+    roots,
+    fromGenesis: false,
+    previous: {
+      epoch: '0',
+      dataHash: dataHashOf(anchor.artifact.inputs),
+      stateHash: stateHashOf(anchor.state),
+    },
+  })
+}
+
 test('incremental epochs equal genesis byte for byte through empty, schedule, reset, cut and delayed-settlement history', async () => {
   const dir = directory(),
     roots = new Map<bigint, Hex>()
@@ -573,6 +610,10 @@ test('incremental epochs equal genesis byte for byte through empty, schedule, re
         expect(incremental.computed.result.fees[0]?.credit?.lowestBps).toBe(100n)
       }
       if (epoch === 3n) {
+        const earlier = await sequenceFromFirstAnchor(epoch, dir, roots)
+        expect(JSON.stringify(earlier.state)).toBe(JSON.stringify(incremental.state))
+        expect(JSON.stringify(earlier.artifact.tree)).toBe(JSON.stringify(incremental.artifact.tree))
+        expect(JSON.stringify(earlier.artifact.claims)).toBe(JSON.stringify(incremental.artifact.claims))
         expect(incremental.artifact.inputs.checkpoint?.previous?.epoch).toBe('2')
         expect(incremental.ranges).toEqual([[40n, 49n]])
         expect(incremental.state.wallets[0]?.agentIds).toEqual(['1', '2'])
@@ -585,4 +626,90 @@ test('incremental epochs equal genesis byte for byte through empty, schedule, re
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
+})
+
+function budgetReader(total = 600n * side, latest = total, scheduled = cumulativeBudget(1n)) {
+  return createPublicClient({
+    transport: custom(
+      {
+        request: async ({ method, params }) => {
+          if (method !== 'eth_call') throw new Error('budget reader must not scan deployment logs')
+          // SAFETY: viem constructs this eth_call envelope for the fixed reserve ABI used by checkpointBudgetOf.
+          const call = params?.[0] as { data: Hex }
+          const decoded = decodeFunctionData({ abi: reserveAbi, data: call.data })
+          const amount =
+            decoded.functionName === 'cumulativeBudget' ? scheduled : params?.[1] === 'latest' ? latest : total
+          return encodeAbiParameters([{ type: 'uint256' }], [amount])
+        },
+      },
+      { retryCount: 0 },
+    ),
+  })
+}
+function fundedLedger() {
+  const ledger = new MiningLedger()
+  for (let epoch = 0n; epoch <= 2n; epoch++)
+    ledger.apply({
+      eventName: 'EpochFunded',
+      block: epoch + 1n,
+      logIndex: 0,
+      epoch,
+      amount: (epoch + 1n) * 100n * side,
+    })
+  return ledger
+}
+
+test('checkpoint recomputation excludes later funding from lots while checking the entire restored funding sum', async () => {
+  const ledger = fundedLedger(),
+    budget = await checkpointBudgetOf({
+      c: budgetReader(),
+      reserve: token,
+      epoch: 1n,
+      head: 100n,
+      ledger,
+      recompute: true,
+    })
+  expect(budget).toEqual({
+    cumulativeBudget: cumulativeBudget(1n),
+    totalFunded: 600n * side,
+    ...replayLots(1n, ledger.funding.slice(0, 2)),
+  })
+  await rejects(
+    checkpointBudgetOf({ c: budgetReader(), reserve: token, epoch: 1n, head: 100n, ledger, recompute: false }),
+    /later epochs/,
+  )
+})
+
+test('checkpoint budgets refuse nonfinal funding, incomplete funding and a changed reserve schedule', async () => {
+  const ledger = fundedLedger(),
+    base = { reserve: token, epoch: 1n, head: 100n, ledger, recompute: true }
+  await rejects(checkpointBudgetOf({ ...base, c: budgetReader(600n * side, 601n * side) }), /not final/)
+  await rejects(checkpointBudgetOf({ ...base, c: budgetReader(601n * side) }), /sum differs/)
+  await rejects(checkpointBudgetOf({ ...base, c: budgetReader(600n * side, 600n * side, 1n) }), /schedule differs/)
+})
+
+test('audit recomputation retains its recorded pointer and independently refuses a wrong previous state hash', async () => {
+  const f = fixture(),
+    base = {
+      epoch: 2n,
+      fromEpoch: 0n,
+      fromBlock: 21n,
+      toBlock: 30n,
+      genesisBlock: 1n,
+      chainId: 10143,
+      rule,
+      contracts: stateContractsOf(context.contracts),
+      checkpointDir: '/no-files',
+      fromGenesis: true,
+      reader: { ...f.reader, readRoot: async () => ({ dataHash: f.anchor.dataHash }) },
+      stateContext: async () => context,
+      readRecords: async () => [],
+    }
+  const previous = { epoch: '0', dataHash: f.anchor.dataHash, stateHash: stateHashOf(f.files.state) }
+  expect((await prepareCheckpointReplay({ ...base, previous })).previous).toEqual(previous)
+  await rejects(
+    prepareCheckpointReplay({ ...base, previous: { ...previous, stateHash: tx } }),
+    /previous stateHash mismatch/,
+  )
+  expect((await prepareCheckpointReplay({ ...base, previous: null })).previous).toBeNull()
 })
