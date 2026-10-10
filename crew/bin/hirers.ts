@@ -404,8 +404,10 @@ const statusOf = (task: Task) => task.chain?.status ?? ''
 async function working(h: Hirer, job: Job) {
   const task = await h.call<Task>('get_task', { taskId: job.taskId })
   if (statusOf(task) === 'submitted') return review(h, job, task)
-  // A selected worker that never activates: once its activation deadline passes, the hirer withdraws the hire.
-  const noShow = statusOf(task) === 'open' && (task.nextAction?.deadline ?? Infinity) < now() - 300
+  // A selected worker that never activates: once its activation deadline passes (the listing then waits on the hirer
+  // to select again), the hirer withdraws the hire.
+  const expired = task.nextAction?.action === 'select_worker' || (task.nextAction?.deadline ?? Infinity) < now() - 300
+  const noShow = statusOf(task) === 'open' && expired
   if (noShow) {
     Object.assign(job, { step: 'cancelling', cancelAt: now(), outcome: 'no-show' })
     h.log('no-show', { key: job.key, taskId: job.taskId, agentId: job.worker })
