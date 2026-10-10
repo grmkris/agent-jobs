@@ -7,6 +7,7 @@ import { context, wallet } from '../../packages/sdk/src/client.ts'
 import { FlowJournal, parseFlowJson, type FlowState } from '../../packages/sdk/src/flow-journal.ts'
 import { ensureFlowDirectory, saveFlowState } from '../../packages/sdk/scripts/flow-persistence.ts'
 import { parseEpoch } from '../../scripts/mining/publish-lib.ts'
+import { stageProfile } from '../../infra/stage.ts'
 import { privateKeyToAccount, type Hex } from '../../scripts/mining/viem.ts'
 import { epochCalls, runEpoch, type EpochFile } from './epoch0-transactions.ts'
 import { bindMiningState, miningBinding } from './testnet-mining-binding.ts'
@@ -69,14 +70,14 @@ async function main() {
     return readFileSync(epochPath, 'utf8')
   })
   if (JSON.parse(epochBytes).root === null) throw new Error('epoch has no earned fees; select an ended epoch with counted paid fees and a new directory')
-  const validated = parseEpoch(Buffer.from(epochBytes), 'staging'), file = JSON.parse(epochBytes) as EpochFile
+  const validated = parseEpoch(Buffer.from(epochBytes), stageProfile('dev')!), file = JSON.parse(epochBytes) as EpochFile
   if (validated.epoch !== epoch.toString()) throw new Error('wrong epoch')
   epochCalls(ctx, file, epoch)
   if (!file.claims[claimant.account.address.toLowerCase()]) throw new Error('claimant has no leaf: select a creator/worker key listed by mining:epoch')
   writeFileSync(epochPath, epochBytes, { mode: 0o600 })
   await runEpoch(ctx, j, owner, hash => owner.account.sign!({ hash }), file, async () => {
-    // Explicit staging route; successful command includes same-byte R2 readback.
-    console.log(run('bun', ['run', 'mining:publish', epochPath, '--stage', 'staging']))
+    // Explicit dev route; successful command includes same-byte R2 readback.
+    console.log(run('bun', ['run', 'mining:publish', epochPath, '--stage', 'dev']))
     console.log(`PUBLISHED mining/epoch-${epoch}.json sha256 ${sha(epochBytes)}`)
   }, claimant, epoch)
 }
