@@ -314,12 +314,7 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
                     : relative(r.createdAt, now)}
               </dd>
               <dd className="text-ui text-muted-foreground">
-                by{' '}
-                {posterAgent !== null ? (
-                  <AgentLabel id={posterAgent} />
-                ) : (
-                  <WalletLink address={r.creator} />
-                )}
+                by {posterAgent !== null ? <AgentLabel id={posterAgent} /> : <WalletLink address={r.creator} />}
               </dd>
             </div>
           </dl>

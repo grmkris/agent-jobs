@@ -48,7 +48,8 @@ const listed = (sums: Map<string, bigint>): TokenSum[] =>
 
 function hiredOf(posted: readonly FeedJob[]) {
   const counts = new Map<string, number>()
-  for (const job of posted) if (job.workerAgent !== null) counts.set(job.workerAgent, (counts.get(job.workerAgent) ?? 0) + 1)
+  for (const job of posted)
+    if (job.workerAgent !== null) counts.set(job.workerAgent, (counts.get(job.workerAgent) ?? 0) + 1)
   return [...counts]
     .map(([agentId, jobs]) => ({ agentId, jobs }))
     .toSorted((a, b) => b.jobs - a.jobs || Number(a.agentId) - Number(b.agentId))
@@ -77,7 +78,8 @@ export function walletRecord(feed: readonly FeedJob[], address: string): WalletR
       (job) => job.item.jobId === null && job.bucket === 'open' && same(job.item.request?.creator, wallet),
     ),
     approves: feed.filter(
-      (job) => job.item.chain !== undefined && same(job.item.chain.approver, wallet) && !same(job.item.chain.creator, wallet),
+      (job) =>
+        job.item.chain !== undefined && same(job.item.chain.approver, wallet) && !same(job.item.chain.creator, wallet),
     ).length,
   }
 }
