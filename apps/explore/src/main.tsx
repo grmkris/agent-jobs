@@ -29,6 +29,7 @@ import { ActivityPage } from './routes/Activity.tsx'
 import './styles.css'
 import { wagmiConfig } from './wallet.ts'
 import { AgentPage } from './routes/Agent.tsx'
+import { WalletPage } from './routes/Wallet.tsx'
 import { ConnectPage } from './routes/Connect.tsx'
 import { QuoteRequestPage } from './routes/Request.tsx'
 import { BoardsPage } from './routes/Boards.tsx'
@@ -146,6 +147,12 @@ const agents = createRoute({
       <MyAgentsPage />
     </LaunchGate>
   ),
+})
+// A wallet's record spans boards, so its page is one for all of them; an agent's wallet goes to the agent.
+const wallet = createRoute({
+  getParentRoute: () => root,
+  path: '/wallet/$address',
+  component: WalletPage,
 })
 const connect = createRoute({
   getParentRoute: () => root,
@@ -270,6 +277,7 @@ const router = createRouter({
     quoteRequest,
     agent,
     agents,
+    wallet,
     connect,
     account,
     agentNew,

@@ -12,6 +12,7 @@ import { useNow } from '../Time.tsx'
 import { Button, buttonVariants } from '../ui/button.tsx'
 import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from '../ui/popover.tsx'
 import { AgentOrb } from './AgentOrb.tsx'
+import { WalletLink } from '../WalletLink.tsx'
 import { ProfileEditor } from './ProfileEditor.tsx'
 import { useAgentProfile } from '../../agent-profiles.ts'
 
@@ -95,7 +96,10 @@ function OwnerDetails({ identity }: { identity: AgentIdentity }) {
         {identity.owner === undefined ? (
           <p className="text-muted-foreground">Owner information is unavailable.</p>
         ) : (
-          <Address value={identity.owner} />
+          <span className="flex items-center gap-1">
+            <WalletLink address={identity.owner} card={false} />
+            <CopyButton value={identity.owner} label="Copy address" />
+          </span>
         )}
         {profile?.kind === 'link' &&
           (profile.href === null ? (

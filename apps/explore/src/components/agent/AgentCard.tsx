@@ -17,9 +17,12 @@ import { useDirectory } from '../../directory-query.ts'
 import { bond } from '../../format.ts'
 import { cn } from '../../lib/cn.ts'
 import { useJobs } from '../../routes/Jobs.tsx'
+import { walletRecord } from '../../wallet-record.ts'
 import { BoardLink, boardRoutes } from '../BoardLink.tsx'
 import { CardAction, CardLink, useCardFrame } from '../CardLink.tsx'
 import { textLinkClass } from '../kit.tsx'
+import { TokenAmount } from '../token/TokenAmount.tsx'
+import { useFeedJobs } from '../activity/useActivityFeed.ts'
 import { recentWork } from '../landing/agents-strip.ts'
 import { Button } from '../ui/button.tsx'
 import { AgentLabel } from './AgentChip.tsx'
@@ -110,6 +113,10 @@ function AgentCardBody({ agentId }: { agentId: string }) {
   const recent = recentWork(useJobs().items, agentId)
   const routes = boardRoutes()
   const { inSheet } = useCardFrame()
+  const { feed } = useFeedJobs()
+  const record = walletRecord(feed, facts.wallet ?? '')
+  const [paid] = record.paid
+  const hirer = facts.completed === 0 && record.posted > 0
   return (
     <div className={cn('grid gap-3', !inSheet && 'p-3.5')}>
       <header className="flex items-center gap-3">
@@ -121,23 +128,39 @@ function AgentCardBody({ agentId }: { agentId: string }) {
               <AgentLabel id={agentId} name={facts.name} />
             </span>
           )}
-          <Presence accepting={facts.accepting} />
+          {hirer ? (
+            <span className="text-xs text-muted-foreground">Hires agents here</span>
+          ) : (
+            <Presence accepting={facts.accepting} />
+          )}
         </span>
       </header>
       {facts.tagline !== '' && <p className="text-ui text-muted-foreground">{facts.tagline}</p>}
-      <dl className="grid grid-cols-3 gap-2 rounded-lg bg-muted/50 px-3 py-2.5">
-        <Stat label="Delivered">{facts.completed}</Stat>
-        <Stat label="Earned">
-          {earned.first}
-          {earned.more > 0 && <span className="text-muted-foreground"> +{earned.more}</span>}
-        </Stat>
-        <Stat label="Staked">
-          {backing === undefined ? '—' : bond(backing.assets)}
-          {backers !== null && (
-            <span className="block truncate text-xs font-normal text-muted-foreground">{backers}</span>
-          )}
-        </Stat>
-      </dl>
+      {/* An agent that hires rather than works says what it posted and paid; a worker, what it delivered and earned. */}
+      {hirer ? (
+        <dl className="grid grid-cols-3 gap-2 rounded-lg bg-muted/50 px-3 py-2.5">
+          <Stat label="Posted">{record.posted}</Stat>
+          <Stat label="Paid out">
+            {paid === undefined ? '—' : <TokenAmount value={paid.value} token={paid.token} static />}
+            {record.paid.length > 1 && <span className="text-muted-foreground"> +{record.paid.length - 1}</span>}
+          </Stat>
+          <Stat label="Hired">{record.hired.length === 1 ? '1 agent' : `${record.hired.length} agents`}</Stat>
+        </dl>
+      ) : (
+        <dl className="grid grid-cols-3 gap-2 rounded-lg bg-muted/50 px-3 py-2.5">
+          <Stat label="Delivered">{facts.completed}</Stat>
+          <Stat label="Earned">
+            {earned.first}
+            {earned.more > 0 && <span className="text-muted-foreground"> +{earned.more}</span>}
+          </Stat>
+          <Stat label="Staked">
+            {backing === undefined ? '—' : bond(backing.assets)}
+            {backers !== null && (
+              <span className="block truncate text-xs font-normal text-muted-foreground">{backers}</span>
+            )}
+          </Stat>
+        </dl>
+      )}
       <BackerShare agentId={agentId} />
       {recent.length > 0 && (
         <div className="grid gap-1">

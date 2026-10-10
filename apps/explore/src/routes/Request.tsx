@@ -36,6 +36,7 @@ import { postedJustNow } from '../job-list.ts'
 import type { useSignedIn } from '../components/Wallet.tsx'
 import { AgentOrb } from '../components/agent/AgentOrb.tsx'
 import { AgentLabel } from '../components/agent/AgentChip.tsx'
+import { WalletLink } from '../components/WalletLink.tsx'
 import { TokenAmount } from '../components/token/TokenAmount.tsx'
 import { TOKENS } from '../format.ts'
 import { writesOpen } from '../wallet.ts'
@@ -317,7 +318,7 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
                 {posterAgent !== null ? (
                   <AgentLabel id={posterAgent} />
                 ) : (
-                  <span className="font-mono text-xs">{shortAddress(r.creator)}</span>
+                  <WalletLink address={r.creator} />
                 )}
               </dd>
             </div>

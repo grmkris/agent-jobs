@@ -13,18 +13,23 @@ interface ActivityPage {
   nextCursor: string | null
 }
 
-const activityPage = (cursor: string | undefined) =>
-  data<ActivityPage>(`activity?limit=50${cursor === undefined ? '' : `&cursor=${encodeURIComponent(cursor)}`}`)
+const activityPage = (cursor: string | undefined, wallet: string | undefined) =>
+  data<ActivityPage>(
+    `activity?limit=50${cursor === undefined ? '' : `&cursor=${encodeURIComponent(cursor)}`}${
+      wallet === undefined ? '' : `&wallet=${encodeURIComponent(wallet)}`
+    }`,
+  )
 
 /**
- * The board's chain steps, newest first, a page of 50 at a time. Only the first page polls: refetching an infinite
- * query re-reads every loaded page in turn, so once someone has loaded more, the list holds still until they reload.
+ * The board's chain steps, newest first, a page of 50 at a time; with `wallet`, only the steps of jobs it posted,
+ * approves or works. Only the first page polls: refetching an infinite query re-reads every loaded page in turn, so
+ * once someone has loaded more, the list holds still until they reload.
  */
-function useSteps() {
+function useSteps(wallet: string | undefined) {
   return useInfiniteQuery<ActivityPage, Error, InfiniteData<ActivityPage>, readonly string[], string | undefined>({
-    queryKey: ['activity-feed', boardPrefix()],
+    queryKey: ['activity-feed', boardPrefix(), ...(wallet === undefined ? [] : [wallet.toLowerCase()])],
     initialPageParam: undefined,
-    queryFn: ({ pageParam }) => activityPage(pageParam),
+    queryFn: ({ pageParam }) => activityPage(pageParam, wallet),
     getNextPageParam: (page) => page.nextCursor ?? undefined,
     refetchInterval: (query) => ((query.state.data?.pages.length ?? 0) > 1 ? false : 20_000),
     refetchIntervalInBackground: false,
@@ -45,14 +50,17 @@ export interface ActivityFeed {
   now: number
 }
 
-/** The Activity page's data: the jobs list's records, the board's requests and its chain steps, joined. */
-export function useActivityFeed(): ActivityFeed {
+/**
+ * The Activity page's data: the jobs list's records, the board's requests and its chain steps, joined. A wallet's page
+ * passes the wallet, so the steps it reads are that wallet's, however far back they go.
+ */
+export function useActivityFeed(wallet?: string): ActivityFeed {
   const jobs = useJobs()
   const requests = useQuoteRequests()
   const posters = usePosterAgents()
   const { address } = useAuth()
   const now = useMinute()
-  const steps = useSteps()
+  const steps = useSteps(wallet)
   const loaded = useMemo(() => steps.data?.pages.flatMap((page) => page.steps) ?? [], [steps.data])
   const feed = useMemo(
     () => feedJobs({ items: jobs.items, requests: requests.data ?? [], steps: loaded, posters, viewer: address, now }),
@@ -61,4 +69,21 @@ export function useActivityFeed(): ActivityFeed {
   const events = useMemo(() => feedEvents(loaded, feed, steps.hasNextPage), [loaded, feed, steps.hasNextPage])
   const ready = !jobs.loading && steps.isSuccess && (requests.isSuccess || requests.isError)
   return { jobs, steps, feed, events, requestsError: requests.error, ready, viewer: address, now }
+}
+
+/**
+ * Every job and request as the feed files them, without their steps: enough to say where each stands and who took
+ * part, for a card or a record that needs no history. On Activity every read here is already cached.
+ */
+export function useFeedJobs(): { feed: FeedJob[]; loading: boolean } {
+  const jobs = useJobs()
+  const requests = useQuoteRequests()
+  const posters = usePosterAgents()
+  const { address } = useAuth()
+  const now = useMinute()
+  const feed = useMemo(
+    () => feedJobs({ items: jobs.items, requests: requests.data ?? [], steps: [], posters, viewer: address, now }),
+    [jobs.items, requests.data, posters, address, now],
+  )
+  return { feed, loading: jobs.loading }
 }

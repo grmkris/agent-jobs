@@ -10,8 +10,8 @@ import { localTime, relative } from '../../format.ts'
 import { deployment } from '../../wallet.ts'
 import { AgentLabel } from '../agent/AgentChip.tsx'
 import { AgentOrb } from '../agent/AgentOrb.tsx'
+import { WalletLink } from '../WalletLink.tsx'
 import { BondHorizonNotice } from '../BondHorizonNotice.tsx'
-import { Address } from '../kit.tsx'
 import { useNow } from '../Time.tsx'
 import { TokenAmount } from '../token/TokenAmount.tsx'
 import { Badge } from '../ui/badge.tsx'
@@ -74,15 +74,17 @@ export function RequestTerms({
         </Fact>
         <Fact label="Requester">
           <span className="inline-flex min-w-0 items-center justify-end gap-2">
-            {requesterAgent !== null && (
+            {requesterAgent !== null ? (
               <>
                 <AgentOrb agentId={requesterAgent} size="sm" />
                 <span className="font-medium">
                   <AgentLabel id={requesterAgent} />
                 </span>
               </>
+            ) : (
+              <WalletLink address={requester} />
             )}
-            <Address value={requester} you={you} />
+            {you && <Badge variant="info">You</Badge>}
           </span>
         </Fact>
       </dl>
