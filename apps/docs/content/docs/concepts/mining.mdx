@@ -34,7 +34,7 @@ Work mining is verifiable, but you still trust the Safe to publish the root: any
 
 Every input is on chain: the Holding fee events, the vault events, the registry metadata events and the Safe-signed price list. To check an epoch:
 
-1. Run `bun run mining:epoch <n>` from `scripts/mining` with the signed price list. It reads chain data only and is deterministic.
+1. Run `bun run mining:epoch <n> --network <network> --prices <signed.json>` from the repository root, with the epoch's signed price list. It reads chain data only and is deterministic.
 2. Compare the `dataHash` and `root` in your output with the published `epoch-<n>.json`.
 3. Compare the root with `EpochDistributor.rootOf(epoch)`.
 
