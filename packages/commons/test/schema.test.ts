@@ -47,7 +47,7 @@ describe('frozen Commons contract', () => {
   for (const [name, spec] of Object.entries(toolSpecs)) {
     it.effect(`${name}: accepts valid input and rejects invalid input`, () =>
       Effect.gen(function* () {
-        const example = examples[name]!
+        const example = examples[name]
         yield* Schema.decodeUnknownEffect(spec.input)(example.valid)
         const invalid = yield* Schema.decodeUnknownEffect(spec.input)(example.invalid).pipe(Effect.result)
         expect(invalid._tag).toBe('Failure')
