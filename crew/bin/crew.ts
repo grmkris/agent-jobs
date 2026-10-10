@@ -417,8 +417,11 @@ function launchHere(command: string[], vars: Record<string, string>): Launch {
   const signal = (name: NodeJS.Signals) => {
     try {
       if (child.pid !== undefined) process.kill(-child.pid, name)
-    } catch {
-      // the group has already exited
+    } catch (error) {
+      // ESRCH: the group has already exited. Anything else (EPERM without CAP_KILL) leaves the run alive: say so.
+      // SAFETY: process.kill only throws Node system errors, which carry an errno code.
+      if ((error as NodeJS.ErrnoException).code !== 'ESRCH')
+        console.error(`run ${child.pid}: ${name} failed: ${String(error)}`)
     }
   }
   return {
@@ -950,7 +953,8 @@ function botService(id: string, m: Member, e: Record<string, string>, at: Mounts
     cpu_shares: crew.harness.cpuShares,
     security_opt: ['no-new-privileges:true'],
     cap_drop: ['ALL'],
-    cap_add: ['CHOWN', 'DAC_OVERRIDE', 'FOWNER', 'SETUID', 'SETGID'],
+    // KILL lets the root supervisor end a timed-out run, which runs as uid 1000.
+    cap_add: ['CHOWN', 'DAC_OVERRIDE', 'FOWNER', 'SETUID', 'SETGID', 'KILL'],
     networks: ['crew'],
     stop_grace_period: '30s',
     labels: {
