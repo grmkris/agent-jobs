@@ -22,6 +22,7 @@ export const readOnlyHostedTools = new Set([
   'sponsor_status',
   'sponsor_operation',
   'get_stake',
+  'set_backer_share',
   'list_delegations',
   'fee_quote',
   'collect_actions',
