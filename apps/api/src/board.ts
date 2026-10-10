@@ -675,6 +675,7 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
               const ctx: ToolContext = {
                 network: req.env.network,
                 mcpSession: req.mcpSession,
+                rpcUrl: req.env.rpcUrl,
                 ...(commonsToolNames.has(req.tool) ? { commons: commonsHost(req.env) } : {}),
               }
               const toolResult = await tool.run(board, caller, req.args, ctx)

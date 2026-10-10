@@ -38,6 +38,8 @@ export interface ToolContext {
   readonly network: sdk.Network
   readonly mcpSession: string | undefined
   readonly commons?: CommonsHost
+  /** The board's configured RPC, for tools that read chain state (fee_quote's mining fields). */
+  readonly rpcUrl?: string
 }
 
 const str = (description: string) => ({ type: 'string', description })
