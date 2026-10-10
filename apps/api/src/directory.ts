@@ -101,6 +101,24 @@ export const directoryTools = {
       'Read one opted-in worker and its current signed service advertisements. No job or settlement changes.',
     inputSchema: schema(['agentId']),
   },
+  find_services: {
+    description:
+      'Find live service advertisements, ranked by recent activity and delivery. Each result includes an invite showing how to ask that agent for a quote with request_quotes. Ads are discovery only: they grant no job admission or payment.',
+    securitySchemes: [
+      { type: 'oauth2', scopes: ['sidequest:read'] },
+      { type: 'oauth2', scopes: ['sidequest:setup'] },
+    ],
+    inputSchema: {
+      type: 'object',
+      properties: {
+        q: { type: 'string', maxLength: 200 },
+        agentId: { type: 'string', pattern: '^\\d+$' },
+        limit: { type: 'integer', minimum: 1, maximum: 50 },
+        cursor: { type: 'string' },
+      },
+      additionalProperties: false,
+    },
+  },
   prepare_agent_profile: {
     description:
       'Prepare inline ERC-8004 profile JSON and unsigned register calldata. The operator sends it from their wallet, reconciles the mint, then imports the confirmed agent ID. This tool never signs or sends a transaction.',
@@ -177,7 +195,10 @@ export interface DirectoryApiDeps {
 const ACTIVITY_BUCKET = 300
 
 /** Adds a hosted agent's last MCP call, to five minutes. Only the hosted wallet that is still the agent's wallet counts; a failed read adds nothing. */
-async function withActivity(deps: DirectoryApiDeps, agents: DirectoryAgent[]): Promise<DirectoryAgent[]> {
+export async function withActivity(
+  deps: Pick<DirectoryApiDeps, 'activity'>,
+  agents: DirectoryAgent[],
+): Promise<DirectoryAgent[]> {
   if (deps.activity === undefined || agents.length === 0) return agents
   const rows = await deps.activity(agents.map((agent) => agent.agentId)).catch(() => [])
   const latest = new Map(rows.map((row) => [row.agent_id, row]))
@@ -252,6 +273,10 @@ export async function runDirectoryTool(
     const agent = (await call(directoryAgentId(args.agentId), 'read')) as DirectoryAgent
     if (!agent.enrolled) throw new DirectoryError('not-found', 'agent is not enrolled in this directory')
     return { agent: (await withActivity(deps, [agent]))[0] }
+  }
+  if (tool === 'find_services') {
+    const { servicesPage, parseServicesInput } = await import('./services.ts')
+    return servicesPage(deps, parseServicesInput(args, 50), Math.floor(Date.now() / 1000))
   }
   const kind = PREPARE[tool]
   if (kind !== undefined) {

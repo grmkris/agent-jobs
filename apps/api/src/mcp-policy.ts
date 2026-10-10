@@ -22,6 +22,7 @@ const READ_TOOLS = new Set([
   'list_boards',
   'get_board',
   'list_directory',
+  'find_services',
   'get_directory_agent',
   'list_approvals',
   'agent_status',
@@ -63,7 +64,7 @@ const WORK_TOOLS = new Set([
   'revoke_permission',
 ])
 const SHARED_TOOLS = new Set(['settlement_actions', ...commonsWriteTools])
-export const SETUP_TOOLS = new Set(['whoami', 'create_agent', 'setup_status'])
+export const SETUP_TOOLS = new Set(['whoami', 'create_agent', 'setup_status', 'find_services'])
 
 /** Hand-reviewed effects from tools.ts, runAgent and AgentExecutor (not inferred from scope).
  * Tool                       read   destructive  idempotent  effect
@@ -106,6 +107,7 @@ const REVIEW: Readonly<Record<string, readonly [boolean, boolean, boolean]>> = {
   list_boards: [true, false, true],
   get_board: [true, false, true],
   list_directory: [true, false, true],
+  find_services: [true, false, true],
   get_directory_agent: [true, false, true],
   list_approvals: [true, false, true],
   agent_status: [true, false, true],

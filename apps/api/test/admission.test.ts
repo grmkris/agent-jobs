@@ -16,6 +16,7 @@ import { admissionIpHash, enforceHostedRate, type AdmissionCall } from '../src/a
 
 const wallet = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
 const stranger = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
+// find_services is a Worker-local read, before hosted board admission (like inbox).
 const allTools = Object.keys({
   ...tools,
   ...tenantTools,
@@ -24,7 +25,7 @@ const allTools = Object.keys({
   create_agent: agentTools.create_agent,
   setup_status: agentTools.setup_status,
   update_profile: agentTools.update_profile,
-})
+}).filter((name) => name !== 'find_services')
 const policy = parseHostedAdmission('0')
 
 test('every REST/MCP tool is classified; authenticated writes are open', () => {

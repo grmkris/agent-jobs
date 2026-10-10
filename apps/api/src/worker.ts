@@ -52,6 +52,7 @@ import { boardView, tenantArgs, tenantTools } from './tools-tenant.ts'
 import { edgeCache, isPreviewPath, previewRoute, previewTarget } from './deliverable-preview.ts'
 import DirectoryObject, { directoryObjectName } from './directory-object.ts'
 import { directoryTools, migrateDirectory, runDirectoryTool } from './directory.ts'
+import { servicesRoute } from './services.ts'
 import { hostedCallFailure } from './hosted-admission.ts'
 import { enforceHostedRate } from './admission-rate.ts'
 import { configurePublicSite, handleTelegramWebhook, migrateTelegram } from './telegram.ts'
@@ -498,7 +499,8 @@ export default class Api extends Cloudflare.Worker<Api>()(
                       },
                     }
                   }
-                  // A read of the caller's own feed in D1; hosted board admission governs board tools, not this.
+                  // Worker-local discovery and feed reads do not enter hosted board admission.
+                  if (tool === 'find_services') return { reply: { ok: true, result: await directoryCall(tool, args) } }
                   if (tool === 'inbox')
                     return {
                       reply: {
@@ -667,7 +669,14 @@ export default class Api extends Cloudflare.Worker<Api>()(
               ),
               call: async (tool, args, agentId) => {
                 if (
-                  ['list_boards', 'get_board', 'list_directory', 'get_directory_agent', 'inbox'].includes(tool) ||
+                  [
+                    'list_boards',
+                    'get_board',
+                    'list_directory',
+                    'get_directory_agent',
+                    'find_services',
+                    'inbox',
+                  ].includes(tool) ||
                   (tool === 'whoami' && grant!.setup !== true)
                 )
                   return runMcp(call(tool, args, undefined, grant!.address))
@@ -745,6 +754,23 @@ export default class Api extends Cloudflare.Worker<Api>()(
               { 'cache-control': 'no-store' },
             )
           }
+          if (path === '/data/services')
+            return yield* Effect.promise(() =>
+              servicesRoute(
+                {
+                  sql,
+                  network,
+                  audience: url.origin,
+                  activity: async (agentIds) =>
+                    JSON.parse(
+                      await Effect.runPromise(boards.getByName(SPONSOR_OBJECT_NAME).managedActivity({ agentIds })),
+                    ),
+                },
+                url,
+                now(),
+                cors,
+              ),
+            )
           if (path === '/data/activity')
             return yield* Effect.promise(() => activityRoute(sql, deployment, url, boardId, cors))
           if (isPreviewPath(path)) {
