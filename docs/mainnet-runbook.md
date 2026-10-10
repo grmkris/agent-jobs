@@ -354,7 +354,12 @@ Registry the first time. Record every hash in `docs/reality-check.md` under "v1 
 
 ## 4. Mining epochs
 
-Epoch 0 runs 72 h from genesis; each later epoch runs 7 days. After an epoch ends:
+Epoch 0 runs 72 h from genesis; each later epoch runs 7 days. Mining runs rule v2 ([ADR-0020](adr/0020-mining-volume-credit.md))
+from epoch 0: `monad-mainnet.json` must carry `mining.creditRule.fromEpoch` = 0 before the first run. The price list
+may hold only USD-pegged tokens from the config's `usdPegged` list, each priced within 1 % of $1, and SIDE itself only
+at the factory (reference) price. The reference price needs an official pool configured in the same file; see
+`docs/mainnet-gate-findings.md` (G2). Anyone can re-check a published epoch with
+`bun run mining:epoch <n> --recompute <epoch-n.json> --network monad-mainnet`. After an epoch ends:
 1. Compute the epoch with B8 (`scripts/mining/README.md`). A Safe owner signs the epoch's price list (USD per priced
    token, the SIDE reference price):
    `pwcheck ~/.config/sidequest/safe-owner.password && bun scripts/mining/sign-prices.ts <list> --network monad-mainnet

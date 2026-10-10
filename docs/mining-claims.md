@@ -27,6 +27,8 @@ SIDE to either wallet. Claims remain wallet-paid.
 
 Backers can have leaves too. When a worker has set a backer share ([ADR-0018](adr/0018-backer-share.md)), the wallets backing it get leaves for that part of the worker's slice. They are claimed the same way (Collect or `mining_proof`) and land staked in the backer's own pool, never as liquid SIDE.
 
+Dust floors ([ADR-0020](adr/0020-mining-volume-credit.md)): a backer position under 100 SIDE of weight earns no leaf, a backer payment under 1 SIDE stays with the worker, and any leaf under 1 SIDE (a creator's or worker's too) is not created. Such an account has no leaf, so `mining_proof` returns zero allocation for it.
+
 Backing is total SIDE behind an account; a position is one owner's shares.
 Read `get_stake({account, wallet: account})` for backing and the mining self-position,
 or `list_delegations({wallet: account})` for indexed discovery. An operator's separate
