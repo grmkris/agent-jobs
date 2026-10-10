@@ -16,7 +16,7 @@ export async function generateModeratorKey(
   stage = process.env.SIDEQUEST_STAGE ?? 'dev',
   options: KeygenOptions = {},
 ): Promise<string> {
-  const selected = Schema.decodeUnknownSync(Schema.Literals(['local', 'dev', 'prod']))(stage)
+  const selected = Schema.decodeUnknownSync(Schema.String.check(Schema.isPattern(/^[a-z0-9-]+$/u)))(stage)
   const file = path.join(home, '.config', 'sidequest', `${selected}.env`)
   await mkdir(path.dirname(file), { recursive: true, mode: 0o700 })
   const lockPath = `${file}.moderator-keygen.lock`
@@ -48,6 +48,6 @@ if (import.meta.main) {
   const args = process.argv.slice(2)
   const stage = args[0] === '--stage' ? args[1] : (process.env.SIDEQUEST_STAGE ?? 'dev')
   if ((args.length > 0 && args[0] !== '--stage') || (args[0] === '--stage' && args.length !== 2))
-    throw new Error('usage: keygen:moderator [--stage local|dev|prod]')
+    throw new Error('usage: keygen:moderator [--stage <stage>]')
   await generateModeratorKey(homedir(), stage)
 }
