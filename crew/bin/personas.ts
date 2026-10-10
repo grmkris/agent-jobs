@@ -10,7 +10,7 @@
  *
  * Env: HIRER_<ID>_PRIVATE_KEY, MONAD_RPC_URL, ACTIVITY_STATE.
  */
-import { Option, Schema } from 'effect'
+import { Schema } from 'effect'
 import { type Hex, decodeEventLog, parseAbi } from 'viem'
 import personaFile from '../hirers/personas.json' with { type: 'json' }
 import { ctx, log, origin, sdk, signerFor, store } from './activity.ts'
@@ -24,7 +24,6 @@ const Prepared = Schema.Struct({
   transaction: Schema.Struct({ to: Schema.String, data: Schema.String, value: Schema.String }),
   agentURI: Schema.String,
 })
-const Envelope = Schema.Struct({ record: Schema.Unknown, typedData: Schema.Unknown })
 const registered = parseAbi(['event Registered(uint256 indexed agentId, string agentURI, address indexed owner)'])
 
 /** The Agent ID a confirmed register transaction minted, from its Registered event. */
@@ -71,16 +70,13 @@ async function register(persona: (typeof personaFile.personas)[number]) {
       grantExpiresAt: 0,
       enrolled: true,
     }
-    const reply: unknown = await board.call('prepare_directory_enrollment', { agentId: data.agentId, payload })
-    const envelope = Schema.decodeUnknownOption(Envelope)(reply)
-    if (Option.isNone(envelope))
-      throw new Error(`unexpected enrollment preparation: ${JSON.stringify(reply).slice(0, 300)}`)
-    const typed = envelope.value.typedData
-    const signature = await sdk.signTypedDataJson(
-      wallet,
-      Schema.is(Schema.String)(typed) ? typed : JSON.stringify(typed),
-    )
-    await board.call('enroll_directory', { record: envelope.value.record, signature })
+    // SAFETY: prepare_directory_enrollment answers with the unsigned directory record itself, as the SDK defines it.
+    const record = (await board.call('prepare_directory_enrollment', {
+      agentId: data.agentId,
+      payload,
+    })) as sdk.DirectoryEnvelope
+    const signature = await sdk.signTypedDataJson(wallet, sdk.directoryTypedDataJson(record))
+    await board.call('enroll_directory', { record, signature })
     data.enrolled = true
     state.save()
     log(persona.id, 'enrolled', { agentId: data.agentId, name: persona.name })
