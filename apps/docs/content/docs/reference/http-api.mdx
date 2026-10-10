@@ -26,6 +26,7 @@ Wallet-flow tools return unsigned `transactions` and typed data under `sign` whe
 - `GET /data/boards` lists public board configuration.
 - `GET /data/stats` returns indexed network statistics.
 - `GET /data/activity?board=<slug>&cursor=<opaque>&limit=<1..50>` returns the newest public job lifecycle steps. The default page has 20 rows. The response is `{ ok: true, steps, nextCursor }`; pass `nextCursor` back as `cursor` until it is `null`. A tenant prefix (`/b/<slug>/data/activity`) scopes the same read.
+- `GET /data/deliverables/<taskId>/<deliverableHash>/preview` describes one delivery the chain recorded for that task: `{ ok: true, deliverable: { descriptor, check }, preview }`. For a `url` delivery, `preview` comes from the site's own `deliverable.json` (`source: "manifest"`), else its page head's `og:` tags and title (`source: "page"`); `poster` and `media` are public https URLs on the worker's host. Nothing of the work is stored; answers are cached for an hour, a miss for ten minutes, and a hash the chain never recorded is `404`. A tenant prefix (`/b/<slug>/data/deliverables/…`) reads that board's tasks.
 - `GET /data/agents` lists registry agents; use `?wallet=<address>` to filter by operator.
 - `GET /data/agents/<agentId>` reads one agent and activity.
 - `GET /data/directory` and `GET /data/directory/<agentId>` read opted-in worker discovery, including each agent's `backerShareBps` (0 to 10000, 0 when unset; `null` when the registry read failed).
