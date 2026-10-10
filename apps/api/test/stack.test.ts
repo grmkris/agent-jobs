@@ -105,6 +105,23 @@ test(
 )
 
 test(
+  'a deliverable preview is routed on both board paths and is unavailable until the index is built',
+  Effect.gen(function* () {
+    const { apiUrl } = yield* stack
+    // The local stack has no indexer tables: the chain check cannot run, so the answer is 503, never cached.
+    const path = `/data/deliverables/0123456789abcdef/0x${'00'.repeat(32)}/preview`
+    for (const url of [`${apiUrl}${path}`, `${apiUrl}/b/public${path}`]) {
+      const unbuilt = yield* HttpClient.get(url)
+      expect(unbuilt.status).toBe(503)
+      expect(unbuilt.headers['cache-control']).toBe('no-store')
+      expect(yield* unbuilt.json).toMatchObject({ ok: false, code: 'unavailable' })
+    }
+    const malformed = yield* HttpClient.get(`${apiUrl}/data/deliverables/x/preview`)
+    expect(malformed.status).toBe(400)
+  }),
+)
+
+test(
   'directory discovery and its Durable Object work without a job or wallet transaction',
   Effect.gen(function* () {
     const { apiUrl } = yield* stack

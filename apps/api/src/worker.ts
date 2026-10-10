@@ -46,8 +46,10 @@ import {
   migrateRegistry,
   recordOffer,
   recentJobSteps,
+  submittedDeliverable,
 } from './registry.ts'
 import { boardView, tenantArgs, tenantTools } from './tools-tenant.ts'
+import { edgeCache, isPreviewPath, previewRoute, previewTarget } from './deliverable-preview.ts'
 import DirectoryObject, { directoryObjectName } from './directory-object.ts'
 import { directoryTools, migrateDirectory, runDirectoryTool } from './directory.ts'
 import { hostedCallFailure } from './hosted-admission.ts'
@@ -736,6 +738,34 @@ export default class Api extends Cloudflare.Worker<Api>()(
           }
           if (path === '/data/activity')
             return yield* Effect.promise(() => activityRoute(sql, deployment, url, boardId, cors))
+          if (isPreviewPath(path)) {
+            const target = previewTarget(path)
+            if (target === null)
+              return json(
+                {
+                  ok: false,
+                  code: 'invalid',
+                  message: 'expected /data/deliverables/<taskId>/<deliverableHash>/preview',
+                },
+                400,
+              )
+            const run = Effect.runPromiseWith(yield* Effect.context<RuntimeContext>())
+            const site = new URL(yield* Config.String('PUBLIC_ORIGIN')).host
+            const prefix = routed === null ? '' : `/b/${boardId}`
+            return yield* Effect.promise(() =>
+              previewRoute(
+                { ...target, key: `${url.origin}${prefix}${path}?v=1`, cors },
+                {
+                  submitted: (taskId, hash) =>
+                    submittedDeliverable(sql, deployment, { boardId: tenant.id, taskId, hash }),
+                  task: (taskId) => run(call('get_task', { taskId })),
+                  fetch: (input, init) => fetch(input, init),
+                  cache: edgeCache(),
+                  selfHosts: [url.host, site],
+                },
+              ),
+            )
+          }
           const body = yield* Effect.promise(async () => {
             try {
               if (path === '/data/boards') {

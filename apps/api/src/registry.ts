@@ -216,6 +216,27 @@ export async function jobsOfBoard(
   )
 }
 
+/**
+ * Whether the chain recorded `hash` as the current delivery of the job made from this board's task: the preview route
+ * reads nothing for a hash the chain never saw.
+ */
+export async function submittedDeliverable(
+  sql: AsyncSql,
+  deployment: Deployment,
+  q: { boardId: string; taskId: string; hash: string },
+): Promise<boolean> {
+  const configured = configuredJobs(deployment, 'j')
+  const rows = await sql.all<{ hit: number }>(
+    `SELECT 1 AS hit FROM jobs j JOIN board_offers o ON lower(${OFFER_HASH_SQL}) = o.terms_hash WHERE j.chain_id = ? AND o.board_id = ? AND o.task_id = ? AND lower(j.deliverable) = ? AND ${configured.clause} LIMIT 1`,
+    deployment.chainId,
+    q.boardId,
+    q.taskId,
+    q.hash.toLowerCase(),
+    ...configured.params,
+  )
+  return rows.length > 0
+}
+
 export interface RecentJobStep {
   readonly jobId: string
   readonly step: JobStep
