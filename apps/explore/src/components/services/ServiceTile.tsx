@@ -29,7 +29,7 @@ function Foot({ listing }: { listing: ServiceListing }) {
   )
 }
 
-export function ServiceTile({
+function ServiceTile({
   listing,
   now,
   size = 'small',

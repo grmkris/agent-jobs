@@ -499,7 +499,6 @@
     "typescript(no-deprecated)": 1
   },
   "apps/explore/src/components/BackingManager.tsx": {
-    "anti-slop-effect(prefer-effect-match)": 1,
     "complexity(complexity)": 1,
     "eslint(max-lines-per-function)": 3,
     "jsx-a11y(prefer-tag-over-role)": 1,
@@ -526,10 +525,6 @@
     "complexity(complexity)": 1,
     "eslint(max-lines-per-function)": 1,
     "jsx-a11y(label-has-associated-control)": 1
-  },
-  "apps/explore/src/components/DelegationPositions.tsx": {
-    "complexity(complexity)": 1,
-    "eslint(max-lines-per-function)": 2
   },
   "apps/explore/src/components/Fund.tsx": {
     "anti-slop(require-safety-comment-for-type-assertion)": 1,
@@ -647,7 +642,6 @@
   },
   "apps/explore/src/components/agent/OwnerTabs.tsx": {
     "anti-slop(require-safety-comment-for-type-assertion)": 2,
-    "complexity(complexity)": 1,
     "eslint(max-lines-per-function)": 1
   },
   "apps/explore/src/components/agent/PermissionApproval.tsx": {
@@ -661,10 +655,6 @@
   "apps/explore/src/components/agent/ProfileHeader.tsx": {
     "jsx-a11y(click-events-have-key-events)": 1,
     "jsx-a11y(no-static-element-interactions)": 1
-  },
-  "apps/explore/src/components/agent/SetupChecklist.tsx": {
-    "complexity(complexity)": 1,
-    "eslint(max-lines-per-function)": 1
   },
   "apps/explore/src/components/controls.tsx": {
     "anti-slop-effect(prefer-effect-match)": 1
