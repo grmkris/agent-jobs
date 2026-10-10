@@ -5,6 +5,9 @@ import { fromNodeSqlite, migrate, stmt } from '@sidequest/indexer'
 import { boardFeedEvents, recordBoardEvent } from '../src/feed-board.ts'
 import { readInbox } from '../src/feed.ts'
 import { migrateTelegram } from '../src/telegram.ts'
+import { McpEvents } from '../src/mcp-events.ts'
+import { deliverWebhooks, type WebhookFetch } from '../src/webhooks.ts'
+import type { OAuthGrant } from '../src/oauth.ts'
 
 const creator = '0x1111111111111111111111111111111111111111'
 const worker = '0x2222222222222222222222222222222222222222'
@@ -93,6 +96,114 @@ describe('board feed hook', () => {
         url: 'https://dev.sidequest.exchange/job/42',
       }),
     ])
+  })
+
+  it('notifies the invited quote bidder when the public request opens', async () => {
+    const { board } = await setup()
+    board.run('UPDATE quote_requests SET invited_agent = ?, invited_wallet = ? WHERE id = ?', '9', worker, 'r1')
+    expect(boardFeedEvents(board, call('request_quotes', {}, { requestId: 'r1' }))).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'board:public:request:r1:invited',
+          address: worker,
+          kind: 'quote.invited',
+          role: 'invited',
+          summary: 'You were invited to quote on request r1.',
+          url: 'https://dev.sidequest.exchange/request/r1',
+          next: { tool: 'submit_quote', args: { requestId: 'r1' } },
+        }),
+      ]),
+    )
+    const events = boardFeedEvents(board, {
+      ...call('request_quotes', { invite: { agentId: 'wrong' } }, { requestId: 'r1' }),
+      boardId: 'team',
+    })
+    expect(events).toHaveLength(3)
+    expect(events.filter((event) => event.kind === 'request.opened').map((event) => event.address)).toEqual([
+      '*',
+      creator,
+    ])
+    expect(events[2]).toMatchObject({
+      id: 'board:team:request:r1:invited',
+      address: worker,
+      url: 'https://dev.sidequest.exchange/b/team/request/r1',
+    })
+    expect(JSON.stringify(events)).not.toMatch(/secret brief|wrong/)
+  })
+
+  it('replays the invitation once in the inbox and Telegram, using the stored wallet', async () => {
+    const { board, d1 } = await setup()
+    board.run('UPDATE quote_requests SET invited_agent = ?, invited_wallet = ? WHERE id = ?', '9', worker, 'r1')
+    const input = call('request_quotes', { invite: { agentId: 'wrong' } }, { requestId: 'r1' })
+    await recordBoardEvent(board, d1, input)
+    await recordBoardEvent(board, d1, input)
+    const inbox = await readInbox(d1, { network, address: worker, kinds: ['quote.invited'], now })
+    expect(inbox.events).toEqual([
+      expect.objectContaining({ kind: 'quote.invited', requestId: 'r1', role: 'invited', public: false }),
+    ])
+    expect(await d1.all('SELECT id, chat_id, text FROM telegram_outbox')).toEqual([
+      {
+        id: 'telegram:board:public:request:r1:invited',
+        chat_id: 'chat-worker',
+        text: 'You were invited to quote on request r1. https://dev.sidequest.exchange/request/r1',
+      },
+    ])
+    expect((await readInbox(d1, { network, address: creator, kinds: ['quote.invited'], now })).events).toEqual([])
+  })
+
+  it('passes quote.invited through MCP inbox polling and subscribed webhook delivery', async () => {
+    const { board, d1 } = await setup()
+    board.run('UPDATE quote_requests SET invited_agent = ?, invited_wallet = ? WHERE id = ?', '9', worker, 'r1')
+    const deliveries: unknown[] = []
+    const transport: WebhookFetch = async (url, init) => {
+      const target = url instanceof Request ? new URL(url.url) : new URL(url)
+      if (target.origin === 'https://cloudflare-dns.com') {
+        const type = target.searchParams.get('type')
+        return Response.json({ Status: 0, Answer: type === 'A' ? [{ type: 1, data: '203.0.113.10' }] : [] })
+      }
+      // SAFETY: webhook verification and challenge payloads are the only JSON values this test transport returns.
+      const body = (await new Response(init?.body).json()) as { type?: string; challenge?: string }
+      if (body.type === 'verification') return Response.json({ challenge: body.challenge })
+      deliveries.push(body)
+      return new Response(null, { status: 204 })
+    }
+    const grant: OAuthGrant = {
+      owner: creator,
+      address: worker,
+      chainId: 10143,
+      scopes: ['sidequest:read'],
+      agentIds: ['a1'],
+      registryAgentId: '9',
+      resource: 'https://dev.sidequest.exchange/mcp',
+      clientId: 'client',
+    }
+    const events = new McpEvents(d1, network, { now: () => now, fetch: transport })
+    expect(await events.handle('events/list', {}, grant)).toMatchObject({
+      events: expect.arrayContaining([
+        expect.objectContaining({ name: 'sidequest.inbox', delivery: ['poll', 'webhook'] }),
+      ]),
+    })
+    const params = { name: 'sidequest.inbox', arguments: { kinds: ['quote.invited'] }, cursor: 'v1:0' }
+    await events.handle(
+      'events/subscribe',
+      {
+        ...params,
+        delivery: { mode: 'webhook', url: 'https://events.example/cb', secret: `whsec_${btoa('x'.repeat(32))}` },
+      },
+      grant,
+    )
+    await recordBoardEvent(board, d1, call('request_quotes', {}, { requestId: 'r1' }))
+    const occurrence = expect.objectContaining({
+      name: 'sidequest.inbox',
+      data: expect.objectContaining({
+        kind: 'quote.invited',
+        requestId: 'r1',
+        next: { tool: 'submit_quote', args: { requestId: 'r1' } },
+      }),
+    })
+    expect(await events.handle('events/poll', params, grant)).toMatchObject({ events: [occurrence] })
+    await deliverWebhooks(d1, network, now, { fetch: transport })
+    expect(deliveries).toEqual([occurrence])
   })
 
   it('writes the inbox and the moved Telegram notice once, and swallows its own failures', async () => {

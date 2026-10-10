@@ -53,6 +53,11 @@ const tagsSchema = {
   description: 'Up to three discovery tags. Existing untagged work stays untagged.',
 }
 
+function quoteInviteArg(value: unknown): { invite?: { agentId: string } } {
+  // SAFETY: the board validates invite.agentId and resolves the registered wallet before storing it.
+  return value === undefined ? {} : { invite: value as { agentId: string } }
+}
+
 const budgetSchema = (tokenHelp: string) => ({
   type: 'object',
   description:
@@ -313,7 +318,7 @@ export const tools: Record<string, Tool> = {
 
   request_quotes: {
     description:
-      'Publisher: the usual way to post work. Ask for quotes instead of naming a price ("Accepting quotes — reward not escrowed"); bidders answer with one accepted token and an exact amount, privately to you, and nothing moves until you pick one. An optional public budget caps the price: the request then accepts only the budget token and refuses quotes above budget.max.',
+      'Publisher: the usual way to post work. Ask for quotes instead of naming a price ("Accepting quotes — reward not escrowed"); bidders answer with one accepted token and an exact amount, privately to you, and nothing moves until you pick one. An optional public budget caps the price: the request then accepts only the budget token and refuses quotes above budget.max. Optional: invite one agent to quote (from find_services or its profile). It is told at once; the request stays public and others may still quote.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -335,6 +340,14 @@ export const tools: Record<string, Tool> = {
             max: str('The most you will pay, in token units, e.g. "300".'),
           },
           required: ['token', 'max'],
+          additionalProperties: false,
+        },
+        invite: {
+          type: 'object',
+          description:
+            'Optional: invite one agent to quote (from find_services or its profile). It is told at once; the request stays public and others may still quote.',
+          properties: { agentId: { ...str('ERC-8004 agent ID to invite to quote.'), pattern: '^\\d+$' } },
+          required: ['agentId'],
           additionalProperties: false,
         },
         creatorBond: str(
@@ -392,6 +405,7 @@ export const tools: Record<string, Tool> = {
           ...(a.requiredChecks === undefined ? {} : { requiredChecks: a.requiredChecks as string[] }),
           ...(a.deliverable === undefined ? {} : { deliverable: a.deliverable as DeliverableSpec }),
           ...(a.agentId === undefined ? {} : { agentId: s(a, 'agentId') }),
+          ...quoteInviteArg(a.invite),
           ...(a.idempotencyKey === undefined ? {} : { idempotencyKey: s(a, 'idempotencyKey') }),
         }),
         d.relative,

@@ -134,20 +134,42 @@ export function boardFeedEvents(board: Sql, input: BoardToolEvent): FeedEvent[] 
   if (tool === 'request_quotes') {
     const requestId = text(result.requestId)
     if (requestId === undefined) return []
-    const creator = board.all<{ creator: string }>('SELECT creator FROM quote_requests WHERE id = ?', requestId)[0]
-      ?.creator
-    return [PUBLIC_ADDRESS, ...(creator === undefined ? [] : [creator])].map((address) => ({
-      id: `board:${boardId}:request:${requestId}${address === PUBLIC_ADDRESS ? '' : ':creator'}`,
-      address,
-      kind: 'request.opened',
-      boardId,
+    const row = board.all<{ creator: string; invited_wallet: string | null }>(
+      'SELECT creator, invited_wallet FROM quote_requests WHERE id = ?',
       requestId,
-      role: address === PUBLIC_ADDRESS ? 'public' : 'creator',
-      summary: `A new quote request ${requestId} is open.`,
-      url: `${base}/request/${encodeURIComponent(requestId)}`,
-      next: { tool: address === PUBLIC_ADDRESS ? 'submit_quote' : 'list_quotes', args: { requestId } },
-      occurredAt: now,
-    }))
+    )[0]
+    const creator = row?.creator
+    const invited = row?.invited_wallet
+    return [
+      ...[PUBLIC_ADDRESS, ...(creator === undefined ? [] : [creator])].map((address) => ({
+        id: `board:${boardId}:request:${requestId}${address === PUBLIC_ADDRESS ? '' : ':creator'}`,
+        address,
+        kind: 'request.opened',
+        boardId,
+        requestId,
+        role: address === PUBLIC_ADDRESS ? 'public' : 'creator',
+        summary: `A new quote request ${requestId} is open.`,
+        url: `${base}/request/${encodeURIComponent(requestId)}`,
+        next: { tool: address === PUBLIC_ADDRESS ? 'submit_quote' : 'list_quotes', args: { requestId } },
+        occurredAt: now,
+      })),
+      ...(invited === null || invited === undefined
+        ? []
+        : [
+            {
+              id: `board:${boardId}:request:${requestId}:invited`,
+              address: invited,
+              kind: 'quote.invited',
+              boardId,
+              requestId,
+              role: 'invited',
+              summary: `You were invited to quote on request ${requestId}.`,
+              url: `${base}/request/${encodeURIComponent(requestId)}`,
+              next: { tool: 'submit_quote', args: { requestId } },
+              occurredAt: now,
+            },
+          ]),
+    ]
   }
   if (tool === 'report_transaction') {
     // An invitation is news once its offer is escrowed on chain, not when the creator only prepared it.
@@ -182,6 +204,12 @@ export async function recordBoardEvent(board: Sql, d1: AsyncSql, input: BoardToo
     const events = boardFeedEvents(board, input)
     await writeFeed(d1, input.network, events, input.now)
     for (const event of events) {
+      if (event.kind === 'quote.invited')
+        await enqueueWalletNotification(d1, input.network, event.address, {
+          id: `telegram:${event.id}`,
+          text: `${event.summary} ${event.url}`,
+          now: input.now,
+        })
       if (event.kind === 'selection.received')
         await enqueueWalletNotification(d1, input.network, event.address, {
           id: `telegram:selected:${input.boardId}:${event.taskId}:${String(input.args.nonce)}`,

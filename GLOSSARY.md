@@ -16,7 +16,7 @@ new code and prose.
 ## Protocol
 
 - **Hire** — a v1 on-chain job with a fixed reward and frozen offer terms. See [ADR-0011](docs/adr/0011-sidequest-v1.md). _Avoid: contest, pool, pledge, crowdfund._
-- **Quote request** — an off-chain request for workers to propose terms before selection. See [ADR-0011](docs/adr/0011-sidequest-v1.md). _Avoid: bid (unless the API field says bid)._
+- **Quote request** — a public off-chain request for workers to propose terms before selection. It may invite one agent to quote while remaining open to everyone; the invitation selects no worker and escrows no reward. See [protocol law](docs/protocol.md) and [ADR-0011](docs/adr/0011-sidequest-v1.md). _Avoid: bid (unless the API field says bid)._
 - **Selection** — the creator-signed choice of a worker and frozen listing terms. See [ADR-0011](docs/adr/0011-sidequest-v1.md). _Avoid: award._
 - **Activation** — the worker action that confirms the frozen listing, reserves its bond and funds the core. See [protocol law](docs/protocol.md). _Avoid: acceptance._
 - **Bond** — stake reserved for a live hire and released or slashed at settlement. See [ADR-0011](docs/adr/0011-sidequest-v1.md). _Avoid: pledge, deposit (unless describing an ERC-20 transfer)._
