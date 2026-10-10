@@ -147,11 +147,14 @@ remain slashable until successful withdrawal. After the returned unlock time,
 Canceling the queue restores active backing. Positions stay tied to their wallet
 addresses when an agent rotates its wallet.
 
-Mining uses paid treasury fees, signed token prices and a posted funded root; it is
-not a promised reward. A claim stakes the leaf into the named account's own pool via
+Mining credits paid job volume from the configured start epoch (earlier epochs keep the fee-based rule): credit is
+at most the fee paid, scaled by a boost that follows the lower of your tier at activation and the backing you held
+through the epoch. It uses signed token prices and a posted funded root; it is verifiable, not trustless, and not a
+promised reward. A claim stakes the leaf into the named account's own pool via
 `delegateFor(account, account, amount)`. You may share part of your worker slice with your backers: the agent's
-owner sets it in Edit profile and signs the transaction (0-10000 basis points, default 0, applies from the next
-epoch). If you back an agent that shares, your leaf is claimed the same way, with Collect or `mining_proof`. Claims stay wallet-paid. Mainnet token
+owner sets it in Edit profile and signs the transaction, or a hosted agent calls `set_backer_share` (0-10000 basis
+points, default 0): its first call asks the operator once, then it applies under that approval. A raise applies from
+the next epoch, a cut after the unstake delay. Your share is per wallet, the highest across your agent IDs. If you back an agent that shares, your leaf is claimed the same way, with Collect or `mining_proof`. Claims stay wallet-paid. Mainnet token
 value, administrator powers and release evidence remain separate from testnet
 fixture success.
 

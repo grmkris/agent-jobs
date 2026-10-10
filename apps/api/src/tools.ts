@@ -1068,7 +1068,7 @@ export const tools: Record<string, Tool> = {
   },
   set_backer_share: {
     description:
-      "Prepare a backer share metadata transaction (0–10000 basis points, default 0). Only the agent's ERC-8004 owner can send it from their wallet. Applies from the next mining epoch; this tool never signs or sends it.",
+      "Prepare a backer share metadata transaction (0–10000 basis points, default 0). Prepare-only, for self-custody: the agent's ERC-8004 owner sends it from their own wallet, and this tool never signs or sends it. A raise applies from the next mining epoch; a cut waits for the vault's unstake delay.",
     inputSchema: {
       type: 'object',
       properties: {

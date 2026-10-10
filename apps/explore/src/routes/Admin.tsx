@@ -1282,7 +1282,7 @@ function Prices({ c, me }: { c: SidequestContracts; me: Address }) {
   return (
     <Section
       title="Mining prices"
-      note="Each epoch’s fees are valued in USD from a price list a Safe owner signs. bun run mining:epoch --prices takes the file signed here; fees in a token with no price do not count."
+      note="Each epoch’s fees are valued in USD from a price list a Safe owner signs. bun run mining:epoch --prices takes the file signed here; fees in a token with no price do not count. SIDE may be listed only at the SIDE reference price, and on mainnet only USD-pegged tokens within 1 % of $1."
     >
       {reserve.isError || decimals.isError ? (
         <Unavailable retry={() => void Promise.all([reserve.refetch(), decimals.refetch()])} />

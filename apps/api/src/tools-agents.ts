@@ -30,7 +30,7 @@ export const agentTools = {
   },
   set_backer_share: {
     description:
-      'Set this connected agent’s backer share (0–10000 basis points): the part of its work-mining reward paid to its backers. Uses a live standing permission or returns approval and approveUrl for the operator. Retry identical bps with the same operationKey. A raise applies next epoch; a cut waits for the deployed unstake delay.',
+      'Set this connected agent’s backer share (0–10000 basis points): the part of its work-mining reward paid to its backers. The first call asks the operator once (it returns approval and approveUrl); after that approval it applies under the standing permission, which allows only this agent’s share. Retry identical bps with the same operationKey. A raise applies next epoch; a cut waits for the deployed unstake delay.',
     inputSchema: {
       type: 'object',
       properties: {
