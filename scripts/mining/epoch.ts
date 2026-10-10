@@ -31,12 +31,15 @@ async function dispatch() {
   if (rpc === undefined || rpc === '') throw new Error('set --rpc or the selected network RPC variable')
   const pageArg = flag('page') ?? '1000'
   if (!/^[1-9][0-9]*$/.test(pageArg)) throw new Error('--page takes a positive number of blocks')
+  const checkpointDir = flag('checkpoint-dir')
   const options: Omit<EpochOptions, 'pricesFile' | 'previousFile'> = {
     epoch,
     network,
     config,
     rpc,
     page: BigInt(pageArg),
+    ...(checkpointDir === undefined ? {} : { checkpointDir }),
+    ...(argv.includes('--from-genesis') ? { fromGenesis: true } : {}),
   }
   const recompute = flag('recompute')
   if (recompute !== undefined) {
