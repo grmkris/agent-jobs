@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { deliveryHref, deliveryWhere, gitTree, hostOf, httpUrl, repoName } from './delivery.ts'
+import {
+  checkState,
+  deliveryHref,
+  deliveryTime,
+  deliveryWhere,
+  gitTree,
+  hostOf,
+  httpUrl,
+  repoName,
+} from './delivery.ts'
 
 const sha = 'a'.repeat(40)
 const tx = `0x${'b'.repeat(64)}`
@@ -56,5 +65,27 @@ describe('the delivery in a few words', () => {
     expect(deliveryWhere({ kind: 'onchain', chainId: 10143, address: `0x${'d'.repeat(40)}` })).toBe(
       'contract 0xdddddddd…',
     )
+  })
+})
+
+describe('how the work went', () => {
+  it('times the work from the hire to the latest delivery', () => {
+    const steps = [
+      { step: 'posted', at: 100 },
+      { step: 'hired', at: 160 },
+      { step: 'delivered', at: 400 },
+      { step: 'rejected', at: 500 },
+      { step: 'delivered', at: 9000 },
+    ]
+    expect(deliveryTime(steps)).toBe(8840)
+    expect(deliveryTime(steps.slice(0, 2))).toBeNull()
+    expect(deliveryTime([{ step: 'delivered', at: 5 }])).toBeNull()
+  })
+
+  it("says the board's check in one word", () => {
+    expect(checkState(null)).toBeNull()
+    expect(checkState({ ok: true, detail: 'HTTP 200', checkedAt: 1 })).toBe('ok')
+    expect(checkState({ ok: false, detail: 'HTTP 404', checkedAt: 1 })).toBe('failed')
+    expect(checkState({ ok: null, detail: 'unverified host', checkedAt: 1 })).toBe('unchecked')
   })
 })

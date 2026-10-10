@@ -2,7 +2,7 @@
  * What a delivery is and where it opens (ADR-0006: a git commit, a patch, a file, a live URL or an on-chain result),
  * in words the job page, the activity rows and the receipt card share.
  */
-import type { Deliverable } from './api.ts'
+import type { Deliverable, DeliverableCheck } from './api.ts'
 import { explorer } from './wallet.ts'
 
 /** An `ipfs://` link through a public gateway; any other URL as given. */
@@ -79,3 +79,14 @@ export function deliveryWhere(d: Deliverable): string {
       return d.txHash === undefined ? `contract ${(d.address ?? '').slice(0, 10)}…` : `tx ${d.txHash.slice(0, 10)}…`
   }
 }
+
+/** How long the work took: from the hire to the delivery, in seconds; null without both steps loaded. */
+export function deliveryTime(steps: ReadonlyArray<{ step: string; at: number | null }>): number | null {
+  const hired = steps.find((s) => s.step === 'hired')?.at
+  const delivered = steps.findLast((s) => s.step === 'delivered')?.at
+  return hired == null || delivered == null || delivered < hired ? null : delivered - hired
+}
+
+/** The submission check in one word: verified, failed, or not checkable (an unknown host, a chain the board can't read). */
+export const checkState = (check: DeliverableCheck | null): 'ok' | 'failed' | 'unchecked' | null =>
+  check === null ? null : check.ok === true ? 'ok' : check.ok === false ? 'failed' : 'unchecked'

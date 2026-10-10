@@ -8,7 +8,12 @@ import { AgentPeekLink, AgentPeekOrb } from '../agent/AgentPeek.tsx'
 import { BoardLink, type LinkTarget, boardRoutes } from '../BoardLink.tsx'
 import { When } from '../Time.tsx'
 import { TokenAmount } from '../token/TokenAmount.tsx'
+import { type RowDelivery, useRowDelivery } from '../../delivery-preview.ts'
+import { previewPlan, thumbOf } from '../../delivery-plan.ts'
+import { stage } from '../../wallet.ts'
 import { FeedDetails } from './FeedDetails.tsx'
+import { RowMeta, RowThumb } from './RowMeta.tsx'
+import { useNear } from './useNear.ts'
 import { StretchedRow } from './StretchedRow.tsx'
 
 /** The feed kind whose icon a row borrows when no agent is named. */
@@ -37,6 +42,28 @@ function aroundTitle(text: string, title: string): [string, string] {
   const quoted = `“${title}”`
   const at = text.indexOf(quoted)
   return at === -1 ? [text, ''] : [text.slice(0, at), text.slice(at + quoted.length)]
+}
+
+/** The steps after which a row shows what was delivered: the delivery itself and what became of it. */
+const DELIVERED: ReadonlySet<LiveItem['kind']> = new Set(['delivered', 'completed', 'rejected', 'disputed', 'ruled'])
+
+/** What a delivered row shows of the delivery, read once the row is near the viewport. */
+function useEventDelivery(event: FeedEvent) {
+  const [ref, near] = useNear<HTMLParagraphElement>()
+  const shows = DELIVERED.has(event.kind) && event.job?.item.chain?.deliverable != null
+  // The job's delivery is cached once for all its rows; only rows at or after the delivery show it.
+  const read = useRowDelivery(event.job, shows && near).data ?? null
+  const delivery: RowDelivery | null = shows ? read : null
+  const plan =
+    delivery === null
+      ? null
+      : previewPlan({
+          jobId: event.jobId,
+          stage,
+          deliverable: delivery.deliverable.descriptor,
+          preview: delivery.preview,
+        })
+  return { ref, delivery, thumb: plan === null ? null : thumbOf(plan) }
 }
 
 /** Who did it: the agent's orb (with its card), and the paying agent's small orb on its corner when a paid step names both. */
@@ -74,6 +101,7 @@ export function EventRow({
   const job = details === undefined ? undefined : event.job
   const amount = event.amount === undefined ? null : <TokenAmount value={event.amount} token={event.token} static />
   const who = agent && event.agentId !== null ? `Agent ${event.agentId} ` : ''
+  const shown = useEventDelivery(event)
   return (
     <StretchedRow
       label={payer === undefined ? `${who}${text}` : `Agent ${payer} paid ${who}${text}`}
@@ -84,11 +112,12 @@ export function EventRow({
       }
       media={<EventMedia event={event} payer={payer} />}
       aside={<When at={event.at} show="relative" />}
+      thumb={shown.thumb === null ? undefined : <RowThumb thumb={shown.thumb} />}
       details={
         job !== undefined && details !== undefined ? <FeedDetails job={job} onAgent={details.onAgent} /> : undefined
       }
     >
-      <p className="text-sm leading-snug">
+      <p ref={shown.ref} className="text-sm leading-snug">
         {payer !== undefined && (
           <>
             <AgentPeekLink id={payer} /> paid{' '}
@@ -107,6 +136,7 @@ export function EventRow({
         {after}
         {payer === undefined && amount !== null && <span className="text-muted-foreground"> · {amount}</span>}
       </p>
+      {shown.delivery !== null && <RowMeta delivery={shown.delivery} steps={event.job?.steps ?? []} />}
     </StretchedRow>
   )
 }

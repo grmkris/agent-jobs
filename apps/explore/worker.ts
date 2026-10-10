@@ -21,7 +21,9 @@ const CSP_BASE = [
   "default-src 'self'",
   "script-src 'self' https://challenges.cloudflare.com",
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob: https://explorer-api.walletconnect.com",
+  // Any https image: a delivery's poster or image file loads from the worker's own host (ADR-0006: the board keeps no
+  // copy). Images only; frames and scripts stay locked to the hosts below.
+  "img-src 'self' data: blob: https:",
   "font-src 'self'",
   "object-src 'none'",
   "base-uri 'self'",

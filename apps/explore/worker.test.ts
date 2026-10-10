@@ -277,6 +277,16 @@ describe('Explore docs worker', () => {
       expect(res.headers.get('content-security-policy')).not.toContain('nonce-')
       expect(res.headers.get('x-frame-options')).toBe('DENY')
     }
+    // Delivery posters load from the worker's host: any https image, never a frame or a script from it.
+    const policy = (await docsRequest('/jobs')).headers.get('content-security-policy')!
+    const directive = (name: string) =>
+      policy
+        .split(';')
+        .find((part) => part.trim().startsWith(`${name} `))!
+        .trim()
+    expect(directive('img-src')).toBe("img-src 'self' data: blob: https:")
+    expect(directive('frame-src')).not.toContain('https: ')
+    expect(directive('script-src')).toBe("script-src 'self' https://challenges.cloudflare.com")
     const guide = await docsRequest('/start.md', {}, env({ '/start.md': '# Start\n{{SIDEQUEST_ORIGIN}}/mcp' }))
     expect(await guide.text()).toBe('# Start\nhttps://dev.sidequest.exchange/mcp')
   })

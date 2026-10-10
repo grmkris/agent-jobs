@@ -17,6 +17,7 @@ export function StretchedRow({
   media,
   children,
   aside,
+  thumb,
   details,
 }: {
   /** The control's accessible name. */
@@ -25,6 +26,8 @@ export function StretchedRow({
   media: ReactNode
   children: ReactNode
   aside?: ReactNode
+  /** A small picture of what the row is about, between its text and its aside. */
+  thumb?: ReactNode
   details?: ReactNode
 }) {
   const id = useId()
@@ -49,6 +52,7 @@ export function StretchedRow({
         <div className="pointer-events-none relative flex min-w-0 items-start gap-3 px-4 py-3 [&_a]:pointer-events-auto [&_a]:relative [&_a]:z-10">
           <span className="shrink-0">{media}</span>
           <div className="grid min-w-0 flex-1 gap-1">{children}</div>
+          {thumb}
           <span className="flex shrink-0 items-start gap-1.5 text-ui text-muted-foreground">
             {aside}
             {action.kind === 'toggle' && (
