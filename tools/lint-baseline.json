@@ -381,15 +381,9 @@
     "eslint(max-lines-per-function)": 1,
     "typescript(no-explicit-any)": 1
   },
-  "apps/arbiter/src/main.ts": {
-    "anti-slop(require-safety-comment-for-type-assertion)": 2
-  },
   "apps/arbiter/src/runtime.test.ts": {
     "anti-slop(no-chained-type-assertions)": 2,
     "anti-slop(require-safety-comment-for-type-assertion)": 4
-  },
-  "apps/arbiter/src/runtime.ts": {
-    "anti-slop(require-safety-comment-for-type-assertion)": 1
   },
   "apps/docs/scripts/verify-output.mjs": {
     "complexity(complexity)": 1
