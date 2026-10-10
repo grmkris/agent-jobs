@@ -35,6 +35,7 @@ import { FeeQuote, TopUp } from '../components/job/V1Panels.tsx'
 import { type ActionJob, type JobEvent, JobActions } from '../components/job/JobActions.tsx'
 import type { TimelineEvent } from '../components/job/Timeline.tsx'
 import { DeliveryHero, JobStory, Parties } from '../components/job/JobParts.tsx'
+import { Thread } from '../components/job/Thread.tsx'
 import { WalletLink } from '../components/WalletLink.tsx'
 import { useAgentName } from '../components/agent/AgentChip.tsx'
 import { PhaseBadge, Sentence } from '../components/Phase.tsx'
@@ -426,6 +427,8 @@ export function JobPage({
               <JobOfferBrief offer={offer} met={phase?.key === 'completed'} />
             </Section>
           )}
+
+          {taskId !== undefined && <Thread boardId={boardId} taskId={taskId} jobId={jobId} />}
 
           {d !== undefined && (d.job.violation !== null || d.ruling !== null) && (
             <Dispute d={d} boardId={boardId} taskId={taskId} signedIn={auth.signedIn} isParty={roles.length > 0} />
