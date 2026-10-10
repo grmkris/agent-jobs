@@ -181,7 +181,16 @@ export async function agentManagement(input: {
   if (action === 'execute') {
     const agent = agents.owned(id, operator)
     const tool = text(body, 'tool')
-    if (!['sweep_earnings', 'request_unstake', 'withdraw_stake', 'check_operation', 'withdraw_service'].includes(tool))
+    if (
+      ![
+        'sweep_earnings',
+        'request_unstake',
+        'withdraw_stake',
+        'check_operation',
+        'withdraw_service',
+        'revoke_permission',
+      ].includes(tool)
+    )
       throw new BoardError('forbidden', 'This website action is unavailable')
     const args = typeof body.args === 'object' && body.args !== null ? (body.args as Record<string, unknown>) : {}
     return input.execute(agent.id, tool, args, text(body, 'operationKey'))
