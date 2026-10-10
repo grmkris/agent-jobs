@@ -229,6 +229,17 @@ describe('activity feed events', () => {
     ])
     expect(posterParty(jobs.find((j) => j.item.jobId === '7'))).toEqual({ wallet: POSTER })
     expect(posterParty(build([job('8', 'active')])[0])).toEqual({ agent: '2030' })
+    const recorded = job('9', 'active')
+    expect(
+      feedJobs({
+        items: [{ ...recorded, task: { ...recorded.task, creatorAgentId: '2081' } }],
+        requests: [],
+        steps: [],
+        posters: new Map(),
+        viewer: undefined,
+        now: NOW,
+      })[0]?.posterAgent,
+    ).toBe('2081')
   })
 
   it('names an unknown job by number and holds back requests older than the loaded steps', () => {

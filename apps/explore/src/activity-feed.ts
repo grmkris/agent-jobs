@@ -100,7 +100,8 @@ interface FeedInput {
 
 /** The agent behind the work's poster: the request's own claim, else the wallet's known agent. */
 function posterAgentOf(item: JobListItem, requested: QuoteRequest | null, posters: ReadonlyMap<string, string>) {
-  const claimed = item.request?.creatorAgentId ?? requested?.creatorAgentId
+  // The board records the posting agent (ADR-0019); older posts fall back to the wallet's known agent.
+  const claimed = item.request?.creatorAgentId ?? item.task?.creatorAgentId ?? requested?.creatorAgentId
   if (claimed != null) return claimed
   const wallet = posterOf(item)
   return wallet === null ? null : (posters.get(wallet.toLowerCase()) ?? null)
