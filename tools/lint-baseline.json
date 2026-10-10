@@ -24,12 +24,11 @@
     "anti-slop(no-unknown-returns)": 1
   },
   "apps/api/src/agent-runtime.ts": {
-    "anti-slop(no-runtime-typeof)": 5,
-    "anti-slop(require-safety-comment-for-type-assertion)": 15,
+    "anti-slop(no-runtime-typeof)": 4,
+    "anti-slop(require-safety-comment-for-type-assertion)": 14,
     "complexity(complexity)": 1,
     "eslint(max-lines-per-function)": 1,
-    "typescript(no-base-to-string)": 6,
-    "typescript(no-unnecessary-type-assertion)": 1
+    "typescript(no-base-to-string)": 4
   },
   "apps/api/src/alerts.ts": {
     "anti-slop(no-unknown-returns)": 1,
@@ -1089,7 +1088,7 @@
   },
   "packages/board/src/agent-permissions.ts": {
     "anti-slop(no-runtime-typeof)": 3,
-    "anti-slop(require-safety-comment-for-type-assertion)": 10
+    "anti-slop(require-safety-comment-for-type-assertion)": 9
   },
   "packages/board/src/agent-signing-scope.ts": {
     "anti-slop(no-runtime-typeof)": 6,
@@ -1714,8 +1713,7 @@
   },
   "packages/sdk/src/delegation/permissions.ts": {
     "anti-slop(no-runtime-typeof)": 9,
-    "anti-slop(require-safety-comment-for-type-assertion)": 11,
-    "anti-slop-effect(prefer-effect-match)": 1,
+    "anti-slop(require-safety-comment-for-type-assertion)": 10,
     "complexity(complexity)": 3,
     "eslint(max-lines-per-function)": 1,
     "typescript(no-unnecessary-type-assertion)": 2
