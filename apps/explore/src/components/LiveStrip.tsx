@@ -1,7 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
 import { boardPrefix, data } from '../api.ts'
 import { activityIcon } from '../activity.ts'
-import { type ActivityStep, type LiveItem, liveItems, liveSentence } from '../live-activity.ts'
+import { type FeedJob, feedEvents } from '../activity-feed.ts'
+import { type ActivityStep, type LiveItem, liveSentence } from '../live-activity.ts'
 import { ActivityIcon, ActivityRow } from './ActivityRow.tsx'
 import { AgentLabel } from './agent/AgentChip.tsx'
 import { AgentOrb } from './agent/AgentOrb.tsx'
@@ -23,20 +24,15 @@ const ICON_KIND: Readonly<Record<LiveItem['kind'], string>> = {
   expired: 'job.expired',
 }
 
+/** How many rows the strip shows: enough to feel alive without pushing the list off a phone's first screen. */
+const LIVE_ROWS = 5
+
 /**
  * Live, above the Jobs list: the board's latest steps and new requests, refreshed every 20 s, visible without
  * signing in. It stays hidden while there is nothing to show or the activity read fails; the list below never
  * depends on it.
  */
-export function LiveStrip({
-  titles,
-  requests,
-  posters,
-}: {
-  titles: ReadonlyMap<string, string>
-  requests: Parameters<typeof liveItems>[1]
-  posters: ReadonlyMap<string, string>
-}) {
+export function LiveStrip({ jobs }: { jobs: readonly FeedJob[] }) {
   const activity = useQuery({
     queryKey: ['activity', boardPrefix()],
     queryFn: () => data<{ steps: ActivityStep[] }>('activity?limit=20'),
@@ -44,7 +40,7 @@ export function LiveStrip({
     retry: false,
   })
   if (activity.isError) return null
-  const items = liveItems(activity.data?.steps ?? [], requests, titles, posters)
+  const items = feedEvents(activity.data?.steps ?? [], jobs, false).slice(0, LIVE_ROWS)
   if (items.length === 0) return null
   return (
     <Section

@@ -1,7 +1,7 @@
 /**
- * The Live strip above Jobs: the latest things that happened on the board, newest first. Job steps come from the
- * indexed chain events (`/data/activity`, public on chain); new quote requests from the request list the page already
- * reads. Quotes themselves never appear: who bids, and for how much, stays with the requester.
+ * What happened on the board, as Activity shows it: job steps from the indexed chain events (`/data/activity`, public
+ * on chain) and new quote requests from the board's request list (`activity-feed.ts` joins them). Quotes themselves
+ * never appear: who bids, and for how much, stays with the requester.
  */
 type JobStep =
   | 'posted'
@@ -40,50 +40,6 @@ export interface LiveItem {
   amount?: string
 }
 
-/** How many rows the strip shows: enough to feel alive without pushing the list off a phone's first screen. */
-const LIVE_ROWS = 5
-
-export function liveItems(
-  steps: readonly ActivityStep[],
-  requests: readonly {
-    requestId: string
-    createdAt: number
-    title: string
-    creator: string
-    creatorAgentId?: string | null
-  }[],
-  titles: ReadonlyMap<string, string>,
-  posters: ReadonlyMap<string, string>,
-  limit = LIVE_ROWS,
-): LiveItem[] {
-  const fromSteps = steps.flatMap((s): LiveItem[] =>
-    s.at === null
-      ? []
-      : [
-          {
-            key: `${s.txHash}:${s.jobId}:${s.step}`,
-            kind: s.step,
-            at: s.at,
-            jobId: s.jobId,
-            requestId: null,
-            title: titles.get(s.jobId) || `job #${s.jobId}`,
-            agentId: s.agentId,
-            ...(s.token === undefined || s.amount === undefined ? {} : { token: s.token, amount: s.amount }),
-          },
-        ],
-  )
-  const fromRequests = requests.map((r): LiveItem => ({
-    key: `request:${r.requestId}`,
-    kind: 'requested',
-    at: r.createdAt,
-    jobId: null,
-    requestId: r.requestId,
-    title: r.title,
-    agentId: r.creatorAgentId ?? posters.get(r.creator.toLowerCase()) ?? null,
-  }))
-  return [...fromSteps, ...fromRequests].toSorted((a, b) => b.at - a.at).slice(0, limit)
-}
-
 /**
  * The row's sentence. `agent` says whether it opens with the agent's name (rendered by the caller); `text` follows it.
  * The amount, when the step has one, is shown beside the sentence.
@@ -95,7 +51,7 @@ export function liveSentence(item: LiveItem): { agent: boolean; text: string } {
     case 'requested':
       return named ? { agent: true, text: `asked for quotes on ${t}` } : { agent: false, text: `New request: ${t}` }
     case 'posted':
-      return { agent: false, text: `New job: ${t}` }
+      return named ? { agent: true, text: `posted ${t}` } : { agent: false, text: `New job: ${t}` }
     case 'hired':
       return named ? { agent: true, text: `was hired for ${t}` } : { agent: false, text: `An agent was hired for ${t}` }
     case 'delivered':

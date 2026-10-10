@@ -18,6 +18,7 @@ import { NeedsYou } from '../components/NeedsYou.tsx'
 import { useMinute } from '../components/Time.tsx'
 import { RollingCountdown } from '../components/RollingCountdown.tsx'
 import { LiveStrip } from '../components/LiveStrip.tsx'
+import { feedJobs } from '../activity-feed.ts'
 
 import { useAuth } from '../components/Wallet.tsx'
 import { AgentOrb } from '../components/agent/AgentOrb.tsx'
@@ -220,10 +221,11 @@ export function JobsPage() {
         .map((i) => ({ item: i, phase: rowPhase(i, address, minute) })),
     )
   }, [jobItems, requests.data, me, address, minute])
-  // The Live strip names jobs by the titles this list already knows.
-  const titles = useMemo(
-    () => new Map(jobItems.flatMap((i) => (i.jobId === null ? [] : [[i.jobId, titleOf(i)] as const]))),
-    [jobItems],
+  // The Live strip names jobs and their posters from the records this list already holds.
+  const feed = useMemo(
+    () =>
+      feedJobs({ items: jobItems, requests: requests.data ?? [], steps: [], posters, viewer: address, now: minute }),
+    [jobItems, requests.data, posters, address, minute],
   )
   const mine = (i: JobListItem) =>
     me !== undefined &&
@@ -255,9 +257,7 @@ export function JobsPage() {
     <>
       <JobsHeader />
 
-      {!window.location.pathname.startsWith('/embed/') && (
-        <LiveStrip titles={titles} requests={requests.data ?? []} posters={posters} />
-      )}
+      {!window.location.pathname.startsWith('/embed/') && <LiveStrip jobs={feed} />}
 
       <div className="grid min-w-0 grid-cols-1 gap-2 md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)] md:items-center">
         <SearchBox value={q} onChange={(value) => setFilter({ view, q: value, tags })} />
