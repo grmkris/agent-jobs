@@ -7,7 +7,10 @@ import {
   checkDeliverable,
   commitApi,
   deliverableHash,
+  fetchable,
   parseDeliverable,
+  publicHost,
+  readCapped,
   specOf,
   validateSpec,
 } from './index.ts'
@@ -210,5 +213,55 @@ describe('the submission check', () => {
     const r = await checkDeliverable(d, failing)
     expect(r.ok).toBeNull()
     expect(r.detail).toBe('could not check (TypeError)')
+  })
+})
+
+/** A body that arrives in the given chunks, the way a network stream does. */
+const chunked = (parts: string[], headers: Record<string, string> = {}) =>
+  new Response(
+    new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (const p of parts) controller.enqueue(new TextEncoder().encode(p))
+        controller.close()
+      },
+    }),
+    { headers },
+  )
+const text = (b: Uint8Array | null) => (b === null ? null : new TextDecoder().decode(b))
+
+describe('readCapped', () => {
+  it('reads a body under the cap whole', async () => {
+    expect(text((await readCapped(chunked(['ab', 'cd']), 4)).bytes)).toBe('abcd')
+  })
+
+  it('truncates at exactly the cap, across chunks', async () => {
+    const r = await readCapped(chunked(['abc', 'def', 'ghi']), 5, 'truncate')
+    expect(text(r.bytes)).toBe('abcde')
+    expect(r.tooLarge).toBe(false)
+  })
+
+  it('fails past the cap, and on a declared length over it before reading', async () => {
+    expect(await readCapped(chunked(['abc', 'def']), 5)).toEqual({ bytes: null, tooLarge: true })
+    expect(await readCapped(chunked(['a'], { 'content-length': '99' }), 5)).toEqual({ bytes: null, tooLarge: true })
+    expect(text((await readCapped(chunked(['abcdef'], { 'content-length': '99' }), 3, 'truncate')).bytes)).toBe('abc')
+  })
+
+  it('has no bytes for an empty response', async () => {
+    expect(await readCapped(new Response(null), 5)).toEqual({ bytes: null, tooLarge: false })
+  })
+})
+
+describe('the fetch guard', () => {
+  it('names public DNS hosts only', () => {
+    expect(publicHost('sq-site.example.workers.dev')).toBe(true)
+    for (const host of ['localhost', 'printer', '10.0.0.1', '[::1]', '0x7f000001', 'nas.local', 'db.internal'])
+      expect(publicHost(host), host).toBe(false)
+  })
+
+  it('takes public https and ipfs:// only, without credentials', () => {
+    expect(fetchable('https://site.example/deliverable.json')).toBe(true)
+    expect(fetchable(`ipfs://${'b'.repeat(46)}`)).toBe(true)
+    for (const url of ['http://site.example/', 'https://user:pw@site.example/', 'https://127.0.0.1/', 'javascript:1'])
+      expect(fetchable(url), url).toBe(false)
   })
 })

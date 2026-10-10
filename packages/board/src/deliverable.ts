@@ -37,7 +37,7 @@ const isSha256 = (s: unknown): s is string => typeof s === 'string' && /^[0-9a-f
 const str = (s: unknown): s is string => typeof s === 'string' && s.trim().length > 0 && s.length <= 2048
 
 /** A DNS name, not an IP literal, localhost or a private-network suffix. */
-function publicHost(hostname: string): boolean {
+export function publicHost(hostname: string): boolean {
   const host = hostname.toLowerCase().replace(/\.$/, '')
   if (host.startsWith('[') || /^[0-9.]+$/.test(host) || /^0x[0-9a-f]+$/.test(host)) return false
   if (!host.includes('.')) return false
@@ -45,7 +45,7 @@ function publicHost(hostname: string): boolean {
 }
 
 /** The board fetches these once at submit, so only public https (or ipfs://, through a public gateway). */
-function fetchable(url: unknown): url is string {
+export function fetchable(url: unknown): url is string {
   if (!str(url)) return false
   if (url.startsWith('ipfs://')) return /^ipfs:\/\/[A-Za-z0-9]{20,}(\/[^\s]*)?$/.test(url)
   try {
@@ -171,11 +171,23 @@ async function fetchCapped(
     signal: AbortSignal.timeout(TIMEOUT_MS),
     ...init,
   })
-  if (!res.ok || res.body === null) return { status: res.status, bytes: null, tooLarge: false }
-  const declared = Number(res.headers.get('content-length') ?? 0)
-  if (declared > MAX_FETCH_BYTES) {
+  if (!res.ok) return { status: res.status, bytes: null, tooLarge: false }
+  return { status: res.status, ...(await readCapped(res, MAX_FETCH_BYTES)) }
+}
+
+/**
+ * A response body of at most `max` bytes. Past the cap, `fail` gives no bytes and `tooLarge` (a declared length over
+ * the cap fails before reading); `truncate` keeps the first `max` bytes, enough for a page's head.
+ */
+export async function readCapped(
+  res: Response,
+  max: number,
+  overflow: 'fail' | 'truncate' = 'fail',
+): Promise<{ bytes: Uint8Array | null; tooLarge: boolean }> {
+  if (res.body === null) return { bytes: null, tooLarge: false }
+  if (overflow === 'fail' && Number(res.headers.get('content-length') ?? 0) > max) {
     void res.body.cancel().catch(() => {})
-    return { status: res.status, bytes: null, tooLarge: true }
+    return { bytes: null, tooLarge: true }
   }
   const reader = res.body.getReader()
   const chunks: Uint8Array[] = []
@@ -183,11 +195,14 @@ async function fetchCapped(
   for (;;) {
     const { done, value } = await reader.read()
     if (done) break
-    size += value.byteLength
-    if (size > MAX_FETCH_BYTES) {
+    if (size + value.byteLength > max) {
       void reader.cancel().catch(() => {})
-      return { status: res.status, bytes: null, tooLarge: true }
+      if (overflow === 'fail') return { bytes: null, tooLarge: true }
+      chunks.push(value.subarray(0, max - size))
+      size = max
+      break
     }
+    size += value.byteLength
     chunks.push(value)
   }
   const out = new Uint8Array(size)
@@ -196,7 +211,7 @@ async function fetchCapped(
     out.set(c, at)
     at += c.byteLength
   }
-  return { status: res.status, bytes: out, tooLarge: false }
+  return { bytes: out, tooLarge: false }
 }
 
 async function sha256Hex(bytes: Uint8Array): Promise<string> {
