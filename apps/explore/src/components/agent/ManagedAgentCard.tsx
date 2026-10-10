@@ -1,9 +1,9 @@
 import { useSigners } from '@privy-io/react-auth'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import type { ManagedAgent } from '../../api.ts'
-import { agentAction, agentStatus } from '../../agent-api.ts'
-import { relative } from '../../format.ts'
+import { agentEndpoint, type ManagedAgent } from '../../api.ts'
+import { agentAction, type AgentStatus } from '../../agent-api.ts'
+import { localTime, relative } from '../../format.ts'
 import { AgentNew } from '../../routes/AgentNew.tsx'
 import { Address, TxLink } from '../kit.tsx'
 import { Badge } from '../ui/badge.tsx'
@@ -32,7 +32,8 @@ export function ManagedAgentCard({ agent, onBack }: { agent: ManagedAgent; onBac
   const { removeSigners } = useSigners()
   const status = useQuery({
     queryKey: ['managed-agent-status', agent.id, auth.address],
-    queryFn: () => agentStatus(agent.id),
+    queryFn: () =>
+      agentEndpoint<AgentStatus & { permissions: ManagedPermission[] }>(`/api/agents/${encodeURIComponent(agent.id)}`),
     refetchInterval: 20000,
   })
   const now = useNow()
@@ -109,6 +110,13 @@ export function ManagedAgentCard({ agent, onBack }: { agent: ManagedAgent; onBac
           )}
         </>
       )}
+      <PermissionList
+        permissions={status.data?.permissions}
+        action={action}
+        refresh={async () => {
+          await status.refetch()
+        }}
+      />
       <Connection />
       {agent.agent_id !== null && (
         <section id="manage-listing" aria-label="Directory listing" className="scroll-mt-20">
@@ -151,5 +159,74 @@ export function ManagedAgentCard({ agent, onBack }: { agent: ManagedAgent; onBac
         {error !== null && <p className="text-ui text-destructive-text [overflow-wrap:anywhere]">{error}</p>}
       </ManageCard>
     </article>
+  )
+}
+
+type ManagedPermission = {
+  permissionId: string
+  status: string
+  expiresAt: number
+  standing: boolean
+  permission: { type: string; agentId?: string; calls?: number }
+}
+
+export function managedPermissionLabel(permission: ManagedPermission['permission']): string {
+  return permission.type === 'sidequest:backer-share'
+    ? `Set agent #${permission.agentId}’s backer share · at most ${permission.calls} calls`
+    : permission.type
+}
+
+function PermissionList({
+  permissions,
+  action,
+  refresh,
+}: {
+  permissions: ManagedPermission[] | undefined
+  action: ReturnType<typeof useAgentAction>
+  refresh: () => Promise<void>
+}) {
+  return (
+    <ManageCard
+      title="Permissions"
+      note="Revoke a permission to disable its onchain authority. Retry an interrupted revocation to reconcile the original send."
+    >
+      {permissions === undefined ? (
+        <p>Permissions are unavailable.</p>
+      ) : permissions.length === 0 ? (
+        <p>No operator permissions.</p>
+      ) : (
+        permissions.map((row) => (
+          <div key={row.permissionId} className="flex flex-wrap items-center justify-between gap-3">
+            <div className="grid gap-1 text-sm">
+              <p>{managedPermissionLabel(row.permission)}</p>
+              <p>
+                {row.status} · until {localTime(row.expiresAt)}
+                {row.standing ? ' · standing permission' : ''}
+              </p>
+            </div>
+            {row.status !== 'disabled' && (
+              <Button
+                variant="destructive"
+                busy={action.busy && action.pending?.args.permissionId === row.permissionId}
+                disabled={action.busy}
+                onClick={() => void action.execute('revoke_permission', { permissionId: row.permissionId }, refresh)}
+              >
+                Revoke
+              </Button>
+            )}
+          </div>
+        ))
+      )}
+      {action.pending?.tool === 'revoke_permission' && (
+        <Button
+          variant="secondary"
+          busy={action.busy}
+          onClick={() => void action.execute(action.pending!.tool, action.pending!.args, refresh)}
+        >
+          Reconcile permission revocation
+        </Button>
+      )}
+      {action.error !== null && action.pending?.tool === 'revoke_permission' && <p role="alert">{action.error}</p>}
+    </ManageCard>
   )
 }
