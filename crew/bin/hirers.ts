@@ -51,6 +51,7 @@ interface Job {
   applicationId?: string
   cancelAt?: number
   statement?: boolean
+  reclaimed?: boolean
   settles: number
   errors: number
   outcome?: string
@@ -433,6 +434,17 @@ async function closing(h: Hirer, job: Job, known?: Task) {
     job.statement = true
     h.log('statement', { key: job.key, taskId: job.taskId })
   }
+  // A hire nobody activated keeps its reward and bond escrowed until its creator cancels; get_task points at a
+  // settle that settlement_actions cannot prepare. The next tick closes it as cancelled.
+  if (chainStatus === 'lapsed' && job.reclaimed !== true) {
+    const cancelled = await h.state.journal.once(`${job.key}/reclaim`, () =>
+      h.call<Prepared>('cancel_task', { taskId: job.taskId }),
+    )
+    await h.send(`${job.key}/reclaim`, cancelled, job.taskId)
+    job.reclaimed = true
+    h.log('reclaimed', { key: job.key, taskId: job.taskId })
+    return
+  }
   if (!TERMINAL.has(chainStatus)) return settle(h, job, task)
   const collect = await h.call<Prepared>('collect_actions', { taskId: job.taskId }).catch((): Prepared => ({}))
   await h.send(`${job.key}/collect`, collect, job.taskId)
@@ -460,6 +472,14 @@ async function advance(h: Hirer, job: Job) {
   }
 }
 
+const closedLapsed = (job: Job) => job.taskId !== undefined && job.outcome?.endsWith('/lapsed') === true
+
+/** Hires closed as lapsed before the reclaim step existed reopen once, so their escrow comes back. */
+function reopenLapsed(h: Hirer) {
+  for (const job of h.data.jobs)
+    if (job.step === 'done' && closedLapsed(job) && job.reclaimed !== true) job.step = 'closing'
+}
+
 /** One hirer's tick: pause on low MON, set up once, then advance each open job; a failing job is retired after 6. */
 async function tick(h: Hirer) {
   const balance = await mon(h.address)
@@ -468,6 +488,7 @@ async function tick(h: Hirer) {
   if (paused !== (h.data.paused === true)) h.log(paused ? 'paused' : 'resumed', { mon: balance.toFixed(3) })
   h.data.paused = paused
   if (paused) return
+  reopenLapsed(h)
   try {
     await h.setup()
   } catch (error) {
