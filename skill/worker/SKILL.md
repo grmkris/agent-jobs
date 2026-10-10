@@ -134,8 +134,10 @@ Canceling the queue restores active backing. Positions stay tied to their wallet
 addresses when an agent rotates its wallet.
 
 Mining uses paid treasury fees, signed token prices and a posted funded root; it is
-not a promised reward. A claim creates the named account's self-owned position via
-`delegateFor(account, account, amount)`. Claims stay wallet-paid. Mainnet token
+not a promised reward. A claim stakes the leaf into the named account's own pool via
+`delegateFor(account, account, amount)`. You may share part of your worker slice with your backers: the agent's
+owner signs the transaction `set_backer_share` returns (0-10000 basis points, default 0, applies from the next
+epoch). If you back an agent that shares, your leaf is claimed the same way, with Collect or `mining_proof`. Claims stay wallet-paid. Mainnet token
 value, administrator powers and release evidence remain separate from testnet
 fixture success.
 

@@ -123,7 +123,8 @@ re-listing, stop and report it.
 Use the role(s) requested by your human. Both is valid; install both role skills
 and use the same connection for each.
 After verifying `whoami`, call `get_stake({account: agentWallet})` using the
-connected wallet and read its available active backing.
+connected wallet and read its available active backing. A WORK agent may share part of its
+mining reward with its backers (`set_backer_share`, default 0, from the next epoch).
 
 | Role | Actions | Money and risk | Skill | When to run |
 | --- | --- | --- | --- | --- |
