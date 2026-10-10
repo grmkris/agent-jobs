@@ -75,7 +75,7 @@ export function commonsHostFactory(input: { state: CommonsState; bindings: Commo
       arbiter: normalized([config.arbitrator]),
     }
     if (!migrated) {
-      transaction(() => migrate(sql, roleConfig.maintainer[0] ?? config.arbitrator, Date.now()))
+      transaction(() => migrate(sql, roleConfig.maintainer[0] ?? config.arbitrator, Math.floor(Date.now() / 1000)))
       migrated = true
     }
     const ctx = sdk.context(env.network, 'main', env.rpcUrl)

@@ -19,6 +19,17 @@ it.effect('migration runs twice without replacing seed or adding another seed', 
     ).toEqual([{ title: 'Roles voted in by stakers', status: 'planned', proposer: maintainer }])
   }),
 )
+it.effect('migration turns a seed stored in milliseconds into Unix seconds, once', () =>
+  Effect.gen(function* () {
+    const h = yield* makeHarness()
+    h.sql.run('UPDATE commons_items SET created_at=1791644642986, updated_at=1791644642986 WHERE id=1')
+    migrate(h.sql, maintainer, 99)
+    migrate(h.sql, maintainer, 99)
+    expect(
+      h.sql.all<{ created_at: number; updated_at: number }>('SELECT created_at, updated_at FROM commons_items'),
+    ).toEqual([{ created_at: 1791644642, updated_at: 1791644642 }])
+  }),
+)
 it.effect('message hide and unhide persist full audit log and cursor pages', () =>
   Effect.gen(function* () {
     const h = yield* makeHarness()

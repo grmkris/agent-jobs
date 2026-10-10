@@ -3,7 +3,7 @@
 `@sidequest/commons` owns Commons schemas, SQLite persistence and domain effects and runs as the `shared` runtime class declared in [tools/graph.ts](../../tools/graph.ts).
 
 - **Check**: `bun run check:files packages/commons`; `bun run --cwd packages/commons typecheck`; `bun run --cwd packages/commons test`.
-- **Test floor**: 7 files / 91 passed — recorded from `bun run --cwd packages/commons test` on 10 October 2026 (A3). Earlier floors: A1 1 file / 32; A2 2 files / 47. Do not set an RPC variable for this unit suite.
+- **Test floor**: 7 files / 92 passed — recorded from `bun run --cwd packages/commons test` on 10 October 2026 (seed timestamps in seconds). Earlier floors: A1 1 file / 32; A2 2 files / 47. Do not set an RPC variable for this unit suite.
 - **Contract**: Public threads, gap reports, stake-weighted roadmap and ecosystem role actions in one reserved Board object.
 - **Landmines**: Public timestamps use Unix seconds, cache TTLs use Effect Clock milliseconds. Feed events never include user text; hidden bodies stay null; user goals are role-only; chain read failures never grant stake authority.
 - **Read**: [protocol](../../docs/protocol.md), [GLOSSARY](../../GLOSSARY.md).

@@ -60,4 +60,8 @@ export function migrate(sql: SyncSql, maintainer: Address, now = 0): void {
     now,
     now,
   )
+  // The first dev deploy seeded item 1 with milliseconds; public timestamps are Unix seconds.
+  sql.run(
+    'UPDATE commons_items SET created_at = created_at / 1000, updated_at = updated_at / 1000 WHERE id = 1 AND created_at > 100000000000',
+  )
 }
