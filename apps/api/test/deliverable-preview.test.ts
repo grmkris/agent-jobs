@@ -282,6 +282,16 @@ describe('previewRoute', () => {
     expect(second.calls).toEqual([])
   })
 
+  it("keeps the route's own lifetime on a hit, whatever the edge rewrote the stored copy's cache-control to", async () => {
+    const cache = memoryCache()
+    await answer(deps({ cache }))
+    // Cloudflare rewrites a stored copy's cache-control to the zone's browser TTL.
+    cache.stored(request.key)?.headers.set('cache-control', 'public, max-age=14400')
+    const { res } = await answer(deps({ cache }))
+    expect(res.headers.get('x-sidequest-preview')).toBe('hit')
+    expect(res.headers.get('cache-control')).toBe('public, max-age=3600')
+  })
+
   it('is not found for a hash the chain never recorded, without asking the board', async () => {
     const d = deps({ submitted: async () => false })
     const { res, body } = await answer(d)

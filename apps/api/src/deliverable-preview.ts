@@ -277,6 +277,19 @@ function respond(status: number, body: string, headers: Record<string, string>) 
   })
 }
 
+/** The stored copy's own lifetime, in seconds, kept beside its `cache-control`. */
+const MAX_AGE = 'x-sidequest-max-age'
+
+/**
+ * The lifetime a cached answer is served with: its own, as the route set it. Cloudflare rewrites the stored copy's
+ * `cache-control` to the zone's browser TTL (four hours), so the route keeps its own number beside it.
+ */
+function hitCacheControl(hit: Response): string {
+  const seconds = Number(hit.headers.get(MAX_AGE))
+  if (Number.isInteger(seconds) && seconds > 0) return `public, max-age=${seconds}`
+  return hit.headers.get('cache-control') ?? 'no-store'
+}
+
 /**
  * The route. `key` names the cache entry (the request's absolute URL); the stored copy carries no CORS header, which
  * is added per response.
@@ -289,7 +302,7 @@ export async function previewRoute(
   if (hit !== undefined)
     return respond(hit.status, await hit.text(), {
       ...req.cors,
-      'cache-control': hit.headers.get('cache-control') ?? 'no-store',
+      'cache-control': hitCacheControl(hit),
       'x-sidequest-preview': 'hit',
     })
   // An index not built yet (no `jobs` table) or a failed board call is unavailable, never cached.
@@ -302,7 +315,11 @@ export async function previewRoute(
         req.key,
         new Response(body, {
           status: reply.status,
-          headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': cacheControl },
+          headers: {
+            'content-type': 'application/json; charset=utf-8',
+            'cache-control': cacheControl,
+            [MAX_AGE]: String(reply.seconds),
+          },
         }),
       )
       .catch(() => {})
