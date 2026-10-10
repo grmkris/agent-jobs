@@ -45,6 +45,7 @@ export interface ActivationEvent extends ChainPosition {
   feeBps: bigint | number
   fee: bigint
   net: bigint
+  workerBond?: bigint
   tx: Hex
 }
 
@@ -74,6 +75,16 @@ export interface FundingRecord extends ChainPosition {
   tx?: Hex
 }
 
+export interface RewardSettledRecord extends ChainPosition {
+  eventName: 'RewardSettled'
+  holding: Address
+  jobId: bigint
+  to: Address
+  outcome: number
+  amount: bigint
+  tx: Hex
+}
+
 export type LedgerRecord =
   | VaultRecord
   | ScheduleExecutedRecord
@@ -81,6 +92,7 @@ export type LedgerRecord =
   | TopUpRecord
   | MetadataSetRecord
   | FundingRecord
+  | RewardSettledRecord
 
 const keyOf = (account: Address, delegator: Address) => `${account.toLowerCase()}:${delegator.toLowerCase()}`
 const jobKey = (holding: Address, jobId: bigint) => `${holding.toLowerCase()}:${jobId}`
@@ -165,11 +177,13 @@ export class MiningLedger {
   readonly pools = new Map<Address, PoolState>()
   readonly positions = new Map<string, PositionState>()
   readonly feeSchedules: ScheduleExecutedRecord[] = []
-  readonly activations = new Map<string, ActivationRecord & { rank: number }>()
+  readonly activations = new Map<string, ActivationRecord & { rank: number; workerBond: bigint }>()
   readonly topUps: TopUpRecord[] = []
   readonly wallets = new Map<Address, Set<bigint>>()
   readonly shareSets = new Map<bigint, MetadataSetRecord[]>()
   readonly funding: FundingRecord[] = []
+  /** RewardSettled is emitted before FeeCharged in a settlement transaction. */
+  readonly settledJobs = new Set<string>()
   lastPosition: ChainPosition | null = null
 
   poolOf(account: Address): PoolState {
@@ -217,6 +231,8 @@ export class MiningLedger {
       }
     } else if (record.eventName === 'EpochFunded') {
       this.funding.push(record)
+    } else if (record.eventName === 'RewardSettled') {
+      this.settledJobs.add(jobKey(record.holding, record.jobId))
     } else {
       applyVault(this, record)
     }
@@ -240,6 +256,7 @@ export class MiningLedger {
       feeBps,
       fee: record.fee,
       net: record.net,
+      workerBond: record.workerBond ?? 0n,
       rank,
     }
     this.activations.set(jobKey(record.holding, record.jobId), activation)
@@ -265,8 +282,33 @@ export class MiningLedger {
       wallets: new Map([...this.wallets].map(([wallet, ids]) => [wallet, new Set(ids)])),
       shareSets: new Map([...this.shareSets].map(([agentId, sets]) => [agentId, sets.toSorted(chainOrder)])),
       funding: this.funding.toSorted(chainOrder),
+      settledJobs: new Set(this.settledJobs),
       lastPosition: this.lastPosition === null ? null : { ...this.lastPosition },
     }
+  }
+
+  /** Restore a checkpoint without replaying the deployment history. */
+  static fromSnapshot(snapshot: ReturnType<MiningLedger['snapshot']>): MiningLedger {
+    const ledger = new MiningLedger()
+    for (const [account, pool] of snapshot.pools) ledger.pools.set(account, { ...pool })
+    for (const [key, position] of snapshot.positions) {
+      ledger.positions.set(key, {
+        account: position.account,
+        delegator: position.delegator,
+        shares: position.shares,
+        queued: position.queued,
+        generation: position.generation,
+      })
+    }
+    ledger.feeSchedules.push(...snapshot.feeSchedules)
+    for (const [key, activation] of snapshot.activations) ledger.activations.set(key, { ...activation })
+    ledger.topUps.push(...snapshot.topUps)
+    for (const [wallet, ids] of snapshot.wallets) ledger.wallets.set(wallet, new Set(ids))
+    for (const [agentId, sets] of snapshot.shareSets) ledger.shareSets.set(agentId, [...sets])
+    ledger.funding.push(...snapshot.funding)
+    for (const key of snapshot.settledJobs) ledger.settledJobs.add(key)
+    ledger.lastPosition = snapshot.lastPosition === null ? null : { ...snapshot.lastPosition }
+    return ledger
   }
 
   activationOf(holding: Address, jobId: bigint) {

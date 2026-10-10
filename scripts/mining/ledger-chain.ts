@@ -22,17 +22,6 @@ export type EpochChainRecord =
   | (FeeCharged & { eventName: 'FeeCharged' })
   | (PayoutOwed & { eventName: 'PayoutOwed' })
   | (OwedWithdrawn & { eventName: 'OwedWithdrawn' })
-  | {
-      eventName: 'RewardSettled'
-      block: bigint
-      logIndex: number
-      tx: Hex
-      holding: Address
-      jobId: bigint
-      to: Address
-      outcome: number
-      amount: bigint
-    }
 
 // SAFETY: All callers supply decoded ABI addresses, so normalization preserves their shape.
 export const lower = (value: Address): Address => value.toLowerCase() as Address
@@ -164,10 +153,5 @@ export async function readLedgerChain(input: LedgerChainInput): Promise<EpochCha
 }
 
 export function isLedgerRecord(record: EpochChainRecord): record is LedgerRecord {
-  return (
-    record.eventName !== 'FeeCharged' &&
-    record.eventName !== 'PayoutOwed' &&
-    record.eventName !== 'OwedWithdrawn' &&
-    record.eventName !== 'RewardSettled'
-  )
+  return record.eventName !== 'FeeCharged' && record.eventName !== 'PayoutOwed' && record.eventName !== 'OwedWithdrawn'
 }
