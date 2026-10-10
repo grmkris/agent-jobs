@@ -1,73 +1,47 @@
-/**
- * The portable arbiter (plan B2.4) as a long-running process: signs in to the board with the arbitrator key, keeps
- * the lease, and arbitrates every open dispute each pass. `--once` runs a single pass.
- *
- *   BOARD_URL=https://… bun apps/arbiter/src/main.ts [--once]   (from the repo root, with .env.local loaded)
- *
- * Env: V1_ARBITRATOR_PRIVATE_KEY, ARBITER_MODEL_BASE_URL,
- * ARBITER_MODEL, ARBITER_MODEL_API_KEY, NETWORK (default monad-testnet), ARBITER_RUNNER
- * (default arbiter@<host>), ARBITER_INTERVAL_SECONDS (default 60). Only keys for the network's deployed pair kinds
- * are required. Each signs in separately; the board returns disputes whose named arbitrator matches that session.
- * V1 retry cancellation is sent by its arbitrator and requires a funded MON gas reserve.
- */
-import { hostname } from 'node:os'
-import { ARBITER_PROMPT_VERSION, proposeRuling } from '@sidequest/board'
+/** Shared SIWE role runner. Arbitration remains the default. */
+import { Schema } from 'effect'
 import * as sdk from '@sidequest/sdk'
-import { arbitrateOnce } from './arbiter.ts'
-import { arbiterAccounts, boardUrls, cancellationSender } from './runtime.ts'
+import { runArbiterPass } from './arbiter-run.ts'
+import { runRoleLoop } from './loop.ts'
+import { moderateOnce } from './moderator.ts'
+import { parseRoleArguments, roleEnvironment, type RoleClient } from './role.ts'
+import { accountFromPrivateKey, arbiterAccounts, boardUrls } from './runtime.ts'
 
-const env = (name: string, fallback?: string): string => {
-  const v = process.env[name] ?? fallback
-  if (v === undefined || v === '') throw new Error(`${name} is not set`)
-  return v
-}
-
-const network = env('NETWORK', 'monad-testnet') as sdk.Network
-if (network !== 'monad-mainnet' && network !== 'monad-testnet') throw new Error('NETWORK is not supported')
-const accounts = arbiterAccounts(sdk.deployment(network), process.env)
-const endpoint = {
-  baseUrl: env('ARBITER_MODEL_BASE_URL'),
-  model: env('ARBITER_MODEL'),
-  apiKey: env('ARBITER_MODEL_API_KEY'),
-}
-const runner = env('ARBITER_RUNNER', `arbiter@${hostname()}`)
-const interval = Number(env('ARBITER_INTERVAL_SECONDS', '60'))
-const log = (m: string) => console.log(`[arbiter ${new Date().toISOString().slice(11, 19)}] ${m}`)
-const clients = boardUrls(process.env).flatMap((url) =>
-  accounts.map((account) => ({ account, board: sdk.boardClient(url) })),
+const args = parseRoleArguments(process.argv.slice(2))
+const env = process.env
+const config = roleEnvironment(args.role, env)
+const endpoint = { baseUrl: config.modelBaseUrl, model: config.model, apiKey: config.modelApiKey }
+const network = Schema.decodeUnknownSync(Schema.Literals(['monad-mainnet', 'monad-testnet']))(
+  env.NETWORK ?? 'monad-testnet',
 )
-
-async function pass({ account, board }: (typeof clients)[number]) {
-  await board.signIn(account)
-  log(`signed in as ${account.address} (runner ${runner}, model ${endpoint.model})`)
-  return arbitrateOnce({
-    board,
+const accounts =
+  args.role === 'arbiter'
+    ? arbiterAccounts(sdk.deployment(network), env)
+    : [accountFromPrivateKey('MODERATOR_PRIVATE_KEY', env)]
+const clients = boardUrls(env).flatMap((url) =>
+  accounts.map((account) => ({
     account,
-    network,
-    runner,
-    propose: (b: Parameters<typeof proposeRuling>[1]) => proposeRuling(endpoint, b),
-    log,
-    model: endpoint.model,
-    promptVersion: ARBITER_PROMPT_VERSION,
-    sendCancellation: async (transaction: sdk.TxRequest) => {
-      const rpcUrl = env('MONAD_RPC_URL', network === 'monad-testnet' ? process.env.MONAD_TESTNET_RPC_URL : undefined)
-      await cancellationSender(network, account, rpcUrl)(transaction)
-    },
-  })
+    board: sdk.boardClient(url),
+    cursorKey: `${url}:${account.address.toLowerCase()}`,
+  })),
+)
+const log = (message: string) => console.log(`[${args.role} ${new Date().toISOString().slice(11, 19)}] ${message}`)
+let skipped = false
+
+const pass = async (client: RoleClient): Promise<void> => {
+  if (args.role === 'arbiter') {
+    const result = await runArbiterPass(client, { network, endpoint, env, log })
+    skipped ||= result
+  } else {
+    await moderateOnce({
+      board: client.board,
+      endpoint,
+      cursorFile: config.cursorFile!,
+      cursorKey: client.cursorKey!,
+      log,
+    })
+  }
 }
 
-if (process.argv.includes('--once')) {
-  const results = []
-  for (const client of clients) results.push(await pass(client))
-  process.exit(results.some(({ outcomes }) => outcomes.some((o) => o.result === 'skipped')) ? 2 : 0)
-}
-for (;;) {
-  for (const client of clients) {
-    try {
-      await pass(client)
-    } catch (e) {
-      log(`pass for ${client.account.address} failed: ${(e as Error).message}`)
-    }
-  }
-  await new Promise((r) => setTimeout(r, interval * 1000))
-}
+await runRoleLoop({ clients, once: args.once, intervalSeconds: config.intervalSeconds, pass, log })
+if (args.once) process.exit(skipped ? 2 : 0)

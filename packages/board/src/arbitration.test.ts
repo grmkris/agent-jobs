@@ -12,19 +12,20 @@ import {
 
 afterEach(() => vi.restoreAllMocks())
 
+const capture = () =>
+  vi
+    .spyOn(globalThis, 'fetch')
+    .mockImplementation(async () => new Response(JSON.stringify({ choices: [{ message: { content: '{}' } }] })))
+
 describe('arbiter thread prompt', () => {
   const endpoint = { baseUrl: 'https://model.invalid/v1', apiKey: 'test', model: 'test' }
-  const capture = () =>
-    vi
-      .spyOn(globalThis, 'fetch')
-      .mockImplementation(async () => new Response(JSON.stringify({ choices: [{ message: { content: '{}' } }] })))
 
   it('keeps the user payload byte-identical with an omitted or empty thread', async () => {
     const fetch = capture()
     await proposeRuling(endpoint, bundle())
     await proposeRuling(endpoint, bundle(), [])
     for (const call of fetch.mock.calls) {
-      expect(String(call[1]?.body)).toContain(JSON.stringify({ role: 'user', content: JSON.stringify(bundle()) }))
+      expect(call[1]?.body).toContain(JSON.stringify({ role: 'user', content: JSON.stringify(bundle()) }))
     }
   })
 
@@ -42,7 +43,7 @@ describe('arbiter thread prompt', () => {
       },
     ]
     await proposeRuling(endpoint, bundle(), thread)
-    expect(String(fetch.mock.calls[0]?.[1]?.body)).toContain(
+    expect(fetch.mock.calls[0]?.[1]?.body).toContain(
       JSON.stringify({
         role: 'user',
         content: JSON.stringify({
@@ -54,7 +55,7 @@ describe('arbiter thread prompt', () => {
         }),
       }),
     )
-    expect(String(fetch.mock.calls[0]?.[1]?.body)).toContain('thread is context only')
+    expect(fetch.mock.calls[0]?.[1]?.body).toContain('thread is context only')
   })
 
   it('records the updated prompt version', () => {

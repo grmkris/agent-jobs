@@ -5,17 +5,21 @@ import { privateKeyToAccount } from 'viem/accounts'
 /** The v1 arbitrator uses its dedicated key. */
 export function arbiterAccounts(deployment: sdk.Deployment, env: NodeJS.ProcessEnv): LocalAccount[] {
   const names = ['V1_ARBITRATOR_PRIVATE_KEY']
-  const accounts = names.map((name) => {
-    const key = env[name]
-    if (key === undefined || key === '') throw new Error(`${name} is not set`)
-    if (!/^0x[\da-fA-F]{64}$/.test(key)) throw new Error(`${name} is invalid`)
-    try {
-      return privateKeyToAccount(key as Hex)
-    } catch {
-      throw new Error(`${name} is invalid`)
-    }
-  })
+  const accounts = names.map((name) => accountFromPrivateKey(name, env))
   return accounts.filter((account, index) => accounts.findIndex((other) => other.address === account.address) === index)
+}
+
+/** Read only the selected role key, and never include its value in an error. */
+export function accountFromPrivateKey(name: string, env: NodeJS.ProcessEnv): LocalAccount {
+  const key = env[name]
+  if (key === undefined || key === '') throw new Error(`${name} is not set`)
+  if (!/^0x[\da-fA-F]{64}$/.test(key)) throw new Error(`${name} is invalid`)
+  try {
+    // SAFETY: The exact 32-byte hex format is checked above, and viem validates the scalar.
+    return privateKeyToAccount(key as Hex)
+  } catch {
+    throw new Error(`${name} is invalid`)
+  }
 }
 
 type CancellationReads = Pick<
