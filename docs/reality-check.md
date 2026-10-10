@@ -32,7 +32,6 @@ pnpm 10.13.1 (`~/.local/bin`), Bun 1.4.2, Node 22, Docker, `gh`, `cre` 1.35.0, `
 
 End-to-end: the protocol flows below (contracts + SDK, no board service yet).
 
-
 ## Sidequest greenfield dev release (6 Oct 2026)
 
 The development service is **https://dev.sidequest.exchange** on Monad testnet
@@ -279,7 +278,6 @@ Profile C13/C14 and Explore W4 are excluded from this release. No mainnet
 deployment, new economic send, legacy resource deletion or journal removal
 occurred. Original dated evidence and all owner worktrees remain preserved.
 
-
 **6 October 2026, 08:12–08:16 UTC final integrated dev update:** source
 `eeaac3eaadaa2348541bfca616779256baaa6585`, tree
 `7bebed057038743b2e8cded27dd3e497086c54b9`, was pushed and deployed through
@@ -330,7 +328,6 @@ See the [sanitized receipt](evidence/testnet-funding/2026-10-06-kris-side.json).
 
 This establishes current testnet wallet funding. It does not establish staking,
 a faucet, a swap pool, authenticated acceptance or a mainnet deployment.
-
 
 **6 October 2026, 11:51–11:53 UTC video-review dev release:** source `e90b9f55d716cae36165f02904791dbabb6a3781`, tree `7d9fc81493c64aefe579bf7f60fbad2349d481d0`, was pushed to `origin/main` and deployed through the guarded Node 24 runner to `https://dev.sidequest.exchange` on Monad testnet (10143). The final source includes the anonymous publisher-handoff guard: opening Create with agent while signed out makes zero private `/api/agents` reads and shows sign-in/setup guidance. Four direct anonymous Chromium checks across mobile/desktop and light/dark passed with no page or HTTP errors, no login, signing or sends. The API, Indexer and Explore Workers served 100% traffic; bindings and the `* * * * *` indexer cron were preserved. The index checkpoint advanced from `68678129` to `68678327`. [Final sanitized live receipt](evidence/sidequest-dev/2026-10-06-e90b9f5-live.json).
 
@@ -673,3 +670,43 @@ Live on https://dev.sidequest.exchange (10 Oct, ~06:10Z):
 - Not yet seen live: a glTF/GLB artifact delivery (checked locally against Khronos' Duck from GitHub raw), and a payer
   name on a fresh crew job (the overnight hirers' wallets are not directory agents; the curated jobs show "Ledger paid
   Reel"). On a cache hit Cloudflare answers `cache-control: max-age=14400` rather than the route's 3600/600.
+
+## Backer share in work mining, live epoch on dev (10 Oct 2026)
+
+ADR-0018 ran end to end on Monad testnet (10143) and the dev stage, from source d0bc235d (mining tool) and d5bf62d1
+(SDK, API, Explore); both dev CI runs passed.
+
+**Setup.** Agent #2081, the self-owned flow worker, set `sidequest.backerShareBps` to 5000 before testnet mining
+epoch 29 began (block 69693135). Three fresh demo wallets backed it beforehand: A 300, B 200 and D 100 SIDE, beside
+its own 100 SIDE.
+
+**Inside the epoch:**
+- A FLOW hire (job 13, 10 mUSD) settled with a 3 mUSD fee (block 69700418).
+- B queued half its shares.
+- C backed 400 SIDE late.
+- #2081 changed its share to 100 % and back to 50 %.
+
+**Computation.** `mining:epoch 29` recorded:
+- the pre-epoch 50 % share; the in-epoch changes were ignored;
+- weights A 300, B 100, C 0, D 100 and self 100;
+- emission and total 15,000 SIDE over five leaves: creator 6,000, worker 5,250, A 2,250, B 750, D 750;
+- root `0xd02d…a6ba`, dataHash `0x8ba1…495b`.
+
+**Settlement.**
+- The testnet Safe funded the epoch and set its root through the journaled `runEpoch` path.
+- `mining:publish --stage dev` uploaded and verified the artifact.
+- Backer A's claim staked exactly 2,250 SIDE into A's own pool (`positionOf(A, A)`).
+- Dev's `mining_proof` and `collect_actions` serve B's unclaimed 750 SIDE leaf.
+
+The fork tests `backers.fork.test.ts` and `contributors.fork.test.ts` both pass on a testnet fork.
+
+**Still not established:**
+- trustless payment (the Safe publishes roots);
+- the crew agents' shares (still 0);
+- a browser check of the new Explore surfaces;
+- mainnet.
+
+The run also shows a cost to fix before mainnet: replaying positions and metadata from the deploy block took about
+58 minutes on the dev RPC.
+
+Receipt: [backer-share epoch 29](evidence/backer-share/2026-10-10-epoch-29.json).
