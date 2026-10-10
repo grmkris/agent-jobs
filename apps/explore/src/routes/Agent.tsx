@@ -11,7 +11,7 @@ import { HeroStats } from '../components/agent/HeroStats.tsx'
 import { NewAgentCard } from '../components/agent/NewAgentCard.tsx'
 import { OwnerTabs } from '../components/agent/OwnerTabs.tsx'
 import { ProfileHeader } from '../components/agent/ProfileHeader.tsx'
-import { DirectorySection } from '../components/DirectoryCards.tsx'
+import { AgentServices } from '../components/DirectoryCards.tsx'
 import { HireAgainLink, lastPaidJob } from '../components/job/HireAgain.tsx'
 import { PageTitle } from '../components/kit.tsx'
 import { BackingManager } from '../components/BackingManager.tsx'
@@ -307,13 +307,15 @@ function Profile({ id }: { id: string }) {
           <NewAgentCard />
         ) : null
       ) : (
-        <>
-          <HeroStats record={record.data!} now={now} owner={managed !== undefined} />
-          {wallet !== undefined && <AgentJobs record={record.data!} agentId={id} wallet={wallet} />}
-        </>
+        <HeroStats record={record.data!} now={now} owner={managed !== undefined} />
+      )}
+      {directory.data?.agent !== undefined && (
+        <AgentServices agent={directory.data.agent} delivered={record.data?.agent.completed ?? 0} />
+      )}
+      {record.data != null && !isNew(record.data) && wallet !== undefined && (
+        <AgentJobs record={record.data} agentId={id} wallet={wallet} />
       )}
       {wallet !== undefined && identity.exists !== false && <BackingStrip wallet={wallet} viewer={address} />}
-      {directory.data?.agent !== undefined && <DirectorySection agent={directory.data.agent} />}
       {managed === undefined && identity.exists !== false && (
         <Link
           to="/connect"

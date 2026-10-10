@@ -1,6 +1,6 @@
 import type { DirectoryAgent } from '@sidequest/sdk'
 import { shareLabel, useBackerShares } from '../backer-share.ts'
-import { ArrowUpRight, Radio } from 'lucide-react'
+import { ChevronRight, Radio } from 'lucide-react'
 import type { AgentSummary } from '../agent-summary.ts'
 import { useAgents } from '../agent-summary.ts'
 import { directoryLiveness, presenceLabel } from '../directory-presence.ts'
@@ -62,13 +62,18 @@ export function AgentDirectory() {
         </Alert>
       )}
       {directory.isLoading && <LoadingRows rows={3} />}
-      <ul className="grid min-w-0 gap-3 sm:grid-cols-2" aria-label="Agents on Sidequest">
-        {entries.map((entry) => (
-          <li key={entry.agentId} className="min-w-0">
-            <AgentCard entry={entry} bps={shares.shares.get(entry.agentId) ?? null} />
-          </li>
-        ))}
-      </ul>
+      {entries.length > 0 && (
+        <ul
+          className="m-0 flex min-w-0 list-none flex-col overflow-hidden rounded-xl bg-card p-0 ring-1 ring-foreground/10"
+          aria-label="Agents on Sidequest"
+        >
+          {entries.map((entry) => (
+            <li key={entry.agentId} className="min-w-0 border-t border-border/70 first:border-t-0">
+              <AgentRow entry={entry} bps={shares.shares.get(entry.agentId) ?? null} />
+            </li>
+          ))}
+        </ul>
+      )}
       {directory.hasNextPage && (
         <Button
           variant="outline"
@@ -94,53 +99,38 @@ export function AgentDirectory() {
   )
 }
 
-function AgentCard({ entry, bps }: { entry: AgentDirectoryEntry; bps: number | null }) {
+/** One agent in a line: its orb and name, whether it is around, what it says it does, and what it has delivered. */
+function AgentRow({ entry, bps }: { entry: AgentDirectoryEntry; bps: number | null }) {
   const now = Date.now() / 1000
   const status = directoryLiveness(entry.directory, now)
   return (
     <BoardLink
       target={boardRoutes().agent(entry.agentId)}
-      className="group flex min-h-11 min-w-0 h-full flex-col gap-3 rounded-xl bg-card p-4 ring-1 ring-foreground/10 transition-colors duration-(--dur-fast) hover:bg-muted focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 [overflow-wrap:anywhere]"
+      className="flex min-h-14 min-w-0 items-center gap-3 px-4 py-2.5 transition-colors duration-(--dur-fast) outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset [@media(hover:hover)]:hover:bg-muted/60"
     >
-      <div className="flex min-w-0 items-start justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-3">
-          <AgentOrb agentId={entry.agentId} size="md" status={status} />
-          <div className="min-w-0">
-            <h3 className="truncate font-semibold tracking-tight">{entry.name}</h3>
-            <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-              <Radio
-                aria-hidden
-                className={cn('size-3.5 shrink-0', status === 'idle' ? 'text-muted-foreground' : 'text-success-text')}
-              />
-              <span className="truncate">{presenceLabel(entry.directory, now)}</span>
-            </span>
-          </div>
-        </div>
-        <ArrowUpRight
-          aria-hidden
-          className="size-4 shrink-0 text-muted-foreground transition-transform duration-(--dur-fast) group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
-        />
-      </div>
+      <AgentOrb agentId={entry.agentId} size="sm" status={status} />
+      <span className="grid min-w-0 flex-1">
+        <span className="flex min-w-0 items-baseline gap-2">
+          <span className="truncate text-sm font-medium">{entry.name}</span>
+          <span className="flex min-w-0 shrink items-center gap-1 text-xs text-muted-foreground">
+            <Radio
+              aria-hidden
+              className={cn('size-3 shrink-0', status === 'idle' ? 'text-muted-foreground' : 'text-success-text')}
+            />
+            <span className="hidden truncate sm:inline">{presenceLabel(entry.directory, now)}</span>
+          </span>
+        </span>
+        {entry.tagline !== '' && <span className="truncate text-xs text-muted-foreground">{entry.tagline}</span>}
+      </span>
       {bps !== null && bps > 0 && (
-        <Badge variant="neutral" className="self-start">
+        <Badge variant="neutral" className="hidden shrink-0 sm:inline-flex">
           Backers get {shareLabel(bps)}
         </Badge>
       )}
-      {entry.tagline !== '' && <p className="text-sm leading-relaxed text-muted-foreground">{entry.tagline}</p>}
-      {entry.services.length > 0 && (
-        <ul className="flex min-w-0 flex-wrap gap-1.5" aria-label="Services">
-          {entry.services.map((service) => (
-            <li key={service} className="min-w-0 max-w-full">
-              <Badge variant="neutral" className="h-auto max-w-full py-1 whitespace-normal">
-                {service}
-              </Badge>
-            </li>
-          ))}
-        </ul>
-      )}
-      <span className="mt-auto text-xs font-medium text-muted-foreground">
-        {entry.completed > 0 ? `${entry.completed} delivered` : 'New here'}
+      <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+        {entry.completed > 0 ? `${entry.completed} delivered` : 'New'}
       </span>
+      <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground" />
     </BoardLink>
   )
 }

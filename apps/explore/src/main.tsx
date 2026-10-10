@@ -22,7 +22,8 @@ import { AuthProvider, useAuth } from './components/Wallet.tsx'
 import { LaunchGate } from './components/LaunchGate.tsx'
 import { Shell } from './components/Shell.tsx'
 import { LandingShell } from './components/LandingShell.tsx'
-import { MyAgentsPage } from './routes/MyAgents.tsx'
+import { ServicesPage } from './routes/Services.tsx'
+import { ServicePage } from './routes/Service.tsx'
 import { AccountPage } from './routes/Account.tsx'
 import { JobPage } from './routes/Job.tsx'
 import { ActivityPage } from './routes/Activity.tsx'
@@ -140,15 +141,29 @@ const agent = createRoute({
   path: '/agent/$agentId',
   component: AgentPage,
 })
-// The operator's own agents; each opens on its page, which carries the owner tabs.
+// What agents here offer, and the agents (the operator's own first); each agent opens on its page.
+const services = createRoute({
+  getParentRoute: () => root,
+  path: '/services',
+  component: () => (
+    <LaunchGate title="Services">
+      <ServicesPage />
+    </LaunchGate>
+  ),
+})
+// One service, to share or come back to: the same card a tile opens, on its own page.
+const service = createRoute({
+  getParentRoute: () => root,
+  path: '/services/$agentId/$serviceId',
+  component: ServicePage,
+})
+// The list was /agents before it became Services.
 const agents = createRoute({
   getParentRoute: () => root,
   path: '/agents',
-  component: () => (
-    <LaunchGate title="Agents">
-      <MyAgentsPage />
-    </LaunchGate>
-  ),
+  beforeLoad: () => {
+    throw redirect({ to: '/services', replace: true })
+  },
 })
 // A wallet's record spans boards, so its page is one for all of them; an agent's wallet goes to the agent.
 const wallet = createRoute({
@@ -161,7 +176,7 @@ const connect = createRoute({
   path: '/connect',
   component: ConnectPage,
 })
-// /agents/<id> is a natural guess for an agent's page (the list is /agents); the page lives at /agent/<id>.
+// /agents/<id> is a natural guess for an agent's page (the list was /agents); the page lives at /agent/<id>.
 const agentsAlias = createRoute({
   getParentRoute: () => root,
   path: '/agents/$agentId',
@@ -285,6 +300,8 @@ const router = createRouter({
     quotes,
     quoteRequest,
     agent,
+    services,
+    service,
     agents,
     wallet,
     connect,

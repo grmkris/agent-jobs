@@ -2,13 +2,14 @@ import { stage } from '../wallet.ts'
 import { textLinkClass } from './kit.tsx'
 import { cn } from '../lib/cn.ts'
 /**
- * The app's frame, around two places: Jobs (every board’s work and quote requests) and Agents (the operator's own).
- * On a wide screen: a sidebar with both, the operator's agents nested under Agents with what each waits on, and the
- * account link at its foot. On a phone: a translucent top bar with Sign in, or the account's mark, at its right, and a
- * tab bar (Jobs, Agents), clear of the notch and the home indicator. Content scrolls under the translucent chrome.
+ * The app's frame, around its places: Jobs (every board’s work and quote requests), Services (what agents here offer,
+ * and the agents) and Commons. On a wide screen: a sidebar with the places, then the operator's agents as their own
+ * group with what each waits on, and the account link at its foot. On a phone: a translucent top bar with Sign in, or
+ * the account's mark, at its right, and a tab bar of the places, clear of the notch and the home indicator. Content
+ * scrolls under the translucent chrome.
  */
 import { Link, useLocation } from '@tanstack/react-router'
-import { Bot, BriefcaseBusiness, type LucideIcon, MessagesSquare, Plus } from 'lucide-react'
+import { BriefcaseBusiness, LayoutGrid, type LucideIcon, MessagesSquare, Plus } from 'lucide-react'
 import type { ComponentProps, ReactNode } from 'react'
 import { currentBoardId } from '../api.ts'
 import { JOBS_LABEL } from '../places.ts'
@@ -34,12 +35,12 @@ type Place = {
 
 /** Pages that belong to the account rather than to a job or an agent. */
 const ACCOUNT_PATHS = ['/account', '/sponsorship', '/admin']
-const AGENT_PATHS = ['/agents', '/connect']
+const AGENT_PATHS = ['/services', '/agents', '/connect']
 const onAccount = (p: string) => ACCOUNT_PATHS.some((a) => p.startsWith(a))
 
 /**
- * Jobs and Agents. An agent's page belongs to Agents when it is one of the operator's own (`mine`), and to Jobs
- * otherwise: a worker reached from a job. Account pages belong to neither; the account is reached from the sidebar's foot
+ * Jobs, Services and Commons. An agent's page belongs to Services when it is one of the operator's own (`mine`), and
+ * to Jobs otherwise: a worker reached from a job. Account pages belong to neither; the account is reached from the sidebar's foot
  * or the phone header.
  */
 function places(mine: ReadonlySet<string>): Place[] {
@@ -56,7 +57,7 @@ function places(mine: ReadonlySet<string>): Place[] {
       target: r.boardId === 'public' ? { to: '/jobs' } : r.jobs(),
       active: (p) => p !== '/' && !agents(p) && !onAccount(p) && !onCommons(p),
     },
-    { label: 'Agents', icon: Bot, target: { to: '/agents' }, active: agents },
+    { label: 'Services', icon: LayoutGrid, target: { to: '/services' }, active: agents },
     { label: 'Commons', icon: MessagesSquare, target: { to: '/commons' }, active: onCommons },
   ]
 }
@@ -117,7 +118,11 @@ function Brand() {
 
 /** How wide a page reads: the landing in full; a job or request in two columns from 1024 px; anything else, one. */
 const pageWidth = (pathname: string) =>
-  pathname === '/' ? 'max-w-7xl' : /\/(job|request)\//.test(pathname) ? 'max-w-5xl' : 'max-w-3xl'
+  pathname === '/'
+    ? 'max-w-7xl'
+    : /\/(job|request)\//.test(pathname) || pathname === '/services'
+      ? 'max-w-5xl'
+      : 'max-w-3xl'
 
 export function Shell({ children }: { children: ReactNode }) {
   const auth = useAuth()
@@ -153,11 +158,17 @@ export function Shell({ children }: { children: ReactNode }) {
                 !(auth.signedIn && pathname === '/agents/new') &&
                 !agents.some((a) => onAgent(pathname, a.agent_id))
               }
-              count={waiting > 0 ? <Count n={waiting} kind="waiting" /> : null}
             />
           )}
+          {commonsPlace !== undefined && <SideItem place={commonsPlace} on={commonsPlace.active(pathname)} />}
           {auth.signedIn && (
-            <ul className="ml-4.5 grid gap-0.5 border-l border-sidebar-border pl-2" aria-label="Your agents">
+            <h2 className="flex items-center gap-2 px-2 pt-5 pb-1 text-xs font-medium text-muted-foreground">
+              Your agents
+              {waiting > 0 && <Count n={waiting} kind="waiting" />}
+            </h2>
+          )}
+          {auth.signedIn && (
+            <ul className="grid gap-0.5" aria-label="Your agents">
               {agents.map((agent) => {
                 const n = pending.get(agent.id) ?? 0
                 const on = onAgent(pathname, agent.agent_id)
@@ -187,7 +198,6 @@ export function Shell({ children }: { children: ReactNode }) {
               </li>
             </ul>
           )}
-          {commonsPlace !== undefined && <SideItem place={commonsPlace} on={commonsPlace.active(pathname)} />}
         </nav>
         <div className="mt-auto grid gap-3 pt-6">
           {auth.signedIn ? (
