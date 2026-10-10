@@ -134,6 +134,15 @@ export default defineConfig({
     __PRIVY_APP_ID__: JSON.stringify(process.env.PRIVY_APP_ID ?? ''),
   },
   // Pre-bundle the shader package. Found mid-run, the dev optimizer reloads, and a stale chunk keeps a second React, so a
-  // cold checkout's first page with an agent orb failed ("reading 'useState'" of null).
-  optimizeDeps: { include: ['@paper-design/shaders-react'] },
+  // cold checkout's first page with an agent orb failed ("reading 'useState'" of null). three likewise: the receipt
+  // card imports it on demand, and found then, the reload drops the open card.
+  optimizeDeps: {
+    include: [
+      '@paper-design/shaders-react',
+      'three',
+      'three/examples/jsm/controls/OrbitControls.js',
+      'three/examples/jsm/loaders/GLTFLoader.js',
+      'three/examples/jsm/loaders/STLLoader.js',
+    ],
+  },
 })

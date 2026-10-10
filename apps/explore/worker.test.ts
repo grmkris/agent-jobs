@@ -287,6 +287,9 @@ describe('Explore docs worker', () => {
     expect(directive('img-src')).toBe("img-src 'self' data: blob: https:")
     expect(directive('frame-src')).not.toContain('https: ')
     expect(directive('script-src')).toBe("script-src 'self' https://challenges.cloudflare.com")
+    // A delivered 3D model is fetched from its host and its textures decode through blob: URLs; no eval anywhere.
+    expect(directive('connect-src')).toMatch(/^connect-src 'self' https: blob: /)
+    expect(policy).not.toContain('unsafe-eval')
     const guide = await docsRequest('/start.md', {}, env({ '/start.md': '# Start\n{{SIDEQUEST_ORIGIN}}/mcp' }))
     expect(await guide.text()).toBe('# Start\nhttps://dev.sidequest.exchange/mcp')
   })

@@ -1,10 +1,11 @@
-import { ArrowUpRight } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { ArrowUpRight, Rotate3d } from 'lucide-react'
+import { type ReactNode, useState } from 'react'
 import type { Deliverable } from '../../api.ts'
 import { type PreviewPlan, thumbOf } from '../../delivery-plan.ts'
 import { KIND, deliveryWhere } from '../../delivery.ts'
 import { DeliveryImage } from './DeliveryImage.tsx'
 import { KindGlyph } from './KindGlyph.tsx'
+import { ModelView } from './ModelView.tsx'
 
 const BOX = 'aspect-[16/9] w-full'
 
@@ -27,35 +28,52 @@ function Opens({ href, children }: { href: string | null; children: ReactNode })
   )
 }
 
+/** A site's poster, with a button that turns the model it delivered instead. */
+function PosterWithModel({ poster, model }: { poster: ReactNode; model: ReactNode }) {
+  const [turning, setTurning] = useState(false)
+  if (turning) return <div className={BOX}>{model}</div>
+  return (
+    <div className="relative">
+      {poster}
+      <button
+        type="button"
+        onClick={() => setTurning(true)}
+        className="absolute bottom-2 left-2 inline-flex items-center gap-1.5 rounded-full bg-background/85 px-2.5 py-1 text-xs font-medium shadow-sm ring-1 ring-foreground/10 hover:bg-background focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-hidden"
+      >
+        <Rotate3d aria-hidden className="size-3.5" />
+        View in 3D
+      </button>
+    </div>
+  )
+}
+
 /**
- * What was delivered, at the top of its receipt: a picture of it (the curated image, its own poster, the image
- * file), else a glyph for its kind. `extra` renders under the picture, inside the frame (the 3D view's button).
+ * What was delivered, at the top of its receipt: a picture of it (the curated image, its own poster, the image file),
+ * a 3D model turning (or a site's poster with a button to turn the model it delivered), else a glyph for its kind.
  */
-export function DeliveryPreview({
-  plan,
-  deliverable,
-  model,
-}: {
-  plan: PreviewPlan
-  deliverable: Deliverable | null
-  /** The 3D view, when the plan has a model to turn. */
-  model?: ReactNode
-}) {
+export function DeliveryPreview({ plan, deliverable }: { plan: PreviewPlan; deliverable: Deliverable | null }) {
+  if (plan.from === 'model')
+    return (
+      <div className={BOX}>
+        <ModelView model={plan.model} href={plan.href} />
+      </div>
+    )
   const glyph = (
     <KindGlyph
       kind={deliverable?.kind ?? null}
       media={plan.from === 'glyph' ? plan.media : null}
-      model={plan.from === 'model'}
-      label={plan.from === 'model' ? '3D model' : deliverable === null ? 'Delivery' : KIND[deliverable.kind]}
-      detail={plan.from === 'model' ? plan.model.name : deliverable === null ? '' : deliveryWhere(deliverable)}
+      label={deliverable === null ? 'Delivery' : KIND[deliverable.kind]}
+      detail={deliverable === null ? '' : deliveryWhere(deliverable)}
       className={BOX}
     />
   )
-  if (plan.from === 'model' && model !== undefined) return <div className={BOX}>{model}</div>
   const thumb = thumbOf(plan)
-  return (
+  const picture = (
     <Opens href={plan.href}>
       {thumb === null ? glyph : <DeliveryImage thumb={thumb} icons={16} className={BOX} fallback={glyph} />}
     </Opens>
   )
+  if (plan.from === 'poster' && plan.model !== null)
+    return <PosterWithModel poster={picture} model={<ModelView model={plan.model} href={plan.model.src} />} />
+  return picture
 }

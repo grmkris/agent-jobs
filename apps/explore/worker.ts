@@ -32,6 +32,10 @@ const CSP_BASE = [
   `frame-src ${PRIVY_FRAMES.join(' ')} https://challenges.cloudflare.com`,
   [
     "connect-src 'self'",
+    // A delivered 3D model is fetched from its own host when a card turns it, and glTF textures decode through blob:
+    // URLs (Kris, 10 Oct). The hosts below predate this and stay listed so it can be reverted on its own.
+    'https:',
+    'blob:',
     'https://auth.privy.io',
     'wss://relay.walletconnect.com',
     'wss://relay.walletconnect.org',
