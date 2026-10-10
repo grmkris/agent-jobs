@@ -16,6 +16,7 @@ import type { BoardCall } from '../src/board.ts'
 import * as oauth from '../src/oauth.ts'
 const databases: DatabaseSync[] = []
 afterEach(() => {
+  vi.useRealTimers()
   vi.restoreAllMocks()
   for (const db of databases.splice(0)) db.close()
 })
@@ -33,6 +34,9 @@ async function fixture() {
   databases.push(db)
   const sql = fromNodeSqlite(db)
   const now = Math.floor(Date.now() / 1000)
+  // One clock for the test and the runtime: the executor's 30-day expiry and the store's start must agree to the second.
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(now * 1000)
   const operator = privateKeyToAccount(generatePrivateKey())
   const wallet = privateKeyToAccount(generatePrivateKey())
   const agents = new AgentStore(sql, () => now)
