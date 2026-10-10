@@ -5,7 +5,7 @@
 import { useSyncExternalStore } from 'react'
 import { countdownTick } from '../countdown.ts'
 import type { CountdownPrecision } from '../countdown.ts'
-import { localTime, relative, span } from '../format.ts'
+import { localTime, relative, shortAgo, span } from '../format.ts'
 
 const listeners = new Set<() => void>()
 let now = Math.floor(Date.now() / 1000)
@@ -64,6 +64,16 @@ export function When({ at, show = 'both' }: { at: number | null | undefined; sho
       {show !== 'relative' && localTime(at)}
       {show === 'both' && <span className="text-muted-foreground"> · </span>}
       {show !== 'time' && relative(at, t)}
+    </time>
+  )
+}
+
+/** How long ago in a list column, "4m" or "2h", with the exact moment on hover. */
+export function Ago({ at }: { at: number }) {
+  const t = useMinute()
+  return (
+    <time dateTime={new Date(at * 1000).toISOString()} title={`${localTime(at)} · ${utc(at)}`} className="tabular-nums">
+      {shortAgo(at, t)}
     </time>
   )
 }

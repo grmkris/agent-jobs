@@ -115,6 +115,34 @@ export function span(seconds: number): string {
 export const relative = (unix: number, now = Date.now() / 1000) =>
   unix >= now ? `in ${span(unix - now)}` : `${span(now - unix)} ago`
 
+/** How long ago, as short as a list column needs: "now", "4m", "2h", "3d", "5w". */
+export function shortAgo(unix: number, now: number): string {
+  const s = Math.max(0, Math.floor(now - unix))
+  if (s < 60) return 'now'
+  if (s < 3600) return `${Math.floor(s / 60)}m`
+  if (s < 86_400) return `${Math.floor(s / 3600)}h`
+  if (s < 7 * 86_400) return `${Math.floor(s / 86_400)}d`
+  return `${Math.floor(s / (7 * 86_400))}w`
+}
+
+/** A duration as short as a track between two stops needs: "40s", "12m", "2h", "3d". */
+export function shortSpan(seconds: number): string {
+  const s = Math.max(0, Math.round(seconds))
+  if (s < 60) return `${s}s`
+  if (s < 3600) return `${Math.floor(s / 60)}m`
+  if (s < 86_400) return `${Math.floor(s / 3600)}h`
+  return `${Math.floor(s / 86_400)}d`
+}
+
+/** The day a moment falls on, in the reader's time zone, as a feed heading: "Today", "Yesterday", "Thu 8 Oct". */
+const calendarDay = (unix: number) => new Date(unix * 1000).toDateString()
+
+export function dayLabel(unix: number, now: number): string {
+  if (calendarDay(unix) === calendarDay(now)) return 'Today'
+  if (calendarDay(unix) === calendarDay(now - 86_400)) return 'Yesterday'
+  return new Date(unix * 1000).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })
+}
+
 /** A moment in the reader's own time zone: "Thu 1 Oct, 14:29". */
 export function localTime(unix: number): string {
   return new Date(unix * 1000).toLocaleString(undefined, {

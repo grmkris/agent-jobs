@@ -1,4 +1,4 @@
-import type { FeedEvent } from '../../activity-feed.ts'
+import { type FeedEvent, newestPerJob } from '../../activity-feed.ts'
 import type { JobListItem } from '../../job-list.ts'
 import { phaseOf } from '../Phase.tsx'
 
@@ -29,8 +29,8 @@ export function liveWorkItems(items: readonly JobListItem[], now: number): JobLi
 const LANDING_EVENTS = 6
 
 /**
- * The landing's slice of Activity, newest first: steps on the jobs `liveWorkItems` features (nothing cancelled or
- * expired), and quote requests still open.
+ * The landing's slice of Activity, newest first, each job once at its newest step: the jobs `liveWorkItems` features
+ * (nothing cancelled or expired), and quote requests still open.
  */
 export function landingEvents(
   events: readonly FeedEvent[],
@@ -39,5 +39,7 @@ export function landingEvents(
   limit = LANDING_EVENTS,
 ): FeedEvent[] {
   const featured = new Set(liveWorkItems(items, now).map((item) => item.jobId))
-  return events.filter((e) => (e.jobId === null ? e.job?.bucket === 'open' : featured.has(e.jobId))).slice(0, limit)
+  return newestPerJob(events)
+    .filter((e) => (e.jobId === null ? e.job?.bucket === 'open' : featured.has(e.jobId)))
+    .slice(0, limit)
 }

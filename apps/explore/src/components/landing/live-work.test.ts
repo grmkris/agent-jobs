@@ -101,6 +101,10 @@ describe('landing activity', () => {
     ]
     const items = [item('completed'), item('cancelled'), item('active')]
     expect(landingEvents(events, items, now).map((e) => e.key)).toEqual(['paid', 'asking', 'working'])
+    // A job shows once, at its newest step.
+    expect(
+      landingEvents([event('paid', 'completed'), event('earlier', 'completed')], items, now).map((e) => e.key),
+    ).toEqual(['paid'])
     expect(landingEvents(events, items, now, 2)).toHaveLength(2)
   })
 })

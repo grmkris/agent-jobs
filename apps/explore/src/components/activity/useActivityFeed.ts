@@ -39,6 +39,8 @@ export interface ActivityFeed {
   /** The loaded steps and the requests as events, newest first. */
   events: FeedEvent[]
   requestsError: Error | null
+  /** Jobs, requests and the first page of steps have all answered: what is shown now is the board as it stands. */
+  ready: boolean
   viewer: string | undefined
   now: number
 }
@@ -57,5 +59,6 @@ export function useActivityFeed(): ActivityFeed {
     [jobs.items, requests.data, loaded, posters, address, now],
   )
   const events = useMemo(() => feedEvents(loaded, feed, steps.hasNextPage), [loaded, feed, steps.hasNextPage])
-  return { jobs, steps, feed, events, requestsError: requests.error, viewer: address, now }
+  const ready = !jobs.loading && steps.isSuccess && (requests.isSuccess || requests.isError)
+  return { jobs, steps, feed, events, requestsError: requests.error, ready, viewer: address, now }
 }

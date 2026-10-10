@@ -10,8 +10,10 @@ import {
   feedEvents,
   feedJobs,
   matches,
+  newestPerJob,
   posterParty,
   progressOf,
+  trackOf,
   readFilter,
   visibleEvents,
   writeFilter,
@@ -180,6 +182,7 @@ describe('activity feed jobs', () => {
       tags: ['design'],
       q: 'x',
       mine: false,
+      everyStep: false,
     })
     expect(read('step=nope&agent=x').step).toBe('all')
     expect(read('agent=x').agent).toBeNull()
@@ -255,5 +258,58 @@ describe('activity feed events', () => {
     const events = feedEvents([step('7', 'completed', 9), step('99', 'posted', 8)], jobs, false)
     expect(visibleEvents(events, NO_FILTER, undefined)).toHaveLength(2)
     expect(visibleEvents(events, { ...NO_FILTER, step: 'paid' }, undefined).map((e) => e.jobId)).toEqual(['7'])
+  })
+})
+
+describe('one row per job', () => {
+  it('keeps each job and request once, at its newest event, and every step on request', () => {
+    const jobs = build([job('7', 'completed'), job('8', 'active')], [request('r1', 50)])
+    const events = feedEvents(
+      [step('7', 'completed', 400), step('8', 'hired', 300), step('7', 'delivered', 200), step('7', 'posted', 100)],
+      jobs,
+      false,
+    )
+    expect(newestPerJob(events).map((e) => [e.jobId ?? e.requestId, e.kind])).toEqual([
+      ['7', 'completed'],
+      ['8', 'hired'],
+      ['r1', 'requested'],
+    ])
+    expect(read('steps=all').everyStep).toBe(true)
+    expect(writeFilter({ ...NO_FILTER, everyStep: true }, new URLSearchParams()).toString()).toBe('steps=all')
+  })
+
+  it('tracks posted → hired → delivered → paid with the time each step took', () => {
+    const [paid] = build(
+      [job('7', 'completed')],
+      [],
+      [step('7', 'posted', 100), step('7', 'hired', 640), step('7', 'delivered', 820), step('7', 'completed', 1000)],
+    )
+    expect(trackOf(paid!)).toEqual([
+      { label: 'Posted', state: 'done', at: 100, after: null },
+      { label: 'Hired', state: 'done', at: 640, after: 540 },
+      { label: 'Delivered', state: 'done', at: 820, after: 180 },
+      { label: 'Paid', state: 'done', at: 1000, after: 180 },
+    ])
+    const [active] = build([job('8', 'active')])
+    expect(trackOf(active!).map((s) => [s.label, s.state, s.after])).toEqual([
+      ['Posted', 'done', null],
+      ['Hired', 'done', null],
+      ['Delivered', 'todo', null],
+      ['Paid', 'todo', null],
+    ])
+  })
+
+  it('ends a job that left the path at Disputed or Closed, and gives a request no track', () => {
+    const [rejected] = build([job('9', 'rejected')])
+    expect(trackOf(rejected!).map((s) => [s.label, s.state])).toEqual([
+      ['Posted', 'done'],
+      ['Hired', 'done'],
+      ['Delivered', 'done'],
+      ['Disputed', 'failed'],
+    ])
+    const [cancelled] = build([job('10', 'cancelled')])
+    expect(trackOf(cancelled!).map((s) => s.label)).toEqual(['Posted', 'Hired', 'Closed'])
+    const [asked] = build([], [request('r2', 10)])
+    expect(trackOf(asked!)).toEqual([])
   })
 })

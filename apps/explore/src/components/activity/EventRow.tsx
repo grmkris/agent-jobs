@@ -1,4 +1,4 @@
-import type { FeedEvent } from '../../activity-feed.ts'
+import { type FeedEvent, type FeedJob, trackOf } from '../../activity-feed.ts'
 import { activityIcon } from '../../activity.ts'
 import { currentBoardId } from '../../api.ts'
 import { jobTarget } from '../../job-list.ts'
@@ -7,16 +7,20 @@ import { type LiveItem, type Party, liveSentence } from '../../live-activity.ts'
 import { ActivityIcon } from '../ActivityRow.tsx'
 import { AgentPeekLink, AgentPeekOrb } from '../agent/AgentPeek.tsx'
 import { BoardLink, type LinkTarget, boardRoutes } from '../BoardLink.tsx'
-import { When } from '../Time.tsx'
+import { Ago } from '../Time.tsx'
+import { RollingCountdown } from '../RollingCountdown.tsx'
+import { DeliveryImage } from '../delivery/DeliveryImage.tsx'
+import { cn } from '../../lib/cn.ts'
+import { StepTrack } from './StepTrack.tsx'
 import { TokenAmount } from '../token/TokenAmount.tsx'
 import { type RowDelivery, useRowDelivery } from '../../delivery-preview.ts'
-import { previewPlan, thumbOf } from '../../delivery-plan.ts'
+import { type Thumb, previewPlan, thumbOf } from '../../delivery-plan.ts'
 import { stage } from '../../wallet.ts'
 import { PeekLink } from '../PeekLink.tsx'
 import { WalletLink, WalletOrb } from '../WalletLink.tsx'
 import { FeedDetails } from './FeedDetails.tsx'
 import { ReceiptCard } from './ReceiptCard.tsx'
-import { RowMeta, RowThumb } from './RowMeta.tsx'
+import { RowThumb } from './RowMeta.tsx'
 import { useNear } from './useNear.ts'
 import { StretchedRow } from './StretchedRow.tsx'
 
@@ -108,73 +112,175 @@ function EventMedia({ event, payer }: { event: FeedEvent; payer: Party | undefin
   )
 }
 
+/** The word on a delivery that was not accepted: the work stays visible, faded, with what became of it. */
+const UNACCEPTED: Partial<Record<LiveItem['kind'], string>> = {
+  rejected: 'Rejected',
+  disputed: 'In dispute',
+  ruled: 'Ruled',
+}
+
 /**
- * One thing that happened, as a sentence: who did it (linking to the agent), what, to which job (linking to the
- * job), for how much and when. A paid step whose poster is known reads "<payer> paid <agent> <amount> for “…”". On
- * Activity a press opens the job's details below; on the landing it opens the job.
+ * What was delivered, large: 16:10, beside the sentence on a wide screen (`wide`) or under it, full width, on a phone.
+ * A delivery that was not accepted is faded under its status word.
+ */
+function WorkPreview({ thumb, status, wide }: { thumb: Thumb; status: string | undefined; wide: boolean }) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        'relative shrink-0 overflow-hidden rounded-lg ring-1 ring-foreground/10',
+        wide ? 'hidden w-40 sm:block' : 'block w-full sm:hidden',
+      )}
+    >
+      <DeliveryImage
+        thumb={thumb}
+        icons={wide ? 8 : 16}
+        className={cn('aspect-[16/10] w-full', status && 'opacity-45')}
+      />
+      {status !== undefined && (
+        <span className="absolute bottom-1.5 left-1.5 rounded-md bg-background/85 px-1.5 py-0.5 text-xs font-medium text-foreground">
+          {status}
+        </span>
+      )}
+    </span>
+  )
+}
+
+/** An open request's public facts: what it may pay, when quoting closes and how many agents quoted (never amounts). */
+function RequestFacts({ job }: { job: FeedJob }) {
+  const r = job.item.request
+  if (r === undefined || job.bucket !== 'open') return null
+  const quotes = r.quotesCount ?? 0
+  return (
+    <span className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+      {r.budget !== undefined && (
+        <span>
+          Up to <TokenAmount value={r.budget.max} token={r.budget.token} static />
+        </span>
+      )}
+      <span className="flex items-baseline gap-1">
+        Closes in <RollingCountdown to={r.quoteDeadline} passed="closed" />
+      </span>
+      <span className="tabular-nums">
+        {quotes === 0 ? 'No quotes yet' : `${quotes} ${quotes === 1 ? 'quote' : 'quotes'}`}
+      </span>
+    </span>
+  )
+}
+
+/** The row's sentence: payer and actor named (agents with their cards, wallets by address), the job's title linked. */
+function EventSentence({
+  event,
+  sentence,
+  target,
+}: {
+  event: FeedEvent
+  sentence: ReturnType<typeof liveSentence>
+  target: LinkTarget
+}) {
+  const { actor, text, payer } = sentence
+  const [before, after] = aroundTitle(text, event.title)
+  const amount = event.amount === undefined ? null : <TokenAmount value={event.amount} token={event.token} static />
+  const actorParty = actor ? actorOf(event) : null
+  return (
+    <>
+      {payer !== undefined && (
+        <>
+          <PartyName party={payer} /> paid{' '}
+        </>
+      )}
+      {actorParty !== null && (
+        <>
+          <PartyName party={actorParty} />{' '}
+        </>
+      )}
+      {payer !== undefined && amount !== null && <>{amount} </>}
+      {before}
+      {event.job === undefined || event.job.item.jobId === null ? (
+        <BoardLink target={target} className="font-medium underline-offset-4 [@media(hover:hover)]:hover:underline">
+          “{event.title}”
+        </BoardLink>
+      ) : (
+        <PeekLink
+          target={target}
+          card={<ReceiptCard job={event.job} />}
+          className="font-medium underline-offset-4 [@media(hover:hover)]:hover:underline"
+        >
+          “{event.title}”
+        </PeekLink>
+      )}
+      {after}
+      {payer === undefined && amount !== null && (
+        <span className="text-muted-foreground">
+          {' '}
+          <TokenAmount value={event.amount} token={event.token} static />
+        </span>
+      )}
+    </>
+  )
+}
+
+/**
+ * One thing that happened, as a sentence: who did it, what, to which job, for how much and how long ago. As a job's
+ * row (the feed's usual reading) it also carries the job's track and, once work was delivered, the work itself, large;
+ * as one step among every step (`step`) it stays compact. On Activity a press opens the job's details below; on the
+ * landing it opens the job.
  */
 export function EventRow({
   event,
   details,
+  layout = 'job',
+  fresh = false,
 }: {
   event: FeedEvent
   /** Activity's rows open the job's details in place; without this (the landing) the row links to the job. */
   details?: { open: boolean; onToggle: () => void; onAgent: (agentId: string) => void }
+  layout?: 'job' | 'step'
+  /** Just arrived in the feed. */
+  fresh?: boolean
 }) {
-  const { actor, text, payer } = liveSentence(event, posterParty(event.job))
-  const [before, after] = aroundTitle(text, event.title)
+  const sentence = liveSentence(event, posterParty(event.job))
   const target = eventTarget(event)
   // Details need the job's record; an event on a job this page cannot read only links.
   const job = details === undefined ? undefined : event.job
-  const amount = event.amount === undefined ? null : <TokenAmount value={event.amount} token={event.token} static />
-  const actorParty = actor ? actorOf(event) : null
+  const actorParty = sentence.actor ? actorOf(event) : null
   const who = actorParty === null ? '' : `${partyLabel(actorParty)} `
   const shown = useEventDelivery(event)
+  const status = UNACCEPTED[event.kind]
+  const big = layout === 'job' && shown.thumb !== null
+  const track = layout === 'job' && event.job !== undefined ? trackOf(event.job) : []
   return (
     <StretchedRow
-      label={payer === undefined ? `${who}${text}` : `${partyLabel(payer)} paid ${who}${text}`}
+      fresh={fresh}
+      label={
+        sentence.payer === undefined
+          ? `${who}${sentence.text}`
+          : `${partyLabel(sentence.payer)} paid ${who}${sentence.text}`
+      }
       action={
         job !== undefined && details !== undefined
           ? { kind: 'toggle', open: details.open, onToggle: details.onToggle }
           : { kind: 'link', target }
       }
-      media={<EventMedia event={event} payer={payer} />}
-      aside={<When at={event.at} show="relative" />}
-      thumb={shown.thumb === null ? undefined : <RowThumb thumb={shown.thumb} />}
+      media={<EventMedia event={event} payer={sentence.payer} />}
+      aside={<Ago at={event.at} />}
+      thumb={
+        shown.thumb === null ? undefined : big ? (
+          <WorkPreview thumb={shown.thumb} status={status} wide />
+        ) : (
+          <RowThumb thumb={shown.thumb} />
+        )
+      }
       details={
         job !== undefined && details !== undefined ? <FeedDetails job={job} onAgent={details.onAgent} /> : undefined
       }
     >
-      <p ref={shown.ref} className="text-sm leading-snug">
-        {payer !== undefined && (
-          <>
-            <PartyName party={payer} /> paid{' '}
-          </>
-        )}
-        {actorParty !== null && (
-          <>
-            <PartyName party={actorParty} />{' '}
-          </>
-        )}
-        {payer !== undefined && amount !== null && <>{amount} </>}
-        {before}
-        {event.job === undefined || event.job.item.jobId === null ? (
-          <BoardLink target={target} className="font-medium underline-offset-4 hover:underline">
-            “{event.title}”
-          </BoardLink>
-        ) : (
-          <PeekLink
-            target={target}
-            card={<ReceiptCard job={event.job} />}
-            className="font-medium underline-offset-4 hover:underline"
-          >
-            “{event.title}”
-          </PeekLink>
-        )}
-        {after}
-        {payer === undefined && amount !== null && <span className="text-muted-foreground"> · {amount}</span>}
+      <p ref={shown.ref} className="text-sm leading-snug text-pretty">
+        <EventSentence event={event} sentence={sentence} target={target} />
       </p>
-      {shown.delivery !== null && <RowMeta delivery={shown.delivery} steps={event.job?.steps ?? []} />}
+      {big && shown.thumb !== null && <WorkPreview thumb={shown.thumb} status={status} wide={false} />}
+      {event.job !== undefined && <RequestFacts job={event.job} />}
+      <StepTrack stops={track} />
     </StretchedRow>
   )
 }

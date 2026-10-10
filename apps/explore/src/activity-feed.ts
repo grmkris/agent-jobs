@@ -39,9 +39,11 @@ export interface FeedFilter {
   /** An Agent ID: work it posted or took. */
   agent: string | null
   mine: boolean
+  /** Every step as its own row, instead of each job once at its newest step. A way of reading, not a filter. */
+  everyStep: boolean
 }
 
-export const NO_FILTER: FeedFilter = { step: 'all', tags: [], q: '', agent: null, mine: false }
+export const NO_FILTER: FeedFilter = { step: 'all', tags: [], q: '', agent: null, mine: false, everyStep: false }
 
 const BUCKET: Partial<Record<Phase['key'], Bucket>> = {
   'quotes-open': 'open',
@@ -254,6 +256,7 @@ export function readFilter(p: URLSearchParams): FeedFilter {
     q: p.get('q') ?? '',
     agent: agent !== null && /^\d+$/.test(agent) ? agent : null,
     mine: p.get('mine') === '1',
+    everyStep: p.get('steps') === 'all',
     ...LEGACY_VIEW[p.get('view') ?? ''],
   }
 }
@@ -268,6 +271,7 @@ export function writeFilter(f: FeedFilter, p: URLSearchParams): URLSearchParams 
   set('q', f.q === '' ? null : f.q)
   set('agent', f.agent)
   set('mine', f.mine ? '1' : null)
+  set('steps', f.everyStep ? 'all' : null)
   return out
 }
 
@@ -343,3 +347,57 @@ export function feedEvents(steps: readonly ActivityStep[], jobs: readonly FeedJo
 /** The events whose job the filter lets through; an event on a job this page cannot read shows only unfiltered. */
 export const visibleEvents = (events: readonly FeedEvent[], f: FeedFilter, viewer: string | undefined): FeedEvent[] =>
   events.filter((e) => (e.job === undefined ? !filtering(f) : matches(e.job, f, viewer)))
+
+/** Which job or request an event belongs to: events of one share a key. */
+const groupKey = (e: FeedEvent) => e.job?.key ?? (e.jobId === null ? `request:${e.requestId}` : e.jobId)
+
+/**
+ * Each job once, at its newest event (the events come newest first): a job's earlier steps are told by its track, so
+ * the feed reads as one line per piece of work.
+ */
+export function newestPerJob(events: readonly FeedEvent[]): FeedEvent[] {
+  const seen = new Set<string>()
+  return events.filter((e) => {
+    const key = groupKey(e)
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
+/** One stop of a job's track. `after` is the time since the stop before it, when both are known. */
+export interface TrackStop {
+  label: string
+  state: 'done' | 'todo' | 'failed' | 'closed'
+  at: number | null
+  after: number | null
+}
+
+const TRACK = [
+  { label: 'Posted', step: 'posted' },
+  { label: 'Hired', step: 'hired' },
+  { label: 'Delivered', step: 'delivered' },
+  { label: 'Paid', step: 'completed' },
+] as const
+
+/**
+ * A job's way along posted → hired → delivered → paid: each stop done or still ahead, with the time each step took
+ * from the loaded steps. A job that left the path ends at a red Disputed or a grey Closed in place of the stop it
+ * missed. Requests have no track yet.
+ */
+export function trackOf(job: FeedJob): TrackStop[] {
+  const { reached, ending } = progressOf(job)
+  if (reached === 0) return []
+  const at = (step: string) => job.steps.find((s) => s.step === step)?.at ?? null
+  const stops: TrackStop[] = []
+  for (const [i, stage] of TRACK.entries()) {
+    const when = at(stage.step)
+    const before = stops.at(-1)?.at ?? null
+    const after = when !== null && before !== null ? when - before : null
+    if (i < reached) stops.push({ label: stage.label, state: 'done', at: when, after })
+    else if (ending === 'disputed') return [...stops, { label: 'Disputed', state: 'failed', at: null, after: null }]
+    else if (ending === 'closed') return [...stops, { label: 'Closed', state: 'closed', at: null, after: null }]
+    else stops.push({ label: stage.label, state: 'todo', at: null, after: null })
+  }
+  return stops
+}

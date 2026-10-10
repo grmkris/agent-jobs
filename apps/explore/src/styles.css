@@ -368,6 +368,13 @@
     transform: translateY(-150%);
   }
 }
+/* A feed row that just arrived: a brief primary tint that fades out. */
+@keyframes row-fresh {
+  from {
+    background-color: color-mix(in oklch, var(--primary) 16%, transparent);
+  }
+}
+
 @keyframes view-in {
   from {
     opacity: 0;

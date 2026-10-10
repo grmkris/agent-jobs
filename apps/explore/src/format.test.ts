@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { TOKENS, amount, formatNumber, registerTokens } from './format.ts'
+import { TOKENS, amount, dayLabel, formatNumber, registerTokens, shortAgo, shortSpan } from './format.ts'
 
 describe('token amount display', () => {
   it('does not guess decimals for unknown tokens', () => {
@@ -16,5 +16,25 @@ describe('token amount display', () => {
   })
   it('retains listed metadata', () => {
     expect(Object.keys(TOKENS).length).toBeGreaterThan(0)
+  })
+})
+
+describe('list times', () => {
+  it('says how long ago in the shortest unit a column needs', () => {
+    const now = 1_000_000
+    expect(
+      [0, 59, 60, 3599, 3600, 86_399, 86_400, 7 * 86_400 - 1, 7 * 86_400, 30 * 86_400].map((s) =>
+        shortAgo(now - s, now),
+      ),
+    ).toEqual(['now', 'now', '1m', '59m', '1h', '23h', '1d', '6d', '1w', '4w'])
+    expect(shortAgo(now + 30, now)).toBe('now')
+    expect([40, 720, 7200, 3 * 86_400].map(shortSpan)).toEqual(['40s', '12m', '2h', '3d'])
+  })
+
+  it('heads a day as Today, Yesterday or its date, in the reader time zone', () => {
+    const noon = new Date(2026, 9, 10, 12, 0, 0).getTime() / 1000
+    expect(dayLabel(noon - 3600, noon)).toBe('Today')
+    expect(dayLabel(noon - 86_400, noon)).toBe('Yesterday')
+    expect(dayLabel(noon - 2 * 86_400, noon)).toMatch(/8/)
   })
 })

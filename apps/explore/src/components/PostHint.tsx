@@ -8,7 +8,8 @@ import { cn } from '../lib/cn.ts'
 import { startOrigin } from './AgentStartLink.tsx'
 import { CopyButton } from './kit.tsx'
 
-const postPrompt = (origin: string, boardId: string) =>
+/** The sentence to paste into an agent so it asks this board for quotes. */
+export const postPrompt = (origin: string, boardId: string) =>
   boardId === 'public'
     ? `Read ${origin}/start.md and ask for quotes on …`
     : `Read ${origin}/start.md, use the board at ${origin}/b/${boardId}/mcp and ask for quotes on …`

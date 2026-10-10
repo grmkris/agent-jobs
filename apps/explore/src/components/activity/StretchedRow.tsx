@@ -19,6 +19,7 @@ export function StretchedRow({
   aside,
   thumb,
   details,
+  fresh = false,
 }: {
   /** The control's accessible name. */
   label: string
@@ -29,6 +30,8 @@ export function StretchedRow({
   /** A small picture of what the row is about, between its text and its aside. */
   thumb?: ReactNode
   details?: ReactNode
+  /** Just arrived: tinted for a moment, unless the reader prefers less motion. */
+  fresh?: boolean
 }) {
   const id = useId()
   const open = action.kind === 'toggle' && action.open
@@ -36,7 +39,13 @@ export function StretchedRow({
     'absolute inset-0 rounded-none outline-hidden focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset'
   return (
     <li className="relative before:absolute before:top-0 before:right-0 before:left-16 before:border-t before:border-border/70 first:before:hidden">
-      <div className={cn('relative transition-colors duration-(--dur-fast) hover:bg-muted/60', open && 'bg-muted/40')}>
+      <div
+        className={cn(
+          'relative transition-colors duration-(--dur-fast) [@media(hover:hover)]:hover:bg-muted/60',
+          open && 'bg-muted/40',
+          fresh && 'motion-safe:animate-[row-fresh_1.4s_var(--ease-out-strong)]',
+        )}
+      >
         {action.kind === 'toggle' ? (
           <button
             type="button"
