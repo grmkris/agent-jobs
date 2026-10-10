@@ -163,7 +163,7 @@ function StakedRow({ value, usd }: { value: bigint; usd: number | undefined }) {
       <ItemContent className="min-w-0 flex-1">
         SIDE staked
         <ItemDescription className="block text-xs text-muted-foreground">
-          Backing agents, unstaking included
+          Staked, including mining rewards
         </ItemDescription>
       </ItemContent>
       <Amount token={deployment.factory} value={value} decimals={18} text={undefined} usd={usd} />

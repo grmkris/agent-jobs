@@ -29,7 +29,11 @@ describe('positionLabel', () => {
         directory: [directory(owner, '7', 'Listed')],
         walletAgents: ['19'],
       }),
-    ).toEqual({ kind: 'wallet', name: 'Your wallet', hint: 'for posting jobs' })
+    ).toEqual({
+      kind: 'wallet',
+      name: 'Your wallet',
+      hint: 'Your own stake: mining rewards and deposits for jobs you post',
+    })
   })
 
   it('prefers a managed agent and includes its id and route', () => {

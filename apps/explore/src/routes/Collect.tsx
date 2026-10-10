@@ -32,7 +32,7 @@ const KIND: Record<CollectKind, { icon: LucideIcon; title: (a: CollectAction) =>
   miningClaim: {
     icon: Gem,
     title: (a) => `Mining reward${a.epoch == null ? '' : `, epoch ${a.epoch}`}`,
-    done: 'Claimed into your backing',
+    done: 'Staked into your own backing',
   },
 }
 
@@ -119,9 +119,10 @@ export function CollectSection() {
                   <ItemContent className="min-w-0 flex-1">
                     {mining?.ok === true ? (
                       <span className="block font-medium">
-                        Mining reward, epoch {String(mining.epoch)} ·{' '}
-                        <TokenAmount value={mining.amount} token={deployment.factory} className="font-semibold" />,
-                        backed when collected
+                        Mining reward, epoch {String(mining.epoch)} · staked into your own backing when collected
+                        <span className="block text-sm text-muted-foreground">
+                          <TokenAmount value={mining.amount} token={deployment.factory} className="font-semibold" />
+                        </span>
                       </span>
                     ) : (
                       <>

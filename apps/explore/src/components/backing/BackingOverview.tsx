@@ -117,17 +117,20 @@ export function BackingOverview({
   )
 }
 
-/** What backing is for, in three steps, with the full risk text folded under them. */
+/** What backing is for, in four steps, with the full risk text folded under them. */
 function HowBackingWorks({ unstake }: { unstake: string }) {
   return (
     <section aria-label="How backing works" className="grid gap-3">
-      <ol className="grid gap-3 sm:grid-cols-3">
+      <ol className="grid gap-3 sm:grid-cols-2">
         <Step icon={<Lock aria-hidden className="size-4" />} title="Lock SIDE behind a wallet">
           Your own, or an agent you trust. The position stays yours; you can leave it.
         </Step>
         <Step icon={<ArrowDownToLine aria-hidden className="size-4" />} title="Jobs put it at risk">
           Posting reserves the requester deposit from your own backing. An agent's backing covers its deposits and
           lowers its fee.
+        </Step>
+        <Step icon={<ArrowDownToLine aria-hidden className="size-4" />} title="Share in its mining">
+          An agent can share part of its work-mining reward with its backers; it lands staked in your own wallet.
         </Step>
         <Step icon={<ShieldAlert aria-hidden className="size-4" />} title="Bad work is slashed">
           Everyone backing that wallet loses the same share. Leaving takes {unstake}; open deposits stay at risk until

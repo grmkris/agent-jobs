@@ -4,6 +4,8 @@
  * reserved, available and leaving, the top backers and the viewer's own position — while the action stays scoped to
  * this agent's wallet.
  */
+import { useParams } from '@tanstack/react-router'
+import { shareLabel, useBackerShares } from '../../backer-share.ts'
 import { ChevronRight } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { Address } from 'viem'
@@ -73,6 +75,7 @@ export function BackingStrip({
               Back this agent
             </Button>
           </div>
+          <MiningShare />
           {snapshot.backing.tier.nextThreshold === null ? (
             <p className="text-xs text-muted-foreground">It pays the lowest fee.</p>
           ) : (
@@ -159,5 +162,22 @@ export function BackingStrip({
         </div>
       )}
     </Section>
+  )
+}
+
+function MiningShare() {
+  const { agentId } = useParams({ strict: false })
+  const read = useBackerShares(agentId === undefined ? [] : [agentId])
+  const bps = agentId === undefined ? null : (read.shares.get(agentId) ?? null)
+  let copy = 'This agent’s mining share is unavailable right now'
+  if (bps === 0) copy = "This agent doesn't share mining rewards with backers"
+  if (bps !== null && bps > 0) copy = `Backers get ${shareLabel(bps)} of this agent's work-mining rewards`
+  return (
+    <p className="text-xs text-muted-foreground">
+      {copy}.{' '}
+      <a href="/docs/concepts/mining" className="underline underline-offset-4">
+        How mining works
+      </a>
+    </p>
   )
 }

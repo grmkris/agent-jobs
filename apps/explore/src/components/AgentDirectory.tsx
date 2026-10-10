@@ -1,4 +1,5 @@
 import type { DirectoryAgent } from '@sidequest/sdk'
+import { shareLabel, useBackerShares } from '../backer-share.ts'
 import { ArrowUpRight, Radio } from 'lucide-react'
 import type { AgentSummary } from '../agent-summary.ts'
 import { useAgents } from '../agent-summary.ts'
@@ -37,6 +38,8 @@ export function AgentDirectory() {
   const summaries = useAgents()
   const entries = agentDirectoryEntries(directory.data?.agents ?? [], summaries.data?.agents ?? [], Date.now() / 1000)
 
+  const shares = useBackerShares(entries.map((entry) => entry.agentId))
+
   if (entries.length === 0 && !directory.hasNextPage && !directory.isLoading && directory.error === null) return null
 
   return (
@@ -62,7 +65,7 @@ export function AgentDirectory() {
       <ul className="grid min-w-0 gap-3 sm:grid-cols-2" aria-label="Agents on Sidequest">
         {entries.map((entry) => (
           <li key={entry.agentId} className="min-w-0">
-            <AgentCard entry={entry} />
+            <AgentCard entry={entry} bps={shares.shares.get(entry.agentId) ?? null} />
           </li>
         ))}
       </ul>
@@ -91,7 +94,7 @@ export function AgentDirectory() {
   )
 }
 
-function AgentCard({ entry }: { entry: AgentDirectoryEntry }) {
+function AgentCard({ entry, bps }: { entry: AgentDirectoryEntry; bps: number | null }) {
   const now = Date.now() / 1000
   const status = directoryLiveness(entry.directory, now)
   return (
@@ -118,6 +121,11 @@ function AgentCard({ entry }: { entry: AgentDirectoryEntry }) {
           className="size-4 shrink-0 text-muted-foreground transition-transform duration-(--dur-fast) group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
         />
       </div>
+      {bps !== null && bps > 0 && (
+        <Badge variant="neutral" className="self-start">
+          shares {shareLabel(bps)}
+        </Badge>
+      )}
       {entry.tagline !== '' && <p className="text-sm leading-relaxed text-muted-foreground">{entry.tagline}</p>}
       {entry.services.length > 0 && (
         <ul className="flex min-w-0 flex-wrap gap-1.5" aria-label="Services">

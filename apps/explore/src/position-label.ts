@@ -31,7 +31,12 @@ const agentLabel = (name: string, agentId: string): PositionLabel => ({
 
 /** Resolves a backing position to the most useful local identity, without performing any reads. */
 export function positionLabel(account: string, sources: PositionLabelSources = {}): PositionLabel {
-  if (same(sources.owner, account)) return { kind: 'wallet', name: 'Your wallet', hint: 'for posting jobs' }
+  if (same(sources.owner, account))
+    return {
+      kind: 'wallet',
+      name: 'Your wallet',
+      hint: 'Your own stake: mining rewards and deposits for jobs you post',
+    }
 
   const managed = sources.managed?.find((agent) => same(agent.address ?? undefined, account))
   if (managed !== undefined)

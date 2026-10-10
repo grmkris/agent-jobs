@@ -27,7 +27,7 @@ export const walletAgentsKey = (account: string) => [
 ]
 
 export const DELEGATION_RISK =
-  'If the agent is slashed for bad work, everyone backing it loses the same share. Your SIDE stays at risk until you withdraw. Leaving starts the configured unstake period (3 days on the fresh testnet clocks; 14 days in production); open jobs secured against the backing remain slashable during that period.'
+  'If the agent is slashed for bad work, everyone backing it loses the same share. Your SIDE stays at risk until you withdraw. Leaving starts the configured unstake period (3 days on the fresh testnet clocks; 14 days in production); open jobs secured against the backing remain slashable during that period. Mining rewards depend on the agent’s chosen backer share.'
 
 export function DelegationPositions({
   positions,
