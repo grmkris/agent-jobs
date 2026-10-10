@@ -1,5 +1,10 @@
 {
-  "claim": "ADR-0018 backer share, live on Monad testnet (10143) and the dev stage: one real paid hire in testnet mining epoch 29, a worker-set 50% backer share, four backer positions weighted by min(start, end), Safe fund + setRoot, dev publication, and one backer claim staked into the backer's own pool.",
+  "claim": {
+    "account": "backer A 0x642Faff6318E581E1e8982341ca0D94ba3c90950 (claimed by its own key)",
+    "tx": "0x80936b67007b2caf1a6c25e5012ad7a6b33058e89e04419576e4c64ad41f1317",
+    "block": 69732050,
+    "runnerResult": "PASS claim stake increased by 2250000000000000000000 SIDE wei"
+  },
   "date": "2026-10-10",
   "network": "monad-testnet",
   "chainId": 10143,
@@ -30,8 +35,16 @@
       "logIndex": 69
     },
     "changesInsideEpoch29": [
-      { "bps": 10000, "tx": "0x177b13e3867021dd97cee2d3e9edc925a9d3c6779d6ab7d3558d1431720a1daf", "block": 69700519 },
-      { "bps": 5000, "tx": "0x470a91b6d97239d40ccdcb41d8d640ca4d04cf4d0cf5cea81a3d5f7c748960b7", "block": 69700523 }
+      {
+        "bps": 10000,
+        "tx": "0x177b13e3867021dd97cee2d3e9edc925a9d3c6779d6ab7d3558d1431720a1daf",
+        "block": 69700519
+      },
+      {
+        "bps": 5000,
+        "tx": "0x470a91b6d97239d40ccdcb41d8d640ca4d04cf4d0cf5cea81a3d5f7c748960b7",
+        "block": 69700523
+      }
     ],
     "changesInsideEpochResult": "Ignored for epoch 29: the artifact's backerShares records the block-69693135 setting (next-epoch rule)."
   },
@@ -43,35 +56,50 @@
         "delegator": "0x642Faff6318E581E1e8982341ca0D94ba3c90950",
         "before": "300 SIDE via delegate, tx 0x718d11479cf36b1df1a4596969e10bef4e23436551d81ef53baa088e2a979520, block 69693200",
         "inEpoch": "none",
-        "start": "300", "end": "300", "weight": "300", "leafSide": "2250"
+        "start": "300",
+        "end": "300",
+        "weight": "300",
+        "leafSide": "2250"
       },
       {
         "name": "B",
         "delegator": "0xD3bc4a3D29Bb0b819aDCCB52A7c9095dC9A28C95",
         "before": "200 SIDE via delegate, tx 0x72ef2faa1a7e10b3006caf77792e10d3fa4ebf3805928b1e1fdbea0539d5d267, block 69693208",
         "inEpoch": "requestUndelegate 100 shares, tx 0x93142a6687b9a1ecf19759f037faa6b002d30365d313f47a4226b7b3a79fb238, block 69700508",
-        "start": "200", "end": "100", "weight": "100", "leafSide": "750"
+        "start": "200",
+        "end": "100",
+        "weight": "100",
+        "leafSide": "750"
       },
       {
         "name": "C",
         "delegator": "0x73788D660910bA23A50da1a584cdc9b7DC19A1AC",
         "before": "none",
         "inEpoch": "400 SIDE via delegate after the epoch began, tx 0x8b1567fc960f515780a7a28cbedb2726ed2f23c66bd33df429dc4257d8b17c98, block 69700515",
-        "start": "0", "end": "400", "weight": "0", "leafSide": "none"
+        "start": "0",
+        "end": "400",
+        "weight": "0",
+        "leafSide": "none"
       },
       {
         "name": "D",
         "delegator": "0x8bB59ED23964Ef516e764eb5d8c17Bbd23193d4a",
         "before": "100 SIDE via delegate, tx 0xbfdb20281b4dd7ef756d5e924d537ac20358374f185c182b2bf14bdd093b61cb, block 69693215",
         "inEpoch": "none",
-        "start": "100", "end": "100", "weight": "100", "leafSide": "750"
+        "start": "100",
+        "end": "100",
+        "weight": "100",
+        "leafSide": "750"
       },
       {
         "name": "worker self-position",
         "delegator": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571",
         "before": "100 SIDE (existing)",
         "inEpoch": "none",
-        "start": "100", "end": "100", "weight": "100", "leafSide": "750 (merged into the worker leaf)"
+        "start": "100",
+        "end": "100",
+        "weight": "100",
+        "leafSide": "750 (merged into the worker leaf)"
       }
     ]
   },
@@ -90,7 +118,12 @@
   },
   "epoch": {
     "epoch": 29,
-    "window": { "start": 1791597529, "end": 1791601129, "fromBlock": 69700193, "toBlock": 69712108 },
+    "window": {
+      "start": 1791597529,
+      "end": 1791601129,
+      "fromBlock": 69700193,
+      "toBlock": 69712108
+    },
     "prices": {
       "signer": "0xd3392156861c922675d4859BB9C32d8ad2BaD956 (testnet Safe owner)",
       "tokens": "mUSD and testnet USDC at $1",
@@ -114,19 +147,23 @@
   },
   "safeAndPublish": {
     "driver": "contracts/script/epoch0-transactions.ts epochCalls/runEpoch (journaled Safe ECDSA execTransaction), signed by the dev-stage Safe owner checked against Safe.getOwners",
-    "fund": { "tx": "0x5069579923bace9ff05476538f259a3f69bd51283690ce43ccf3a7c48ce4edc6", "block": 69724013, "totalFundedAfter": "15000 SIDE" },
-    "setRoot": { "tx": "0x853038b7ae130cba6d0b7f03ceff79bdf80bedcc6ea8cc7cec481b7bba4c6205", "block": 69732033 },
+    "fund": {
+      "tx": "0x5069579923bace9ff05476538f259a3f69bd51283690ce43ccf3a7c48ce4edc6",
+      "block": 69724013,
+      "totalFundedAfter": "15000 SIDE"
+    },
+    "setRoot": {
+      "tx": "0x853038b7ae130cba6d0b7f03ceff79bdf80bedcc6ea8cc7cec481b7bba4c6205",
+      "block": 69732033
+    },
     "publish": "bun run mining:publish epoch-29.json --stage dev: \"mining:publish uploaded and verified\""
-  },
-  "claim": {
-    "account": "backer A 0x642Faff6318E581E1e8982341ca0D94ba3c90950 (claimed by its own key)",
-    "tx": "0x80936b67007b2caf1a6c25e5012ad7a6b33058e89e04419576e4c64ad41f1317",
-    "block": 69732050,
-    "runnerResult": "PASS claim stake increased by 2250000000000000000000 SIDE wei"
   },
   "readbacks": {
     "rootOf29": "root 0xd02d…a6ba, total 15000 SIDE, claimed 2250 SIDE, dataHash 0x8ba18dd9…a8b4495b (equal to the artifact)",
-    "isClaimed29": { "A": true, "B": false },
+    "isClaimed29": {
+      "A": true,
+      "B": false
+    },
     "positionOfAA": "2250 shares, 0 queued (staked in A's own pool, not behind #2081)",
     "devMiningProofB": "POST https://dev.sidequest.exchange/api/mining_proof {wallet B, epoch 29}: ok, amount 750 SIDE, claimed false",
     "devCollectB": "POST https://dev.sidequest.exchange/api/collect_actions {wallet B}: miningClaim epoch 29, 750 SIDE, 'Claim work mining into your SIDE stake.' with a distributor claim transaction",
@@ -136,7 +173,13 @@
   "notEstablished": [
     "Trustless payment: the Safe still publishes the root (ADR-0018 trust model).",
     "Crew agents' shares: still 0; their ERC-8004 owners' keys are not on the box.",
-    "A browser check of the Edit profile field and the agent-page share line on dev.",
-    "Mainnet: untouched."
-  ]
+    "Mainnet: untouched.",
+    "Edit profile's Backer share field signed from a browser wallet (needs an owner sign-in)."
+  ],
+  "recompute": {
+    "command": "bun run mining:epoch 29 --network monad-testnet --prices <same signed list> --previous-prices <epoch-28 signed list> into a fresh directory, after funding and setRoot",
+    "result": "root, dataHash and total equal the published artifact; inputs byte-identical",
+    "duration": "about 89 minutes on the dev RPC"
+  },
+  "browserCheck": "https://dev.sidequest.exchange/agent/2081 at 1440 px (headless Chromium): the Backing card reads 'Backers get 50 % of this agent's work-mining rewards. How mining works', with 1,100 SIDE total backing and 5 backers; the Agents directory shows no share chip because every listed crew agent is at 0 (the chip appears only above 0)."
 }

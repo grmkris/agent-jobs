@@ -700,10 +700,13 @@ its own 100 SIDE.
 
 The fork tests `backers.fork.test.ts` and `contributors.fork.test.ts` both pass on a testnet fork.
 
+An independent recompute after settlement reproduced the root, dataHash, total and byte-identical inputs. The dev
+agent page for #2081 shows "Backers get 50 % of this agent's work-mining rewards".
+
 **Still not established:**
 - trustless payment (the Safe publishes roots);
 - the crew agents' shares (still 0);
-- a browser check of the new Explore surfaces;
+- the Edit profile field signed from a browser wallet;
 - mainnet.
 
 The run also shows a cost to fix before mainnet: replaying positions and metadata from the deploy block took about
