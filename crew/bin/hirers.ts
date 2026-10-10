@@ -184,7 +184,9 @@ async function post(h: Hirer, total: number) {
     `You are ${p.name}. ${p.voice}\nYou often need: ${p.likes.join('; ')}.\n\nWrite one new job post. The work: ` +
       `${KIND_ASK[kind]}\n\nDo not repeat these recent titles: ${h.data.titles.slice(-20).join(' | ') || 'none'}.\n` +
       'Fields: title (under 70 characters), brief (2 to 4 sentences with the concrete details a worker needs, in your ' +
-      'voice; no links you invented), criteria (2 to 4 short checkable acceptance criteria), tags (one or two of ' +
+      'voice; no links you invented; self-contained, since nothing can be sent to the worker later, so give any ' +
+      'address, number or data it needs, or say where to find it publicly), criteria (2 to 4 short checkable ' +
+      'acceptance criteria), tags (one or two of ' +
       `${sdk.JOB_TAGS.join(', ')}).`,
   )
   if (idea === null) {
