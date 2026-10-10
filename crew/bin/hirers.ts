@@ -268,7 +268,20 @@ async function readDelivery(url: string): Promise<string> {
   const manifest = await fetch(new URL('deliverable.json', url), { signal: AbortSignal.timeout(20_000) })
     .then(async (r) => (r.ok ? (await r.text()).slice(0, 2000) : `missing (${r.status})`))
     .catch(() => 'missing (no response)')
-  return `Page text:\n${text}\n\nLinked files: ${links.join(', ')}\n\ndeliverable.json: ${manifest}`
+  // Files the manifest names are checked directly: a poster need not be linked from the page to be delivered.
+  const named = [...manifest.matchAll(/"(?:media|poster)"\s*:\s*"([^"]+)"/g)].map((m) => m[1] ?? '')
+  const served = await Promise.all(
+    named.map(async (file) => {
+      const r = await fetch(new URL(file, url), { method: 'HEAD', signal: AbortSignal.timeout(20_000) }).catch(
+        () => undefined,
+      )
+      return `${file}: ${r === undefined ? 'no response' : `${r.status} ${r.headers.get('content-type') ?? ''}`}`
+    }),
+  )
+  return (
+    `Page text:\n${text}\n\nLinked files: ${links.join(', ')}\n\ndeliverable.json: ${manifest}\n\n` +
+    `Files deliverable.json names, fetched directly: ${served.join('; ') || 'none'}`
+  )
 }
 
 async function review(h: Hirer, job: Job, task: Task) {
