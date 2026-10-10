@@ -1,5 +1,5 @@
 /**
- * The name of the first place, the board's jobs and quote requests. Kris may rename it (Activity, Quests, Tasks): the nav
- * and the page title both read it from here, while the URL stays /jobs.
+ * The name of the first place: everything that happened on the board, its jobs and quote requests. The nav, the page
+ * title and the back links read it from here; the URL stays /jobs, so old links and bookmarks keep working.
  */
-export const JOBS_LABEL = 'Jobs'
+export const JOBS_LABEL = 'Activity'

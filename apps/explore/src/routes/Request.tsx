@@ -44,6 +44,7 @@ import { useManagedAgents } from '../managed.ts'
 import { CreateWithAgent } from '../components/CreateWithAgent.tsx'
 import { BondHorizonNotice } from '../components/BondHorizonNotice.tsx'
 import { RequestTerms } from '../components/job/RequestTerms.tsx'
+import { JOBS_LABEL } from '../places.ts'
 
 type Auth = ReturnType<typeof useSignedIn>
 /** What `list_quote_requests` carries beyond the shared type: the request as frozen (checks, deliverable spec). */
@@ -239,7 +240,7 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
         className={cn(textLinkClass, '-mt-3 -mb-6 inline-flex items-center gap-0.5 justify-self-start py-3 text-sm')}
       >
         <ChevronLeft aria-hidden className="size-4" />
-        Jobs
+        {JOBS_LABEL}
       </BoardLink>
 
       <PageTitle

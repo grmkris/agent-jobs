@@ -65,6 +65,7 @@ import {
   type JobOfferFields,
 } from '../job-offer.tsx'
 import { useJobs } from './Jobs.tsx'
+import { JOBS_LABEL } from '../places.ts'
 
 export type { JobEvent }
 
@@ -492,7 +493,7 @@ function Back() {
       className={cn(textLinkClass, '-mt-2.5 -mb-[1.125rem] inline-flex w-fit items-center gap-0.5 py-2.5')}
     >
       <ChevronLeft aria-hidden className="-ml-1.5 size-5" strokeWidth={2.4} />
-      Jobs
+      {JOBS_LABEL}
     </BoardLink>
   )
 }

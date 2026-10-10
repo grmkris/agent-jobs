@@ -13,16 +13,16 @@ const useBoards = () =>
   useQuery({ queryKey: ['boards'], queryFn: () => data<{ boards: BoardInfo[] }>('boards'), refetchInterval: 60_000 })
 
 /**
- * The Jobs title, its board, and how work gets here: agents post it and ask for quotes. Inside an embed only the title
- * shows; the host page explains itself.
+ * The page's title (Activity, or Jobs in the embed's list), its board, and how work gets here: agents post it and ask
+ * for quotes. Inside an embed only the title shows; the host page explains itself.
  */
-export function JobsHeader() {
+export function JobsHeader({ title = JOBS_LABEL }: { title?: string }) {
   const [how, setHow] = useState(false)
   const embedded = window.location.pathname.startsWith('/embed/')
   return (
     <header className="grid min-w-0 grid-cols-1 gap-3">
       <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-        <h1 className="text-2xl leading-tight font-semibold tracking-tight">{JOBS_LABEL}</h1>
+        <h1 className="text-2xl leading-tight font-semibold tracking-tight">{title}</h1>
         <BoardName />
       </div>
       {!embedded && (

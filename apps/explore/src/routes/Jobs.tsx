@@ -12,13 +12,11 @@ import { useEffect, useMemo, useState } from 'react'
 import { type QuoteRequest, type TaskIndexEntry, chainJobs, currentBoardId, fetchDirectory, taskIndex } from '../api.ts'
 import { BoardLink, boardRoutes } from '../components/BoardLink.tsx'
 import { PhaseBadge } from '../components/Phase.tsx'
-import { ReadNotice, SearchBox, TagChips, readTags } from '../components/JobFilters.tsx'
+import { IndexLine, ReadNotice, SearchBox, TagChips, readTags } from '../components/JobFilters.tsx'
 import { JobsHeader } from '../components/JobsHeader.tsx'
 import { NeedsYou } from '../components/NeedsYou.tsx'
 import { useMinute } from '../components/Time.tsx'
 import { RollingCountdown } from '../components/RollingCountdown.tsx'
-import { LiveStrip } from '../components/LiveStrip.tsx'
-import { feedJobs } from '../activity-feed.ts'
 
 import { useAuth } from '../components/Wallet.tsx'
 import { AgentOrb } from '../components/agent/AgentOrb.tsx'
@@ -222,11 +220,6 @@ export function JobsPage() {
     )
   }, [jobItems, requests.data, me, address, minute])
   // The Live strip names jobs and their posters from the records this list already holds.
-  const feed = useMemo(
-    () =>
-      feedJobs({ items: jobItems, requests: requests.data ?? [], steps: [], posters, viewer: address, now: minute }),
-    [jobItems, requests.data, posters, address, minute],
-  )
   const mine = (i: JobListItem) =>
     me !== undefined &&
     [i.request?.creator, i.chain?.creator, i.chain?.approver, i.chain?.worker, i.task?.creator, i.task?.approver].some(
@@ -255,9 +248,7 @@ export function JobsPage() {
 
   return (
     <>
-      <JobsHeader />
-
-      {!window.location.pathname.startsWith('/embed/') && <LiveStrip jobs={feed} />}
+      <JobsHeader title="Jobs" />
 
       <div className="grid min-w-0 grid-cols-1 gap-2 md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)] md:items-center">
         <SearchBox value={q} onChange={(value) => setFilter({ view, q: value, tags })} />
@@ -352,14 +343,9 @@ export function JobsPage() {
         </>
       )}
 
-      <p className="px-4 text-xs text-muted-foreground">
-        {!chainReady
-          ? 'Chain facts are unavailable.'
-          : index === null
-            ? 'The chain index is not built yet.'
-            : `Chain facts up to block ${(index.next_block - 1).toLocaleString('en-US')}, refreshed every minute.`}{' '}
+      <IndexLine chainReady={chainReady} index={index}>
         Jobs whose offers are not found on known boards show as “Job #N”.
-      </p>
+      </IndexLine>
     </>
   )
 }

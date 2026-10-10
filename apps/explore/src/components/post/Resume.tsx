@@ -22,6 +22,7 @@ import { Preflight } from './Preflight.tsx'
 import { ScreeningCard } from './Screening.tsx'
 import { SignIn } from '../SignIn.tsx'
 import { BondHorizonNotice } from '../BondHorizonNotice.tsx'
+import { JOBS_LABEL } from '../../places.ts'
 
 type Auth = ReturnType<typeof useSignedIn>
 
@@ -87,7 +88,7 @@ export function ResumeOffer({
   const header = (
     <>
       <BoardLink target={routes.jobs()} className={cn(textLinkClass, 'text-sm')}>
-        Back to jobs
+        Back to {JOBS_LABEL.toLowerCase()}
       </BoardLink>
 
       <PageTitle

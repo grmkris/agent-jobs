@@ -10,6 +10,7 @@ import {
   feedEvents,
   feedJobs,
   matches,
+  progressOf,
   readFilter,
   visibleEvents,
   writeFilter,
@@ -140,6 +141,18 @@ describe('activity feed jobs', () => {
     expect(matches(open!, f({ agent: '2036' }), undefined)).toBe(false)
     expect(matches(paid!, f({ mine: true }), WORKER)).toBe(true)
     expect(matches(paid!, f({ mine: true }), undefined)).toBe(false)
+  })
+
+  it('places a job on posted → hired → delivered → paid, or says how it left that path', () => {
+    const [paid, active, open, asked] = build(
+      [job('3', 'completed'), job('2', 'active'), job('1', 'open')],
+      [request('r', 5, { quoteDeadline: 1 })],
+    )
+    expect(progressOf(paid!)).toEqual({ reached: 4, ending: null })
+    expect(progressOf(active!)).toEqual({ reached: 2, ending: null })
+    expect(progressOf(open!)).toEqual({ reached: 1, ending: null })
+    expect(progressOf(asked!)).toEqual({ reached: 0, ending: 'closed' })
+    expect(progressOf(build([job('4', 'cancelled')])[0]!)).toEqual({ reached: 2, ending: 'closed' })
   })
 
   it('counts each step filter under the other filters', () => {

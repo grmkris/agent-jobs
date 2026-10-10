@@ -12,7 +12,7 @@ import type { ActivityStep, LiveItem } from './live-activity.ts'
 
 export type Bucket = 'open' | 'progress' | 'review' | 'paid' | 'disputes' | 'closed'
 export type StepFilter = 'all' | Bucket
-const STEP_FILTERS: readonly StepFilter[] = ['all', 'open', 'progress', 'review', 'paid', 'disputes', 'closed']
+export const STEP_FILTERS: readonly StepFilter[] = ['all', 'open', 'progress', 'review', 'paid', 'disputes', 'closed']
 
 export interface FeedJob {
   key: string
@@ -158,6 +158,22 @@ export function feedJobs(input: FeedInput): FeedJob[] {
   )
 }
 
+/** How far a job got along posted → hired → delivered → paid (0 for a request), and how it left that path. */
+export interface Progress {
+  reached: number
+  ending: 'disputed' | 'closed' | null
+}
+
+const REACHED: Readonly<Record<Bucket, number>> = { open: 1, progress: 2, review: 3, paid: 4, disputes: 3, closed: 1 }
+
+export function progressOf(job: FeedJob): Progress {
+  const { bucket } = job
+  if (job.item.jobId === null) return { reached: 0, ending: bucket === 'closed' ? 'closed' : null }
+  if (bucket === null) return { reached: 1, ending: null }
+  if (bucket === 'closed') return { reached: job.item.chain?.worker == null ? 1 : 2, ending: 'closed' }
+  return { reached: REACHED[bucket], ending: bucket === 'disputes' ? 'disputed' : null }
+}
+
 /** Offers this wallet froze but never published: nothing is escrowed, so only its creator sees them. */
 export const draftsOf = (items: readonly JobListItem[], viewer: string | undefined): JobListItem[] =>
   viewer === undefined
@@ -165,7 +181,7 @@ export const draftsOf = (items: readonly JobListItem[], viewer: string | undefin
     : items.filter((i) => i.jobId === null && i.task?.creator.toLowerCase() === viewer.toLowerCase())
 
 /** Whether this wallet posted, approves or works the job, or asked for its quotes. */
-function involves(job: FeedJob, wallet: string): boolean {
+export function involves(job: FeedJob, wallet: string): boolean {
   const { request, chain, task } = job.item
   const me = wallet.toLowerCase()
   return [request?.creator, chain?.creator, chain?.approver, chain?.worker, task?.creator, task?.approver].some(
@@ -191,7 +207,7 @@ export function matches(job: FeedJob, f: FeedFilter, viewer: string | undefined)
 }
 
 /** Whether anything narrows the feed beyond everything. */
-const filtering = (f: FeedFilter): boolean =>
+export const filtering = (f: FeedFilter): boolean =>
   f.step !== 'all' || f.tags.length > 0 || f.q.trim() !== '' || f.agent !== null || f.mine
 
 /** How many jobs each step filter would show with the other filters as they are. */

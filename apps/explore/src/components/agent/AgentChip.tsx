@@ -9,6 +9,9 @@ import type { DirectoryAgent } from '@sidequest/sdk'
 import { agentLabel, agentName } from '../../agent-name.ts'
 import { type DirectoryPage, fetchDirectory } from '../../api.ts'
 import { useManagedAgents } from '../../managed.ts'
+import { cn } from '../../lib/cn.ts'
+import { BoardLink, boardRoutes } from '../BoardLink.tsx'
+import { AgentOrb } from './AgentOrb.tsx'
 
 /** The agent's name from what is already loaded; the directory's first page is read once (and kept) only if needed. */
 function useAgentName(id: string, given?: string | null): string | null {
@@ -36,5 +39,23 @@ export function AgentLabel({ id, name }: { id: string; name?: string | null }) {
       {label.text}
       {label.id !== null && <span className="text-muted-foreground"> {label.id}</span>}
     </>
+  )
+}
+
+/**
+ * An agent named inside a sentence or a row's details, linking to its profile on this board: its small orb (`orb`)
+ * and its label.
+ */
+export function AgentLink({ id, orb = false, className }: { id: string; orb?: boolean; className?: string }) {
+  return (
+    <BoardLink
+      target={boardRoutes().agent(id)}
+      className={cn('inline-flex items-center gap-1.5 font-medium underline-offset-4 hover:underline', className)}
+    >
+      {orb && <AgentOrb agentId={id} size="sm" />}
+      <span>
+        <AgentLabel id={id} />
+      </span>
+    </BoardLink>
   )
 }

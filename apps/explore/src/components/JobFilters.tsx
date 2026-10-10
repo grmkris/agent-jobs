@@ -1,5 +1,6 @@
 import { JOB_TAG_LABELS, JOB_TAGS, type JobTag } from '@sidequest/sdk'
 import { Search } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { cn } from '../lib/cn.ts'
 import { Button } from './ui/button.tsx'
 
@@ -107,5 +108,27 @@ export function ReadNotice({
         Retry
       </Button>
     </output>
+  )
+}
+
+/** How far the chain index has read, under a list built from it. */
+export function IndexLine({
+  chainReady,
+  index,
+  children,
+}: {
+  chainReady: boolean
+  index: { next_block: number } | null
+  children?: ReactNode
+}) {
+  return (
+    <p className="px-4 text-xs text-muted-foreground">
+      {!chainReady
+        ? 'Chain facts are unavailable.'
+        : index === null
+          ? 'The chain index is not built yet.'
+          : `Chain facts up to block ${(index.next_block - 1).toLocaleString('en-US')}, refreshed every minute.`}{' '}
+      {children}
+    </p>
   )
 }

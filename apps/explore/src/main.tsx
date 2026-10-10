@@ -25,7 +25,7 @@ import { LandingShell } from './components/LandingShell.tsx'
 import { MyAgentsPage } from './routes/MyAgents.tsx'
 import { AccountPage } from './routes/Account.tsx'
 import { JobPage } from './routes/Job.tsx'
-import { JobsPage } from './routes/Jobs.tsx'
+import { ActivityPage } from './routes/Activity.tsx'
 import './styles.css'
 import { wagmiConfig } from './wallet.ts'
 import { AgentPage } from './routes/Agent.tsx'
@@ -70,7 +70,7 @@ function NotFoundPage() {
           <EmptyTitle>Nothing lives at this address</EmptyTitle>
           <EmptyDescription>
             <Link to="/jobs" className={textLinkClass}>
-              Browse jobs
+              See the activity
             </Link>
           </EmptyDescription>
         </EmptyHeader>
@@ -102,7 +102,7 @@ function ErrorPage({ error }: ErrorComponentProps) {
 
 const root = createRootRoute({ component: Layout, notFoundComponent: NotFoundPage, errorComponent: ErrorPage })
 const jobs = createRoute({ getParentRoute: () => root, path: '/', component: HomePage })
-const listings = createRoute({ getParentRoute: () => root, path: '/jobs', component: JobsPage })
+const listings = createRoute({ getParentRoute: () => root, path: '/jobs', component: ActivityPage })
 const job = createRoute({
   getParentRoute: () => root,
   path: '/job/$jobId',
@@ -117,7 +117,7 @@ const request = createRoute({
     return <QuoteRequestPage auth={useAuth()} />
   },
 })
-// Quote requests are rows of the Jobs list now; their old links (feed, Telegram, bookmarks) still land.
+// Quote requests are part of Activity now; their old links (feed, Telegram, bookmarks) land on its Open filter.
 const quotes = createRoute({
   getParentRoute: () => root,
   path: '/quotes',
@@ -212,7 +212,7 @@ const boardNew = createRoute({
   },
 })
 const board = createRoute({ getParentRoute: () => root, path: '/b/$boardId', component: Outlet })
-const boardJobs = createRoute({ getParentRoute: () => board, path: '/', component: JobsPage })
+const boardJobs = createRoute({ getParentRoute: () => board, path: '/', component: ActivityPage })
 const boardJob = createRoute({
   getParentRoute: () => board,
   path: '/job/$jobId',
