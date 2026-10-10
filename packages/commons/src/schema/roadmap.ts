@@ -60,8 +60,8 @@ export const GetRoadmapItemOutput = Schema.Struct({
   log: Schema.Array(RoleAction),
   thread: Schema.Struct({ subject: Subject, count: Integer }),
 })
-export const SupportItemInput = GetRoadmapItemInput
-export const WithdrawSupportInput = GetRoadmapItemInput
+export const SupportItemInput = Schema.Struct({ itemId: ItemId })
+export const WithdrawSupportInput = Schema.Struct({ itemId: ItemId })
 export const SupportItemOutput = Schema.Struct({
   itemId: OutputId,
   supporting: Schema.Literal(true),

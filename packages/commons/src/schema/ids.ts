@@ -22,7 +22,7 @@ const IntegerString = Schema.String.check(Schema.isPattern(/^[0-9]+$/u)).pipe(
 )
 export const NumericInteger = Schema.Union([Integer, IntegerString])
 export const ItemId = NumericInteger.check(Schema.isGreaterThanOrEqualTo(1))
-export const GapId = ItemId
+export const GapId = NumericInteger.check(Schema.isGreaterThanOrEqualTo(1))
 export const Limit = NumericInteger.check(Schema.isBetween({ minimum: 1, maximum: 100 }))
 export const OutputId = Integer.check(Schema.isGreaterThanOrEqualTo(1))
 export const text = (minimum: number, maximum: number) =>

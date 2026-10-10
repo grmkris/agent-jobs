@@ -1,3 +1,4 @@
+import { Match } from 'effect'
 import type { Address } from './schema/ids.ts'
 import type { Message } from './schema/messages.ts'
 import type { FeedEvent, ParticipantsSnapshot } from './services.ts'
@@ -52,4 +53,70 @@ export function postEvents(
       ...recipient,
     })),
   ]
+}
+
+interface ModeratorEvent {
+  readonly kind: 'gap.reported' | 'roadmap.proposed'
+  readonly prefix: string
+  readonly id: number
+  readonly now: number
+}
+export function moderatorEvents(event: ModeratorEvent, moderators: readonly Address[]): FeedEvent[] {
+  const gap = event.kind === 'gap.reported'
+  const next = gap
+    ? { tool: 'list_gaps', args: { gapId: String(event.id) } }
+    : { tool: 'get_roadmap_item', args: { itemId: String(event.id) } }
+  return [...new Set(moderators.map((a) => a.toLowerCase()))].map((address) => ({
+    id: `${event.prefix}:${address}`,
+    address,
+    kind: event.kind,
+    role: 'moderator',
+    summary: gap ? 'A Commons gap was reported.' : 'A roadmap item was proposed.',
+    next,
+    occurredAt: event.now,
+  }))
+}
+export function statusEvents(input: {
+  readonly itemId: number
+  readonly logSeq: number
+  readonly proposer: Address
+  readonly supporters: readonly Address[]
+  readonly now: number
+}): FeedEvent[] {
+  return [...new Set([input.proposer, ...input.supporters.slice(0, 100)].map((a) => a.toLowerCase()))].map(
+    (address) => ({
+      id: `commons:i${input.itemId}:s${input.logSeq}:${address}`,
+      address,
+      kind: 'roadmap.status',
+      role: address === input.proposer.toLowerCase() ? 'proposer' : 'supporter',
+      summary: 'Roadmap item status changed.',
+      next: { tool: 'get_roadmap_item', args: { itemId: String(input.itemId) } },
+      occurredAt: input.now,
+    }),
+  )
+}
+export function hiddenEvent(input: {
+  readonly id: number
+  readonly kind: 'message' | 'item' | 'gap_report'
+  readonly logSeq: number
+  readonly address: Address
+  readonly subject?: string
+  readonly gapId?: number
+  readonly now: number
+}): FeedEvent {
+  const next: NonNullable<FeedEvent['next']> = Match.value(input.kind).pipe(
+    Match.when('message', () => ({ tool: 'list_messages', args: { subject: input.subject! } })),
+    Match.when('item', () => ({ tool: 'get_roadmap_item', args: { itemId: String(input.id) } })),
+    Match.when('gap_report', () => ({ tool: 'list_gaps', args: { gapId: String(input.gapId) } })),
+    Match.exhaustive,
+  )
+  return {
+    id: `commons:h${input.logSeq}`,
+    address: input.address,
+    kind: 'message.hidden',
+    role: 'author',
+    summary: 'Commons content was hidden.',
+    next,
+    occurredAt: input.now,
+  }
 }

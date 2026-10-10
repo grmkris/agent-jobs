@@ -1,4 +1,3 @@
-import { DatabaseSync } from 'node:sqlite'
 import { Effect, Layer } from 'effect'
 import {
   Caches,
@@ -10,9 +9,10 @@ import {
   type FeedEvent,
   type ParticipantsSnapshot,
 } from '../src/services.ts'
-import { sqlLayer, type SyncSql } from '../src/sql/sync.ts'
+import { sqlLayer } from '../src/sql/sync.ts'
 import { migrate } from '../src/sql/schema.ts'
 import { Unavailable } from '../src/errors.ts'
+import { testSql } from './sql.ts'
 
 export const alice = `0x${'a'.repeat(40)}`
 export const bob = `0x${'b'.repeat(40)}`
@@ -20,19 +20,7 @@ export const moderator = `0x${'c'.repeat(40)}`
 export const maintainer = `0x${'d'.repeat(40)}`
 export const arbiter = `0x${'e'.repeat(40)}`
 export const makeHarness = Effect.fnUntraced(function* () {
-  const database = yield* Effect.acquireRelease(
-    Effect.sync(() => new DatabaseSync(':memory:')),
-    (handle) => Effect.sync(() => handle.close()),
-  )
-  const sql: SyncSql = {
-    all: <T>(q: string, ...p: (string | number | null)[]) => {
-      // SAFETY: SQLite returns the columns selected by the caller's query; JSON columns are Schema decoded separately.
-      return database.prepare(q).all(...p) as T[]
-    },
-    run: (q, ...p) => {
-      database.prepare(q).run(...p)
-    },
-  }
+  const { sql, transaction } = yield* testSql()
   migrate(sql, maintainer)
   const events: FeedEvent[] = []
   const state = {
@@ -64,18 +52,6 @@ export const makeHarness = Effect.fnUntraced(function* () {
           ? Effect.fail(new Unavailable({ message: 'RPC unavailable' }))
           : Effect.succeed({ block: state.block, total: positions.reduce((sum, p) => sum + p.value, 0n), positions })
       }),
-  }
-  const transaction = <A>(f: () => A): A => {
-    database.exec('SAVEPOINT commons_test')
-    try {
-      const value = f()
-      database.exec('RELEASE commons_test')
-      return value
-    } catch (error) {
-      database.exec('ROLLBACK TO commons_test')
-      database.exec('RELEASE commons_test')
-      throw error
-    }
   }
   const config: RolesConfig['Service'] = {
     get enabled() {

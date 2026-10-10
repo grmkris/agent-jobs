@@ -1,4 +1,5 @@
-import { Clock, Effect, Option, Schema } from 'effect'
+import { nowSeconds } from '../time.ts'
+import { Effect, Option, Schema } from 'effect'
 import { Invalid } from '../errors.ts'
 import { postEvents } from '../feed.ts'
 import { Address } from '../schema/ids.ts'
@@ -30,7 +31,7 @@ export const postMessage = Effect.fnUntraced(function* (
       resolved.find((entry) => entry.token.toLowerCase() === token.toLowerCase())?.address ??
       null,
   }))
-  const now = yield* Clock.currentTimeMillis
+  const now = yield* nowSeconds
   const sql = yield* CommonsSql
   const result = yield* sqlEffect(() =>
     sql.transaction((tx) =>

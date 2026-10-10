@@ -3,7 +3,7 @@ import type { Badge } from './schema/messages.ts'
 import type { Role } from './schema/roles.ts'
 import type { ParticipantsSnapshot, StakePosition } from './services.ts'
 
-export function participantBadges(address: Address, people: ParticipantsSnapshot | null): Badge[] {
+function participantBadges(address: Address, people: ParticipantsSnapshot | null): Badge[] {
   if (people === null) return []
   const badges: Badge[] = []
   if (people.creator === address) badges.push({ kind: 'owner' })

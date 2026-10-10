@@ -18,7 +18,7 @@ export const RoleAction = Schema.Struct({
   actor: Address,
   role: Role,
   action: Schema.Literals(['hide', 'unhide', 'set_status', 'merge_items', 'merge_gaps']),
-  targetKind: ContentKind,
+  targetKind: Schema.Literals(['message', 'item', 'gap_report', 'gap']),
   targetId: OutputId,
   detail: Schema.Record(Schema.String, Schema.Unknown),
   reason: text(3, 500),
@@ -26,8 +26,8 @@ export const RoleAction = Schema.Struct({
 })
 export type RoleAction = typeof RoleAction.Type
 export const ContentActionInput = Schema.Struct({ kind: ContentKind, id: ItemId, reason: text(3, 500) })
-export const HideContentInput = ContentActionInput
-export const UnhideContentInput = ContentActionInput
+export const HideContentInput = Schema.Struct(ContentActionInput.fields)
+export const UnhideContentInput = Schema.Struct(ContentActionInput.fields)
 export const HideContentOutput = Schema.Struct({ kind: ContentKind, id: OutputId, hidden: Hidden, logSeq: OutputId })
 export const UnhideContentOutput = Schema.Struct({
   kind: ContentKind,

@@ -11,7 +11,9 @@ export const enabled = Effect.fnUntraced(function* () {
 })
 export function rolesOf(config: RolesConfig['Service'], caller: Address | undefined): Role[] {
   if (caller === undefined) return []
-  return (['moderator', 'maintainer', 'arbiter'] satisfies Role[]).filter((role) => config[role].includes(caller))
+  return (['moderator', 'maintainer', 'arbiter'] satisfies Role[]).filter((role) =>
+    config[role].some((address) => address.toLowerCase() === caller.toLowerCase()),
+  )
 }
 export const authenticated = (caller: Address | undefined) =>
   caller === undefined
