@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test'
 import { deployment } from '../../packages/sdk/src/deployment.ts'
 import { MiningLedger } from './ledger.ts'
-import { checkIntegrity } from './integrity.ts'
+import { checkIntegrity, type IntegrityInput } from './integrity.ts'
 import type { FeeCharged } from './compute.ts'
 import { lower } from './ledger-chain.ts'
 import type { PublicClient } from './viem.ts'
@@ -113,6 +113,17 @@ function fixture(override: Record<string, unknown> = {}) {
   }
 }
 
+const expectRefusal = (input: IntegrityInput, message: string) =>
+  checkIntegrity(input).then(
+    () => {
+      throw new Error('expected integrity refusal')
+    },
+    (error: unknown) => {
+      if (!(error instanceof Error)) throw new Error('unexpected integrity rejection')
+      expect(error.message).toContain(message)
+    },
+  )
+
 test('integrity verifies replay against one finalized block; only the funding finality reread is latest', async () => {
   const f = fixture()
   await checkIntegrity(f.input)
@@ -136,33 +147,33 @@ test('integrity verifies replay against one finalized block; only the funding fi
 })
 
 test('vault totalAssets and every replayed pool accounting field refuse disagreement', async () => {
-  await expect(checkIntegrity(fixture({ totalAssets: 11n }).input)).rejects.toThrow('totalAssets')
+  await expectRefusal(fixture({ totalAssets: 11n }).input, 'totalAssets')
   const base = fixture().pool
   for (const patch of [{ assets: 11n }, { shares: 11n }, { queuedShares: 1n }, { generation: 1n }])
-    await expect(checkIntegrity(fixture({ poolOf: { ...base, ...patch } }).input)).rejects.toThrow('poolOf')
+    await expectRefusal(fixture({ poolOf: { ...base, ...patch } }).input, 'poolOf')
 })
 
 test('schedule thresholds, fee rates and treasury must all agree', async () => {
   const base = fixture().schedule
   for (const patch of [{ thresholds: [0n, 11n, 100n, 1000n] }, { bps: [3000, 900, 300, 100] }, { treasury: worker }])
-    await expect(checkIntegrity(fixture({ schedule: { ...base, ...patch } }).input)).rejects.toThrow('fee schedule')
+    await expectRefusal(fixture({ schedule: { ...base, ...patch } }).input, 'fee schedule')
 })
 
 test('metadata is checked as raw bytes, including missing and malformed values', async () => {
   for (const getMetadata of ['0x', '0x01', `0x${'00'.repeat(32)}`])
-    await expect(checkIntegrity(fixture({ getMetadata }).input)).rejects.toThrow('getMetadata')
+    await expectRefusal(fixture({ getMetadata }).input, 'getMetadata')
 })
 
 test('every counted listing must match reward, base fee, snapshotted rate, bonus and worker', async () => {
   const base = fixture().listing
   for (const patch of [{ reward: 101n }, { fee: 11n }, { feeBps: 900 }, { bonus: 1n }, { worker: treasury }])
-    await expect(checkIntegrity(fixture({ getListing: { ...base, ...patch } }).input)).rejects.toThrow('getListing')
+    await expectRefusal(fixture({ getListing: { ...base, ...patch } }).input, 'getListing')
 })
 
 test('holding links, full funding sum and funding finality refuse mismatch', async () => {
   for (const key of ['feeSchedule', 'vault', 'identity'])
-    await expect(checkIntegrity(fixture({ [key]: worker }).input)).rejects.toThrow('holding config')
-  await expect(checkIntegrity(fixture({ totalFunded: 101n }).input)).rejects.toThrow('totalFunded')
+    await expectRefusal(fixture({ [key]: worker }).input, 'holding config')
+  await expectRefusal(fixture({ totalFunded: 101n }).input, 'totalFunded')
   const f = fixture()
   let reads = 0
   // SAFETY: The unit client keeps ABI-shaped responses and changes only the second funding read.
@@ -170,5 +181,5 @@ test('holding links, full funding sum and funding finality refuse mismatch', asy
     readContract: async (request: { functionName: string }) =>
       request.functionName === 'totalFunded' && ++reads > 1 ? 101n : f.values[request.functionName],
   } as PublicClient
-  await expect(checkIntegrity(f.input)).rejects.toThrow('not final')
+  await expectRefusal(f.input, 'not final')
 })

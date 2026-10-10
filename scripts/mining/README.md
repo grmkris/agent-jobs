@@ -41,9 +41,9 @@ bun run mining:epoch <n> [--network monad-testnet|monad-mainnet] --prices <signe
   halved and retried.
 - **Tests.** `bun test scripts/mining` runs the fixture tests. The anvil fork run is step 7 of
   `contracts/script/rehearse-launch.sh`.
-  - **Test floor:** 121 passed / 2 skipped across 15 files, recorded on 10 October 2026 with
-    `heavy bun --no-env-file test scripts/mining` and RPC variables unset. The coordinator runs the two fork tests;
-    the backer-share fork test checks that a backer claim grows `positionOf(backer, backer)`.
+  - **Test floor:** 151 passed / 3 skipped across 21 files, recorded on 10 October 2026 with
+    `heavy bun --no-env-file test scripts/mining` and RPC variables unset. The coordinator runs the three fork tests;
+    the backer-share and credit fork tests check that a backer claim grows `positionOf(backer, backer)`.
 
 ## What it counts
 

@@ -99,6 +99,12 @@ export function canonicalRuleV2(
   }
 }
 
+/** Signed arrays cannot be reordered after signing; require their canonical order at the boundary. */
+export function checkCanonicalPriceTokens(tokens: readonly { token: string }[]): void {
+  if (tokens.some((token, i) => i > 0 && (tokens[i - 1]?.token ?? '') >= token.token))
+    throw new Error('v2 signed price tokens must be in address order')
+}
+
 const canonicalSchedule = (schedule: ScheduleWithTx) => ({
   id: id(schedule),
   ...event(schedule),
