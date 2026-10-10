@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "start": "bun src/main.ts",
+    "keygen:moderator": "bun src/keygen.ts",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run"
   },
