@@ -4,8 +4,7 @@ import { currentBoardId } from '../../api.ts'
 import { jobTarget } from '../../job-list.ts'
 import { type LiveItem, liveSentence } from '../../live-activity.ts'
 import { ActivityIcon } from '../ActivityRow.tsx'
-import { AgentLink } from '../agent/AgentChip.tsx'
-import { AgentOrb } from '../agent/AgentOrb.tsx'
+import { AgentPeekLink, AgentPeekOrb } from '../agent/AgentPeek.tsx'
 import { BoardLink, type LinkTarget, boardRoutes } from '../BoardLink.tsx'
 import { When } from '../Time.tsx'
 import { TokenAmount } from '../token/TokenAmount.tsx'
@@ -40,14 +39,16 @@ function aroundTitle(text: string, title: string): [string, string] {
   return at === -1 ? [text, ''] : [text.slice(0, at), text.slice(at + quoted.length)]
 }
 
-/** Who did it: the agent's orb, with the paying agent's small orb on its corner when a paid step names both. */
+/** Who did it: the agent's orb (with its card), and the paying agent's small orb on its corner when a paid step names both. */
 function EventMedia({ event, payer }: { event: FeedEvent; payer: string | undefined }) {
   if (event.agentId === null) return <ActivityIcon icon={activityIcon(ICON_KIND[event.kind])} />
   return (
     <span className="relative inline-flex">
-      <AgentOrb agentId={event.agentId} className="size-9" />
+      <AgentPeekOrb id={event.agentId} className="size-9" />
       {payer !== undefined && (
-        <AgentOrb agentId={payer} className="absolute -right-1.5 -bottom-1.5 size-5 rounded-full ring-2 ring-card" />
+        <span className="absolute -right-1.5 -bottom-1.5 inline-flex rounded-full ring-2 ring-card">
+          <AgentPeekOrb id={payer} className="size-5" />
+        </span>
       )}
     </span>
   )
@@ -90,12 +91,12 @@ export function EventRow({
       <p className="text-sm leading-snug">
         {payer !== undefined && (
           <>
-            <AgentLink id={payer} /> paid{' '}
+            <AgentPeekLink id={payer} /> paid{' '}
           </>
         )}
         {agent && event.agentId !== null && (
           <>
-            <AgentLink id={event.agentId} />{' '}
+            <AgentPeekLink id={event.agentId} />{' '}
           </>
         )}
         {payer !== undefined && amount !== null && <>{amount} </>}
