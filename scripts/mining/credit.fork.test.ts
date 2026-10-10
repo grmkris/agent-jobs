@@ -28,6 +28,11 @@ import { readLedgerChain, scheduleExecutedEvent, lower, type EpochChainRecord } 
 import { dataHashOf, leafValues } from './compute.ts'
 import { buildTree, proofOf } from './tree.ts'
 import { parseEther } from './viem.ts'
+import { stateContractsOf, stateHashOf, stateOf, type MiningState } from './state.ts'
+import { prepareCheckpointReplay, readStateContext } from './checkpoint.ts'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 type Fork = Awaited<ReturnType<typeof startSidequestFork>>
 async function setShare(f: Fork, wallet: Wallet, agentId: bigint, bps: bigint) {
@@ -231,6 +236,27 @@ test.skipIf(!forkEnabled)(
         primaryType: 'PriceList',
         message: typedMessage(prices),
       })
+      const firstState = stateOf(
+        replay.ledger,
+        await readStateContext({
+          c,
+          epoch,
+          chainId: 10143,
+          reserve: h.miningReserve,
+          deploymentBlock: historyStart,
+          genesisBlock: historyStart,
+          head: toBlock,
+          delay,
+          contracts: {
+            holdings: [ctx.stack.holding],
+            vault: h.vault,
+            identity: ctx.deployment.identity,
+            feeSchedule: h.feeSchedule,
+            reserve: h.miningReserve,
+            distributor: h.distributor,
+          },
+        }),
+      )
       const inputs = inputsV2Of({
         chainId: 10143,
         epoch,
@@ -253,6 +279,7 @@ test.skipIf(!forkEnabled)(
         backing: result.stakes,
         backerShares: result.shares,
         backerPositions: result.result.backerPositions,
+        checkpoint: { previous: null, stateHash: stateHashOf(firstState) },
       })
       const tree = buildTree(leafValues(epoch, result.result.leaves))
       const account = lower(contributor.account.address),
@@ -280,9 +307,186 @@ test.skipIf(!forkEnabled)(
       })
       expect((await c.waitForTransactionReceipt({ hash })).status).toBe('success')
       expect((await position()).shares).toBe(before.shares + leaf.amount)
+      await assertNextEpoch(f, { historyStart, delay, firstState, inputs, firstId })
     } finally {
       f.close()
     }
   },
   forkSetupTimeout() + 240_000,
 )
+
+async function assertNextEpoch(
+  f: Fork,
+  first: {
+    historyStart: bigint
+    delay: bigint
+    firstState: MiningState
+    inputs: ReturnType<typeof inputsV2Of>
+    firstId: bigint
+  },
+) {
+  const { ctx } = f,
+    h = ctx.deployment.sidequest
+  if (h === null) throw new Error('fork deployment missing')
+  const c = ctx.publicClient,
+    epoch = 2n,
+    contracts = {
+      holdings: [ctx.stack.holding],
+      vault: h.vault,
+      identity: ctx.deployment.identity,
+      feeSchedule: h.feeSchedule,
+      reserve: h.miningReserve,
+      distributor: h.distributor,
+    }
+  const { start, end } = await epochWindowOf(c, h.miningReserve, epoch)
+  const now = (await c.getBlock()).timestamp
+  if (now < start) {
+    await f.rpc('evm_setNextBlockTimestamp', [Number(start)])
+    await f.rpc('evm_mine')
+  }
+  await paidJob(f, f.worker, first.firstId, 'v2-fork-checkpoint-next-epoch')
+  await f.rpc('evm_setNextBlockTimestamp', [Number(end) - 1])
+  await f.rpc('evm_mine')
+  const head = await c.getBlockNumber({ cacheTime: 0 })
+  const fromBlock = await firstBlockAtOrAfter(c, start, first.historyStart, head)
+  const toBlock = head,
+    lc = logClient(f.url),
+    pager = { page: 1000n }
+  const shareStart = start > first.delay ? start - first.delay : 0n
+  const shareBlock = await firstBlockAtOrAfter(c, shareStart, first.historyStart, fromBlock)
+  const dir = mkdtempSync(join(tmpdir(), 'credit-fork-checkpoint-'))
+  try {
+    writeFileSync(
+      join(dir, 'epoch-1.json'),
+      JSON.stringify({ rule: 2, chainId: 10143, epoch: '1', inputs: first.inputs, dataHash: dataHashOf(first.inputs) }),
+    )
+    writeFileSync(join(dir, 'state-1.json'), JSON.stringify(first.firstState))
+    const stateContext = (candidate: bigint) =>
+      readStateContext({
+        c,
+        epoch: candidate,
+        chainId: 10143,
+        reserve: h.miningReserve,
+        deploymentBlock: first.historyStart,
+        genesisBlock: first.historyStart,
+        head,
+        delay: first.delay,
+        contracts,
+      })
+    const base = {
+      epoch,
+      fromEpoch: 1n,
+      fromBlock,
+      toBlock,
+      genesisBlock: first.historyStart,
+      chainId: 10143,
+      rule: canonicalRuleV2(1n, first.delay, false, []),
+      contracts: stateContractsOf(contracts),
+      checkpointDir: dir,
+      reader: {
+        readRoot: (candidate: bigint) =>
+          c.readContract({
+            address: h.distributor,
+            abi: epochDistributorAbi,
+            functionName: 'rootOf',
+            args: [candidate],
+          }),
+        blockHash: async (blockNumber: bigint) => (await c.getBlock({ blockNumber })).hash,
+      },
+      stateContext,
+      readRecords: (from: bigint, to: bigint) =>
+        readLedgerChain({
+          c: lc,
+          holdings: [ctx.stack.holding],
+          vault: h.vault,
+          identity: ctx.deployment.identity,
+          feeSchedule: h.feeSchedule,
+          reserve: h.miningReserve,
+          fromBlock: from,
+          toBlock: to,
+          pager,
+        }),
+    }
+    const incremental = await prepareCheckpointReplay(base)
+    const genesis = await prepareCheckpointReplay({
+      ...base,
+      checkpointDir: '/no-fork-checkpoint-files',
+      fromGenesis: true,
+    })
+    expect(incremental.previous).toEqual(genesis.previous)
+    expect(incremental.previous?.stateHash).toBe(stateHashOf(first.firstState))
+    const prices = {
+      epoch,
+      tokens: [{ token: lower(ctx.stack.factory), decimals: 18, usdPrice: parseEther('1') }],
+      factoryUsdPrice: parseEther('1'),
+    }
+    const compute = (prepared: typeof incremental) => {
+      const replay = replayEpochLedger(prepared.records, fromBlock, toBlock, prepared.ledger)
+      const result = computeLedgerEpoch(replay, prices, parseEther('1000000'), shareBlock, fromBlock)
+      return { replay, result }
+    }
+    const a = compute(incremental),
+      b = compute(genesis)
+    expect(a.result.result.total).toBeGreaterThan(0n)
+    const nextStateContext = await stateContext(epoch)
+    expect(JSON.stringify(stateOf(a.replay.ledger, nextStateContext))).toBe(
+      JSON.stringify(stateOf(b.replay.ledger, nextStateContext)),
+    )
+    const canonical = (run: typeof a) =>
+      inputsV2Of({
+        chainId: 10143,
+        epoch,
+        rule: base.rule,
+        window: {
+          start: String(start),
+          end: String(end),
+          fromBlock: String(fromBlock),
+          toBlock: String(toBlock),
+          toBlockHash: nextStateContext.blockHash,
+        },
+        shareWindow: { start: String(shareStart), block: String(shareBlock) },
+        holdings: [ctx.stack.holding],
+        priceList: {
+          message: {
+            epoch: '2',
+            tokens: prices.tokens.map((token) => ({ ...token, usdPrice: String(token.usdPrice) })),
+            factoryUsdPrice: String(prices.factoryUsdPrice),
+          },
+        },
+        factoryPriceEvidence: null,
+        budget: { available: String(parseEther('1000000')) },
+        feeSchedules: run.replay.end.feeSchedules,
+        fees: run.result.result.fees,
+        topUps: run.result.topUps,
+        backing: run.result.stakes,
+        backerShares: run.result.shares,
+        backerPositions: run.result.result.backerPositions,
+        checkpoint: {
+          previous: incremental.previous,
+          stateHash: stateHashOf(stateOf(run.replay.ledger, nextStateContext)),
+        },
+      })
+    const inputs = canonical(a)
+    expect(JSON.stringify(inputs)).toBe(JSON.stringify(canonical(b)))
+    const tree = buildTree(leafValues(epoch, a.result.result.leaves))
+    expect(JSON.stringify(tree)).toBe(JSON.stringify(buildTree(leafValues(epoch, b.result.result.leaves))))
+    await f.rpc('evm_setNextBlockTimestamp', [Number(end)])
+    await f.rpc('evm_mine')
+    await f.send(ctx.stack.factory, factoryV2Abi, 'transfer', [h.distributor, a.result.result.total])
+    await f.send(h.distributor, epochDistributorAbi, 'setRoot', [
+      epoch,
+      tree.tree[0],
+      a.result.result.total,
+      dataHashOf(inputs),
+    ])
+    const root = await c.readContract({
+      address: h.distributor,
+      abi: epochDistributorAbi,
+      functionName: 'rootOf',
+      args: [epoch],
+    })
+    expect(root.dataHash).toBe(dataHashOf(inputs))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+}

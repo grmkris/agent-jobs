@@ -1,12 +1,13 @@
 import { Schema } from 'effect'
 import { readFileSync } from 'node:fs'
+import { dirname } from 'node:path'
 import { budgetOf, pagedLogs, reserveAbi, holdingLogs, topUpLogs, type LogPager } from './chain.ts'
 import { cumulativeBudget, replayLots, type EpochFunding } from './lots.ts'
 import { fundedEvent, lower } from './ledger-chain.ts'
 import { backerInputs } from './backers.ts'
 import { readBackerWorkers } from './backers-chain.ts'
 import {
-  buildEpochV2,
+  buildEpochV2WithState,
   canonicalBudget,
   epochArtifact,
   readEpochContext,
@@ -25,6 +26,7 @@ import { computeEpochV2 } from './compute-v2.ts'
 import { parsePriceList, type PriceListFile } from './prices.ts'
 import { buildTree, proofOf } from './tree.ts'
 import { getAddress, type Address, type Hex, type PublicClient } from './viem.ts'
+import { checkpointFlags, checkpointPointerOf } from './checkpoint.ts'
 
 export function recomputeLots(epoch: bigint, funding: readonly EpochFunding[], totalFunded: bigint) {
   const sum = funding.reduce((total, event) => total + event.amount, 0n)
@@ -343,8 +345,18 @@ export function firstEpochDiff(expected: unknown, actual: unknown): string | nul
 export async function runRecompute(path: string, options: Omit<EpochOptions, 'pricesFile' | 'previousFile'>) {
   const file: unknown = JSON.parse(readFileSync(path, 'utf8'))
   if (uint(object(file).epoch) !== options.epoch) throw new Error('--recompute artifact has the wrong epoch')
-  const context = await readEpochContext({ ...options, ...artifactPrices(file), recompute: true })
-  const rebuilt = object(file).rule === 2 ? await buildEpochV2(context) : await rebuildV1(context)
+  const v2 = object(file).rule === 2
+  const flags = checkpointFlags(process.argv.slice(2), dirname(path))
+  const checkpointPrevious = v2 ? checkpointPointerOf(object(object(object(file).inputs).checkpoint).previous) : null
+  const context = await readEpochContext({
+    ...options,
+    ...artifactPrices(file),
+    recompute: true,
+    checkpointDir: options.checkpointDir ?? flags.checkpointDir,
+    fromGenesis: options.fromGenesis ?? flags.fromGenesis,
+    ...(v2 ? { checkpointPrevious } : {}),
+  })
+  const rebuilt = object(file).rule === 2 ? (await buildEpochV2WithState(context)).artifact : await rebuildV1(context)
   const diff = firstEpochDiff(file, rebuilt)
   if (diff !== null) throw new Error(`FAIL ${diff}`)
   console.log(`PASS epoch ${options.epoch}: inputs, dataHash, tree and claims are byte-identical`)

@@ -158,6 +158,8 @@ function stateVault(ledger: MiningLedger) {
 
 /** Prune only the serialized state; fees and integrity checks still need settled activations in memory. */
 export function stateOf(ledger: MiningLedger, context: StateContext): MiningState {
+  if (ledger.lastPosition !== null && ledger.lastPosition.block > context.block)
+    throw new Error('state ledger is past its end block')
   const activations = [...ledger.activations.values()]
     .filter((a) => !ledger.settledJobs.has(jobKey(a)))
     .toSorted((a, b) => order(a.holding, b.holding) || numericOrder(a.jobId, b.jobId))
@@ -327,6 +329,13 @@ export function ledgerFromState(state: MiningState): MiningLedger {
 
 export function parseState(value: unknown): MiningState {
   const state = Schema.decodeUnknownSync(stateSchema)(value)
+  const history = [...state.feeSchedule.history, ...state.activations, ...state.topUps, ...state.shares.sets]
+  if (
+    history.some(
+      (entry) => BigInt(entry.block) < BigInt(state.genesisBlock) || BigInt(entry.block) > BigInt(state.block),
+    )
+  )
+    throw new Error('state history is outside its block range')
   const ledger = ledgerFromState(state)
   const canonical = stateOf(ledger, {
     chainId: Number(state.chainId),

@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import {
   deploymentFromConfig,
@@ -10,7 +10,6 @@ import { stakeVaultAbi } from '../../packages/sdk/src/abi/stakeVault.ts'
 import { agentWindowShare, walletShare } from '../../packages/sdk/src/backer-share-rule.ts'
 import { decodeBackerShareBps } from './backers.ts'
 import {
-  budgetOf,
   client,
   logClient,
   decimalsOf,
@@ -25,15 +24,36 @@ import { computeEpochV2 } from './compute-v2.ts'
 import { chainOrder } from './credit.ts'
 import { MiningLedger, type MetadataSetRecord } from './ledger.ts'
 import { readLedgerChain, isLedgerRecord, lower, type EpochChainRecord } from './ledger-chain.ts'
-import { canonicalRuleV2, inputsV2Of, checkCanonicalPriceTokens, type WalletBackerShare } from './inputs-v2.ts'
+import {
+  canonicalBudget,
+  canonicalRuleV2,
+  inputsV2Of,
+  checkCanonicalPriceTokens,
+  priceListOf,
+  type WalletBackerShare,
+} from './inputs-v2.ts'
 import { checkIntegrity } from './integrity.ts'
 import { fundingRemainder } from './lots.ts'
 import { checkPriceRule, verifiedPriceList, type PriceListFile } from './prices.ts'
 import { officialPoolOf, sampleOfficialPool } from './pool-chain.ts'
 import { selectFactoryPrice } from './pool.ts'
 import { creditRuleOf } from './rule.ts'
+import {
+  checkpointFlags,
+  prepareCheckpointReplay,
+  readStateContext,
+  checkpointBudgetOf,
+  initialBudgetOf,
+  previousPriceOf,
+  previousSignedPrice,
+  type CheckpointPointer,
+} from './checkpoint.ts'
 import { buildTree, proofOf } from './tree.ts'
 import { encodeFunctionData, type Address, type Hex } from './viem.ts'
+import { epochDistributorAbi } from '../../packages/sdk/src/abi/epochDistributor.ts'
+import { stateContractsOf, stateHashOf, stateOf } from './state.ts'
+
+export { canonicalBudget, priceListOf } from './inputs-v2.ts'
 
 export type MiningConfig = DeploymentConfig & { mining?: { officialPool?: unknown } }
 export interface EpochOptions {
@@ -46,37 +66,11 @@ export interface EpochOptions {
   previousFile?: PriceListFile
   previousPath?: string
   recompute?: boolean
+  checkpointDir?: string
+  fromGenesis?: boolean
+  checkpointPrevious?: CheckpointPointer | null
 }
 const s = (value: bigint | number) => value.toString()
-export const priceListOf = ({ prices, signer, signature }: Awaited<ReturnType<typeof verifiedPriceList>>) => ({
-  message: {
-    epoch: s(prices.epoch),
-    tokens: prices.tokens.map((t) => ({ token: t.token, decimals: t.decimals, usdPrice: s(t.usdPrice) })),
-    factoryUsdPrice: s(prices.factoryUsdPrice),
-  },
-  signer,
-  signature,
-})
-const previousSigned = (value: Awaited<ReturnType<typeof verifiedPriceList>> | undefined) =>
-  value === undefined
-    ? null
-    : {
-        epoch: s(value.prices.epoch),
-        factoryUsdPrice: s(value.prices.factoryUsdPrice),
-        signer: value.signer,
-        signature: value.signature,
-        tokens: value.prices.tokens.map((token) => ({ ...token, usdPrice: s(token.usdPrice) })),
-      }
-
-function previousFileOf(options: EpochOptions): PriceListFile {
-  if (options.previousFile !== undefined) return options.previousFile
-  if (options.previousPath === undefined)
-    throw new Error('no pool samples: provide the previous epoch signed prices with --previous-prices')
-  // SAFETY: verifiedPriceList validates the untrusted message and signature immediately after this read.
-  const file = JSON.parse(readFileSync(options.previousPath, 'utf8')) as PriceListFile & { priceList?: PriceListFile }
-  return file.priceList ?? file
-}
-
 /** Shared read-only window/price/budget work; v1 normal runs retain their verbatim implementation. */
 export async function readEpochContext(options: EpochOptions) {
   const { epoch, network, config, rpc, page } = options
@@ -116,24 +110,22 @@ export async function readEpochContext(options: EpochOptions) {
   const samples = evidence.samples.flatMap((sample) =>
     sample.status === 'sampled' ? [BigInt(sample.factoryUsdPrice)] : [],
   )
-  const previous =
-    samples.length === 0 && epoch > 0n
-      ? await verifiedPriceList(previousFileOf(options), {
-          epoch: epoch - 1n,
-          chainId,
-          distributor: h.distributor,
-          owners,
-        })
-      : undefined
+  const previous = await previousPriceOf(options, { samples, chainId, distributor: h.distributor, owners })
   const selected = selectFactoryPrice(epoch, samples, previous?.prices.factoryUsdPrice)
   if (signed.prices.factoryUsdPrice !== selected.factoryUsdPrice)
     throw new Error('signed SIDE price differs from the conservative-high hourly rule')
   const pager = { page }
-  const budget = options.recompute
-    ? await (
-        await import('./recompute.ts')
-      ).recomputeBudgetOf({ c, lc, reserve: h.miningReserve, epoch, deployBlock: h.block, head: head.number, pager })
-    : await budgetOf(c, h.miningReserve, epoch, h.block, head.number, page)
+  const budget = await initialBudgetOf({
+    version: creditRuleOf(config, epoch).version,
+    c,
+    lc,
+    reserve: h.miningReserve,
+    epoch,
+    deployBlock: h.block,
+    head: head.number,
+    pager,
+    recompute: options.recompute ?? false,
+  })
   return {
     ...options,
     d,
@@ -152,29 +144,18 @@ export async function readEpochContext(options: EpochOptions) {
     prices: signed.prices,
     window: { start: s(start), end: s(end), fromBlock: s(fromBlock), toBlock: s(toBlock), toBlockHash },
     priceList: priceListOf(signed),
-    factoryPriceEvidence: { ...evidence, source: selected.source, previousSignedPrice: previousSigned(previous) },
+    factoryPriceEvidence: { ...evidence, source: selected.source, previousSignedPrice: previousSignedPrice(previous) },
     budget,
   }
 }
 export type EpochContext = Awaited<ReturnType<typeof readEpochContext>>
-export const canonicalBudget = (budget: EpochContext['budget']) => ({
-  cumulativeBudget: s(budget.cumulativeBudget),
-  fundedBefore: s(budget.fundedBefore),
-  available: s(budget.available),
-  usable: budget.usable.map((lot) => ({
-    epoch: s(lot.epoch),
-    scheduled: s(lot.scheduled),
-    remaining: s(lot.remaining),
-  })),
-  expired: budget.expired.map((lot) => ({
-    epoch: s(lot.epoch),
-    scheduled: s(lot.scheduled),
-    remaining: s(lot.remaining),
-  })),
-})
-
-export function replayEpochLedger(records: readonly EpochChainRecord[], fromBlock: bigint, toBlock: bigint) {
-  const ledger = new MiningLedger()
+export function replayEpochLedger(
+  records: readonly EpochChainRecord[],
+  fromBlock: bigint,
+  toBlock: bigint,
+  initial?: MiningLedger,
+) {
+  const ledger = initial ?? new MiningLedger()
   const ordered = records.filter((record) => record.block <= toBlock).toSorted(chainOrder)
   for (const prior of ordered.filter((entry) => entry.block < fromBlock && isLedgerRecord(entry)))
     if (isLedgerRecord(prior)) ledger.apply(prior)
@@ -347,28 +328,8 @@ export function epochArtifact(context: EpochContext, result: EpochResult, inputs
   }
 }
 
-export async function buildEpochV2(context: EpochContext) {
-  const { c, lc, h, d, config, head, start, fromBlock, toBlock, pager } = context
-  checkCanonicalPriceTokens(context.prices.tokens)
-  if (context.factoryPriceEvidence.previousSignedPrice !== null)
-    checkCanonicalPriceTokens(context.factoryPriceEvidence.previousSignedPrice.tokens)
-  const rule = creditRuleOf(config, context.epoch)
-  if (rule.version !== 2) throw new Error('v2 epoch precedes configured cutover')
-  const delay = BigInt(
-    await c.readContract({
-      address: h.vault,
-      abi: stakeVaultAbi,
-      functionName: 'UNSTAKE_DELAY',
-      blockNumber: head.number,
-    }),
-  )
-  if (
-    config.deployment.sidequest?.clocks?.unstakeDelay === undefined ||
-    delay !== BigInt(config.deployment.sidequest.clocks.unstakeDelay)
-  )
-    throw new Error('vault UNSTAKE_DELAY differs from configured clocks')
-  const shareStart = start > delay ? start - delay : 0n
-  const shareBlock = await firstBlockAtOrAfter(c, shareStart, h.block, fromBlock)
+async function replayV2(context: EpochContext, delay: bigint, rule: ReturnType<typeof canonicalRuleV2>) {
+  const { c, lc, h, d, head, fromBlock, toBlock, pager } = context
   const historyStart = d.deployBlock < h.block ? d.deployBlock : h.block
   const chainInput = {
     c: lc,
@@ -379,10 +340,98 @@ export async function buildEpochV2(context: EpochContext) {
     identity: d.identity,
     pager,
   }
-  const records = await readLedgerChain({ ...chainInput, fromBlock: historyStart, toBlock })
-  const replay = replayEpochLedger(records, fromBlock, toBlock)
-  const computed = computeLedgerEpoch(replay, context.prices, context.budget.available, shareBlock, fromBlock)
+  const contracts = {
+    holdings: context.holdings,
+    vault: h.vault,
+    identity: d.identity,
+    feeSchedule: h.feeSchedule,
+    reserve: h.miningReserve,
+    distributor: h.distributor,
+  }
+  const stateContext = (epoch: bigint) =>
+    readStateContext({
+      c,
+      epoch,
+      chainId: context.chainId,
+      reserve: h.miningReserve,
+      deploymentBlock: h.block,
+      genesisBlock: historyStart,
+      head: head.number,
+      delay,
+      contracts,
+    })
+  const prepared = await prepareCheckpointReplay({
+    epoch: context.epoch,
+    fromEpoch: BigInt(rule.fromEpoch),
+    fromBlock,
+    toBlock,
+    genesisBlock: historyStart,
+    chainId: context.chainId,
+    rule,
+    contracts: stateContractsOf(contracts),
+    checkpointDir: context.checkpointDir ?? '.',
+    ...(context.fromGenesis === undefined ? {} : { fromGenesis: context.fromGenesis }),
+    ...(context.checkpointPrevious === undefined ? {} : { previous: context.checkpointPrevious }),
+    reader: {
+      readRoot: (epoch) =>
+        c.readContract({
+          address: h.distributor,
+          abi: epochDistributorAbi,
+          functionName: 'rootOf',
+          args: [epoch],
+          blockNumber: head.number,
+        }),
+      blockHash: async (blockNumber) => (await c.getBlock({ blockNumber })).hash,
+    },
+    stateContext,
+    readRecords: (from, to) => readLedgerChain({ ...chainInput, fromBlock: from, toBlock: to }),
+  })
+  const replay = replayEpochLedger(prepared.records, fromBlock, toBlock, prepared.ledger)
+  const state = stateOf(replay.ledger, await stateContext(context.epoch))
+  if (state.block !== String(toBlock) || state.blockHash !== context.window.toBlockHash)
+    throw new Error('epoch window changed during replay')
+  const finalized = MiningLedger.fromSnapshot(replay.end)
+  const continuation = await readLedgerChain({ ...chainInput, fromBlock: toBlock + 1n, toBlock: head.number })
+  for (const record of continuation) if (isLedgerRecord(record)) finalized.apply(record)
+  const budget = await checkpointBudgetOf({
+    c,
+    reserve: h.miningReserve,
+    epoch: context.epoch,
+    head: head.number,
+    ledger: finalized,
+    recompute: context.recompute ?? false,
+  })
+  return { replay, state, finalized, budget, previous: prepared.previous }
+}
+async function v2Delay(context: EpochContext) {
+  const delay = BigInt(
+    await context.c.readContract({
+      address: context.h.vault,
+      abi: stakeVaultAbi,
+      functionName: 'UNSTAKE_DELAY',
+      blockNumber: context.head.number,
+    }),
+  )
+  const configured = context.config.deployment.sidequest?.clocks?.unstakeDelay
+  if (configured === undefined || delay !== BigInt(configured))
+    throw new Error('vault UNSTAKE_DELAY differs from configured clocks')
+  return delay
+}
+
+export async function buildEpochV2WithState(context: EpochContext) {
+  const { c, h, d, config, head, start, fromBlock } = context
+  checkCanonicalPriceTokens(context.prices.tokens)
+  if (context.factoryPriceEvidence.previousSignedPrice !== null)
+    checkCanonicalPriceTokens(context.factoryPriceEvidence.previousSignedPrice.tokens)
+  const selectedRule = creditRuleOf(config, context.epoch)
+  if (selectedRule.version !== 2) throw new Error('v2 epoch precedes configured cutover')
+  const delay = await v2Delay(context)
   const pegged = networkMetaFromConfig(config).usdPegged
+  const rule = canonicalRuleV2(selectedRule.fromEpoch, delay, context.network === 'monad-mainnet', pegged)
+  const shareStart = start > delay ? start - delay : 0n
+  const shareBlock = await firstBlockAtOrAfter(c, shareStart, h.block, fromBlock)
+  const { replay, state, finalized, budget, previous } = await replayV2(context, delay, rule)
+  const computed = computeLedgerEpoch(replay, context.prices, budget.available, shareBlock, fromBlock)
   checkPriceRule(context.prices, {
     factory: h.factory,
     factoryUsdPrice: computed.result.factoryUsdPrice,
@@ -392,41 +441,59 @@ export async function buildEpochV2(context: EpochContext) {
   const inputs = inputsV2Of({
     chainId: context.chainId,
     epoch: context.epoch,
-    rule: canonicalRuleV2(rule.fromEpoch, delay, context.network === 'monad-mainnet', pegged),
+    rule,
     window: context.window,
     shareWindow: { start: s(shareStart), block: s(shareBlock) },
     holdings: context.holdings,
     priceList: context.priceList,
     factoryPriceEvidence: context.factoryPriceEvidence,
-    budget: canonicalBudget(context.budget),
+    budget: canonicalBudget(budget),
     feeSchedules: replay.end.feeSchedules,
     fees: computed.result.fees,
     topUps: computed.topUps,
     backing: computed.stakes,
     backerShares: computed.shares,
     backerPositions: computed.result.backerPositions,
+    checkpoint: { previous, stateHash: stateHashOf(state) },
   })
-  const continuation = await readLedgerChain({ ...chainInput, fromBlock: toBlock + 1n, toBlock: head.number })
-  for (const record of continuation) if (isLedgerRecord(record)) replay.ledger.apply(record)
   await checkIntegrity({
     c,
     deployment: d,
     sidequest: h,
     holdings: context.holdings,
     head: head.number,
-    ledger: replay.ledger,
+    ledger: finalized,
     fees: computed.counted,
     workers: computed.shares.map((share) => share.worker),
     agentIds: [...new Set(computed.shares.flatMap((share) => share.agentIds))],
   })
-  return { ...epochArtifact(context, computed.result, inputs), rule: 2, creditUsd: s(computed.result.creditUsd) }
+  return {
+    artifact: {
+      ...epochArtifact({ ...context, budget }, computed.result, inputs),
+      rule: 2,
+      creditUsd: s(computed.result.creditUsd),
+    },
+    state,
+  }
+}
+
+export async function buildEpochV2(context: EpochContext) {
+  return (await buildEpochV2WithState(context)).artifact
 }
 
 export async function runEpochV2(options: EpochOptions, outDir: string) {
-  const artifact = await buildEpochV2(await readEpochContext(options))
+  const flags = checkpointFlags(process.argv.slice(2), outDir)
+  const { artifact, state } = await buildEpochV2WithState(
+    await readEpochContext({
+      ...options,
+      checkpointDir: options.checkpointDir ?? flags.checkpointDir,
+      fromGenesis: options.fromGenesis ?? flags.fromGenesis,
+    }),
+  )
   mkdirSync(outDir, { recursive: true })
   const path = join(outDir, `epoch-${options.epoch}.json`)
   writeFileSync(path, `${JSON.stringify(artifact, null, 2)}\n`)
+  writeFileSync(join(outDir, `state-${options.epoch}.json`), `${JSON.stringify(state, null, 2)}\n`)
   console.log(
     `epoch ${options.epoch} rule 2: fee USD ${artifact.feeUsd}, credit USD ${artifact.creditUsd}, emission ${artifact.emission}, total ${artifact.total}`,
   )

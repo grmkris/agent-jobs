@@ -14,6 +14,7 @@ import type { EpochChainRecord } from './ledger-chain.ts'
 import type { ActivationEvent, ScheduleExecutedRecord } from './ledger.ts'
 import { chainOrder } from './credit.ts'
 import { encodeFunctionData, type Address, type PublicClient } from './viem.ts'
+import { stateHashOf, stateOf } from './state.ts'
 
 const worker = '0x0000000000000000000000000000000000000001'
 const borrower = '0x0000000000000000000000000000000000000002'
@@ -122,6 +123,22 @@ const run = (records = history(), shareBlock = 4n) => {
 
 function artifactOf(records = history()) {
   const r = run(records)
+  const state = stateOf(r.replay.ledger, {
+    chainId: 10143,
+    epoch: 30n,
+    block: 20n,
+    blockHash: tx,
+    genesisBlock: 1n,
+    contracts: {
+      holdings: [holding],
+      vault: factory,
+      identity: factory,
+      feeSchedule: factory,
+      reserve: factory,
+      distributor: factory,
+    },
+    pruneBlock: 15n,
+  })
   const inputs = inputsV2Of({
     chainId: 10143,
     epoch: 30n,
@@ -146,6 +163,7 @@ function artifactOf(records = history()) {
     backing: r.stakes,
     backerShares: r.shares,
     backerPositions: r.result.backerPositions,
+    checkpoint: { previous: null, stateHash: stateHashOf(state) },
   })
   const tree = buildTree(leafValues(30n, r.result.leaves))
   const claims: Record<string, { amount: string; proof: `0x${string}`[] }> = {}
@@ -270,8 +288,9 @@ test('canonical inputs and tree remain identical for reversed fetch order and re
     'backing',
     'backerShares',
     'backerPositions',
+    'checkpoint',
   ])
-  expect(artifact.inputs).not.toHaveProperty('checkpoint')
+  expect(artifact.inputs.checkpoint?.previous).toBeNull()
   expect(artifact.inputs.fees[0]?.credit?.schedule).toBe('1:0')
 })
 

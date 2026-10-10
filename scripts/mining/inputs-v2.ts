@@ -3,6 +3,8 @@ import type { V2FeeRecord, WorkerStake } from './compute-v2.ts'
 import { chainOrder, type ScheduleRecord } from './credit.ts'
 import { lower } from './ledger-chain.ts'
 import { V2_RULE } from './rule.ts'
+import type { verifiedPriceList } from './prices.ts'
+import type { budgetOf } from './chain.ts'
 import type { Address, Hex } from './viem.ts'
 
 export interface CanonicalWindow {
@@ -151,6 +153,7 @@ export interface InputsV2Args {
   backing: readonly WorkerStake[]
   backerShares: readonly WalletBackerShare[]
   backerPositions: readonly BackerPositionInput[]
+  checkpoint?: { previous: { epoch: string; dataHash: Hex; stateHash: Hex } | null; stateHash: Hex }
 }
 
 /** Fixed key order. A checkpoint slot can be appended by M3 without including finalized-head state. */
@@ -184,5 +187,32 @@ export function inputsV2Of(args: InputsV2Args) {
       })),
     backerShares: args.backerShares.toSorted((a, b) => addressOrder(a.worker, b.worker)).map(canonicalShare),
     backerPositions: args.backerPositions.toSorted(positionOrder).map(canonicalPosition),
+    ...(args.checkpoint === undefined ? {} : { checkpoint: args.checkpoint }),
   }
 }
+
+export const priceListOf = ({ prices, signer, signature }: Awaited<ReturnType<typeof verifiedPriceList>>) => ({
+  message: {
+    epoch: String(prices.epoch),
+    tokens: prices.tokens.map((t) => ({ token: t.token, decimals: t.decimals, usdPrice: String(t.usdPrice) })),
+    factoryUsdPrice: String(prices.factoryUsdPrice),
+  },
+  signer,
+  signature,
+})
+
+export const canonicalBudget = (budget: Awaited<ReturnType<typeof budgetOf>>) => ({
+  cumulativeBudget: String(budget.cumulativeBudget),
+  fundedBefore: String(budget.fundedBefore),
+  available: String(budget.available),
+  usable: budget.usable.map((lot) => ({
+    epoch: String(lot.epoch),
+    scheduled: String(lot.scheduled),
+    remaining: String(lot.remaining),
+  })),
+  expired: budget.expired.map((lot) => ({
+    epoch: String(lot.epoch),
+    scheduled: String(lot.scheduled),
+    remaining: String(lot.remaining),
+  })),
+})
