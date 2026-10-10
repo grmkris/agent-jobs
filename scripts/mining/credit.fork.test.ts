@@ -1,4 +1,4 @@
-import { expect, test } from 'bun:test'
+import { expect, setSystemTime, test } from 'bun:test'
 import { forkEnabled, forkSetupTimeout, startSidequestFork } from '../../packages/sdk/test/sidequest-fixture.ts'
 import {
   accept,
@@ -64,7 +64,13 @@ async function paidJob(f: Fork, wallet: Wallet, agentId: bigint, name: string, b
   const termsHash = hashText(name)
   const { jobId } = await publish(ctx, creator, { ...terms, manifestHash: hashText('v2-fork-fixture'), termsHash })
   const selection = { jobId, worker: wallet.account.address, agentId, termsHash, activateBy: now + 300, nonce: jobId }
-  await activate(ctx, wallet, selection, await signSelection(ctx, creator, selection), terms)
+  // The SDK dates its activation authorization from the wall clock; the fork's clock runs epochs ahead of it.
+  setSystemTime(new Date(now * 1000))
+  try {
+    await activate(ctx, wallet, selection, await signSelection(ctx, creator, selection), terms)
+  } finally {
+    setSystemTime()
+  }
   if (bonus > 0n) await topUp(ctx, contributor, jobId, bonus)
   await submit(ctx, wallet, jobId, hashText('finished'))
   await accept(ctx, creator, jobId)

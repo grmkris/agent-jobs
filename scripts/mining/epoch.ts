@@ -15,6 +15,15 @@ const flag = (name: string) => {
 const network = flag('network') ?? 'monad-testnet'
 const rpc = flag('rpc') ?? process.env[network === 'monad-mainnet' ? 'MONAD_MAINNET_RPC_URL' : 'MONAD_TESTNET_RPC_URL']
 
+/** --checkpoint-dir and --from-genesis, for the v2 runner and --recompute. */
+function checkpointOptions(): Pick<EpochOptions, 'checkpointDir' | 'fromGenesis'> {
+  const checkpointDir = flag('checkpoint-dir')
+  return {
+    ...(checkpointDir === undefined ? {} : { checkpointDir }),
+    ...(argv.includes('--from-genesis') ? { fromGenesis: true } : {}),
+  }
+}
+
 async function dispatch() {
   const epochArg = argv[0]
   if (epochArg === undefined || !/^[0-9]+$/.test(epochArg)) throw new Error('usage: bun run mining:epoch <n> ...')
@@ -31,15 +40,13 @@ async function dispatch() {
   if (rpc === undefined || rpc === '') throw new Error('set --rpc or the selected network RPC variable')
   const pageArg = flag('page') ?? '1000'
   if (!/^[1-9][0-9]*$/.test(pageArg)) throw new Error('--page takes a positive number of blocks')
-  const checkpointDir = flag('checkpoint-dir')
   const options: Omit<EpochOptions, 'pricesFile' | 'previousFile'> = {
     epoch,
     network,
     config,
     rpc,
     page: BigInt(pageArg),
-    ...(checkpointDir === undefined ? {} : { checkpointDir }),
-    ...(argv.includes('--from-genesis') ? { fromGenesis: true } : {}),
+    ...checkpointOptions(),
   }
   const recompute = flag('recompute')
   if (recompute !== undefined) {
