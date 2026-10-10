@@ -3,6 +3,7 @@ import { forkEnabled, forkSetupTimeout, startSidequestFork } from '../../package
 import {
   accept,
   activate,
+  delegate,
   hashText,
   publish,
   registerAgent,
@@ -24,13 +25,15 @@ test.skipIf(!forkEnabled)(
       const { ctx, creator, worker, contributor, arbitrator } = f
       const historyStart = await ctx.publicClient.getBlockNumber()
       const agentId = await registerAgent(ctx, worker, 'https://sidequest.exchange/mining-local-fork')
+      // G1e requires a creator bond, reserved from the creator's own backing.
+      await delegate(ctx, creator, parseEther('20'))
       const now = Number((await ctx.publicClient.getBlock()).timestamp)
       const terms = {
         creator: creator.account.address,
         approver: creator.account.address,
         token: ctx.stack.factory,
         reward: parseEther('100'),
-        creatorBond: 0n,
+        creatorBond: parseEther('10'),
         workerBond: 0n,
         arbitrator: arbitrator.account.address,
         reviewWindow: 3600,
