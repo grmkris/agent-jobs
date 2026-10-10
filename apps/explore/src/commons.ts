@@ -5,9 +5,9 @@
  */
 import { formatUnits } from 'viem'
 
-export type Address = `0x${string}`
+type Address = `0x${string}`
 
-export type BadgeKind =
+type BadgeKind =
   | 'owner'
   | 'approver'
   | 'worker'
@@ -62,7 +62,7 @@ export interface Thread {
   readonly viewer: Viewer | null
 }
 
-export const ITEM_STATUSES = ['open', 'planned', 'building', 'shipped', 'declined'] as const
+const ITEM_STATUSES = ['open', 'planned', 'building', 'shipped', 'declined'] as const
 export type ItemStatus = (typeof ITEM_STATUSES)[number]
 
 export interface RoadmapItem {
@@ -113,7 +113,7 @@ export interface RoadmapItemDetail {
   readonly thread: { readonly subject: string; readonly count: number }
 }
 
-export const GAP_TYPES = [
+const GAP_TYPES = [
   'missing_tool',
   'missing_parameter',
   'incomplete_results',

@@ -8,9 +8,9 @@ import { tool } from './api.ts'
 import { useAuth } from './components/Wallet.tsx'
 import type { Gap, Roadmap, RoadmapItemDetail, Roles, Thread } from './commons.ts'
 
-export const POLL_MS = 10_000
+const POLL_MS = 10_000
 
-export const commonsKeys = {
+const commonsKeys = {
   all: ['commons'] as const,
   thread: (subject: string, viewer: string | undefined) => ['commons', 'thread', subject, viewer ?? ''] as const,
   roadmap: (status: string, viewer: string | undefined) => ['commons', 'roadmap', status, viewer ?? ''] as const,

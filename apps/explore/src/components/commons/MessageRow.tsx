@@ -14,7 +14,7 @@ import {
 } from '../../commons.ts'
 
 /** Who someone is in this thread, as the board snapshotted it when they posted: roles first, then stake. */
-export function BadgeList({ badges }: { badges: readonly BadgeT[] }) {
+function BadgeList({ badges }: { badges: readonly BadgeT[] }) {
   if (badges.length === 0) return null
   return (
     <span className="inline-flex flex-wrap items-center gap-1">
