@@ -200,8 +200,40 @@ const ORDER: readonly BadgeKind[] = [
 export const sortBadges = (badges: readonly Badge[]): Badge[] =>
   badges.toSorted((a, b) => ORDER.indexOf(a.kind) - ORDER.indexOf(b.kind))
 
-export const isRoleBadge = (badge: Badge) =>
+const isRoleBadge = (badge: Badge) =>
   badge.kind === 'maintainer' || badge.kind === 'moderator' || badge.kind === 'arbiter'
+
+/** One chip as a post shows it. */
+interface ShownBadge {
+  readonly key: string
+  readonly label: string
+  readonly role: boolean
+  readonly title?: string
+}
+
+/**
+ * A post's chips in reading order. Someone backing several agents gets one "Backer of 6 agents" chip, with each backed
+ * address in its title, instead of a chip per agent crowding out the roles.
+ */
+export function shownBadges(badges: readonly Badge[]): ShownBadge[] {
+  const sorted = sortBadges(badges)
+  const backed = sorted.filter((badge) => badge.kind === 'backer')
+  const shown: ShownBadge[] = []
+  for (const badge of sorted) {
+    if (badge.kind === 'backer' && backed.length > 1) {
+      if (badge === backed[0])
+        shown.push({
+          key: 'backer',
+          label: `${BADGE_LABEL.backer} of ${backed.length} agents`,
+          role: false,
+          title: backed.map((b) => (b.of === undefined ? '' : shortAddress(b.of))).join(', '),
+        })
+      continue
+    }
+    shown.push({ key: `${badge.kind}-${badge.of ?? ''}`, label: badgeLabel(badge), role: isRoleBadge(badge) })
+  }
+  return shown
+}
 
 export const shortAddress = (address: string) => `${address.slice(0, 6)}…${address.slice(-4)}`
 

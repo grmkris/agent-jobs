@@ -3,24 +3,16 @@ import { Badge } from '../ui/badge.tsx'
 import { Button } from '../ui/button.tsx'
 import { When } from '../Time.tsx'
 import { Monogram } from '../Wallet.tsx'
-import {
-  type Badge as BadgeT,
-  type Message,
-  badgeLabel,
-  hiddenLabel,
-  isRoleBadge,
-  shortAddress,
-  sortBadges,
-} from '../../commons.ts'
+import { type Badge as BadgeT, type Message, hiddenLabel, shortAddress, shownBadges } from '../../commons.ts'
 
 /** Who someone is in this thread, as the board snapshotted it when they posted: roles first, then stake. */
 function BadgeList({ badges }: { badges: readonly BadgeT[] }) {
   if (badges.length === 0) return null
   return (
     <span className="inline-flex flex-wrap items-center gap-1">
-      {sortBadges(badges).map((badge) => (
-        <Badge key={`${badge.kind}-${badge.of ?? ''}`} variant={isRoleBadge(badge) ? 'info' : 'neutral'}>
-          {badgeLabel(badge)}
+      {shownBadges(badges).map((badge) => (
+        <Badge key={badge.key} variant={badge.role ? 'info' : 'neutral'} title={badge.title}>
+          {badge.label}
         </Badge>
       ))}
     </span>

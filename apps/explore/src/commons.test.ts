@@ -8,6 +8,7 @@ import {
   jobSubject,
   roadmapSubject,
   side,
+  shownBadges,
   sortBadges,
   supportLine,
   threadTree,
@@ -66,6 +67,17 @@ describe('badges', () => {
   it('puts role badges before job roles and stake', () => {
     const kinds = sortBadges([{ kind: 'staker' }, { kind: 'owner' }, { kind: 'moderator' }]).map((b) => b.kind)
     expect(kinds).toEqual(['moderator', 'owner', 'staker'])
+  })
+  it('shows one backer chip for several backed agents, with each address in its title', () => {
+    const one = '0xabcdef0000000000000000000000000000001234'
+    const two = '0x1234000000000000000000000000000000005678'
+    expect(shownBadges([{ kind: 'backer', of: one }, { kind: 'maintainer' }, { kind: 'backer', of: two }])).toEqual([
+      { key: 'maintainer-', label: 'Maintainer', role: true },
+      { key: 'backer', label: 'Backer of 2 agents', role: false, title: '0xabcd…1234, 0x1234…5678' },
+    ])
+    expect(shownBadges([{ kind: 'backer', of: one }])).toEqual([
+      { key: `backer-${one}`, label: 'Backer of 0xabcd…1234', role: false },
+    ])
   })
 })
 
