@@ -22,12 +22,19 @@ export interface WorkerStake {
 }
 
 export interface V2FeeRecord extends FeeRecord {
-  credit: ReturnType<typeof creditOf> | null
+  credit:
+    | (ReturnType<typeof creditOf> & {
+        usd: bigint
+        activation: ActivationRecord
+        agentId: bigint
+        schedule: ScheduleRecord
+      })
+    | null
 }
 
 export interface EpochResultV2 extends EpochResult {
   fees: V2FeeRecord[]
-  /** feeUsd retains the v1 output field name; both contain counted credit USD in v2. */
+  /** Emission and role weights use credit USD; feeUsd still reports the treasury fees. */
   creditUsd: bigint
   backerPositions: BackerPositionInput[]
 }
@@ -77,16 +84,29 @@ function creditRecord(fee: FeeCharged, input: EpochInputV2): V2FeeRecord {
     schedule: scheduleAt(input.schedules, activation),
     heldStake: stake.start < stake.end ? stake.start : stake.end,
   })
-  return { fee, status: 'counted', usd: (credit.credit * price.usdPrice) / 10n ** BigInt(price.decimals), credit }
+  const scale = 10n ** BigInt(price.decimals)
+  return {
+    fee,
+    status: 'counted',
+    usd: (fee.amount * price.usdPrice) / scale,
+    credit: {
+      ...credit,
+      usd: (credit.credit * price.usdPrice) / scale,
+      activation,
+      agentId: activation.agentId,
+      schedule: scheduleAt(input.schedules, activation),
+    },
+  }
 }
 
 function roleWeights(fees: readonly V2FeeRecord[], topUps: readonly TopUp[]) {
   const workers = new Map<Address, bigint>()
   const creators = new Map<Address, bigint>()
   for (const record of fees) {
-    if (record.usd === 0n) continue
-    addAmount(workers, record.fee.worker, record.usd)
-    for (const { account, usd } of creatorWeights(record.fee, record.usd, topUps)) addAmount(creators, account, usd)
+    const creditUsd = record.credit?.usd ?? 0n
+    if (creditUsd === 0n) continue
+    addAmount(workers, record.fee.worker, creditUsd)
+    for (const { account, usd } of creatorWeights(record.fee, creditUsd, topUps)) addAmount(creators, account, usd)
   }
   return { workers, creators }
 }
@@ -127,9 +147,11 @@ function applyBackerSplits(
   )
 }
 
+const feeUsdOf = (fees: readonly V2FeeRecord[]) => fees.reduce((sum, record) => sum + record.usd, 0n)
+
 export function computeEpochV2(input: EpochInputV2): EpochResultV2 {
   const fees = input.fees.map((fee) => creditRecord(fee, input))
-  const creditUsd = fees.reduce((sum, record) => sum + record.usd, 0n)
+  const creditUsd = fees.reduce((sum, record) => sum + (record.credit?.usd ?? 0n), 0n)
   const factoryUsdPrice =
     input.prices.factoryUsdPrice > MIN_SIDE_USD_PRICE ? input.prices.factoryUsdPrice : MIN_SIDE_USD_PRICE
   const demand = (creditUsd * 10n ** 18n) / (2n * factoryUsdPrice)
@@ -154,7 +176,7 @@ export function computeEpochV2(input: EpochInputV2): EpochResultV2 {
     .map(([account, amount]) => ({ account, amount }))
   return {
     fees,
-    feeUsd: creditUsd,
+    feeUsd: feeUsdOf(fees),
     creditUsd,
     factoryUsdPrice,
     demand,

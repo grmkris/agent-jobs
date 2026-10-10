@@ -81,14 +81,15 @@ const leafAmount = (result: ReturnType<typeof computeEpochV2>, account: Address)
 test('the $100-job table credits 0.40, 0.60, 0.80 and 1.00 USD', () => {
   const results = [0, 1, 2, 3].map((rank) => computeEpochV2(base([row(rank)])))
   expect(results.map((result) => result.fees[0]?.credit?.credit)).toEqual([400_000n, 600_000n, 800_000n, 1_000_000n])
-  expect(results.map((result) => result.fees[0]?.usd)).toEqual([
+  expect(results.map((result) => result.fees[0]?.credit?.usd)).toEqual([
     4n * 10n ** 17n,
     6n * 10n ** 17n,
     8n * 10n ** 17n,
     side,
   ])
   expect(results.reduce((sum, result) => sum + result.creditUsd, 0n)).toBe(28n * 10n ** 17n)
-  expect(results.every((result) => result.feeUsd === result.creditUsd)).toBe(true)
+  expect(results.map((result) => result.fees[0]?.usd)).toEqual([30n * side, 10n * side, 3n * side, side])
+  expect(results.map((result) => result.feeUsd)).toEqual([30n * side, 10n * side, 3n * side, side])
   expect(results.reduce((sum, result) => sum + result.demand, 0n)).toBe(1400n * side)
 })
 
