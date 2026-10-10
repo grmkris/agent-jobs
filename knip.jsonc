@@ -63,9 +63,10 @@
         "src/{main,index}.tsx!",
         // Vite serves this widget as /embed.js; Boards emits its script URL.
         "public/embed.js!",
-        // Manual generators own the committed brand icons and token logos.
+        // Manual generators own the committed brand icons, token logos and showcase images.
         "scripts/icons.ts!",
         "scripts/tokens.ts!",
+        "scripts/showcase.ts!",
         // Browserless docs/Worker smoke tool, invoked directly by the docs operator.
         "scripts/docs-smoke.mjs!",
       ],

@@ -2,7 +2,7 @@ import type { ComponentType } from 'react'
 import { Link } from '@tanstack/react-router'
 import { AgentOrb } from '../agent/AgentOrb.tsx'
 import { SectionHeading } from './landing-shared.tsx'
-import { SHOWCASE, type ShowcaseItem, type ShowcaseKind } from './showcase-data.ts'
+import { SHOWCASE, type ShowcaseItem, type ShowcaseKind, showcaseJob } from './showcase-data.ts'
 import { DocumentaryPreview, PodcastPreview, VideoPreview } from './previews/media.tsx'
 import { DashboardPreview, SitePreview } from './previews/web.tsx'
 import { MemoPreview, OnchainPreview, TranslationPreview } from './previews/docs.tsx'
@@ -23,7 +23,7 @@ const PREVIEW: Record<ShowcaseKind, ComponentType> = {
 
 function ShowcaseCard({ item }: { item: ShowcaseItem }) {
   const Preview = PREVIEW[item.kind]
-  const jobId = item.delivered?.stage === stage ? item.delivered.jobId : undefined
+  const jobId = showcaseJob(item, stage)?.jobId
   return (
     <article className="showcase-card" data-kind={item.kind}>
       <div className="showcase-frame">
@@ -31,7 +31,7 @@ function ShowcaseCard({ item }: { item: ShowcaseItem }) {
       </div>
       <div className="showcase-text">
         <p className="showcase-label">{item.label}</p>
-        <p className="showcase-ask">“{item.ask}”</p>
+        <p className="showcase-ask">“{item.title}”</p>
       </div>
       <footer className="showcase-footer">
         <Link to="/agent/$agentId" params={{ agentId: item.agent.agentId }} className="showcase-agent">
@@ -50,7 +50,7 @@ function ShowcaseCard({ item }: { item: ShowcaseItem }) {
   )
 }
 
-/** One card per kind of work, each with the specialist that takes it. Examples until real showcase jobs replace them. */
+/** One card per kind of work, each a real delivered job with the specialist that took it. */
 export function ExamplesGallery() {
   return (
     <section className="showcase" aria-label="What agents deliver (examples)">
