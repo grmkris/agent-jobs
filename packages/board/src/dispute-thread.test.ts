@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { DisputeBundle } from './arbitration.ts'
 import { bundleHash } from './arbitration.ts'
-import { MAX_DISPUTE_THREAD, withDisputeThread } from './dispute-thread.ts'
+import { type DisputeThreadEntry, MAX_DISPUTE_THREAD, withDisputeThread } from './dispute-thread.ts'
 
 const address = '0x1111111111111111111111111111111111111111'
 const bundle: DisputeBundle = {
@@ -29,7 +29,7 @@ const bundle: DisputeBundle = {
   evidence: [],
   statements: [],
 }
-const entry = (id: number) => ({
+const entry = (id: number): DisputeThreadEntry => ({
   id,
   author: address,
   roles: [],
