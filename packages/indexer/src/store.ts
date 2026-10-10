@@ -99,6 +99,14 @@ export const SCHEMA: readonly string[] = [
     PRIMARY KEY (chain_id, contract, block, log_index)
   )`,
   'CREATE INDEX IF NOT EXISTS protocol_events_block ON protocol_events (chain_id, block, log_index)',
+  `CREATE TABLE IF NOT EXISTS backer_share_checkpoint (
+    chain_id INTEGER NOT NULL,
+    identity TEXT NOT NULL,
+    deployment_block INTEGER NOT NULL,
+    next_block INTEGER NOT NULL,
+    target_block INTEGER NOT NULL,
+    PRIMARY KEY (chain_id, identity, deployment_block)
+  )`,
   `CREATE TABLE IF NOT EXISTS jobs (
     chain_id INTEGER NOT NULL,
     job_id TEXT NOT NULL,
