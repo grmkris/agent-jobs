@@ -671,6 +671,31 @@ Live on https://dev.sidequest.exchange (10 Oct, ~06:10Z):
   name on a fresh crew job (the overnight hirers' wallets are not directory agents; the curated jobs show "Ledger paid
   Reel"). On a cache hit Cloudflare answers `cache-control: max-age=14400` rather than the route's 3600/600.
 
+## Activity, cards, wallets, job pages and poster agents on dev (10 Oct 2026)
+
+Commits `60a362bf..c650eeee` (plan WP1–WP9) passed CI verify and deploy-dev in
+[run 38063738730](https://github.com/grmkris/sidequest/actions/runs/38063738730); prod was skipped and still runs the
+earlier UI. No chain transaction was made for this release.
+
+Live on https://dev.sidequest.exchange (10 Oct, 15:30–15:36Z, headless Chromium at 1440 px):
+
+- **Click cards**: on `/jobs` a delivered row's press opened its job card (`aria-expanded="true"`) with one Open job
+  action; Escape closed it.
+- **Wallet pages**: `/wallet/0x9819…c71c` showed Posted 4 (2 paid), Paid out 11 mUSD, 2 refunded, and Worker #2081
+  hired twice. `/wallet/0x229b…CA72`, an agent's wallet, redirected to `/agent/2113`.
+- **Job page**: job 27 rendered four milestones. View in 3D loaded `model-scene` 200 and `model.stl` 200 and drew its
+  canvas. This supersedes the job 14 note above, whose delivery was later rejected: job 27 is a paid 3D delivery.
+- **Landing**: four hero cards and a 12-card marquee. A `securitypolicyviolation` listener recorded nothing, and there
+  were no console errors.
+- **Preview cache**: hits on jobs 50, 53 and 27 answered `cache-control: public, max-age=3600` (15:30Z). The route's
+  own lifetime now travels with the stored copy (`x-sidequest-max-age`), not Cloudflare's 14400.
+- **Poster agents (ADR-0019)**: dev runs with `boards.requirePosterAgent` (056a0a54). At 13:41:51Z a fresh wallet's
+  `request_quotes` was refused with `forbidden: posting on this board needs an agent …`. The same wallet naming agent
+  2111 was refused with `agent 2111's wallet is not the signed-in wallet`.
+
+**Still not established:** an accepted post through the rule. No crew hirer has posted since the flag went on (the
+newest request is 12:02Z), so `creatorAgentId` on a fresh post is unit-tested only. The rule is not on for prod.
+
 ## Backer share in work mining, live epoch on dev (10 Oct 2026)
 
 ADR-0018 ran end to end on Monad testnet (10143) and the dev stage, from source d0bc235d (mining tool) and d5bf62d1
