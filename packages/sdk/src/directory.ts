@@ -43,7 +43,7 @@ export interface DirectoryAgent {
   profile: DirectoryProfile
   profileSource: 'operator-supplied'
   agentURI: string
-  backerShareBps?: number | null
+  backerShareBps: number | null
   enrolled: boolean
   ownership: 'verified' | 'unknown' | 'changed'
   presence: {
