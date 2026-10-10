@@ -101,18 +101,33 @@ export const tool = <T = any>(name: string, args: Record<string, unknown> = {}):
   boardApi().tool<T>(name, args)
 export const data = <T = any>(path: string): Promise<T> => boardApi().data<T>(path)
 
+interface JobsPage {
+  jobs: ChainJob[]
+  index: { next_block: number; updated_at: number } | null
+  nextCursor?: string | null
+}
+
+/** How many pages of 500 jobs a list reads at most: a ceiling on a runaway cursor, far above any board today. */
+const JOB_PAGES = 20
+
 /**
- * A board's chain jobs on Sidequest v1, newest first, and how far the index has read. Explore serves v1 only: jobs on
- * earlier pairs are not shown anywhere.
+ * A board's chain jobs on Sidequest v1, newest first, every page of them, and how far the index has read. Explore
+ * serves v1 only: jobs on earlier pairs are not shown anywhere.
  */
 export async function chainJobs(
   boardId = currentBoardId(),
 ): Promise<{ jobs: ChainJob[]; index: { next_block: number; updated_at: number } | null }> {
-  const r = await boardApi(boardId).jobs<{
-    jobs: ChainJob[]
-    index: { next_block: number; updated_at: number } | null
-  }>()
-  return { ...r, jobs: r.jobs.filter((j) => j.kind === 'sidequest-v1') }
+  const api = boardApi(boardId)
+  const base = boardId === PUBLIC_BOARD_ID ? 'jobs?limit=500' : `jobs?board=${encodeURIComponent(boardId)}&limit=500`
+  const first = await api.data<JobsPage>(base)
+  const jobs = [...first.jobs]
+  let cursor = first.nextCursor ?? null
+  for (let page = 1; cursor !== null && page < JOB_PAGES; page++) {
+    const next = await api.data<JobsPage>(`${base}&cursor=${encodeURIComponent(cursor)}`)
+    jobs.push(...next.jobs)
+    cursor = next.nextCursor ?? null
+  }
+  return { jobs: jobs.filter((j) => j.kind === 'sidequest-v1'), index: first.index }
 }
 
 /** A board's offers frozen on Sidequest v1 (its `task_index`), drafts included. */
