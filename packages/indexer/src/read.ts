@@ -420,6 +420,34 @@ export async function listAgents(sql: AsyncSql, chainId: number, limit = 200): P
   return summaries(sql, chainId, null, limit)
 }
 
+/** Completed v1 jobs by worker agent, including the completion count from the last seven days. */
+export async function completedByAgent(sql: AsyncSql, chainId: number, since: number) {
+  const rows = await sql.all<{
+    agent_id: string
+    completed: number
+    completed_7d: number
+  }>(
+    `SELECT agent_id,
+       SUM(CASE WHEN status = 'completed' OR outcome IN ${WORKER_OUTCOMES} THEN 1 ELSE 0 END) AS completed,
+       SUM(CASE WHEN (status = 'completed' OR outcome IN ${WORKER_OUTCOMES}) AND completed_at >= ? THEN 1 ELSE 0 END) AS completed_7d
+     FROM (
+       SELECT j.agent_id, j.status, j.outcome,
+         MIN(b.timestamp) AS completed_at
+       FROM jobs j
+       LEFT JOIN events e ON e.chain_id = j.chain_id AND e.job_id = j.job_id
+         AND (e.name = 'JobCompleted' OR (j.outcome = 'Accepted' AND e.name = 'Accepted')
+           OR (j.outcome = 'Silence' AND e.name = 'TimedOut') OR (j.outcome = 'RuledForWorker' AND e.name = 'Ruled'))
+       LEFT JOIN block_times b ON b.chain_id = e.chain_id AND b.block = e.block
+       WHERE j.chain_id = ? AND j.${V1_JOB} AND j.agent_id IS NOT NULL AND j.agent_id <> '0'
+       GROUP BY j.chain_id, j.job_id, j.agent_id, j.status, j.outcome
+     )
+     GROUP BY agent_id`,
+    since,
+    chainId,
+  )
+  return new Map(rows.map((row) => [row.agent_id, { delivered: row.completed, delivered7d: row.completed_7d }]))
+}
+
 /** The agents a wallet has worked as (ERC-8004 has no reverse lookup; only agents with a job are found). */
 export async function agentsOfWallet(sql: AsyncSql, chainId: number, wallet: string): Promise<string[]> {
   const rows = await sql.all<{ agent_id: string }>(
