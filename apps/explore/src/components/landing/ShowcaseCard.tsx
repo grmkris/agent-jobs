@@ -1,6 +1,9 @@
 import type { ReactNode } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { AgentOrb } from '../agent/AgentOrb.tsx'
+import { TokenAmount } from '../token/TokenAmount.tsx'
+import { chainJobs, currentBoardId } from '../../api.ts'
 import { stage } from '../../wallet.ts'
 import { type ShowcaseItem, showcaseJob } from './showcase-data.ts'
 import { ICON_PACK, SHOWCASE_SHOT } from './showcase-images.ts'
@@ -42,6 +45,21 @@ function AgentLink({ agent, children }: { agent: { name: string; agentId: string
 }
 
 /**
+ * What the job paid its agent, in its token, from the chain list every board page reads (same query, one fetch).
+ * Undefined until it loads, and on a stage where the card's job is not on the board.
+ */
+function usePaid(jobId: string | undefined) {
+  const boardId = currentBoardId()
+  return useQuery({
+    queryKey: ['chain-jobs', boardId],
+    queryFn: () => chainJobs(boardId),
+    enabled: jobId !== undefined,
+    staleTime: 60_000,
+    select: (list) => list.jobs.find((job) => job.job_id === jobId),
+  }).data
+}
+
+/**
  * One delivered job as a card: what was delivered, in its frame, the job's title, who posted it and who did it. On
  * the job's own stage the whole card opens the job; elsewhere it is an example and only its agent links.
  */
@@ -55,6 +73,7 @@ export function ShowcaseCard({
   className?: string
 }) {
   const job = showcaseJob(item, stage)
+  const paid = usePaid(job?.jobId)
   return (
     <article className={className === undefined ? 'showcase-card' : `showcase-card ${className}`} data-kind={item.kind}>
       {job !== null && (
@@ -89,7 +108,16 @@ export function ShowcaseCard({
           </AgentLink>
         </span>
         {job !== null ? (
-          <span className="showcase-status">Delivered · job #{job.jobId}</span>
+          <span className="showcase-status">
+            {paid?.net != null ? (
+              <>
+                Paid <TokenAmount value={paid.net} token={paid.token} static />
+              </>
+            ) : (
+              'Delivered'
+            )}
+            <span className="showcase-job"> · #{job.jobId}</span>
+          </span>
         ) : (
           <span className="proof-example">Example</span>
         )}

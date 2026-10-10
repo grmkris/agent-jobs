@@ -3,21 +3,20 @@
  * ink. Each preview is drawn in em inside a frame whose font size follows the frame's width, so a preview keeps its
  * proportions from the three-column grid down to a phone's swipe row. Previews are illustrations, never records.
  */
-.showcase,
-.agents-strip {
+.marquee-section {
   display: grid;
   gap: 1.5rem;
   min-width: 0;
 }
 
-.showcase-heading {
+.marquee-heading {
   display: flex;
   align-items: end;
   justify-content: space-between;
   gap: 1rem;
 }
 
-.showcase-pause {
+.marquee-pause {
   display: inline-flex;
   flex-shrink: 0;
   align-items: center;
@@ -31,41 +30,45 @@
   transition: color 0.2s;
 }
 
-.showcase-pause:hover {
+.marquee-pause:hover {
   color: var(--foreground);
 }
 
-.showcase-pause:focus-visible {
+.marquee-pause:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 3px;
 }
 
-.showcase-pause svg {
+.marquee-pause svg {
   width: 0.85rem;
   height: 0.85rem;
 }
 
-/* The marquee: two copies of the row slide left by one copy's width, then start over unseen. */
-.showcase-marquee {
+/* The band: two copies of the row slide by one copy's width, then start over unseen. */
+.marquee {
   overflow: hidden;
   margin-inline: -0.5rem;
   padding: 0.5rem 0.5rem 1rem;
   mask-image: linear-gradient(90deg, transparent, black 5%, black 95%, transparent);
 }
 
-.showcase-track {
+.marquee-track {
   display: flex;
   width: max-content;
-  animation: showcase-marquee 75s linear infinite;
+  animation: marquee var(--marquee-seconds, 75s) linear infinite;
 }
 
-.showcase-marquee:hover .showcase-track,
-.showcase-marquee:focus-within .showcase-track,
-.showcase-marquee[data-paused] .showcase-track {
+.marquee[data-reverse] .marquee-track {
+  animation-direction: reverse;
+}
+
+.marquee:hover .marquee-track,
+.marquee:focus-within .marquee-track,
+.marquee[data-paused] .marquee-track {
   animation-play-state: paused;
 }
 
-.showcase-row {
+.marquee-row {
   display: flex;
   flex-shrink: 0;
   gap: 1.25rem;
@@ -74,12 +77,12 @@
   list-style: none;
 }
 
-.showcase-row > li {
+.marquee-row > li {
   display: grid;
-  flex: 0 0 19.5rem;
+  flex: 0 0 var(--marquee-item, 19.5rem);
 }
 
-@keyframes showcase-marquee {
+@keyframes marquee {
   to {
     transform: translateX(-50%);
   }
@@ -87,24 +90,24 @@
 
 /* On touch screens and for less motion: a still row to swipe, without the copy or the pause button. */
 @media (pointer: coarse), (prefers-reduced-motion: reduce) {
-  .showcase-marquee {
+  .marquee {
     overflow-x: auto;
     scroll-snap-type: x mandatory;
     scrollbar-width: none;
     mask-image: none;
   }
 
-  .showcase-track {
+  .marquee-track {
     width: auto;
     animation: none;
   }
 
-  .showcase-row[aria-hidden='true'],
-  .showcase-pause {
+  .marquee-row[aria-hidden='true'],
+  .marquee-pause {
     display: none;
   }
 
-  .showcase-row > li {
+  .marquee-row > li {
     flex-basis: min(82%, 21rem);
     scroll-snap-align: start;
   }
@@ -195,8 +198,17 @@
 }
 
 .showcase-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
   color: var(--primary);
   font-weight: 500;
+  white-space: nowrap;
+}
+
+.showcase-job {
+  color: var(--muted-foreground);
+  font-weight: 400;
 }
 
 .showcase-agent:focus-visible,
@@ -585,102 +597,235 @@
   image-rendering: pixelated;
 }
 
-/* The agents strip. */
-.agents-strip-row {
+/* A specialist: who it is, its public record here, its latest paid jobs and its on-chain identity. */
+.agent-card {
+  position: relative;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.9rem;
-}
-
-.agent-tile {
-  display: grid;
-  align-content: start;
-  gap: 0.4rem;
+  grid-template-rows: auto auto auto 1fr auto;
+  gap: 0.75rem;
   height: 100%;
-  padding: 1rem 1rem 1.05rem;
+  padding: 1rem 1rem 0.9rem;
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: 16px;
   background: var(--card);
   color: var(--card-foreground);
   transition:
     border-color 0.25s,
-    transform 0.35s var(--ease-out);
+    transform 0.35s var(--ease-out),
+    box-shadow 0.35s var(--ease-out);
 }
 
-.agent-tile:hover {
+.agent-card:hover {
   border-color: color-mix(in oklch, var(--primary) 40%, var(--border));
+  box-shadow: var(--proof-shadow);
   transform: translateY(-3px);
 }
 
-.agent-tile-head {
-  display: flex;
-  align-items: start;
-  justify-content: space-between;
-  gap: 0.5rem;
-  margin-bottom: 0.4rem;
+.agent-card-open {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
 }
 
-.agent-tile-record {
-  padding: 0.1rem 0.45rem;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  color: var(--muted-foreground);
-  font-family: var(--font-mono);
-  font-size: 0.58rem;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+.agent-card-open:focus-visible,
+.agent-card-identity:focus-visible,
+.agent-card-work a:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+}
+
+.agent-card-work,
+.agent-card-identity {
+  position: relative;
+  z-index: 2;
+}
+
+.agent-card-head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.agent-card-who {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.agent-card-name {
+  overflow: hidden;
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  font-weight: 450;
+  line-height: 1.05;
+  letter-spacing: -0.015em;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.agent-tile-name {
-  font-family: var(--font-display);
-  font-size: 1.35rem;
-  font-weight: 450;
-  line-height: 1.1;
-  letter-spacing: -0.015em;
+.agent-card-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
 }
 
-.agent-tile-line {
+.agent-card-status[data-live] {
+  color: var(--success-text);
+}
+
+.agent-card-status[data-live]::after {
+  content: '';
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.agent-card-line {
+  display: -webkit-box;
+  overflow: hidden;
+  min-height: 2.6em;
   color: var(--muted-foreground);
   font-size: 0.8rem;
-  line-height: 1.45;
+  line-height: 1.3;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
-.agent-tile-services {
-  display: flex;
-  flex-wrap: wrap;
+.agent-card-stats {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0.6rem 0.7rem;
+  border-radius: 10px;
+  background: color-mix(in oklch, var(--muted) 55%, var(--card));
+}
+
+.agent-card-stats > div {
+  display: grid;
+  align-content: start;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.agent-card-stats dt {
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 0.55rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.agent-card-stats dd {
+  display: grid;
+  margin: 0;
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.agent-card-sub {
+  color: var(--muted-foreground);
+  font-size: 0.68rem;
+  font-weight: 400;
+}
+
+.agent-card-work {
+  display: grid;
+  align-content: start;
   gap: 0.3rem;
-  margin-top: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
-.agent-tile-services span {
+.agent-card-work li {
+  display: flex;
+  gap: 0.45rem;
+  min-width: 0;
+  font-size: 0.76rem;
+}
+
+.agent-card-work li::before {
+  content: '✓';
+  color: var(--success-text);
+  font-size: 0.7rem;
+}
+
+.agent-card-work a {
+  overflow: hidden;
+  font-family: var(--font-display);
+  font-style: italic;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-overflow: ellipsis;
+  text-underline-offset: 3px;
+  white-space: nowrap;
+  transition: text-decoration-color 0.2s;
+}
+
+.agent-card-work a:hover {
+  text-decoration-color: currentColor;
+}
+
+.agent-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-width: 0;
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--border);
+}
+
+.agent-card-services {
+  display: flex;
+  gap: 0.3rem;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.agent-card-services span {
+  overflow: hidden;
   padding: 0.12rem 0.45rem;
   border-radius: 6px;
   background: color-mix(in oklch, var(--muted) 80%, var(--card));
   color: var(--muted-foreground);
   font-family: var(--font-mono);
-  font-size: 0.6rem;
+  font-size: 0.58rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-/* Below the desktop width: the agents become a swipe row, tiles snapping to the start. */
+.agent-card-identity {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.2rem;
+  color: var(--primary);
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  white-space: nowrap;
+}
+
+.agent-card-identity svg {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+/* Below the desktop width: cards stop lifting on hover. */
 @media (max-width: 1023px) {
-  .agents-strip-row {
-    display: flex;
-    gap: 0.9rem;
-    margin-inline: -0.25rem;
-    padding: 0.25rem 0.25rem 1rem;
-    overflow-x: auto;
-    scroll-snap-type: x mandatory;
-    scrollbar-width: none;
-  }
-
-  .agents-strip-row > li {
-    flex: 0 0 min(64%, 15rem);
-    scroll-snap-align: start;
-  }
-
   .showcase-card:hover,
-  .agent-tile:hover {
+  .agent-card:hover {
     transform: none;
   }
 }
