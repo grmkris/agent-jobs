@@ -14,6 +14,7 @@ import type { ComponentProps, ReactNode } from 'react'
 import { currentBoardId } from '../api.ts'
 import { JOBS_LABEL } from '../places.ts'
 import { onCommons } from '../commons-route.ts'
+import { SetupPill, WelcomeOpener } from './onboarding/Onboarding.tsx'
 import { agentHome, managedLiveness, pendingByAgent, useManagedAgents, useManagedApprovals } from '../managed.ts'
 import { usePaused } from '../wallet.ts'
 import { AccountAvatar, AccountLink, Count } from './AccountLink.tsx'
@@ -34,7 +35,7 @@ type Place = {
 }
 
 /** Pages that belong to the account rather than to a job or an agent. */
-const ACCOUNT_PATHS = ['/account', '/sponsorship', '/admin']
+const ACCOUNT_PATHS = ['/account', '/sponsorship', '/admin', '/welcome']
 const AGENT_PATHS = ['/services', '/agents', '/connect']
 const onAccount = (p: string) => ACCOUNT_PATHS.some((a) => p.startsWith(a))
 
@@ -140,6 +141,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const collect = useCollectActions(auth.address, auth.signedIn).data?.length ?? 0
   return (
     <div className="min-h-dvh lg:grid lg:grid-cols-[15rem_1fr]">
+      {auth.signedIn && auth.address !== undefined && <WelcomeOpener address={auth.address} />}
       <TestnetEdge />
       <aside
         className="sticky top-0 hidden h-dvh flex-col gap-1 overflow-y-auto border-r bg-sidebar px-3 pt-4 pb-4 text-sidebar-foreground lg:flex"
@@ -200,6 +202,7 @@ export function Shell({ children }: { children: ReactNode }) {
           )}
         </nav>
         <div className="mt-auto grid gap-3 pt-6">
+          {auth.signedIn && auth.address !== undefined && <SetupPill address={auth.address} className="mx-1" />}
           {auth.signedIn ? (
             <AccountLink collect={collect} />
           ) : (

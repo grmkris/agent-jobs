@@ -24,6 +24,7 @@ import { Shell } from './components/Shell.tsx'
 import { LandingShell } from './components/LandingShell.tsx'
 import { ServicesPage } from './routes/Services.tsx'
 import { ServicePage } from './routes/Service.tsx'
+import { WelcomePage } from './routes/Welcome.tsx'
 import { AccountPage } from './routes/Account.tsx'
 import { JobPage } from './routes/Job.tsx'
 import { ActivityPage } from './routes/Activity.tsx'
@@ -156,6 +157,16 @@ const service = createRoute({
   getParentRoute: () => root,
   path: '/services/$agentId/$serviceId',
   component: ServicePage,
+})
+// A new account's three steps; it opens by itself after the first sign-in (WelcomeOpener in the shell).
+const welcome = createRoute({
+  getParentRoute: () => root,
+  path: '/welcome',
+  component: () => (
+    <LaunchGate title="Set up Sidequest">
+      <WelcomePage />
+    </LaunchGate>
+  ),
 })
 // The list was /agents before it became Services.
 const agents = createRoute({
@@ -302,6 +313,7 @@ const router = createRouter({
     agent,
     services,
     service,
+    welcome,
     agents,
     wallet,
     connect,

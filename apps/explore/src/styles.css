@@ -386,6 +386,21 @@
   }
 }
 
+/* Welcome: the step at hand rises a little into place; a check drawn in this visit scales and sharpens in. */
+@keyframes step-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+@keyframes check-in {
+  from {
+    opacity: 0;
+    transform: scale(0.25);
+    filter: blur(4px);
+  }
+}
+
 @keyframes view-in {
   from {
     opacity: 0;

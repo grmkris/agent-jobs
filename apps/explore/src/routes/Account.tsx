@@ -10,7 +10,7 @@ import type { Address } from 'viem'
 import { type AccountTab, accountSearch, accountTab } from '../account-route.ts'
 import { Count } from '../components/AccountLink.tsx'
 import { WalletCard } from '../components/Fund.tsx'
-import { WalletSetup } from '../components/account/WalletSetup.tsx'
+import { SetupPill } from '../components/onboarding/Onboarding.tsx'
 import { InstallHint } from '../components/InstallHint.tsx'
 import { PrivyLogin } from '../components/Privy.tsx'
 import { BackingManager } from '../components/BackingManager.tsx'
@@ -58,6 +58,8 @@ export function AccountPage() {
   return (
     <>
       <PageTitle sub={<Identity address={auth.address} />}>Account</PageTitle>
+
+      <SetupPill address={auth.address} className="justify-self-start" />
 
       <InstallHint />
 
@@ -128,7 +130,6 @@ function AccountTabs({ address }: { address: Address }) {
         </TabsTrigger>
       </TabsList>
       <TabsContent value="wallet" className="grid gap-7 text-base">
-        <WalletSetup address={address} />
         <WalletCard address={address} />
         <CollectSection />
       </TabsContent>
