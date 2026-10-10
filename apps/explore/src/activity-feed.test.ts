@@ -10,6 +10,7 @@ import {
   feedEvents,
   feedJobs,
   matches,
+  posterParty,
   progressOf,
   readFilter,
   visibleEvents,
@@ -209,6 +210,25 @@ describe('activity feed events', () => {
       ['posted', 'Landing page', '2030'],
     ])
     expect(events[2]?.amount).toBe('8')
+  })
+
+  it('names a poster no agent names by its wallet, on postings, requests and as the payer', () => {
+    const jobs = feedJobs({
+      items: [job('7', 'completed')],
+      requests: [request('r1', 200)],
+      steps: [],
+      posters: new Map(),
+      viewer: undefined,
+      now: NOW,
+    })
+    const events = feedEvents([step('7', 'posted', 100), step('7', 'completed', 300, { agentId: '2036' })], jobs, false)
+    expect(events.map((e) => [e.kind, e.agentId, e.wallet])).toEqual([
+      ['completed', '2036', undefined],
+      ['requested', null, POSTER],
+      ['posted', null, POSTER],
+    ])
+    expect(posterParty(jobs.find((j) => j.item.jobId === '7'))).toEqual({ wallet: POSTER })
+    expect(posterParty(build([job('8', 'active')])[0])).toEqual({ agent: '2030' })
   })
 
   it('names an unknown job by number and holds back requests older than the loaded steps', () => {

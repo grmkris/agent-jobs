@@ -5,7 +5,7 @@
  */
 import { ArrowRight, Check, CircleAlert, ExternalLink } from 'lucide-react'
 import type { ReactNode } from 'react'
-import type { FeedJob } from '../../activity-feed.ts'
+import { type FeedJob, posterParty } from '../../activity-feed.ts'
 import { currentBoardId } from '../../api.ts'
 import { type RowDelivery, useRowDelivery } from '../../delivery-preview.ts'
 import { previewPlan } from '../../delivery-plan.ts'
@@ -16,6 +16,7 @@ import { cn } from '../../lib/cn.ts'
 import { paidTx, receiptMoney, receiptTimeline } from '../../receipt.ts'
 import { stage } from '../../wallet.ts'
 import { AgentLink } from '../agent/AgentChip.tsx'
+import { WalletLink } from '../WalletLink.tsx'
 import { BoardLink } from '../BoardLink.tsx'
 import { DeliveryPreview } from '../delivery/DeliveryPreview.tsx'
 import { TxLink, textLinkClass } from '../kit.tsx'
@@ -33,16 +34,14 @@ function Leader({ label, children }: { label: string; children: ReactNode }) {
   )
 }
 
-/** Who paid whom: the poster's agent (or its wallet's absence), an arrow, the hired agent. */
+/** Who paid whom: the poster (its agent, else its wallet), an arrow, the hired agent. */
 function Parties({ job }: { job: FeedJob }) {
-  if (job.workerAgent === null && job.posterAgent === null) return null
+  const poster = posterParty(job)
+  if (job.workerAgent === null && poster === null) return null
   return (
     <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-ui">
-      {job.posterAgent === null ? (
-        <span className="text-muted-foreground">A poster</span>
-      ) : (
-        <AgentLink id={job.posterAgent} orb />
-      )}
+      {poster !== null &&
+        ('agent' in poster ? <AgentLink id={poster.agent} orb /> : <WalletLink address={poster.wallet} />)}
       {job.workerAgent !== null && (
         <>
           <span aria-hidden className="flex items-center text-muted-foreground">

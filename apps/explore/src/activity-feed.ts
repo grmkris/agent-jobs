@@ -8,7 +8,7 @@ import type { JobTag } from '@sidequest/sdk'
 import type { QuoteRequest } from './api.ts'
 import { readTags } from './components/JobFilters.tsx'
 import { type JobListItem, postedAt, posterOf, rowKey, rowPhase, tagsOf, titleOf } from './job-list.ts'
-import type { ActivityStep, LiveItem } from './live-activity.ts'
+import type { ActivityStep, LiveItem, Party } from './live-activity.ts'
 
 export type Bucket = 'open' | 'progress' | 'review' | 'paid' | 'disputes' | 'closed'
 export type StepFilter = 'all' | Bucket
@@ -275,6 +275,21 @@ export interface FeedEvent extends LiveItem {
   job: FeedJob | undefined
 }
 
+/** Who posted the work: its agent when this page can name one, else the posting wallet. */
+export function posterParty(job: FeedJob | undefined): Party | null {
+  if (job === undefined) return null
+  if (job.posterAgent !== null) return { agent: job.posterAgent }
+  const wallet = posterOf(job.item)
+  return wallet === null ? null : { wallet }
+}
+
+/** A posting or request's sentence opens with its poster: the agent, or the wallet when no agent names it. */
+function posterFields(job: FeedJob | undefined): Pick<LiveItem, 'agentId' | 'wallet'> {
+  const party = posterParty(job)
+  if (party === null) return { agentId: null }
+  return 'agent' in party ? { agentId: party.agent } : { agentId: null, wallet: party.wallet }
+}
+
 function stepEvent(s: ActivityStep & { at: number }, job: FeedJob | undefined): FeedEvent {
   return {
     key: stepKey(s),
@@ -283,8 +298,8 @@ function stepEvent(s: ActivityStep & { at: number }, job: FeedJob | undefined): 
     jobId: s.jobId,
     requestId: null,
     title: (job === undefined ? '' : titleOf(job.item)) || `job #${s.jobId}`,
-    // The chain names only the worker; a posting is the poster's, when this page can name it.
-    agentId: s.step === 'posted' ? (job?.posterAgent ?? null) : s.agentId,
+    // The chain names only the worker; a posting is the poster's.
+    ...(s.step === 'posted' ? posterFields(job) : { agentId: s.agentId }),
     ...(s.token === undefined || s.amount === undefined ? {} : { token: s.token, amount: s.amount }),
     job,
   }
@@ -301,7 +316,7 @@ function requestEvent(job: FeedJob): FeedEvent[] {
       jobId: job.item.jobId,
       requestId: r.requestId,
       title: r.title,
-      agentId: job.posterAgent,
+      ...posterFields(job),
       job,
     },
   ]

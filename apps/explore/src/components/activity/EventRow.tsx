@@ -2,7 +2,8 @@ import type { FeedEvent } from '../../activity-feed.ts'
 import { activityIcon } from '../../activity.ts'
 import { currentBoardId } from '../../api.ts'
 import { jobTarget } from '../../job-list.ts'
-import { type LiveItem, liveSentence } from '../../live-activity.ts'
+import { posterParty } from '../../activity-feed.ts'
+import { type LiveItem, type Party, liveSentence } from '../../live-activity.ts'
 import { ActivityIcon } from '../ActivityRow.tsx'
 import { AgentPeekLink, AgentPeekOrb } from '../agent/AgentPeek.tsx'
 import { BoardLink, type LinkTarget, boardRoutes } from '../BoardLink.tsx'
@@ -12,6 +13,7 @@ import { type RowDelivery, useRowDelivery } from '../../delivery-preview.ts'
 import { previewPlan, thumbOf } from '../../delivery-plan.ts'
 import { stage } from '../../wallet.ts'
 import { PeekLink } from '../PeekLink.tsx'
+import { WalletLink, WalletOrb } from '../WalletLink.tsx'
 import { FeedDetails } from './FeedDetails.tsx'
 import { ReceiptCard } from './ReceiptCard.tsx'
 import { RowMeta, RowThumb } from './RowMeta.tsx'
@@ -68,15 +70,38 @@ function useEventDelivery(event: FeedEvent) {
   return { ref, delivery, thumb: plan === null ? null : thumbOf(plan) }
 }
 
-/** Who did it: the agent's orb (with its card), and the paying agent's small orb on its corner when a paid step names both. */
-function EventMedia({ event, payer }: { event: FeedEvent; payer: string | undefined }) {
-  if (event.agentId === null) return <ActivityIcon icon={activityIcon(ICON_KIND[event.kind])} />
+/** A party's mark: an agent's orb with its card, or a wallet's colour mark. */
+function PartyOrb({ party, className }: { party: Party; className: string }) {
+  return 'agent' in party ? (
+    <AgentPeekOrb id={party.agent} className={className} />
+  ) : (
+    <WalletOrb address={party.wallet} className={className} />
+  )
+}
+
+/** A party named in a sentence: an agent's name with its card, or a wallet's short address. */
+function PartyName({ party }: { party: Party }) {
+  return 'agent' in party ? <AgentPeekLink id={party.agent} /> : <WalletLink address={party.wallet} orb={false} />
+}
+
+const partyLabel = (party: Party) => ('agent' in party ? `Agent ${party.agent}` : `Wallet ${party.wallet}`)
+
+/** Who the event is about: its agent, else the wallet that posted, else nobody this page can name. */
+function actorOf(event: FeedEvent): Party | null {
+  if (event.agentId !== null) return { agent: event.agentId }
+  return event.wallet === undefined ? null : { wallet: event.wallet }
+}
+
+/** Who did it: the agent's or posting wallet's mark, and the payer's small mark on its corner when a paid step names both. */
+function EventMedia({ event, payer }: { event: FeedEvent; payer: Party | undefined }) {
+  const actor = actorOf(event)
+  if (actor === null) return <ActivityIcon icon={activityIcon(ICON_KIND[event.kind])} />
   return (
     <span className="relative inline-flex">
-      <AgentPeekOrb id={event.agentId} className="size-9" />
+      <PartyOrb party={actor} className="size-9" />
       {payer !== undefined && (
         <span className="absolute -right-1.5 -bottom-1.5 inline-flex rounded-full ring-2 ring-card">
-          <AgentPeekOrb id={payer} className="size-5" />
+          <PartyOrb party={payer} className="size-5" />
         </span>
       )}
     </span>
@@ -96,17 +121,18 @@ export function EventRow({
   /** Activity's rows open the job's details in place; without this (the landing) the row links to the job. */
   details?: { open: boolean; onToggle: () => void; onAgent: (agentId: string) => void }
 }) {
-  const { agent, text, payer } = liveSentence(event, event.job?.posterAgent ?? null)
+  const { actor, text, payer } = liveSentence(event, posterParty(event.job))
   const [before, after] = aroundTitle(text, event.title)
   const target = eventTarget(event)
   // Details need the job's record; an event on a job this page cannot read only links.
   const job = details === undefined ? undefined : event.job
   const amount = event.amount === undefined ? null : <TokenAmount value={event.amount} token={event.token} static />
-  const who = agent && event.agentId !== null ? `Agent ${event.agentId} ` : ''
+  const actorParty = actor ? actorOf(event) : null
+  const who = actorParty === null ? '' : `${partyLabel(actorParty)} `
   const shown = useEventDelivery(event)
   return (
     <StretchedRow
-      label={payer === undefined ? `${who}${text}` : `Agent ${payer} paid ${who}${text}`}
+      label={payer === undefined ? `${who}${text}` : `${partyLabel(payer)} paid ${who}${text}`}
       action={
         job !== undefined && details !== undefined
           ? { kind: 'toggle', open: details.open, onToggle: details.onToggle }
@@ -122,12 +148,12 @@ export function EventRow({
       <p ref={shown.ref} className="text-sm leading-snug">
         {payer !== undefined && (
           <>
-            <AgentPeekLink id={payer} /> paid{' '}
+            <PartyName party={payer} /> paid{' '}
           </>
         )}
-        {agent && event.agentId !== null && (
+        {actorParty !== null && (
           <>
-            <AgentPeekLink id={event.agentId} />{' '}
+            <PartyName party={actorParty} />{' '}
           </>
         )}
         {payer !== undefined && amount !== null && <>{amount} </>}
