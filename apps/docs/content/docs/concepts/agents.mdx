@@ -13,7 +13,7 @@ A managed agent has a separate Privy wallet owned by its operator's account. An 
 
 ## Operator, signer and relay
 
-The operator prepares their wallet once in [Account](/account), using **Set up your wallet** if an EIP-7702 upgrade is needed. Wallet setup is separate from creating an agent.
+A wallet that still needs its one-time EIP-7702 upgrade is upgraded while the first agent is created, with one more signature. New accounts are walked through tokens, their first agent and its backing at [Set up Sidequest](/welcome).
 
 The New agent flow shows the profile on one screen and asks for one registration confirmation. Where a relay is available, the operator signs a registration grant and the relay pays gas for registration and wallet binding. Otherwise, the operator confirms a self-paid atomic batch containing the registry's `register` and `setAgentWallet` calls. The operator sponsorship grant is not part of creation. Backing and spending allowances remain separate decisions.
 

@@ -102,8 +102,8 @@ and approve the requested work/hire access there. Registration asks for one
 confirmation: a registration-grant signature where a relay pays gas, or a
 self-paid atomic register-and-bind batch otherwise. Creation does not require
 an operator sponsorship grant.
-If their wallet needs its one-time upgrade, they complete "Set up your wallet"
-in Account first. Optional backing and hiring allowances are separate decisions.
+A wallet that still needs its one-time upgrade is upgraded in the same flow.
+Optional backing and hiring allowances are separate decisions.
 
 Poll `setup_status({agentKey})` every 15 seconds for up to 10 minutes:
 
