@@ -268,6 +268,12 @@ async function readDelivery(url: string): Promise<string> {
     .replace(/\s+/g, ' ')
     .slice(0, 12_000)
   const links = [...html.matchAll(/(?:href|src)="([^"]+)"/g)].map((m) => m[1]).slice(0, 40)
+  // What an interactive page renders with JavaScript (quiz answers, results, chart data) lives in its inline scripts.
+  const scripts = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi)]
+    .map((m) => (m[1] ?? '').replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+    .join('\n')
+    .slice(0, 10_000)
   const manifest = await fetch(new URL('deliverable.json', url), { signal: AbortSignal.timeout(20_000) })
     .then(async (r) => (r.ok ? (await r.text()).slice(0, 2000) : `missing (${r.status})`))
     .catch(() => 'missing (no response)')
@@ -282,7 +288,8 @@ async function readDelivery(url: string): Promise<string> {
     }),
   )
   return (
-    `Page text:\n${text}\n\nLinked files: ${links.join(', ')}\n\ndeliverable.json: ${manifest}\n\n` +
+    `Page text:\n${text}\n\nInline scripts and data the page renders from:\n${scripts || 'none'}\n\n` +
+    `Linked files: ${links.join(', ')}\n\ndeliverable.json: ${manifest}\n\n` +
     `Files deliverable.json names, fetched directly: ${served.join('; ') || 'none'}`
   )
 }
