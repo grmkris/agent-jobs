@@ -84,7 +84,9 @@ const listings = Object.values(crewJson.members)
   .join('\n')
 const MAX_JOBS = Number(process.env.ACTIVITY_MAX_JOBS ?? 40)
 const POST_MINUTES = Number(process.env.ACTIVITY_POST_MINUTES ?? 20)
-const MIN_MON = 0.3
+/** Below POST_FLOOR a hirer posts nothing new but finishes its open jobs; below MIN_MON it pauses entirely. */
+const POST_FLOOR = Number(process.env.ACTIVITY_POST_FLOOR ?? 0.4)
+const MIN_MON = Number(process.env.ACTIVITY_MIN_MON ?? 0.12)
 const TAGS: readonly string[] = sdk.JOB_TAGS
 const SPEND_CAP = 150
 const MAX_OPEN = 4
@@ -105,6 +107,7 @@ class Hirer {
   readonly state: ReturnType<typeof store<HirerData>>
   #board = sdk.boardClient(origin)
   #signedIn = false
+  balance = 0
   constructor(readonly persona: Persona) {
     ;({ wallet: this.wallet, account: this.account } = signerFor(`hirer_${persona.id}`))
     this.state = store<HirerData>(`hirer-${persona.id}`, { jobs: [], titles: [], spent: 0 })
@@ -443,6 +446,7 @@ async function advance(h: Hirer, job: Job) {
 /** One hirer's tick: pause on low MON, set up once, then advance each open job; a failing job is retired after 6. */
 async function tick(h: Hirer) {
   const balance = await mon(h.address)
+  h.balance = balance
   const paused = balance < MIN_MON
   if (paused !== (h.data.paused === true)) h.log(paused ? 'paused' : 'resumed', { mon: balance.toFixed(3) })
   h.data.paused = paused
@@ -467,7 +471,7 @@ async function tick(h: Hirer) {
 
 /** The next poster: the maker first, so the 3D ask is on the board from the start; then any hirer with room. */
 function nextPoster(hirers: Hirer[]): Hirer | undefined {
-  const ready = hirers.filter((h) => h.data.paused !== true && h.open.length < MAX_OPEN && h.data.spent < SPEND_CAP)
+  const ready = hirers.filter((h) => h.balance >= POST_FLOOR && h.open.length < MAX_OPEN && h.data.spent < SPEND_CAP)
   const maker = ready.find((h) => h.persona.always === '3d' && h.data.jobs.length === 0)
   return maker ?? pick(ready)
 }
