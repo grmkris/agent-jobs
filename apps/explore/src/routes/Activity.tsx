@@ -192,9 +192,7 @@ function EventFeed({ feed, filter, open, toggle, onAgent }: FeedProps) {
           <EventRow
             key={event.key}
             event={event}
-            open={open === event.key}
-            onToggle={toggle(event.key)}
-            onAgent={onAgent}
+            details={{ open: open === event.key, onToggle: toggle(event.key), onAgent }}
           />
         ))}
       </RowList>

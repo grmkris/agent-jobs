@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import type { ChainJob } from '../../api.ts'
 import type { JobListItem } from '../../job-list.ts'
-import { boardActivityText, liveWorkItems } from './live-work.ts'
+import type { Bucket, FeedEvent, FeedJob } from '../../activity-feed.ts'
+import { boardActivityText, landingEvents, liveWorkItems } from './live-work.ts'
 
 const now = 1000
 const item = (status: string, deadline = 2000): JobListItem => ({
@@ -74,5 +75,32 @@ describe('landing live work', () => {
     const chain = { ...completed.chain!, settlement_outcome: 'None' }
     const pendingCollection = { ...completed, chain }
     expect(liveWorkItems([pendingCollection], now)).toEqual([pendingCollection])
+  })
+})
+
+const event = (key: string, jobId: string | null, bucket: Bucket | null = null): FeedEvent => ({
+  key,
+  kind: jobId === null ? 'requested' : 'completed',
+  at: 1,
+  jobId,
+  requestId: jobId === null ? key : null,
+  title: key,
+  agentId: null,
+  // SAFETY: landingEvents reads only an open request's bucket.
+  job: jobId === null ? ({ bucket } as FeedJob) : undefined,
+})
+
+describe('landing activity', () => {
+  it('shows steps on featured jobs and requests still open, up to the limit', () => {
+    const events = [
+      event('paid', 'completed'),
+      event('gone', 'cancelled'),
+      event('asking', null, 'open'),
+      event('closed', null, 'closed'),
+      event('working', 'active'),
+    ]
+    const items = [item('completed'), item('cancelled'), item('active')]
+    expect(landingEvents(events, items, now).map((e) => e.key)).toEqual(['paid', 'asking', 'working'])
+    expect(landingEvents(events, items, now, 2)).toHaveLength(2)
   })
 })

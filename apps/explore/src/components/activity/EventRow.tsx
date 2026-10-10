@@ -46,27 +46,25 @@ function aroundTitle(text: string, title: string): [string, string] {
  */
 export function EventRow({
   event,
-  open,
-  onToggle,
-  onAgent,
-  linkOnly = false,
+  details,
 }: {
   event: FeedEvent
-  open: boolean
-  onToggle: () => void
-  onAgent: (agentId: string) => void
-  /** The landing's compact feed: the row is a link to the job, with no details. */
-  linkOnly?: boolean
+  /** Activity's rows open the job's details in place; without this (the landing) the row links to the job. */
+  details?: { open: boolean; onToggle: () => void; onAgent: (agentId: string) => void }
 }) {
   const { agent, text } = liveSentence(event)
   const [before, after] = aroundTitle(text, event.title)
   const target = eventTarget(event)
-  // The landing's rows only link; Activity's open the job's details, when the page has the job's record.
-  const job = linkOnly ? undefined : event.job
+  // Details need the job's record; an event on a job this page cannot read only links.
+  const job = details === undefined ? undefined : event.job
   return (
     <StretchedRow
       label={`${agent && event.agentId !== null ? `Agent ${event.agentId} ` : ''}${text}`}
-      action={job !== undefined ? { kind: 'toggle', open, onToggle } : { kind: 'link', target }}
+      action={
+        job !== undefined && details !== undefined
+          ? { kind: 'toggle', open: details.open, onToggle: details.onToggle }
+          : { kind: 'link', target }
+      }
       media={
         event.agentId === null ? (
           <ActivityIcon icon={activityIcon(ICON_KIND[event.kind])} />
@@ -75,7 +73,9 @@ export function EventRow({
         )
       }
       aside={<When at={event.at} show="relative" />}
-      details={job !== undefined ? <FeedDetails job={job} onAgent={onAgent} /> : undefined}
+      details={
+        job !== undefined && details !== undefined ? <FeedDetails job={job} onAgent={details.onAgent} /> : undefined
+      }
     >
       <p className="text-sm leading-snug">
         {agent && event.agentId !== null && (

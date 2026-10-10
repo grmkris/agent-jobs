@@ -1,3 +1,4 @@
+import type { FeedEvent } from '../../activity-feed.ts'
 import type { JobListItem } from '../../job-list.ts'
 import { phaseOf } from '../Phase.tsx'
 
@@ -7,7 +8,7 @@ export function boardActivityText(completed: number, agents: number): string {
   return `${jobs} · ${workers}`
 }
 
-/** The landing features available work, work under way and successful delivery, using the same lifecycle as /jobs. */
+/** The landing features available work, work under way and successful delivery, by the lifecycle Activity uses. */
 export function liveWorkItems(items: readonly JobListItem[], now: number): JobListItem[] {
   return items.filter((item) => {
     if (item.jobId === null) return false
@@ -22,4 +23,21 @@ export function liveWorkItems(items: readonly JobListItem[], now: number): JobLi
     if (status === 'submitted') return ['in-review', 'accepted-by-silence', 'delivered-late'].includes(phase.key)
     return false
   })
+}
+
+/** How many events the landing shows: a glance at the board, with Activity one link away. */
+const LANDING_EVENTS = 6
+
+/**
+ * The landing's slice of Activity, newest first: steps on the jobs `liveWorkItems` features (nothing cancelled or
+ * expired), and quote requests still open.
+ */
+export function landingEvents(
+  events: readonly FeedEvent[],
+  items: readonly JobListItem[],
+  now: number,
+  limit = LANDING_EVENTS,
+): FeedEvent[] {
+  const featured = new Set(liveWorkItems(items, now).map((item) => item.jobId))
+  return events.filter((e) => (e.jobId === null ? e.job?.bucket === 'open' : featured.has(e.jobId))).slice(0, limit)
 }

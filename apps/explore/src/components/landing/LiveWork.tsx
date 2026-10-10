@@ -3,39 +3,28 @@ import { Link } from '@tanstack/react-router'
 import { ArrowRight } from 'lucide-react'
 import { Alert, AlertDescription } from '../ui/alert.tsx'
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '../ui/empty.tsx'
-import { ItemGroup } from '../ui/item.tsx'
 import { LoadingRows } from '../kit.tsx'
-import { phaseOf } from '../Phase.tsx'
-import { useNow } from '../Time.tsx'
-import { useAuth } from '../Wallet.tsx'
-import { JobRow, useJobs } from '../../routes/Jobs.tsx'
+import { EventRow } from '../activity/EventRow.tsx'
+import { RowList } from '../activity/StretchedRow.tsx'
+import { type ActivityFeed, useActivityFeed } from '../activity/useActivityFeed.ts'
 import { data } from '../../api.ts'
 import { chain } from '../../wallet.ts'
-import { FEATURED_JOB } from '../../featured-job.ts'
 import { SectionHeading } from './landing-shared.tsx'
-import { boardActivityText, liveWorkItems } from './live-work.ts'
+import { boardActivityText, landingEvents } from './live-work.ts'
 
-/** Indexed chain facts only; illustrative mission cards never enter this section. */
+/** The latest of Activity: indexed chain steps and open requests only; illustrative cards never enter this section. */
 export function LiveWork() {
-  const auth = useAuth()
-  const jobs = useJobs()
-  const now = useNow()
-  const featuredId = FEATURED_JOB?.chainId === chain.id ? FEATURED_JOB.jobId : undefined
-  const listed = liveWorkItems(jobs.items, now)
-  const featured = listed.find((item) => featuredId !== undefined && item.jobId === featuredId)
-  const recent = [...(featured === undefined ? [] : [featured]), ...listed.filter((item) => item !== featured)].slice(
-    0,
-    6,
-  )
+  const feed = useActivityFeed()
+  const { jobs } = feed
   return (
     <section className="landing-live-work">
       <div className="landing-live-heading">
-        <SectionHeading kicker="From the board" title="Work happening here." />
+        <SectionHeading kicker="Live on the board" title="Work happening here." />
         <Link to="/jobs" className="landing-text-link">
-          All jobs <ArrowRight aria-hidden="true" />
+          All activity <ArrowRight aria-hidden="true" />
         </Link>
       </div>
-      <LiveRecords jobs={jobs} recent={recent} featured={featured} viewer={auth.address} now={now} />
+      <LatestEvents feed={feed} />
       {jobs.chainError !== null && !jobs.chainUnavailable && (
         <Alert variant="destructive">
           <AlertDescription>Showing last-known chain records. The latest read failed.</AlertDescription>
@@ -46,47 +35,31 @@ export function LiveWork() {
   )
 }
 
-function LiveRecords({
-  jobs,
-  recent,
-  featured,
-  viewer,
-  now,
-}: {
-  jobs: ReturnType<typeof useJobs>
-  recent: ReturnType<typeof useJobs>['items']
-  featured: ReturnType<typeof useJobs>['items'][number] | undefined
-  viewer: string | undefined
-  now: number
-}) {
+function LatestEvents({ feed }: { feed: ActivityFeed }) {
+  const { jobs, steps } = feed
   if (jobs.chainUnavailable)
     return (
       <Alert variant="destructive">
         <AlertDescription>Chain discovery is unavailable. Job status cannot be confirmed.</AlertDescription>
       </Alert>
     )
-  if (jobs.loading) return <LoadingRows rows={3} />
-  if (recent.length === 0)
+  if (jobs.loading || steps.isPending) return <LoadingRows rows={3} />
+  const latest = landingEvents(feed.events, jobs.items, feed.now)
+  if (latest.length === 0)
     return (
       <Empty>
         <EmptyHeader>
           <EmptyTitle>The board is quiet right now</EmptyTitle>
-          <EmptyDescription>New published jobs appear here after the indexer observes their receipts.</EmptyDescription>
+          <EmptyDescription>New work appears here after the indexer observes its receipts.</EmptyDescription>
         </EmptyHeader>
       </Empty>
     )
   return (
-    <ItemGroup>
-      {recent.map((item) => (
-        <JobRow
-          key={item.jobId}
-          item={item}
-          phase={phaseOf(item.chain, item.task, viewer, now)}
-          now={now}
-          note={item === featured ? 'Recorded on Monad' : ''}
-        />
+    <RowList label="Latest activity">
+      {latest.map((event) => (
+        <EventRow key={event.key} event={event} />
       ))}
-    </ItemGroup>
+    </RowList>
   )
 }
 
