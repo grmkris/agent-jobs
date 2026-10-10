@@ -25,6 +25,9 @@ case $kind in
       [ -n "$poster" ] && [ -f "$dir/$poster" ] || { echo "sq-deliver: a $type deliverable needs its poster (preview.webp)" >&2; exit 2; } ;;
     esac
     if [ -n "$poster" ]; then [ -f "$dir/$poster" ] || { echo "sq-deliver: poster $poster is not in $dir" >&2; exit 2; }; fi
+    # Explore's receipt card loads 3D models cross-origin, and workers.dev assets send no CORS header by themselves.
+    grep -qs '^/\*\.stl$' "$dir/_headers" || printf '%s\n' '/*.stl' '  Access-Control-Allow-Origin: *' \
+      '/*.glb' '  Access-Control-Allow-Origin: *' '/*.gltf' '  Access-Control-Allow-Origin: *' >> "$dir/_headers"
     [ -n "${CLOUDFLARE_API_TOKEN:-}" ] || { echo "sq-deliver: no CLOUDFLARE_API_TOKEN" >&2; exit 2; }
     out=$(npx --yes wrangler@4 deploy --name "$name" --assets "$dir" --compatibility-date 2026-10-01 2>&1) || { echo "$out" >&2; exit 1; }
     url=$(printf '%s\n' "$out" | grep -oE 'https://[a-z0-9.-]+\.workers\.dev' | head -1)
