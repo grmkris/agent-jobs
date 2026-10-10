@@ -71,7 +71,8 @@ interface Quote {
   note?: string
 }
 interface Task {
-  status: string
+  /** The chain view: open, active, submitted, rejected-pending, disputed, completed, rejected, cancelled, expired… */
+  chain?: { status?: string } | null
   nextAction?: { actor?: string; action?: string; deadline?: number } | null
   deliverables?: Array<{ descriptor?: { kind?: string; url?: string } }>
 }
@@ -148,7 +149,7 @@ async function grok<S extends Schema.ConstraintDecoder<unknown>>(
       const raw: unknown = JSON.parse(text.slice(start, end + 1))
       const answer = Schema.decodeUnknownOption(schema)(raw)
       if (Option.isSome(answer)) return answer.value
-      log('grok', 'unexpected', { text: text.slice(0, 300) })
+      log('grok', 'unexpected', { text: text.slice(0, 1500) })
     } catch (error) {
       log('grok', 'error', { message: String(error).slice(0, 200), text: text.slice(0, 300) })
     }
@@ -429,11 +430,13 @@ async function selecting(h: Hirer, job: Job) {
   h.log('selected', { key: job.key, taskId: job.taskId, agentId: job.worker })
 }
 
+const statusOf = (task: Task) => task.chain?.status ?? ''
+
 async function working(h: Hirer, job: Job) {
   const task = await h.call<Task>('get_task', { taskId: job.taskId })
-  if (task.status === 'submitted') return review(h, job, task)
+  if (statusOf(task) === 'submitted') return review(h, job, task)
   // A selected worker that never activates: once its activation deadline passes, the hirer withdraws the hire.
-  const noShow = task.status === 'open' && (task.nextAction?.deadline ?? Infinity) < now() - 300
+  const noShow = statusOf(task) === 'open' && (task.nextAction?.deadline ?? Infinity) < now() - 300
   if (noShow) {
     Object.assign(job, { step: 'cancelling', cancelAt: now(), outcome: 'no-show' })
     h.log('no-show', { key: job.key, taskId: job.taskId, agentId: job.worker })
@@ -444,17 +447,18 @@ async function working(h: Hirer, job: Job) {
 
 async function closing(h: Hirer, job: Job, known?: Task) {
   const task = known ?? (await h.call<Task>('get_task', { taskId: job.taskId }))
-  if (task.status === 'disputed' && job.statement !== true) {
+  const status = statusOf(task)
+  if (status === 'disputed' && job.statement !== true) {
     const text = `As the client: I rejected this delivery because it did not meet the criteria I set. ${job.criteria.join(' ')}`
     await h.call('add_statement', { taskId: job.taskId, text: text.slice(0, 3900) })
     job.statement = true
     h.log('statement', { key: job.key, taskId: job.taskId })
   }
-  if (!TERMINAL.has(task.status)) return settle(h, job, task)
+  if (!TERMINAL.has(status)) return settle(h, job, task)
   const collect = await h.call<Prepared>('collect_actions', { taskId: job.taskId }).catch((): Prepared => ({}))
   await h.send(`${job.key}/collect`, collect, job.taskId)
-  Object.assign(job, { step: 'done', outcome: `${job.outcome ?? 'closed'}/${task.status}` })
-  h.log('closed', { key: job.key, taskId: job.taskId, status: task.status, outcome: job.outcome })
+  Object.assign(job, { step: 'done', outcome: `${job.outcome ?? 'closed'}/${status}` })
+  h.log('closed', { key: job.key, taskId: job.taskId, status, outcome: job.outcome })
 }
 
 const STEPS: Record<Exclude<Step, 'done' | 'reviewing'>, (h: Hirer, job: Job) => Promise<void>> = {
