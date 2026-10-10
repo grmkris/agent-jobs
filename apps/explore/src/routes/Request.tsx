@@ -36,7 +36,6 @@ import { postedJustNow } from '../job-list.ts'
 import type { useSignedIn } from '../components/Wallet.tsx'
 import { AgentOrb } from '../components/agent/AgentOrb.tsx'
 import { AgentLabel } from '../components/agent/AgentChip.tsx'
-import { WalletLink } from '../components/WalletLink.tsx'
 import { TokenAmount } from '../components/token/TokenAmount.tsx'
 import { TOKENS } from '../format.ts'
 import { writesOpen } from '../wallet.ts'
@@ -45,6 +44,7 @@ import { useManagedAgents } from '../managed.ts'
 import { CreateWithAgent } from '../components/CreateWithAgent.tsx'
 import { BondHorizonNotice } from '../components/BondHorizonNotice.tsx'
 import { RequestTerms } from '../components/job/RequestTerms.tsx'
+import { Brief, Parties } from '../components/job/JobParts.tsx'
 import { JOBS_LABEL } from '../places.ts'
 
 type Auth = ReturnType<typeof useSignedIn>
@@ -234,158 +234,9 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
   const posterAgent = r === undefined ? null : (r.creatorAgentId ?? posters.get(r.creator.toLowerCase()) ?? null)
   const quotesCount = r?.quotesCount ?? 0
 
-  return (
+  // The requester's controls lead; anyone else reads the brief first. Quotes stay private either way.
+  const quoting = (
     <>
-      <BoardLink
-        target={boardRoutes().jobs()}
-        className={cn(textLinkClass, '-mt-3 -mb-6 inline-flex items-center gap-0.5 justify-self-start py-3 text-sm')}
-      >
-        <ChevronLeft aria-hidden className="size-4" />
-        {JOBS_LABEL}
-      </BoardLink>
-
-      <PageTitle
-        sub={
-          <>
-            {status}
-            {(r?.tags ?? []).map((tag) => (
-              <Badge key={tag} variant="neutral" className="capitalize">
-                {tag}
-              </Badge>
-            ))}
-          </>
-        }
-      >
-        {r?.title ?? 'Quote request'}
-      </PageTitle>
-
-      {r !== undefined && pendingTask === null && (
-        <section
-          aria-label="Quoting"
-          className="grid gap-5 rounded-2xl bg-card p-5 ring-1 ring-foreground/10 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center sm:gap-10"
-        >
-          <div className="grid gap-1">
-            <span className="text-ui text-muted-foreground">{open ? 'Quotes close in' : 'Quotes closed'}</span>
-            {open ? (
-              <RollingCountdown to={r.quoteDeadline} size="display" passed="closed" />
-            ) : (
-              <span className="text-lg font-medium">
-                <When at={r.quoteDeadline} show="time" />
-              </span>
-            )}
-          </div>
-          <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-3">
-            <div className="grid gap-0.5">
-              <dt className="text-ui text-muted-foreground">Budget</dt>
-              <dd className="font-medium tabular-nums">
-                {r.budget === undefined ? (
-                  'Open to quotes'
-                ) : (
-                  <>
-                    Up to <TokenAmount value={r.budget.max} token={r.budget.token} />
-                  </>
-                )}
-              </dd>
-              {r.budgetCovered === true && (
-                <dd className="inline-flex items-center gap-1 text-ui text-success-text">
-                  <Check aria-hidden className="size-3.5" />
-                  Covered
-                </dd>
-              )}
-              {r.budgetCovered === false && (
-                <dd className="inline-flex items-center gap-1 text-ui text-warning-text">
-                  <TriangleAlert aria-hidden className="size-3.5" />
-                  Not covered
-                </dd>
-              )}
-            </div>
-            <div className="grid gap-0.5">
-              <dt className="text-ui text-muted-foreground">Quotes</dt>
-              <dd className="font-medium tabular-nums">{quotesCount === 0 ? 'None yet' : quotesCount}</dd>
-              <dd className="text-ui text-muted-foreground">Amounts stay private</dd>
-            </div>
-            <div className="col-span-2 grid gap-0.5 sm:col-span-1">
-              <dt className="text-ui text-muted-foreground">Posted</dt>
-              <dd className="font-medium">
-                {r.createdAt === undefined
-                  ? '—'
-                  : postedJustNow(r.createdAt, now)
-                    ? 'Just now'
-                    : relative(r.createdAt, now)}
-              </dd>
-              <dd className="text-ui text-muted-foreground">
-                by {posterAgent !== null ? <AgentLabel id={posterAgent} /> : <WalletLink address={r.creator} />}
-              </dd>
-            </div>
-          </dl>
-        </section>
-      )}
-
-      {requests.isLoading ? (
-        <LoadingRows rows={3} />
-      ) : r === undefined ? (
-        !mine && (
-          <Empty>
-            <EmptyHeader>
-              <EmptyTitle>This request is closed</EmptyTitle>
-              <EmptyDescription>
-                Requests stay listed for a week after quoting closes or a quote is picked.
-              </EmptyDescription>
-            </EmptyHeader>
-          </Empty>
-        )
-      ) : (
-        <>
-          <Section title="The job">
-            <ItemGroup>
-              <Item>
-                <span className="py-1 text-sm leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]">
-                  {r.brief}
-                </span>
-              </Item>
-              {r.acceptanceCriteria.length > 0 && (
-                <Item>
-                  <ItemContent className="grid min-w-0 gap-1 py-1">
-                    <span className="text-ui text-muted-foreground">Accepted when</span>
-                    <ul className="grid list-disc gap-0.5 pl-5 text-sm [overflow-wrap:anywhere]">
-                      {r.acceptanceCriteria.map((c, i) => (
-                        <li key={`${i}-${c}`}>{c}</li>
-                      ))}
-                    </ul>
-                  </ItemContent>
-                </Item>
-              )}
-            </ItemGroup>
-          </Section>
-
-          <Section title="Terms">
-            <RequestTerms
-              steps={[
-                ...(r.createdAt === undefined ? [] : [{ label: 'Posted', at: r.createdAt }]),
-                { label: 'Quotes close', at: r.quoteDeadline },
-                { label: 'Deliver by', at: r.deliveryDeadline },
-              ]}
-              creatorBond={r.creatorBond}
-              workerBond={r.workerBond}
-              paidIn={
-                r.budget === undefined ? (
-                  r.tokens.map(symbolOf).join(', ')
-                ) : (
-                  <span className="inline-flex flex-wrap items-center justify-end gap-1">
-                    Up to <TokenAmount value={r.budget.max} token={r.budget.token} />
-                  </span>
-                )
-              }
-              deliverAs={(r.deliverable?.accepts ?? ['git']).map((k) => KIND_LABEL[k])}
-              checks={r.requiredChecks ?? []}
-              requester={r.creator}
-              requesterAgent={posterAgent}
-              you={r.creator.toLowerCase() === me}
-            />
-          </Section>
-        </>
-      )}
-
       {!auth.signedIn ? (
         <Section
           title="Quotes"
@@ -508,6 +359,204 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
           </Section>
         </>
       )}
+    </>
+  )
+  const publishing = (
+    <>
+      {sheet && publish !== null && (
+        <Section title={price === null ? 'Publish the job' : `Publish and lock ${price}`}>
+          <p className="-mt-2 leading-snug text-muted-foreground">
+            Your wallet sends these in order. Any backing deposit moves SIDE into the vault first. Publication escrows
+            the reward and reserves your creator bond from that backing.
+          </p>
+          {picked !== null && picked.screening !== null && (
+            <p className="text-sm text-muted-foreground">
+              Screening: <span className="font-semibold text-foreground">{verdictText(picked.screening.verdict)}</span>{' '}
+              (advice only; it never blocks publishing).
+            </p>
+          )}
+          {publish !== null && (
+            <PostingSteps
+              key={publish.taskId}
+              taskId={publish.taskId}
+              txs={publish.txs}
+              owner={auth.address!}
+              onDone={() => void published(publish.taskId)}
+            />
+          )}
+          <p className="text-ui leading-snug text-muted-foreground">
+            Next, on the job page: confirm {picked === null ? 'the agent' : `Worker #${picked.quote.agentId}`} (a
+            signature, no transaction). Once it has started, you grant any running-cost budget there.
+          </p>
+        </Section>
+      )}
+    </>
+  )
+  const theJob =
+    r === undefined ? null : (
+      <Section title="The job">
+        <Brief brief={r.brief} criteria={r.acceptanceCriteria} met={false} />
+      </Section>
+    )
+
+  return (
+    <>
+      <BoardLink
+        target={boardRoutes().jobs()}
+        className={cn(textLinkClass, '-mt-3 -mb-6 inline-flex items-center gap-0.5 justify-self-start py-3 text-sm')}
+      >
+        <ChevronLeft aria-hidden className="size-4" />
+        {JOBS_LABEL}
+      </BoardLink>
+
+      <div className="grid gap-2">
+        <PageTitle
+          sub={
+            <>
+              {status}
+              {(r?.tags ?? []).map((tag) => (
+                <Badge key={tag} variant="neutral" className="capitalize">
+                  {tag}
+                </Badge>
+              ))}
+            </>
+          }
+        >
+          {r?.title ?? 'Quote request'}
+        </PageTitle>
+        {r !== undefined && <Parties creator={r.creator} posterAgent={posterAgent} workerAgent={null} paid={false} />}
+      </div>
+
+      {requests.isLoading ? (
+        <LoadingRows rows={3} />
+      ) : (
+        r === undefined &&
+        !mine && (
+          <Empty>
+            <EmptyHeader>
+              <EmptyTitle>This request is closed</EmptyTitle>
+              <EmptyDescription>
+                Requests stay listed for a week after quoting closes or a quote is picked.
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        )
+      )}
+
+      {/* A phone reads the clock, the brief and quotes, then the terms; from 1024 px the clock and terms sit beside. */}
+      <div
+        className={cn(
+          'grid min-w-0 gap-7',
+          r !== undefined && 'lg:grid-cols-[minmax(0,1fr)_19rem] lg:grid-rows-[auto_1fr] lg:gap-x-8',
+          r === undefined
+            ? ''
+            : pendingTask === null
+              ? "[grid-template-areas:'clock'_'main'_'terms'] lg:[grid-template-areas:'main_clock'_'main_terms']"
+              : "[grid-template-areas:'main'_'terms'] lg:[grid-template-areas:'main_terms'_'main_terms']",
+        )}
+      >
+        <div className="grid min-w-0 content-start gap-7 [grid-area:main]">
+          {mine ? (
+            <>
+              {publishing}
+              {quoting}
+              {theJob}
+            </>
+          ) : (
+            <>
+              {theJob}
+              {quoting}
+            </>
+          )}
+        </div>
+        {r !== undefined && (
+          <>
+            {pendingTask === null && (
+              <section
+                aria-label="Quoting"
+                className="grid content-start gap-4 self-start rounded-2xl bg-card p-5 ring-1 ring-foreground/10 [grid-area:clock]"
+              >
+                <div className="grid gap-1">
+                  <span className="text-ui text-muted-foreground">{open ? 'Quotes close in' : 'Quotes closed'}</span>
+                  {open ? (
+                    <RollingCountdown to={r.quoteDeadline} size="display" passed="closed" />
+                  ) : (
+                    <span className="text-lg font-medium">
+                      <When at={r.quoteDeadline} show="time" />
+                    </span>
+                  )}
+                </div>
+                <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+                  <div className="grid gap-0.5">
+                    <dt className="text-ui text-muted-foreground">Budget</dt>
+                    <dd className="font-medium tabular-nums">
+                      {r.budget === undefined ? (
+                        'Open to quotes'
+                      ) : (
+                        <>
+                          Up to <TokenAmount value={r.budget.max} token={r.budget.token} />
+                        </>
+                      )}
+                    </dd>
+                    {r.budgetCovered === true && (
+                      <dd className="inline-flex items-center gap-1 text-ui text-success-text">
+                        <Check aria-hidden className="size-3.5" />
+                        Covered
+                      </dd>
+                    )}
+                    {r.budgetCovered === false && (
+                      <dd className="inline-flex items-center gap-1 text-ui text-warning-text">
+                        <TriangleAlert aria-hidden className="size-3.5" />
+                        Not covered
+                      </dd>
+                    )}
+                  </div>
+                  <div className="grid gap-0.5">
+                    <dt className="text-ui text-muted-foreground">Quotes</dt>
+                    <dd className="font-medium tabular-nums">{quotesCount === 0 ? 'None yet' : quotesCount}</dd>
+                    <dd className="text-ui text-muted-foreground">Amounts stay private</dd>
+                  </div>
+                  <div className="col-span-2 grid gap-0.5">
+                    <dt className="text-ui text-muted-foreground">Posted</dt>
+                    <dd className="font-medium">
+                      {r.createdAt === undefined
+                        ? '—'
+                        : postedJustNow(r.createdAt, now)
+                          ? 'Just now'
+                          : relative(r.createdAt, now)}
+                    </dd>
+                  </div>
+                </dl>
+              </section>
+            )}
+            <Section title="Terms" className="self-start [grid-area:terms]">
+              <RequestTerms
+                steps={[
+                  ...(r.createdAt === undefined ? [] : [{ label: 'Posted', at: r.createdAt }]),
+                  { label: 'Quotes close', at: r.quoteDeadline },
+                  { label: 'Deliver by', at: r.deliveryDeadline },
+                ]}
+                creatorBond={r.creatorBond}
+                workerBond={r.workerBond}
+                paidIn={
+                  r.budget === undefined ? (
+                    r.tokens.map(symbolOf).join(', ')
+                  ) : (
+                    <span className="inline-flex flex-wrap items-center justify-end gap-1">
+                      Up to <TokenAmount value={r.budget.max} token={r.budget.token} />
+                    </span>
+                  )
+                }
+                deliverAs={(r.deliverable?.accepts ?? ['git']).map((k) => KIND_LABEL[k])}
+                checks={r.requiredChecks ?? []}
+                requester={r.creator}
+                requesterAgent={posterAgent}
+                you={r.creator.toLowerCase() === me}
+              />
+            </Section>
+          </>
+        )}
+      </div>
 
       <ConfirmSheet
         open={picking !== null}
@@ -582,34 +631,6 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
           </Alert>
         )}
       </ConfirmSheet>
-
-      {sheet && publish !== null && (
-        <Section title={price === null ? 'Publish the job' : `Publish and lock ${price}`}>
-          <p className="-mt-2 leading-snug text-muted-foreground">
-            Your wallet sends these in order. Any backing deposit moves SIDE into the vault first. Publication escrows
-            the reward and reserves your creator bond from that backing.
-          </p>
-          {picked !== null && picked.screening !== null && (
-            <p className="text-sm text-muted-foreground">
-              Screening: <span className="font-semibold text-foreground">{verdictText(picked.screening.verdict)}</span>{' '}
-              (advice only; it never blocks publishing).
-            </p>
-          )}
-          {publish !== null && (
-            <PostingSteps
-              key={publish.taskId}
-              taskId={publish.taskId}
-              txs={publish.txs}
-              owner={auth.address!}
-              onDone={() => void published(publish.taskId)}
-            />
-          )}
-          <p className="text-ui leading-snug text-muted-foreground">
-            Next, on the job page: confirm {picked === null ? 'the agent' : `Worker #${picked.quote.agentId}`} (a
-            signature, no transaction). Once it has started, you grant any running-cost budget there.
-          </p>
-        </Section>
-      )}
     </>
   )
 }

@@ -47,7 +47,8 @@ export function RequestTerms({
   you: boolean
 }) {
   return (
-    <div className="grid rounded-2xl bg-card ring-1 ring-foreground/10 [&>*+*]:border-t [&>*+*]:border-border/70">
+    // A container: in the request page's side column the dates stack, as they do on a phone.
+    <div className="@container grid rounded-2xl bg-card ring-1 ring-foreground/10 [&>*+*]:border-t [&>*+*]:border-border/70">
       <DeadlineSteps steps={steps} />
       <div className="grid gap-3 p-4">
         <span className="text-ui text-muted-foreground">What's at stake</span>
@@ -97,7 +98,7 @@ function DeadlineSteps({ steps }: { steps: readonly TermsStep[] }) {
   const now = useNow()
   const next = nextStep(steps, now)
   return (
-    <ol className="grid gap-3 p-4 sm:grid-cols-3">
+    <ol className="grid gap-3 p-4 @lg:grid-cols-3">
       {steps.map((step, i) => {
         const passed = step.at <= now
         return (
