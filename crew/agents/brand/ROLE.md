@@ -16,3 +16,11 @@ Gateway, then clean each at its target size; deliver `icons.zip`, a preview shee
 grid) and a page listing them (`deliverable.json` `type: "image"`, `media: "icons.zip"`).
 
 Also take: simple one-page sites from a brief, deployed (you compete with Ship there).
+
+You also make **3D-printable models**. Model the part in OpenSCAD (parametric: the key dimensions as named variables
+at the top), then `openscad -o model.stl model.scad`, and render previews with
+`xvfb-run -a openscad --render --imgsize=1200,900 --camera=... -o preview.png model.scad` from two or three angles
+(convert one to `preview.webp`). Check the brief's size limits and printability (flat base, no unsupported overhangs
+past 45°, wall thickness at least 1.6 mm). Deliver a page with the renders, the print notes (orientation, material,
+infill, supports) and links to `model.stl` and `model.scad` (`deliverable.json` `type: "code"`, `media: "model.stl"`,
+`poster: "preview.webp"`).

@@ -18,7 +18,7 @@
     },
     "relayFloorMon": 2.5,
     "fallbackAfter": 3,
-    "maxRunsPerDay": 24
+    "maxRunsPerDay": 40
   },
   "members": {
     "brand": {
@@ -47,8 +47,34 @@
           "inputs": "The game, style references, the asset list and sizes.",
           "outputs": "A ZIP of PNGs plus a preview sheet on a public page.",
           "turnaroundSeconds": 14400
+        },
+        {
+          "serviceId": "3d-print-model",
+          "name": "3D-printable model",
+          "description": "A parametric 3D-printable part designed in OpenSCAD: STL ready to slice, the editable source and rendered previews.",
+          "inputs": "What it is for, size limits, printer and material, any mounting or fit dimensions.",
+          "outputs": "model.stl, model.scad and a page with rendered previews and print notes.",
+          "turnaroundSeconds": 14400
         }
-      ]
+      ],
+      "fit": {
+        "tags": ["design"],
+        "keywords": [
+          "logo",
+          "brand",
+          "icon",
+          "pixel",
+          "sprite",
+          "asset",
+          "3d",
+          "stl",
+          "print",
+          "illustration",
+          "mascot",
+          "poster",
+          "sticker"
+        ]
+      }
     },
     "web": {
       "name": "Ship",
@@ -83,7 +109,22 @@
           "outputs": "A deployed dashboard with the cleaned data and method notes.",
           "turnaroundSeconds": 14400
         }
-      ]
+      ],
+      "fit": {
+        "tags": ["coding", "design"],
+        "keywords": [
+          "landing",
+          "website",
+          "web site",
+          "site",
+          "page",
+          "dashboard",
+          "web app",
+          "frontend",
+          "portfolio",
+          "menu"
+        ]
+      }
     },
     "copy": {
       "name": "Quill",
@@ -112,7 +153,22 @@
           "outputs": "Translated files and a side-by-side page on a public URL.",
           "turnaroundSeconds": 10800
         }
-      ]
+      ],
+      "fit": {
+        "tags": ["writing"],
+        "keywords": [
+          "copy",
+          "translat",
+          "blog",
+          "announcement",
+          "docs",
+          "readme",
+          "newsletter",
+          "tagline",
+          "script",
+          "email"
+        ]
+      }
     },
     "video": {
       "name": "Reel",
@@ -162,7 +218,22 @@
           "turnaroundSeconds": 14400
         }
       ],
-      "runTimeoutMinutes": 55
+      "runTimeoutMinutes": 55,
+      "fit": {
+        "tags": [],
+        "keywords": [
+          "video",
+          "explainer",
+          "documentary",
+          "podcast",
+          "audio",
+          "voiceover",
+          "trailer",
+          "promo",
+          "animation",
+          "reel"
+        ]
+      }
     },
     "token": {
       "name": "Mint",
@@ -191,7 +262,11 @@
           "outputs": "Foundry project with passing tests and a README, hosted on a public URL.",
           "turnaroundSeconds": 10800
         }
-      ]
+      ],
+      "fit": {
+        "tags": ["on-chain", "coding"],
+        "keywords": ["solidity", "contract", "token", "erc", "nft", "foundry", "vesting", "airdrop", "multisig"]
+      }
     },
     "scout": {
       "name": "Scout",
@@ -225,7 +300,11 @@
           "outputs": "An HTML report with charts, queries and sources.",
           "turnaroundSeconds": 14400
         }
-      ]
+      ],
+      "fit": {
+        "tags": ["research"],
+        "keywords": ["research", "memo", "analysis", "report", "market", "competitor", "sources", "survey", "compare"]
+      }
     },
     "ledger": {
       "name": "Ledger",
@@ -251,7 +330,11 @@
           "outputs": "A CSV or report on a public URL, with the queries used.",
           "turnaroundSeconds": 7200
         }
-      ]
+      ],
+      "fit": {
+        "tags": ["on-chain", "research"],
+        "keywords": ["on-chain", "onchain", "chain", "pool", "csv", "analytics", "wallet", "treasury", "data"]
+      }
     },
     "grokbot": {
       "name": "Grok Bot",
@@ -298,7 +381,11 @@
           "outputs": "A deployed page on a public URL.",
           "turnaroundSeconds": 3600
         }
-      ]
+      ],
+      "fit": {
+        "tags": ["research", "writing"],
+        "keywords": ["explain", "summary", "fact", "translat", "faq", "landing", "quick", "question", "guide"]
+      }
     }
   },
   "operators": {

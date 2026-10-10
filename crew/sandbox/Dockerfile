@@ -2,12 +2,13 @@
 # bun running crew.ts, starts as root to keep the member's OAuth files out of the harness's reach and drops each run to
 # `agent` (uid 1000) with setpriv. The harness CLIs (codex, grok), Foundry and the harness's bun are mounted read-only
 # from the host (same versions as the host); this image carries the OS, the supervisor's bun, node for npx tools
-# (wrangler, hyperframes), Chrome's libraries for headless rendering, git, python and ffmpeg.
+# (wrangler, hyperframes), Chrome's libraries for headless rendering, git, python, ffmpeg, and OpenSCAD with a virtual
+# display (xvfb-run) for 3D-printable models and their rendered previews.
 FROM oven/bun:1.4.2 AS bun
 FROM ubuntu:24.04
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      ca-certificates curl git jq python3 python3-pip ripgrep ffmpeg unzip xz-utils \
+      ca-certificates curl git jq python3 python3-pip ripgrep ffmpeg unzip xz-utils openscad xvfb xauth \
       libnss3 libatk1.0-0t64 libatk-bridge2.0-0t64 libcups2t64 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 \
       libxfixes3 libxrandr2 libgbm1 libasound2t64 libpango-1.0-0 libcairo2 libudev1 fonts-dejavu-core \
  && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt-get install -y --no-install-recommends nodejs \

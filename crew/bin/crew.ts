@@ -74,6 +74,8 @@ interface Member {
   mcp: Record<string, string>
   /** Its directory listings (advertise_service, at most 10); `service` is the older single-listing form. */
   services?: Record<string, unknown>[]
+  /** What public requests wake it: their tags, or words in their title or brief (none set: every request). */
+  fit?: { tags: string[]; keywords: string[] }
   service?: Record<string, unknown>
 }
 interface CrewFile extends Omit<Crew, 'board'> {
@@ -585,13 +587,12 @@ function advertisedAt(state: string): number {
  */
 async function wakeReason(id: string): Promise<string | null> {
   const state = join(home(id), 'agent', 'state')
-  // A nudge (crew/bin/publish.ts) names a public request that fits this member; public requests are not inbox events.
+  // A nudge (crew/bin/publish.ts) is an operator's word that this member should look at something now.
   if (existsSync(join(state, 'nudge'))) return 'nudged'
   if (!(Date.now() - advertisedAt(state) < 20 * 3600_000)) return 'listing due'
   const token = (await freshToken(id)).access_token
-  const cursor = existsSync(join(state, 'cursor')) ? readFileSync(join(state, 'cursor'), 'utf8').trim() : ''
-  const inbox = await mcpCall<{ events?: unknown[] }>(token, 'inbox', cursor === '' ? {} : { cursor })
-  if ((inbox.events?.length ?? 0) > 0) return `${inbox.events!.length} inbox event(s)`
+  const inboxWake = await inboxReason(id, token, state)
+  if (inboxWake !== null) return inboxWake
   // Held work: tasks this member is the worker on (`you` includes it; an applicant who lost has `you: []`) whose chain
   // status is not final.
   const held = await mcpCall<Array<{ chain?: { status?: string }; you?: string[] }>>(token, 'list_tasks', {
@@ -615,6 +616,64 @@ async function wakeReason(id: string): Promise<string | null> {
   )
   if (due.length > 0) return `${due.length} own job(s) past a deadline`
   return null
+}
+
+interface InboxEvent {
+  public?: boolean
+  requestId?: string | null
+}
+
+/** The wake cursor each member's last check read up to, written once the events behind it are dealt with. */
+const wakeCursors = new Map<string, string>()
+
+/** Moves a member's wake cursor past what its last check saw: after a run started, or when nothing woke it. */
+function commitWakeCursor(id: string) {
+  const cursor = wakeCursors.get(id)
+  if (cursor === undefined) return
+  const path = join(home(id), 'agent', 'state', 'wake-cursor')
+  writeFileSync(path, cursor)
+  own(path)
+  wakeCursors.delete(id)
+}
+
+/** Whether an open request fits a member: one of its tags, or one of its words in the title or brief. */
+function fits(m: Member, request: { title?: string; brief?: string; tags?: string[] }): boolean {
+  if (m.fit === undefined) return true
+  const text = `${request.title ?? ''} ${request.brief ?? ''}`.toLowerCase()
+  return (
+    (request.tags ?? []).some((tag) => m.fit?.tags.includes(tag) === true) ||
+    m.fit.keywords.some((word) => text.includes(word))
+  )
+}
+
+/**
+ * Inbox events past the member's wake cursor, as a reason to wake: its own events always, but a public request
+ * (every request reaches every inbox) only when it fits, so eight bots don't all run for each new request.
+ */
+async function inboxReason(id: string, token: string, state: string): Promise<string | null> {
+  const [, m] = memberOf(id)
+  const saved = [join(state, 'wake-cursor'), join(state, 'cursor')].find((path) => existsSync(path))
+  const cursor = saved === undefined ? '' : readFileSync(saved, 'utf8').trim()
+  const inbox = await mcpCall<{ events?: InboxEvent[]; cursor?: string }>(
+    token,
+    'inbox',
+    cursor === '' ? {} : { cursor },
+  )
+  const events = inbox.events ?? []
+  if (inbox.cursor !== undefined) wakeCursors.set(id, inbox.cursor)
+  const mine = events.filter((event) => event.public !== true)
+  if (mine.length > 0) return `${mine.length} inbox event(s)`
+  const requests = new Set(
+    events.flatMap((event) => (event.public === true && event.requestId ? [event.requestId] : [])),
+  )
+  if (requests.size === 0) return null
+  const open = await mcpCall<Array<{ requestId: string; title?: string; brief?: string; tags?: string[] }>>(
+    token,
+    'list_quote_requests',
+    {},
+  )
+  const fitting = (Array.isArray(open) ? open : []).filter((r) => requests.has(r.requestId) && fits(m, r))
+  return fitting.length > 0 ? `${fitting.length} fitting request(s)` : null
 }
 
 let info: { rewardTokens?: string[] } | undefined
@@ -766,7 +825,10 @@ async function memberLoop(id: string, m: Member, minutes: number, slot: Slot) {
     let reason: string | null = null
     try {
       reason = await wakeReason(id)
-      if (reason === null) console.log(`${m.name}: idle`)
+      if (reason === null) {
+        console.log(`${m.name}: idle`)
+        commitWakeCursor(id)
+      }
     } catch (error) {
       // A failed check is not a reason to spend a model run; the next pass checks again.
       console.log(`${m.name}: wake check failed (${String(error).slice(0, 80)}); not waking`)
@@ -777,7 +839,10 @@ async function memberLoop(id: string, m: Member, minutes: number, slot: Slot) {
       await slot.take()
       try {
         const code = await wake(id, reason, failures >= crew.harness.fallbackAfter ? m.fallbackModel : undefined)
-        if (code !== null) failures = code === 0 ? 0 : failures + 1
+        if (code !== null) {
+          failures = code === 0 ? 0 : failures + 1
+          commitWakeCursor(id)
+        }
       } catch (error) {
         failures++
         console.error(`${id}: ${String(error)}`)

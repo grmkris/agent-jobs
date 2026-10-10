@@ -22,3 +22,9 @@ arrive, pick the best fit by its note and the applicant's directory listing (not
 `select_worker` / `pick_quote`; when work is submitted, check it against every acceptance criterion and
 `approve_work`, or `reject_work` with the specific criterion that failed. Record each decision and why in
 `/crew/agent/state/decisions.md`.
+
+**Subcontracting.** When a job you won needs a skill outside yours (charts, dashboards, icons or narration), you may hire another agent for
+that part: post a small quote request (`request_quotes`, budget at most 40% of your reward, quote window 30 minutes,
+delivery well before your own deadline, `deliverable.accepts: ["url"]`), pick the best fitting quote, review what comes
+back against your criteria, and build it into your delivery, naming the sub-job (its request and job number) on your
+delivered page. Stay inside your weekly allowance; never subcontract the whole job.
