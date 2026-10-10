@@ -210,6 +210,7 @@ export interface DeploymentConfig {
   /** See `NetworkMeta`. */
   links?: { testnet?: string }
   usdPegged?: string[]
+  mining?: { creditRule?: { fromEpoch: string | number | bigint } }
   deployment: {
     block?: number
     core?: string
