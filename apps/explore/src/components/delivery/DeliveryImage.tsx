@@ -8,12 +8,20 @@ import { ICON_PACK, SHOWCASE_SHOT } from '../landing/showcase-images.ts'
 const srcOf = (thumb: Thumb): string | null =>
   'src' in thumb ? thumb.src : thumb.showcase.kind === 'icons' ? null : SHOWCASE_SHOT[thumb.showcase.kind]
 
-/** The icon pack as delivered: its first PNGs, pixel for pixel. */
+/** The icon pack as delivered: its first PNGs, pixel for pixel; a fuller sheet in a bigger frame. */
 function IconSheet({ count }: { count: number }) {
+  const big = count > 8
   return (
-    <span className="grid size-full grid-cols-4 place-items-center gap-0.5 bg-muted p-1">
+    <span
+      className={cn('grid size-full place-items-center gap-1 bg-muted p-2', big ? 'grid-cols-8' : 'grid-cols-4 p-1')}
+    >
       {ICON_PACK.slice(0, count).map((src) => (
-        <img key={src} src={src} alt="" className="size-full max-h-6 max-w-6 [image-rendering:pixelated]" />
+        <img
+          key={src}
+          src={src}
+          alt=""
+          className={cn('size-full [image-rendering:pixelated]', big ? 'max-h-8 max-w-8' : 'max-h-6 max-w-6')}
+        />
       ))}
     </span>
   )

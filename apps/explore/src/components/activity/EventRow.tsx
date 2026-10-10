@@ -11,7 +11,9 @@ import { TokenAmount } from '../token/TokenAmount.tsx'
 import { type RowDelivery, useRowDelivery } from '../../delivery-preview.ts'
 import { previewPlan, thumbOf } from '../../delivery-plan.ts'
 import { stage } from '../../wallet.ts'
+import { PeekLink } from '../PeekLink.tsx'
 import { FeedDetails } from './FeedDetails.tsx'
+import { ReceiptCard } from './ReceiptCard.tsx'
 import { RowMeta, RowThumb } from './RowMeta.tsx'
 import { useNear } from './useNear.ts'
 import { StretchedRow } from './StretchedRow.tsx'
@@ -130,9 +132,19 @@ export function EventRow({
         )}
         {payer !== undefined && amount !== null && <>{amount} </>}
         {before}
-        <BoardLink target={target} className="font-medium underline-offset-4 hover:underline">
-          “{event.title}”
-        </BoardLink>
+        {event.job === undefined || event.job.item.jobId === null ? (
+          <BoardLink target={target} className="font-medium underline-offset-4 hover:underline">
+            “{event.title}”
+          </BoardLink>
+        ) : (
+          <PeekLink
+            target={target}
+            card={<ReceiptCard job={event.job} />}
+            className="font-medium underline-offset-4 hover:underline"
+          >
+            “{event.title}”
+          </PeekLink>
+        )}
         {after}
         {payer === undefined && amount !== null && <span className="text-muted-foreground"> · {amount}</span>}
       </p>
