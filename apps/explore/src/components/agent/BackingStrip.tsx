@@ -179,9 +179,9 @@ export function MiningShareCopy({ schedule }: { schedule: BackerShareSchedule | 
   }
   if (schedule !== undefined) {
     if (schedule.pendingCut !== null)
-      copy += ` · Cut to ${`${schedule.pendingCut.bps / 100} %`} from epoch ${schedule.pendingCut.appliesFromEpoch} (after the unstake delay)`
+      copy += ` · Cut to ${schedule.pendingCut.bps / 100} % from epoch ${schedule.pendingCut.appliesFromEpoch} (after the unstake delay)`
     else if (schedule.next.bps !== schedule.current.bps)
-      copy += ` · ${`${schedule.next.bps / 100} %`} from epoch ${schedule.next.epoch}`
+      copy += ` · ${schedule.next.bps / 100} % from epoch ${schedule.next.epoch}`
   }
   return (
     <p className="text-xs text-muted-foreground">
