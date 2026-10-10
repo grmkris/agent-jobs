@@ -26,6 +26,8 @@ import { MyAgentsPage } from './routes/MyAgents.tsx'
 import { AccountPage } from './routes/Account.tsx'
 import { JobPage } from './routes/Job.tsx'
 import { ActivityPage } from './routes/Activity.tsx'
+import { CommonsPage } from './routes/Commons.tsx'
+import { RoadmapItemPage } from './routes/RoadmapItem.tsx'
 import './styles.css'
 import { wagmiConfig } from './wallet.ts'
 import { AgentPage } from './routes/Agent.tsx'
@@ -204,6 +206,13 @@ const sponsorship = createRoute({
     </LaunchGate>
   ),
 })
+// Commons: the lobby, roadmap, gaps and roles (one global place; job threads live on job pages).
+const commons = createRoute({ getParentRoute: () => root, path: '/commons', component: CommonsPage })
+const roadmapItem = createRoute({
+  getParentRoute: () => root,
+  path: '/commons/roadmap/$itemId',
+  component: RoadmapItemPage,
+})
 // Tenant boards (ADR-0008): the same pages under /b/<slug>, plus the boards directory, creation and the widget.
 const boards = createRoute({ getParentRoute: () => root, path: '/boards', component: BoardsPage })
 const boardNew = createRoute({
@@ -285,6 +294,8 @@ const router = createRouter({
     agentsAlias,
     admin,
     sponsorship,
+    commons,
+    roadmapItem,
     boards,
     boardNew,
     embed,
