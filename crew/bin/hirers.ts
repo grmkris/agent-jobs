@@ -18,6 +18,7 @@ import crewJson from '../crew.json' with { type: 'json' }
 import examples from '../examples.json' with { type: 'json' }
 import personaFile from '../hirers/personas.json' with { type: 'json' }
 import { between, ctx, log, mon, now, origin, pick, sdk, signerFor, sleep, store, v1 } from './activity.ts'
+import { ChoiceSchema, DirectorySchema, IdeaSchema, VerdictSchema, grok, listOf } from './hirer-grok.ts'
 
 interface Persona {
   id: string
@@ -83,10 +84,6 @@ const listings = Object.values(crewJson.members)
   .join('\n')
 const MAX_JOBS = Number(process.env.ACTIVITY_MAX_JOBS ?? 40)
 const POST_MINUTES = Number(process.env.ACTIVITY_POST_MINUTES ?? 20)
-const MODEL = process.env.ACTIVITY_MODEL ?? 'grok-4.7'
-const JSON_ONLY =
-  'Answer with one strict JSON object and nothing else: double-quoted keys, string values in double quotes, no comments.'
-const LLM = `${process.env.CLIPROXY_URL ?? 'http://100.105.51.45:8317/v1'}/chat/completions`
 const MIN_MON = 0.3
 const TAGS: readonly string[] = sdk.JOB_TAGS
 const SPEND_CAP = 150
@@ -101,61 +98,6 @@ const SETTLE = new Set([
   'complete_after_silence',
   'retry_deferred_then_settle',
 ])
-
-const Completion = Schema.Struct({
-  choices: Schema.Array(Schema.Struct({ message: Schema.Struct({ content: Schema.String }) })),
-})
-const IdeaSchema = Schema.Struct({
-  title: Schema.String,
-  brief: Schema.String,
-  criteria: Schema.Array(Schema.String),
-  tags: Schema.optional(Schema.Array(Schema.String)),
-})
-const DirectorySchema = Schema.Struct({
-  agents: Schema.Array(Schema.Struct({ agentId: Schema.String, profile: Schema.Struct({ name: Schema.String }) })),
-})
-const ChoiceSchema = Schema.Struct({ index: Schema.Number, why: Schema.optional(Schema.String) })
-const VerdictSchema = Schema.Struct({
-  approve: Schema.Boolean,
-  failed: Schema.optional(Schema.NullOr(Schema.String)),
-  reason: Schema.String,
-})
-
-/** One JSON answer from Grok through cliproxy, decoded by `schema`; a timeout and one retry, else null. */
-async function grok<S extends Schema.ConstraintDecoder<unknown>>(
-  schema: S,
-  system: string,
-  user: string,
-): Promise<S['Type'] | null> {
-  for (let attempt = 0; attempt < 2; attempt++) {
-    let text = ''
-    try {
-      const res = await fetch(LLM, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', authorization: `Bearer ${process.env.CLIPROXY_API_KEY ?? ''}` },
-        body: JSON.stringify({
-          model: MODEL,
-          temperature: 1,
-          messages: [
-            { role: 'system', content: `${system}\n${JSON_ONLY}` },
-            { role: 'user', content: user },
-          ],
-        }),
-        signal: AbortSignal.timeout(120_000),
-      })
-      text = Schema.decodeUnknownSync(Completion)(await res.json()).choices[0]?.message.content ?? ''
-      const start = text.indexOf('{')
-      const end = text.lastIndexOf('}')
-      const raw: unknown = JSON.parse(text.slice(start, end + 1))
-      const answer = Schema.decodeUnknownOption(schema)(raw)
-      if (Option.isSome(answer)) return answer.value
-      log('grok', 'unexpected', { text: text.slice(0, 1500) })
-    } catch (error) {
-      log('grok', 'error', { message: String(error).slice(0, 200), text: text.slice(0, 300) })
-    }
-  }
-  return null
-}
 
 class Hirer {
   readonly wallet: sdk.Wallet
@@ -252,8 +194,10 @@ async function post(h: Hirer, total: number) {
   const budget = Math.round(between(p.budget[0] ?? 5, p.budget[1] ?? 10)).toString()
   const plan = Math.random() < 0.06 ? (Math.random() < 0.5 ? 'cancel-early' : 'cancel-late') : 'normal'
   const key = `${p.id}-${h.data.jobs.length + 1}`
-  const criteria = [...idea.criteria.slice(0, 4), ...examples.defaults.criteria]
-  const tags = (idea.tags ?? []).filter((tag) => TAGS.includes(tag)).slice(0, 2)
+  const criteria = [...listOf(idea.criteria, /(?<=\.)\s+/).slice(0, 4), ...examples.defaults.criteria]
+  const tags = listOf(idea.tags, /[,\s]+/)
+    .filter((tag) => TAGS.includes(tag))
+    .slice(0, 2)
   const request = await h.state.journal.once(`${key}/request`, () =>
     h.call<{ requestId: string; quoteDeadline: number }>('request_quotes', {
       title: idea.title.slice(0, 90),
