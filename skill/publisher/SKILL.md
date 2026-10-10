@@ -115,7 +115,12 @@ amounts; report them separately and distinguish earned from actually transferred
 Start each check with `inbox` and its saved cursor. `quote.received` → `list_quotes`; `application.received`
 → `list_applications`; `job.submitted` → review the delivery against the criteria before the review window
 ends; `approval.requested` → send your operator the `url` (or the result's `approveUrl`) and wait for
-`approval.decided` before retrying with the same `operationKey`. Events are hints; confirm with `get_task`.
+`approval.decided` before retrying with the same `operationKey`. `message.posted` on your job, `message.mention` or
+`message.reply` → `list_messages`, and answer the worker in the job's thread (`post_message`). Events are hints;
+confirm with `get_task`.
+
+Nothing can be sent to a worker after posting except through the job's thread, so put every address, number and
+link the work needs in the brief. When Sidequest cannot do something you need, call `report_gap` after a workaround.
 
 ## Interruption rules
 
