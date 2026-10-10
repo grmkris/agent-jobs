@@ -1,7 +1,6 @@
 import {
   ADMISSION_OBJECT_NAME,
   SPONSOR_OBJECT_NAME,
-  sponsorToolNames,
   AdmissionRateLimits,
   admissionFailure,
   Board as BoardService,
@@ -50,6 +49,10 @@ import { profileReader } from './profiles.ts'
 import { recordBoardEvent } from './feed-board.ts'
 import { configurePublicSite } from './telegram.ts'
 import { operatorRequest, type AgentManagementRequest } from './agent-requests.ts'
+import { commonsToolNames } from '@sidequest/commons'
+import { commonsHostFactory } from './commons/host.ts'
+import { commonsRpcs, disputeThreadReader } from './commons/rpc.ts'
+import { objectFor } from './commons/route.ts'
 
 /** What the Worker passes on every call: the tool, its arguments, the caller's credentials and the runtime env. */
 export interface BoardCall {
@@ -116,6 +119,8 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
     let managementQueue: Promise<unknown> = Promise.resolve()
     // Relay sends retain one nonce-serialized queue in the reserved object.
     let relayQueue: Promise<unknown> = Promise.resolve()
+    // SAFETY: Alchemy provides this object's SQL state and the API Worker's declared binding record.
+    const commonsHost = commonsHostFactory({ state, bindings: runtimeEnv as never })
 
     const boardFor = (env: BoardCall['env']): BoardService => {
       const key = JSON.stringify(env)
@@ -134,6 +139,8 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
           uri: env.uri,
           manifestBaseUrl: env.manifestBaseUrl,
           requirePosterAgent: env.requirePosterAgent === true,
+          // SAFETY: Alchemy's WorkerEnvironment is the binding record of this Worker.
+          disputeThread: disputeThreadReader(runtimeEnv as Record<string, unknown>, env),
           collectSnapshot: (wallet) =>
             collectSnapshot(
               fromD1((runtimeEnv as Record<string, unknown>).Database as never),
@@ -257,6 +264,8 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
       })
 
     return Effect.succeed({
+      // SAFETY: Alchemy's WorkerEnvironment is the binding record of this Worker.
+      ...commonsRpcs({ state, bindings: runtimeEnv as Record<string, unknown>, host: commonsHost }),
       agentExecute: (req: AgentExecuteRequest) =>
         Effect.promise(() => {
           const result = managementQueue.then(async () => {
@@ -597,11 +606,10 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
               const namespace = bindings.Board as
                 | { idFromName: (name: string) => { toString: () => string } }
                 | undefined
-              const sponsored = sponsorToolNames.has(req.tool)
-              const objectName = sponsored ? SPONSOR_OBJECT_NAME : req.env.boardId
+              const objectName = objectFor(req.tool, req.env.boardId)
               const production = network === 'monad-mainnet' || stage === 'prod'
               if (
-                (sponsored || production) &&
+                (objectName !== req.env.boardId || production) &&
                 (namespace === undefined || namespace.idFromName(objectName).toString() !== state.id.toString())
               )
                 return toJson({ ok: false, code: 'forbidden', message: 'Durable Object board identity mismatch' })
@@ -664,7 +672,11 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
                 String(stage ?? ''),
               )
               if (denied !== undefined) return toJson({ ok: false, code: 'forbidden', message: denied })
-              const ctx: ToolContext = { network: req.env.network, mcpSession: req.mcpSession }
+              const ctx: ToolContext = {
+                network: req.env.network,
+                mcpSession: req.mcpSession,
+                ...(commonsToolNames.has(req.tool) ? { commons: commonsHost(req.env) } : {}),
+              }
               const toolResult = await tool.run(board, caller, req.args, ctx)
               // Inbox feed and Telegram notices for website, REST and managed calls alike; never fails the tool.
               await recordBoardEvent(fromDurableObjectSql(state.storage.sql.raw), fromD1(bindings.Database as never), {

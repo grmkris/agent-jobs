@@ -30,6 +30,7 @@ import { agentFeedEvents, approvalUrl, recordAgentEvents } from './feed-agent.ts
 import { directoryAudience, directoryPort } from './directory-object.ts'
 import { managedProfileUpdates, profileOperationKey } from './agent-profiles.ts'
 import { runSetupTool } from './agent-setup.ts'
+import { objectFor } from './commons/route.ts'
 
 const key32 = (key: string) => /^0x[0-9a-fA-F]{64}$/.test(key)
 
@@ -137,7 +138,8 @@ export async function runAgent(runtime: {
   }
   const prepare = (tool: string, input: Record<string, unknown>): BoardCall =>
     tenantAgentRequest(req, agent.address!, tool, input)
-  const tenant = namespace.get(namespace.idFromName(req.env.boardId))
+  const tenantFor = (tool: string) => namespace.get(namespace.idFromName(objectFor(tool, req.env.boardId)))
+  const tenant = tenantFor(req.tool)
   if (req.tool === 'update_profile') {
     const key = profileOperationKey(operationKey)
     const updates = managedProfileUpdates({
@@ -248,7 +250,7 @@ export async function runAgent(runtime: {
       if (input.tool === 'use_permission') {
         return permissions.use(agent, permissionHash(input.args.permissionId), permissionUseInput(input.args))
       }
-      const reply = JSON.parse(await tenant.call(prepare(input.tool, input.args))) as BoardReply
+      const reply = JSON.parse(await tenantFor(input.tool).call(prepare(input.tool, input.args))) as BoardReply
       if (!reply.ok) throw failureFromReply(reply)
       const action = reply.result as import('@sidequest/board').AgentPreparedCall
       return action

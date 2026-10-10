@@ -13,6 +13,7 @@ import { agentTools } from '../src/tools-agents.ts'
 import { directoryTools } from '../src/directory.ts'
 import { tenantTools } from '../src/tools-tenant.ts'
 import { feedTools, writeFeed } from '../src/feed.ts'
+import { commonsTools } from '../src/commons/tools.ts'
 import { runAgent } from '../src/agent-runtime.ts'
 import type { OAuthGrant } from '../src/oauth.ts'
 import type { BoardCall } from '../src/board.ts'
@@ -30,7 +31,7 @@ const grant: OAuthGrant = {
   clientId: 'fixture-client',
   resource: `${origin}/mcp`,
 }
-const registry = { ...boardTools, ...agentTools, ...directoryTools, ...tenantTools, ...feedTools }
+const registry = { ...boardTools, ...agentTools, ...directoryTools, ...tenantTools, ...feedTools, ...commonsTools }
 const lanes = [
   { name: 'legacy', params: {} },
   { name: '2026-07-28', params: { _meta: { 'io.modelcontextprotocol/protocolVersion': '2026-07-28' } } },
@@ -134,6 +135,8 @@ beforeAll(async () => {
     name: 'inbox',
     output: wire(await feedTools.inbox.run({ sql: events, network: 'monad-testnet', now }, wallet, {})),
   })
+
+  addCommonsFixtures(now)
 
   // Replay the real executor fixture from agent-auto-select.test.ts; no network sends or provider calls.
   const sql = fromNodeSqlite(database())
@@ -244,6 +247,41 @@ beforeAll(async () => {
     output: JSON.parse(await runtime('create_task', { operationKey: 'approval-hire', title: 'Approved hire' })),
   })
 })
+
+function addCommonsFixtures(now: number) {
+  const commonsFixtures: Record<string, unknown> = {
+    list_messages: { subject: 'lobby', messages: [], cursor: null, hasMore: false, nextPollSeconds: 10, viewer: null },
+    list_gaps: { gaps: [], cursor: null },
+    list_roadmap: { block: null, weightsAvailable: false, items: [], viewer: null },
+    get_roadmap_item: {
+      item: {
+        id: 1,
+        title: 'Roadmap item',
+        status: 'open',
+        proposer: wallet,
+        supporters: 0,
+        weight: '0',
+        gapIds: [],
+        mergedInto: null,
+        hidden: null,
+        threadSubject: 'roadmap:1',
+        createdAt: now,
+        updatedAt: now,
+        problem: 'Problem',
+        proposal: 'Proposal',
+        proposerStake: '0',
+        proposerBlock: null,
+      },
+      supporters: [],
+      block: null,
+      gaps: [],
+      log: [],
+      thread: { subject: 'roadmap:1', count: 0 },
+    },
+    list_roles: { enabled: true, roles: [], log: [], cursor: null, hasMore: false, viewer: null },
+  }
+  for (const [name, output] of Object.entries(commonsFixtures)) fixtures.push({ name, output: wire(output) })
+}
 
 function result(reply: Awaited<ReturnType<typeof mcpRoute>>) {
   return (reply.body as { result: Record<string, unknown> }).result

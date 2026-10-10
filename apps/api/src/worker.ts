@@ -15,7 +15,6 @@ import {
   parseHostedAdmission,
   PUBLIC_BOARD_ID,
   SPONSOR_OBJECT_NAME,
-  sponsorToolNames,
   SessionDesk,
   type TenantConfig,
   type TenantToken,
@@ -74,6 +73,7 @@ import { x402Demo } from './x402-demo.ts'
 import { isProfilePath, profileRoute } from './routes/profiles.ts'
 import { MAX_AVATAR_BYTES, type AvatarBucket } from './avatars.ts'
 import { avatarRouteRequest } from './agent-profile-management.ts'
+import { objectFor } from './commons/route.ts'
 
 const STATUS: Record<string, number> = {
   unauthenticated: 401,
@@ -552,7 +552,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
             if ('reply' in pre) return pre.reply
             const reply = JSON.parse(
               yield* boards
-                .getByName(sponsorToolNames.has(tool) ? SPONSOR_OBJECT_NAME : tenant.id)
+                .getByName(objectFor(tool, tenant.id))
                 .call({ tool, args: pre.forward.args, bearer, mcpSession, caller: pre.forward.caller, ip, env }),
             ) as BoardReply
             if (reply.ok && (tool === 'create_task' || tool === 'pick_quote')) {

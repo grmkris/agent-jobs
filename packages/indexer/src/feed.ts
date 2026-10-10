@@ -286,7 +286,8 @@ export async function readInbox(
 const FEED_KINDS =
   'job.published, job.activated, job.submitted, job.rejected, job.disputed, job.ruled, job.completed, job.closed, job.expired, ' +
   'job.cancelled, settlement.deferred, payout.owed, quote.received, application.received, selection.received, invite.received, request.opened, request.picked, ' +
-  'approval.requested, approval.decided, permission.granted'
+  'approval.requested, approval.decided, permission.granted, ' +
+  'message.posted, message.mention, message.reply, roadmap.proposed, roadmap.status, gap.reported, message.hidden'
 
 /** The `inbox` read tool, served by the Worker from D1 for the signed-in wallet or the agent's OAuth grant. */
 export const feedTools = {

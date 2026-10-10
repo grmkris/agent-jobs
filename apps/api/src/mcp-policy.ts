@@ -1,7 +1,9 @@
 /** OAuth scopes are checked by both discovery and the Durable Object executing the action. */
 import type { OAuthGrant } from './oauth.ts'
+import { commonsReadTools, commonsWriteTools, toolSpecs } from '@sidequest/commons'
 
 const READ_TOOLS = new Set([
+  ...commonsReadTools,
   'get_instructions',
   'search_docs',
   'whoami',
@@ -60,7 +62,7 @@ const WORK_TOOLS = new Set([
   'use_permission',
   'revoke_permission',
 ])
-const SHARED_TOOLS = new Set(['settlement_actions'])
+const SHARED_TOOLS = new Set(['settlement_actions', ...commonsWriteTools])
 export const SETUP_TOOLS = new Set(['whoami', 'create_agent', 'setup_status'])
 
 /** Hand-reviewed effects from tools.ts, runAgent and AgentExecutor (not inferred from scope).
@@ -81,6 +83,7 @@ export const SETUP_TOOLS = new Set(['whoami', 'create_agent', 'setup_status'])
  * All effects are bounded to Sidequest, hence openWorldHint=false.
  */
 const REVIEW: Readonly<Record<string, readonly [boolean, boolean, boolean]>> = {
+  ...Object.fromEntries(Object.entries(toolSpecs).map(([name, spec]) => [name, spec.review])),
   show_hiring_dashboard: [true, false, false],
   show_task: [true, false, false],
   get_instructions: [true, false, true],

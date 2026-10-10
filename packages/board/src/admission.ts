@@ -1,4 +1,9 @@
 export const readOnlyHostedTools = new Set([
+  'list_messages',
+  'list_gaps',
+  'list_roadmap',
+  'get_roadmap_item',
+  'list_roles',
   'protocol_info',
   'whoami',
   'setup_status',
@@ -71,6 +76,16 @@ export const recoveryHostedTools = new Set([
  */
 export const hostedToolNames = new Set([
   'set_backer_share',
+  'post_message',
+  'report_gap',
+  'propose_item',
+  'support_item',
+  'withdraw_support',
+  'hide_content',
+  'unhide_content',
+  'set_item_status',
+  'merge_items',
+  'merge_gaps',
   ...readOnlyHostedTools,
   ...drainHostedTools,
   'auth_challenge',

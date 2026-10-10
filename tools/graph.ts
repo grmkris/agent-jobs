@@ -57,7 +57,7 @@ export const nodes: readonly Node[] = [
     name: '@sidequest/api',
     role: 'the hosted board API and MCP service.',
     runtime: 'cloud',
-    mayImport: ['@sidequest/board', '@sidequest/indexer', '@sidequest/sdk'],
+    mayImport: ['@sidequest/board', '@sidequest/commons', '@sidequest/indexer', '@sidequest/sdk'],
   },
   {
     dir: 'apps/indexer',

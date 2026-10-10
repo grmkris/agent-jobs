@@ -20,6 +20,8 @@ import {
 import * as sdk from '@sidequest/sdk'
 import type { McpTool } from './mcp.ts'
 import { deadlineArgs, deadlineSchema, echoDeadlines, isRelative, manifestDeadlines } from './deadlines.ts'
+import type { CommonsHost } from './commons/host.ts'
+import { commonsTools } from './commons/tools.ts'
 
 export interface Tool extends McpTool {
   readonly description: string
@@ -35,6 +37,7 @@ export interface Tool extends McpTool {
 export interface ToolContext {
   readonly network: sdk.Network
   readonly mcpSession: string | undefined
+  readonly commons?: CommonsHost
 }
 
 const str = (description: string) => ({ type: 'string', description })
@@ -1145,6 +1148,7 @@ export const tools: Record<string, Tool> = {
     },
     run: (board, caller, a) => board.miningProof(caller, { wallet: s(a, 'wallet'), epoch: s(a, 'epoch') }),
   },
+  ...commonsTools,
 }
 
 /** JSON with bigints as decimal strings. */
