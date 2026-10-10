@@ -10,9 +10,12 @@ import type { BoardCall } from '../src/board.ts'
 import { commonsRpcs } from '../src/commons/rpc.ts'
 import { Effect } from 'effect'
 import { COMMONS_OBJECT_NAME } from '@sidequest/commons'
+import { stageProfile } from '../../../infra/stage.ts'
 
 const maintainer = '0x5f3d114a607b5bbb71a2e11ba045fc9f4f239ce7'
 const peer = '0x1111111111111111111111111111111111111111'
+// The dev stage's moderators get a metadata row for every post, besides the people a post mentions.
+const moderators = (stageProfile('dev')?.roles?.moderator ?? []).map((address) => address.toLowerCase())
 const env: BoardCall['env'] = {
   network: 'monad-testnet',
   boardId: 'public',
@@ -140,10 +143,9 @@ it('runs the real post program, persists metadata-only feed rows and reuses the 
   const f = await fixture()
   expect(f.factory(env)).toBe(f.host)
   const result = await f.host.run('post_message', { address: maintainer }, { subject: 'lobby', body: `hello @${peer}` })
-  expect(result).toMatchObject({ message: { id: 1, body: `hello @${peer}` }, notified: 1 })
+  expect(result).toMatchObject({ message: { id: 1, body: `hello @${peer}` }, notified: 1 + moderators.length })
   const rows = f.index.prepare('SELECT address, data_json FROM feed_events').all()
-  expect(rows).toHaveLength(1)
-  expect(rows[0]?.address).toBe(peer)
+  expect(rows.map((row) => row.address).toSorted()).toEqual([peer, ...moderators].toSorted())
   expect(JSON.stringify(rows)).not.toContain('hello')
   expect(JSON.stringify(rows)).not.toContain('body')
   expect(await f.host.run('list_messages', {}, { subject: 'lobby', limit: '1' })).toMatchObject({
