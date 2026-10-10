@@ -11,6 +11,7 @@ import {
   type Caller,
   type DeliverableSpec,
   type NamedSponsorEntry,
+  directoryAgentId,
   TASK_ROLES,
   TASK_STATUSES,
   type TaskRole,
@@ -113,6 +114,35 @@ const s = (a: Record<string, unknown>, k: string) => a[k] as string
 const n = (a: Record<string, unknown>, k: string) => a[k] as number
 
 export const tools: Record<string, Tool> = {
+  set_backer_share: {
+    description:
+      "Prepare a backer share metadata transaction (0–10000 basis points, default 0). Only the agent's ERC-8004 owner can send it from their wallet. Applies from the next mining epoch; this tool never signs or sends it.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        agentId: str('Positive decimal ERC-8004 agent ID in this deployment registry.'),
+        bps: {
+          type: 'integer',
+          minimum: 0,
+          maximum: 10000,
+          description: 'Part of the work-mining slice shared with backers, in basis points.',
+        },
+      },
+      required: ['agentId', 'bps'],
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    run: (_board, _caller, args, ctx) => ({
+      transaction: sdk.prepareBackerShare(
+        sdk.deployment(ctx.network).identity,
+        directoryAgentId(args.agentId),
+        n(args, 'bps'),
+      ),
+      requiresWalletConfirmation: true,
+      chainId: sdk.deployment(ctx.network).chainId,
+    }),
+  },
+
   protocol_info: {
     description:
       'Chain, contract addresses, known reward tokens and how to act with a key-holding wallet. Read this first. No sign-in needed.',
