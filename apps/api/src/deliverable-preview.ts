@@ -282,12 +282,12 @@ const MAX_AGE = 'x-sidequest-max-age'
 
 /**
  * The lifetime a cached answer is served with: its own, as the route set it. Cloudflare rewrites the stored copy's
- * `cache-control` to the zone's browser TTL (four hours), so the route keeps its own number beside it.
+ * `cache-control` to the zone's browser TTL (four hours), so the route keeps its own number beside it; a copy stored
+ * before it did gets the route's shorter lifetime.
  */
 function hitCacheControl(hit: Response): string {
   const seconds = Number(hit.headers.get(MAX_AGE))
-  if (Number.isInteger(seconds) && seconds > 0) return `public, max-age=${seconds}`
-  return hit.headers.get('cache-control') ?? 'no-store'
+  return `public, max-age=${Number.isInteger(seconds) && seconds > 0 ? seconds : MISS}`
 }
 
 /**

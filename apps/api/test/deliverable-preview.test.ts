@@ -290,6 +290,10 @@ describe('previewRoute', () => {
     const { res } = await answer(deps({ cache }))
     expect(res.headers.get('x-sidequest-preview')).toBe('hit')
     expect(res.headers.get('cache-control')).toBe('public, max-age=3600')
+    // A copy stored before the route kept its lifetime gets the short one.
+    cache.stored(request.key)?.headers.delete('x-sidequest-max-age')
+    const legacy = await answer(deps({ cache }))
+    expect(legacy.res.headers.get('cache-control')).toBe('public, max-age=600')
   })
 
   it('is not found for a hash the chain never recorded, without asking the board', async () => {
