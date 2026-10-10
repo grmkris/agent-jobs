@@ -25,6 +25,15 @@ describe('previewPlan', () => {
     expect(plan(site, NONE, '11', 'prod').from).toBe('glyph')
   })
 
+  it("keeps a curated 3D part's own poster and model, so the model can still be turned", () => {
+    const part = { ...NONE, poster: 'https://p.example/preview.webp', media: 'https://p.example/model.stl' }
+    expect(plan(site, part, '27', 'dev')).toMatchObject({ from: 'poster', model: { format: 'stl' } })
+    expect(plan(site, { ...part, media: null }, '27', 'dev')).toMatchObject({
+      from: 'showcase',
+      item: { kind: 'part' },
+    })
+  })
+
   it("prefers the site's own https poster, and notes a model it can turn", () => {
     const poster = {
       ...NONE,

@@ -5,6 +5,7 @@ import { TokenAmount } from '../token/TokenAmount.tsx'
 import { type Backing, backersWord, useStakes } from '../../agent-backing.ts'
 import { useAgentProfile } from '../../agent-profiles.ts'
 import { useAgents } from '../../agent-summary.ts'
+import { shareLabel, useBackerShares } from '../../backer-share.ts'
 import { useDirectory } from '../../directory-query.ts'
 import { bond } from '../../format.ts'
 import { useJobs } from '../../routes/Jobs.tsx'
@@ -12,13 +13,15 @@ import { agentExplorerLinks } from '../../wallet.ts'
 import { MarqueeSection } from './Marquee.tsx'
 import { type StripAgent, recentWork, stripAgents } from './agents-strip.ts'
 
-function Stake({ backing }: { backing: Backing | undefined }) {
+/** The SIDE behind it, and what its backers get of its work-mining rewards when it shares any, else how many back it. */
+function Stake({ backing, share }: { backing: Backing | undefined; share: number | null }) {
   if (backing === undefined) return <>—</>
   const backers = backersWord(backing)
+  const sub = share !== null && share > 0 ? `Backers get ${shareLabel(share)}` : backers
   return (
     <>
       {bond(backing.assets)}
-      {backers !== null && <span className="agent-card-sub">{backers}</span>}
+      {sub !== null && <span className="agent-card-sub">{sub}</span>}
     </>
   )
 }
@@ -42,10 +45,12 @@ function Earned({ earned }: { earned: Record<string, string> }) {
 function AgentCard({
   agent,
   backing,
+  share,
   recent,
 }: {
   agent: StripAgent
   backing: Backing | undefined
+  share: number | null
   recent: ReadonlyArray<{ jobId: string; title: string }>
 }) {
   const tagline = useAgentProfile(agent.agentId)?.tagline.trim() || agent.tagline
@@ -83,7 +88,7 @@ function AgentCard({
         <div>
           <dt>Staked</dt>
           <dd>
-            <Stake backing={backing} />
+            <Stake backing={backing} share={share} />
           </dd>
         </div>
       </dl>
@@ -122,6 +127,7 @@ export function AgentsStrip() {
   const jobs = useJobs()
   const agents = stripAgents(directory.data?.agents ?? [], summaries.data?.agents ?? [], Date.now() / 1000)
   const stakes = useStakes(agents.map((agent) => agent.wallet))
+  const shares = useBackerShares(agents.map((agent) => agent.agentId)).shares
   if (agents.length === 0) return null
   return (
     <MarqueeSection
@@ -135,7 +141,12 @@ export function AgentsStrip() {
       {() =>
         agents.map((agent, i) => (
           <li key={agent.agentId}>
-            <AgentCard agent={agent} backing={stakes[i]} recent={recentWork(jobs.items, agent.agentId)} />
+            <AgentCard
+              agent={agent}
+              backing={stakes[i]}
+              share={shares.get(agent.agentId) ?? null}
+              recent={recentWork(jobs.items, agent.agentId)}
+            />
           </li>
         ))
       }

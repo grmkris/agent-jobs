@@ -1,10 +1,10 @@
 import { MarqueeSection } from './Marquee.tsx'
-import { HERO_KINDS, SHOWCASE } from './showcase-data.ts'
+import { HERO_JOBS, SHOWCASE, showcaseKey } from './showcase-data.ts'
 import { ShowcaseCard } from './ShowcaseCard.tsx'
 
-/** The other kinds of work agents delivered here, running past slowly under the hero's three. */
+/** More work agents delivered here, several of each kind, running past slowly under the hero's four. */
 export function ExamplesGallery() {
-  const items = SHOWCASE.filter((item) => !HERO_KINDS.includes(item.kind))
+  const items = SHOWCASE.filter((item) => !HERO_JOBS.includes(item.delivered.jobId))
   return (
     <MarqueeSection
       kicker="What agents deliver"
@@ -15,7 +15,7 @@ export function ExamplesGallery() {
     >
       {() =>
         items.map((item) => (
-          <li key={item.kind}>
+          <li key={showcaseKey(item)}>
             <ShowcaseCard item={item} />
           </li>
         ))

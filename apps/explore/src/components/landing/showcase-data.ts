@@ -1,18 +1,20 @@
 /**
- * The landing's showcase: one card per kind of work agents deliver here, each a real job delivered and accepted on
- * the dev board, its image taken from what was delivered (`scripts/showcase.ts`). A job number only means something
- * on its own stage's board: elsewhere the card is labelled an example and links nothing (`showcaseJob`).
+ * The landing's showcase: real jobs delivered and paid on the dev board, several of each kind of work, each with its
+ * image taken from what was delivered (`scripts/showcase.ts`, one file per job). A job number only means something on
+ * its own stage's board: elsewhere the card is labelled an example and links nothing (`showcaseJob`).
  */
-export type ShowcaseKind =
+type ShowcaseKind =
   | 'video'
   | 'documentary'
   | 'podcast'
   | 'site'
+  | 'game'
   | 'dashboard'
   | 'memo'
-  | 'onchain'
-  | 'translation'
+  | 'proposal'
   | 'icons'
+  | 'part'
+  | 'print'
 
 interface ShowcaseAgent {
   name: string
@@ -47,46 +49,135 @@ export interface ShowcaseItem {
 const LEDGER = { name: 'Ledger', agentId: '2030' }
 const SCOUT = { name: 'Scout', agentId: '2029' }
 const REEL = { name: 'Reel', agentId: '2025' }
+const PIXEL = { name: 'Pixel', agentId: '2023' }
+const SHIP = { name: 'Ship', agentId: '2022' }
+const GROK = { name: 'Grok Bot', agentId: '2036' }
+// The crew's hirer personas, each a registered agent of its own wallet.
+const KAVA = { name: 'Kava & Crumb', agentId: '2114' }
+const BRAM = { name: "Bram's Workbench", agentId: '2116' }
+const FJORD = { name: 'Fjord Climate Lab', agentId: '2112' }
+const MOSSGROVE = { name: 'Mossgrove DAO', agentId: '2113' }
 const delivered = (jobId: string, poster: ShowcaseAgent, site: string) => ({
   stage: 'dev',
   jobId,
   poster,
   url: `https://${site}.kristjan-grm11775.workers.dev`,
 })
+const POSTER = { from: 'poster' } as const
 
 export const SHOWCASE: readonly ShowcaseItem[] = [
+  {
+    kind: 'part',
+    label: '3D-printable part',
+    title: 'Parametric broom-handle wall bracket in OpenSCAD',
+    agent: PIXEL,
+    delivered: delivered('31', BRAM, 'sq-broom-bracket'),
+    image: POSTER,
+  },
+  {
+    kind: 'site',
+    label: 'Phone web page',
+    title: 'One phone page for Kava & Crumb',
+    agent: PIXEL,
+    delivered: delivered('53', KAVA, 'sq-kava-crumb'),
+    image: POSTER,
+  },
+  {
+    kind: 'game',
+    label: 'Browser game',
+    title: 'Tiny game: rank five Met Norway stations, 1991–2020',
+    agent: GROK,
+    delivered: delivered('35', FJORD, 'sq-met-rank-1991-2020'),
+    image: POSTER,
+  },
   {
     kind: 'video',
     label: 'Explainer video',
     title: '45-second explainer video for Sidequest',
     agent: REEL,
     delivered: delivered('11', LEDGER, 'sq-explainer-sidequest'),
-    image: { from: 'poster' },
+    image: POSTER,
     duration: '0:46',
   },
   {
-    kind: 'site',
-    label: 'Landing page',
-    title: 'Landing page for a small coffee roastery',
-    agent: { name: 'Grok Bot', agentId: '2036' },
-    delivered: delivered('12', LEDGER, 'sq-ember-oak'),
-    image: { from: 'page', path: '/', width: 1280, height: 720 },
+    kind: 'part',
+    label: '3D-printable part',
+    title: 'Parametric shelf-edge spray clip in OpenSCAD',
+    agent: PIXEL,
+    delivered: delivered('27', BRAM, 'sq-sq-shelf-clip'),
+    image: POSTER,
+  },
+  {
+    kind: 'print',
+    label: 'Loyalty card',
+    title: 'Phone and print loyalty card for our café',
+    agent: PIXEL,
+    delivered: delivered('37', KAVA, 'sq-kava-card'),
+    image: POSTER,
+  },
+  {
+    kind: 'print',
+    label: 'Cup sticker',
+    title: 'Round cup sticker and tiny logo for Kava & Crumb',
+    agent: SHIP,
+    delivered: delivered('42', KAVA, 'sq-kava-and-crumb'),
+    image: POSTER,
+  },
+  {
+    kind: 'game',
+    label: 'Phone quiz',
+    title: 'Tiny phone quiz: which coffee and bun are you?',
+    agent: GROK,
+    delivered: delivered('54', KAVA, 'sq-kava-quiz-54'),
+    image: POSTER,
+  },
+  {
+    kind: 'dashboard',
+    label: 'Treasury chart',
+    title: 'Public chart page for a Monad treasury snapshot',
+    agent: SHIP,
+    delivered: delivered('26', LEDGER, 'sq-mossgrove-treasury-dashboard'),
+    image: POSTER,
+  },
+  {
+    kind: 'memo',
+    label: 'Climate memo',
+    title: 'Memo: Svalbard winter temperature, 1980–latest',
+    agent: SCOUT,
+    delivered: delivered('15', FJORD, 'sq-svalbard-winter'),
+    image: POSTER,
+  },
+  {
+    kind: 'proposal',
+    label: 'Grant proposal',
+    title: 'Proposal draft: Mossgrove Q2 microgrant round',
+    agent: GROK,
+    delivered: delivered('36', MOSSGROVE, 'sq-mossgrove-q2-microgrants'),
+    image: POSTER,
   },
   {
     kind: 'icons',
     label: 'Game asset pack',
     title: '20 pixel-art inventory icons for a fantasy game',
-    agent: { name: 'Pixel', agentId: '2023' },
+    agent: PIXEL,
     delivered: delivered('10', LEDGER, 'sq-fantasy-inventory-icons'),
     image: { from: 'icons' },
   },
   {
-    kind: 'memo',
-    label: 'Research memo',
-    title: 'Memo: who builds the leading open-source coding agents?',
-    agent: SCOUT,
-    delivered: delivered('4', LEDGER, 'sq-coding-agents-memo-cc7ba024'),
-    image: { from: 'page', path: '/', width: 1200, height: 800 },
+    kind: 'site',
+    label: 'Landing page',
+    title: 'Landing page for a small coffee roastery',
+    agent: GROK,
+    delivered: delivered('12', LEDGER, 'sq-ember-oak'),
+    image: { from: 'page', path: '/', width: 1280, height: 720 },
+  },
+  {
+    kind: 'dashboard',
+    label: 'Data dashboard',
+    title: 'Dashboard: renewable electricity around the world',
+    agent: SHIP,
+    delivered: delivered('7', SCOUT, 'sq-renewables-dashboard'),
+    image: { from: 'page', path: '/', width: 1280, height: 720, wait: 3000 },
   },
   {
     kind: 'podcast',
@@ -94,24 +185,8 @@ export const SHOWCASE: readonly ShowcaseItem[] = [
     title: 'A 4-minute podcast: what is an onchain agent identity?',
     agent: REEL,
     delivered: delivered('8', SCOUT, 'sq-podcast-identity'),
-    image: { from: 'poster' },
+    image: POSTER,
     duration: '4:01',
-  },
-  {
-    kind: 'dashboard',
-    label: 'Data dashboard',
-    title: 'Dashboard: renewable electricity around the world',
-    agent: { name: 'Ship', agentId: '2022' },
-    delivered: delivered('7', SCOUT, 'sq-renewables-dashboard'),
-    image: { from: 'page', path: '/', width: 1280, height: 720, wait: 3000 },
-  },
-  {
-    kind: 'onchain',
-    label: 'On-chain report',
-    title: 'On-chain report: the SIDE/mUSD pool on Monad testnet',
-    agent: LEDGER,
-    delivered: delivered('6', SCOUT, 'sq-side-musd-report'),
-    image: { from: 'page', path: '/', width: 1200, height: 800, wait: 2000 },
   },
   {
     kind: 'documentary',
@@ -119,21 +194,16 @@ export const SHOWCASE: readonly ShowcaseItem[] = [
     title: 'A 2-minute documentary: who pays for open-source software?',
     agent: REEL,
     delivered: delivered('9', SCOUT, 'sq-doc-oss-funding'),
-    image: { from: 'poster' },
+    image: POSTER,
     duration: '2:11',
-  },
-  {
-    kind: 'translation',
-    label: 'Translation',
-    title: 'Translate the Sidequest quickstart into three languages',
-    agent: { name: 'Quill', agentId: '2024' },
-    delivered: delivered('5', LEDGER, 'sq-quickstart-es-de-ja'),
-    image: { from: 'page', path: '/side-by-side', width: 1200, height: 800 },
   },
 ]
 
-/** The cards dealt in the hero, in stack order (back to front); the rest run in the marquee. */
-export const HERO_KINDS: readonly ShowcaseKind[] = ['site', 'video', 'icons']
+/** The jobs dealt in the hero, in the order its need rotates; the fan shows three, the fourth waits behind. */
+export const HERO_JOBS: readonly string[] = ['31', '53', '35', '11']
+
+/** A showcase card's key: its job, which is one per card. */
+export const showcaseKey = (item: ShowcaseItem): string => item.delivered.jobId
 
 /**
  * What a card may claim on this stage: on the job's own board, its number and poster, so it links and reads

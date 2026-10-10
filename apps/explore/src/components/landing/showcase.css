@@ -475,7 +475,7 @@
   white-space: nowrap;
 }
 
-/* Memo, report and translation: a sheet of paper that runs off the bottom of the frame. */
+/* Memo and proposal: a sheet of paper that runs off the bottom of the frame. */
 .sp-paper {
   position: absolute;
   inset: 1.3em 1.8em -1em;
@@ -487,25 +487,6 @@
   border-radius: 0.5em;
   background: var(--card);
   box-shadow: 0 1em 2em -1.4em oklch(0.2 0.03 255 / 0.45);
-}
-
-.sp-tabs {
-  display: flex;
-  gap: 1.1em;
-  border-bottom: 1px solid var(--border);
-  font-family: var(--font-mono);
-  font-size: 0.75em;
-}
-
-.sp-tabs span {
-  padding-bottom: 0.4em;
-  color: var(--muted-foreground);
-}
-
-.sp-tabs [data-active] {
-  margin-bottom: -1px;
-  border-bottom: 2px solid var(--primary);
-  color: var(--foreground);
 }
 
 /* Icons: the sheet on a transparency checkerboard. */
@@ -579,15 +560,82 @@
   height: auto;
 }
 
-/* Memo, report and translation: the captured top of the document on its sheet. */
+/* Memo and proposal: the captured top of the document on its sheet. */
 .sp-paper-shot {
   gap: 0;
   padding: 0;
   overflow: hidden;
 }
 
-.sp-paper-shot .sp-tabs {
-  padding: 0.55em 1em 0;
+/* 3D part: the delivery's whole sheet on a stage lit from below, so the part reads as an object. */
+.sp-object {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1.5em 1.7em;
+  background: radial-gradient(
+    120% 85% at 50% 105%,
+    color-mix(in oklch, var(--primary) 16%, var(--card)),
+    var(--card) 72%
+  );
+}
+
+.sp-object .sp-shot,
+.sp-print .sp-shot {
+  height: auto;
+  object-fit: contain;
+}
+
+.sp-object .sp-shot {
+  border-radius: 0.55em;
+  box-shadow: 0 1.5em 1.6em -1.3em oklch(0.2 0.03 255 / 0.5);
+}
+
+.sp-object-tag {
+  position: absolute;
+  top: 0.75em;
+  right: 0.85em;
+  padding: 0.1em 0.55em;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 0.7em;
+}
+
+/* Print: the proof on its press sheet, a little askew, with crop marks at the trim. */
+.sp-print {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1.7em 2.1em;
+  background: color-mix(in oklch, var(--muted) 70%, var(--card));
+}
+
+.sp-print .sp-shot {
+  border-radius: 0.2em;
+  box-shadow:
+    0 0.15em 0.5em oklch(0.2 0.03 255 / 0.16),
+    0 1.2em 1.8em -1.3em oklch(0.2 0.03 255 / 0.4);
+  transform: rotate(-1.2deg);
+}
+
+.sp-print-marks {
+  --mark: color-mix(in oklch, var(--muted-foreground) 55%, transparent);
+  position: absolute;
+  inset: 0.9em 1.25em;
+  background:
+    linear-gradient(var(--mark), var(--mark)) top left / 0.8em 1px no-repeat,
+    linear-gradient(var(--mark), var(--mark)) top left / 1px 0.8em no-repeat,
+    linear-gradient(var(--mark), var(--mark)) top right / 0.8em 1px no-repeat,
+    linear-gradient(var(--mark), var(--mark)) top right / 1px 0.8em no-repeat,
+    linear-gradient(var(--mark), var(--mark)) bottom left / 0.8em 1px no-repeat,
+    linear-gradient(var(--mark), var(--mark)) bottom left / 1px 0.8em no-repeat,
+    linear-gradient(var(--mark), var(--mark)) bottom right / 0.8em 1px no-repeat,
+    linear-gradient(var(--mark), var(--mark)) bottom right / 1px 0.8em no-repeat;
 }
 
 /* Icons: the pack's own pixels, doubled without smoothing. */

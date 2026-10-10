@@ -310,7 +310,9 @@
   width: min(100%, 22rem);
   box-shadow: var(--proof-shadow);
   transform: translate(var(--x), var(--y)) rotate(var(--r));
-  transition: transform 0.75s var(--ease-out);
+  transition:
+    transform 0.75s var(--ease-out),
+    opacity 0.45s var(--ease-out);
   animation: proof-deal 0.85s var(--ease-out) backwards;
 }
 
@@ -334,6 +336,14 @@
   z-index: 3;
 }
 
+/* The fourth card waits under the back one, out of sight, and fades in as it is dealt back into the fan. */
+.proof-card[data-slot='waiting'] {
+  --r: 2.5deg;
+  z-index: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .proof-card:nth-child(1) {
   animation-delay: 0.3s;
 }
@@ -344,6 +354,10 @@
 
 .proof-card:nth-child(3) {
   animation-delay: 0.54s;
+}
+
+.proof-card:nth-child(4) {
+  animation-delay: 0.66s;
 }
 
 .proof-stack > .proof-card:hover {
@@ -668,11 +682,9 @@
     --y: 0px;
     flex: 0 0 min(86%, 23.5rem);
     margin: 0;
+    opacity: 1;
+    pointer-events: auto;
     scroll-snap-align: start;
-  }
-
-  .proof-card[data-kind='icons'] {
-    order: -1;
   }
 
   .proof-stack > .proof-card:hover {

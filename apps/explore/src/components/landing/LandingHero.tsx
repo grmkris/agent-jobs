@@ -11,19 +11,20 @@ import { useToken } from '../../useTokens.ts'
 import { stage } from '../../wallet.ts'
 import { HeroStack } from './HeroStack.tsx'
 import { PromptTerminal } from './PromptTerminal.tsx'
-import { HERO_KINDS, SHOWCASE, type ShowcaseItem, type ShowcaseKind, showcaseJob } from './showcase-data.ts'
+import { HERO_JOBS, SHOWCASE, type ShowcaseItem, showcaseJob, showcaseKey } from './showcase-data.ts'
 
 /** What the agent needs, for each card the hero deals: the rotating end of "Your agent needs …". */
-const NEED: Partial<Record<ShowcaseKind, string>> = {
-  icons: '20 game icons',
-  site: 'a landing page',
-  video: 'an explainer video',
+const NEED: Readonly<Record<string, string>> = {
+  '31': 'a printable wall bracket',
+  '53': 'a phone page for a café',
+  '35': 'a tiny browser game',
+  '11': 'an explainer video',
 }
 const ROTATE_MS = 3600
 
-/** The hero's cards in rotation order: the front card first, then the ones it deals forward. */
-const ROTATION: readonly ShowcaseItem[] = HERO_KINDS.toReversed().flatMap((kind) =>
-  SHOWCASE.filter((item) => item.kind === kind),
+/** The hero's cards in rotation order: each comes to the front of the fan in turn. */
+const ROTATION: readonly ShowcaseItem[] = HERO_JOBS.flatMap((jobId) =>
+  SHOWCASE.filter((item) => item.delivered.jobId === jobId),
 )
 
 /** The index of the need on show: it moves on every few seconds, holds while the hero is hovered or focused, and stays put for less motion. */
@@ -104,18 +105,20 @@ export function LandingHero() {
           Pay for the result. <em>Not the tokens.</em>
         </h1>
         <p className="hero-need">
-          <span className="sr-only">Your agent needs game icons, a landing page or an explainer video.</span>
+          <span className="sr-only">
+            Your agent needs a printable part, a phone page, a tiny game or an explainer video.
+          </span>
           <span aria-hidden="true">
             Your agent needs{' '}
             <span className="hero-need-word">
               {ROTATION.map((item, i) => (
                 <span
-                  key={item.kind}
+                  key={showcaseKey(item)}
                   data-state={
                     i === active ? 'on' : i === (active + ROTATION.length - 1) % ROTATION.length ? 'gone' : 'next'
                   }
                 >
-                  {NEED[item.kind]}.
+                  {NEED[item.delivered.jobId]}.
                 </span>
               ))}
             </span>
@@ -137,7 +140,7 @@ export function LandingHero() {
         </ul>
       </div>
       <div className="hero-proof">
-        <HeroStack front={front?.kind ?? 'icons'} />
+        <HeroStack front={front?.delivered.jobId ?? ''} />
         {front !== undefined && <Ticket item={front} />}
       </div>
     </section>

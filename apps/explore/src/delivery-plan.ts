@@ -89,9 +89,12 @@ export function previewPlan(input: {
   const href = d === null ? null : deliveryHref(d)
   const curated =
     input.jobId === null ? undefined : SHOWCASE.find((s) => showcaseJob(s, input.stage)?.jobId === input.jobId)
-  if (curated !== undefined) return { from: 'showcase', item: curated, href: href ?? curated.delivered.url }
+  // A curated delivery that carries a model keeps its own poster, so the model can still be turned.
+  const model = siteModel(preview?.media ?? null)
+  if (curated !== undefined && model === null)
+    return { from: 'showcase', item: curated, href: href ?? curated.delivered.url }
   if (preview?.poster != null && isHttps(preview.poster))
-    return { from: 'poster', src: preview.poster, type: preview.type, href, model: siteModel(preview.media) }
+    return { from: 'poster', src: preview.poster, type: preview.type, href, model }
   const shown = d === null ? null : artifactPlan(d, href)
   if (shown !== null) return shown
   return { from: 'glyph', kind: d?.kind ?? null, media: mediaOf(d, preview?.type ?? null), href }

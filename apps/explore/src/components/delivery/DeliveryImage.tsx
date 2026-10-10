@@ -2,11 +2,11 @@ import { Play } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 import { cn } from '../../lib/cn.ts'
 import type { Thumb } from '../../delivery-plan.ts'
-import { ICON_PACK, SHOWCASE_SHOT } from '../landing/showcase-images.ts'
+import { ICON_PACK, showcaseShot } from '../landing/showcase-images.ts'
 
 /** The curated job's vendored image, or the delivery's own poster or image from its host (never sent a referrer). */
 const srcOf = (thumb: Thumb): string | null =>
-  'src' in thumb ? thumb.src : thumb.showcase.kind === 'icons' ? null : SHOWCASE_SHOT[thumb.showcase.kind]
+  'src' in thumb ? thumb.src : (showcaseShot(thumb.showcase.delivered.jobId) ?? null)
 
 /** The icon pack as delivered: its first PNGs, pixel for pixel; a fuller sheet in a bigger frame. */
 function IconSheet({ count }: { count: number }) {

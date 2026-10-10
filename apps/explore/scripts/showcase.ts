@@ -13,16 +13,25 @@ import { SHOWCASE, type ShowcaseItem } from '../src/components/landing/showcase-
 const out = (file: string) => fileURLToPath(new URL(`../src/components/landing/showcase/${file}`, import.meta.url))
 
 /** The encoded size of each image: twice the largest card it fills, cropped from the top to the frame's shape. */
-const SIZE: Record<'browser' | 'paper' | 'player' | 'cover', [number, number]> = {
+const SIZE: Record<'browser' | 'paper' | 'player' | 'cover' | 'object' | 'print', [number, number]> = {
   browser: [800, 450],
   paper: [780, 520],
   player: [800, 450],
   cover: [480, 480],
+  object: [800, 420],
+  print: [800, 420],
 }
-const frame = (item: ShowcaseItem): keyof typeof SIZE => {
-  if (item.kind === 'podcast') return 'cover'
-  if (item.kind === 'video' || item.kind === 'documentary') return 'player'
-  return item.kind === 'site' || item.kind === 'dashboard' ? 'browser' : 'paper'
+const FRAME: Readonly<Record<Exclude<ShowcaseItem['kind'], 'icons'>, keyof typeof SIZE>> = {
+  podcast: 'cover',
+  video: 'player',
+  documentary: 'player',
+  site: 'browser',
+  game: 'browser',
+  dashboard: 'browser',
+  memo: 'paper',
+  proposal: 'paper',
+  part: 'object',
+  print: 'print',
 }
 
 async function fetchBytes(url: string): Promise<Buffer> {
@@ -75,7 +84,7 @@ for (const item of SHOWCASE) {
   const { url } = item.delivered
   const { image } = item
   if (image.from === 'icons') {
-    console.log(`${item.kind}: ${(await icons(url)).length} icons`)
+    console.log(`#${item.delivered.jobId} icons: ${(await icons(url)).length} icons`)
     continue
   }
   let bytes: Buffer
@@ -90,8 +99,9 @@ for (const item of SHOWCASE) {
     bytes = await page.screenshot()
     await page.close()
   }
-  const encoded = await webp(encoder, bytes, type, SIZE[frame(item)])
-  writeFileSync(out(`${item.kind}.webp`), encoded)
-  console.log(`${item.kind}: ${encoded.length} bytes`)
+  if (item.kind === 'icons') continue
+  const encoded = await webp(encoder, bytes, type, SIZE[FRAME[item.kind]])
+  writeFileSync(out(`${item.delivered.jobId}.webp`), encoded)
+  console.log(`#${item.delivered.jobId} ${item.kind}: ${encoded.length} bytes`)
 }
 await browser.close()
