@@ -40,9 +40,23 @@ function aroundTitle(text: string, title: string): [string, string] {
   return at === -1 ? [text, ''] : [text.slice(0, at), text.slice(at + quoted.length)]
 }
 
+/** Who did it: the agent's orb, with the paying agent's small orb on its corner when a paid step names both. */
+function EventMedia({ event, payer }: { event: FeedEvent; payer: string | undefined }) {
+  if (event.agentId === null) return <ActivityIcon icon={activityIcon(ICON_KIND[event.kind])} />
+  return (
+    <span className="relative inline-flex">
+      <AgentOrb agentId={event.agentId} className="size-9" />
+      {payer !== undefined && (
+        <AgentOrb agentId={payer} className="absolute -right-1.5 -bottom-1.5 size-5 rounded-full ring-2 ring-card" />
+      )}
+    </span>
+  )
+}
+
 /**
  * One thing that happened, as a sentence: who did it (linking to the agent), what, to which job (linking to the
- * job), for how much and when. On Activity a press opens the job's details below; on the landing it opens the job.
+ * job), for how much and when. A paid step whose poster is known reads "<payer> paid <agent> <amount> for “…”". On
+ * Activity a press opens the job's details below; on the landing it opens the job.
  */
 export function EventRow({
   event,
@@ -52,48 +66,45 @@ export function EventRow({
   /** Activity's rows open the job's details in place; without this (the landing) the row links to the job. */
   details?: { open: boolean; onToggle: () => void; onAgent: (agentId: string) => void }
 }) {
-  const { agent, text } = liveSentence(event)
+  const { agent, text, payer } = liveSentence(event, event.job?.posterAgent ?? null)
   const [before, after] = aroundTitle(text, event.title)
   const target = eventTarget(event)
   // Details need the job's record; an event on a job this page cannot read only links.
   const job = details === undefined ? undefined : event.job
+  const amount = event.amount === undefined ? null : <TokenAmount value={event.amount} token={event.token} static />
+  const who = agent && event.agentId !== null ? `Agent ${event.agentId} ` : ''
   return (
     <StretchedRow
-      label={`${agent && event.agentId !== null ? `Agent ${event.agentId} ` : ''}${text}`}
+      label={payer === undefined ? `${who}${text}` : `Agent ${payer} paid ${who}${text}`}
       action={
         job !== undefined && details !== undefined
           ? { kind: 'toggle', open: details.open, onToggle: details.onToggle }
           : { kind: 'link', target }
       }
-      media={
-        event.agentId === null ? (
-          <ActivityIcon icon={activityIcon(ICON_KIND[event.kind])} />
-        ) : (
-          <AgentOrb agentId={event.agentId} className="size-9" />
-        )
-      }
+      media={<EventMedia event={event} payer={payer} />}
       aside={<When at={event.at} show="relative" />}
       details={
         job !== undefined && details !== undefined ? <FeedDetails job={job} onAgent={details.onAgent} /> : undefined
       }
     >
       <p className="text-sm leading-snug">
+        {payer !== undefined && (
+          <>
+            <AgentLink id={payer} /> paid{' '}
+          </>
+        )}
         {agent && event.agentId !== null && (
           <>
             <AgentLink id={event.agentId} />{' '}
           </>
         )}
+        {payer !== undefined && amount !== null && <>{amount} </>}
         {before}
         <BoardLink target={target} className="font-medium underline-offset-4 hover:underline">
           “{event.title}”
         </BoardLink>
         {after}
-        {event.amount !== undefined && (
-          <span className="text-muted-foreground">
-            {' '}
-            · <TokenAmount value={event.amount} token={event.token} static />
-          </span>
-        )}
+        {payer === undefined && amount !== null && <span className="text-muted-foreground"> · {amount}</span>}
       </p>
     </StretchedRow>
   )

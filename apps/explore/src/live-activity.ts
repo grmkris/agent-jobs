@@ -42,9 +42,13 @@ export interface LiveItem {
 
 /**
  * The row's sentence. `agent` says whether it opens with the agent's name (rendered by the caller); `text` follows it.
- * The amount, when the step has one, is shown beside the sentence.
+ * A paid step whose poster is known, and is not the worker, names both: the caller renders "<payer> paid <agent>
+ * <amount>" before `text`, and `payer` is set. Otherwise the amount, when the step has one, is shown beside the sentence.
  */
-export function liveSentence(item: LiveItem): { agent: boolean; text: string } {
+export function liveSentence(
+  item: LiveItem,
+  payer: string | null = null,
+): { agent: boolean; text: string; payer?: string } {
   const named = item.agentId !== null
   const t = `“${item.title}”`
   switch (item.kind) {
@@ -57,7 +61,10 @@ export function liveSentence(item: LiveItem): { agent: boolean; text: string } {
     case 'delivered':
       return named ? { agent: true, text: `delivered ${t}` } : { agent: false, text: `Work was delivered on ${t}` }
     case 'completed':
-      return named ? { agent: true, text: `was paid for ${t}` } : { agent: false, text: `${t} was paid out` }
+      if (!named) return { agent: false, text: `${t} was paid out` }
+      return payer === null || payer === item.agentId
+        ? { agent: true, text: `was paid for ${t}` }
+        : { agent: true, payer, text: `for ${t}` }
     case 'rejected':
       return { agent: false, text: `A delivery on ${t} was rejected` }
     case 'disputed':
