@@ -20,6 +20,8 @@ export const vendoredSkillNames = (): string[] =>
 /** What oxfmt and oxlint must not touch: vendored skills in upstream style, harness link and state directories. */
 export const agentIgnorePatterns = (): string[] => [
   ...vendoredSkillNames().map((name) => `.agents/skills/${name}/**`),
+  // written by scripts/agents-sync.ts in its own JSON style
+  '.agents/skills/sources.json',
   '.claude/skills/**',
   '.codex/**',
   '.grok/**',
