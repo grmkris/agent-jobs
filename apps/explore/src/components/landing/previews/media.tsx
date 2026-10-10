@@ -1,47 +1,38 @@
 import { Play } from 'lucide-react'
+import { Shot } from './Shot.tsx'
 
-/** A player bar: elapsed fill, optional chapter ticks, and the running time. */
-function Scrubber({ at, time, chapters = [] }: { at: number; time: string; chapters?: number[] }) {
+/** A player bar at the start, with the delivery's real running time. */
+function Scrubber({ duration }: { duration: string }) {
   return (
     <div className="sp-scrubber">
       <span className="sp-track">
-        <span className="sp-fill" style={{ width: `${at}%` }} />
-        {chapters.map((c) => (
-          <span key={c} className="sp-tick" style={{ left: `${c}%` }} />
-        ))}
+        <span className="sp-fill" style={{ width: '0%' }} />
       </span>
-      <span className="sp-time">{time}</span>
+      <span className="sp-time">0:00 / {duration}</span>
     </div>
   )
 }
 
-export function VideoPreview() {
+/** A video as delivered: its own poster frame under a paused player. */
+export function PlayerPreview({
+  shot,
+  duration,
+  alt,
+  eager,
+}: {
+  shot: string
+  duration: string
+  alt: string
+  eager?: boolean | undefined
+}) {
   return (
-    <div className="sp-screen">
-      <p className="sp-scene">
-        Hand it <em>off.</em>
-      </p>
+    <div className="sp-screen sp-player">
+      <Shot src={shot} width={800} height={450} alt={alt} eager={eager} />
       <span className="sp-play">
         <Play aria-hidden="true" />
       </span>
-      <p className="sp-caption">Your agent asks three specialists for quotes.</p>
       <div className="sp-controls">
-        <Scrubber at={38} time="0:17 / 0:45" />
-        <span className="sp-chip">CC</span>
-      </div>
-    </div>
-  )
-}
-
-export function DocumentaryPreview() {
-  return (
-    <div className="sp-screen sp-letterbox">
-      <p className="sp-chapter">Chapter 2 · Foundations</p>
-      <p className="sp-scene sp-scene-title">
-        Who pays for <em>open source?</em>
-      </p>
-      <div className="sp-controls">
-        <Scrubber at={46} time="1:14 / 2:41" chapters={[22, 46, 71]} />
+        <Scrubber duration={duration} />
       </div>
     </div>
   )
@@ -54,26 +45,30 @@ const WAVE = Array.from({ length: 34 }, (_, i) => ({
   voice: Math.floor(i / 6) % 2 === 0 ? 'a' : 'b',
 }))
 
-export function PodcastPreview() {
+/** An episode as delivered: its own cover beside a two-voice waveform and its running time. */
+export function PodcastPreview({
+  cover,
+  duration,
+  alt,
+  eager,
+}: {
+  cover: string
+  duration: string
+  alt: string
+  eager?: boolean | undefined
+}) {
   return (
     <div className="sp-podcast">
       <div className="sp-cover">
-        <span className="sp-cover-kicker">Ep. 1</span>
-        <span className="sp-cover-title">
-          Agents, <em>named.</em>
-        </span>
+        <Shot src={cover} width={480} height={480} alt={alt} eager={eager} />
       </div>
       <div className="sp-podcast-body">
-        <div className="sp-voices">
-          <span data-voice="a">Host</span>
-          <span data-voice="b">Guest</span>
-        </div>
-        <div className="sp-wave">
+        <div className="sp-wave" aria-hidden="true">
           {WAVE.map((bar) => (
             <span key={bar.id} data-voice={bar.voice} style={{ height: `${bar.height}%` }} />
           ))}
         </div>
-        <Scrubber at={31} time="1:20 / 4:12" />
+        <Scrubber duration={duration} />
       </div>
     </div>
   )

@@ -1,59 +1,11 @@
-import type { ComponentType } from 'react'
-import { Link } from '@tanstack/react-router'
-import { AgentOrb } from '../agent/AgentOrb.tsx'
 import { SectionHeading } from './landing-shared.tsx'
-import { SHOWCASE, type ShowcaseItem, type ShowcaseKind, showcaseJob } from './showcase-data.ts'
-import { DocumentaryPreview, PodcastPreview, VideoPreview } from './previews/media.tsx'
-import { DashboardPreview, SitePreview } from './previews/web.tsx'
-import { MemoPreview, OnchainPreview, TranslationPreview } from './previews/docs.tsx'
-import { IconsPreview } from './previews/icons.tsx'
-import { stage } from '../../wallet.ts'
-
-const PREVIEW: Record<ShowcaseKind, ComponentType> = {
-  video: VideoPreview,
-  documentary: DocumentaryPreview,
-  podcast: PodcastPreview,
-  site: SitePreview,
-  dashboard: DashboardPreview,
-  memo: MemoPreview,
-  onchain: OnchainPreview,
-  translation: TranslationPreview,
-  icons: IconsPreview,
-}
-
-function ShowcaseCard({ item }: { item: ShowcaseItem }) {
-  const Preview = PREVIEW[item.kind]
-  const jobId = showcaseJob(item, stage)?.jobId
-  return (
-    <article className="showcase-card" data-kind={item.kind}>
-      <div className="showcase-frame">
-        <Preview />
-      </div>
-      <div className="showcase-text">
-        <p className="showcase-label">{item.label}</p>
-        <p className="showcase-ask">“{item.title}”</p>
-      </div>
-      <footer className="showcase-footer">
-        <Link to="/agent/$agentId" params={{ agentId: item.agent.agentId }} className="showcase-agent">
-          <AgentOrb agentId={item.agent.agentId} size="sm" />
-          {item.agent.name}
-        </Link>
-        {jobId !== undefined ? (
-          <Link to="/job/$jobId" params={{ jobId }} className="showcase-status">
-            Delivered · job #{jobId}
-          </Link>
-        ) : (
-          <span className="proof-example">Example</span>
-        )}
-      </footer>
-    </article>
-  )
-}
+import { SHOWCASE } from './showcase-data.ts'
+import { ShowcaseCard } from './ShowcaseCard.tsx'
 
 /** One card per kind of work, each a real delivered job with the specialist that took it. */
 export function ExamplesGallery() {
   return (
-    <section className="showcase" aria-label="What agents deliver (examples)">
+    <section className="showcase" aria-label="What agents deliver">
       <SectionHeading kicker="What agents deliver" title="Ask for the finished thing." />
       <div className="showcase-grid">
         {SHOWCASE.map((item) => (

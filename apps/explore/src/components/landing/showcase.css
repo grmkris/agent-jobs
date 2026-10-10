@@ -112,6 +112,46 @@
   outline-offset: 3px;
 }
 
+/* On its own stage a card opens its job: a link stretched under it, with the agents' links above. */
+.showcase-card {
+  position: relative;
+}
+
+.showcase-open {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+}
+
+.showcase-open:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+}
+
+.showcase-people {
+  position: relative;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+  color: var(--muted-foreground);
+}
+
+.showcase-people .showcase-agent {
+  color: var(--card-foreground);
+}
+
+/* The delivery itself, inside the frame its kind is drawn in. */
+.sp-shot {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top;
+}
+
 /* Shared preview parts. */
 .sp-chip {
   display: inline-block;
@@ -160,15 +200,6 @@
   transform: translateY(-50%);
 }
 
-.sp-tick {
-  position: absolute;
-  top: -0.2em;
-  bottom: -0.2em;
-  width: 0.14em;
-  background: var(--terminal-fg);
-  opacity: 0.6;
-}
-
 .sp-time {
   font-family: var(--font-mono);
   font-size: 0.8em;
@@ -192,20 +223,6 @@
   color: var(--terminal-fg);
 }
 
-.sp-scene {
-  justify-self: start;
-  max-width: 62%;
-  font-family: var(--font-display);
-  font-size: 2.35em;
-  font-weight: 420;
-  line-height: 1;
-  letter-spacing: -0.02em;
-}
-
-.sp-scene em {
-  color: var(--terminal-accent);
-}
-
 .sp-play {
   position: absolute;
   top: 42%;
@@ -227,13 +244,6 @@
   fill: currentColor;
 }
 
-.sp-caption {
-  padding: 0.2em 0.6em;
-  border-radius: 0.3em;
-  background: oklch(0 0 0 / 0.55);
-  font-size: 0.95em;
-}
-
 .sp-controls {
   display: flex;
   align-items: center;
@@ -246,49 +256,6 @@
   background: transparent;
   color: var(--terminal-fg);
   font-size: 0.75em;
-}
-
-/* Documentary: letterboxed, a chapter card over a dusk still. */
-.sp-letterbox {
-  grid-template-rows: auto 1fr auto;
-  justify-items: center;
-  padding-block: 2.6em 0.7em;
-  background:
-    linear-gradient(oklch(0.12 0.01 255) 0 12%, transparent 12% 82%, oklch(0.12 0.01 255) 82%),
-    radial-gradient(90% 70% at 30% 75%, oklch(0.62 0.12 55 / 0.55), transparent 70%),
-    linear-gradient(170deg, oklch(0.3 0.05 250), oklch(0.42 0.07 30));
-  color: oklch(0.97 0.01 80);
-}
-
-.sp-chapter {
-  font-family: var(--font-mono);
-  font-size: 0.75em;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  opacity: 0.8;
-}
-
-.sp-scene-title {
-  align-self: center;
-  justify-self: center;
-  max-width: 80%;
-  font-size: 2.1em;
-  font-style: normal;
-  text-align: center;
-  text-wrap: balance;
-}
-
-.sp-scene-title em {
-  color: oklch(0.86 0.1 70);
-}
-
-.sp-letterbox .sp-fill {
-  background: oklch(0.86 0.1 70);
-}
-
-.sp-letterbox .sp-time,
-.sp-letterbox .sp-tick {
-  color: oklch(0.97 0.01 80);
 }
 
 /* Podcast: cover art beside a two-voice waveform. */
@@ -316,46 +283,11 @@
   box-shadow: 0 0.8em 1.6em -1em oklch(0.2 0.03 255 / 0.6);
 }
 
-.sp-cover-kicker {
-  font-family: var(--font-mono);
-  font-size: 0.75em;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  opacity: 0.85;
-}
-
-.sp-cover-title {
-  font-family: var(--font-display);
-  font-size: 1.75em;
-  line-height: 1;
-  letter-spacing: -0.02em;
-}
-
 .sp-podcast-body {
   display: grid;
   gap: 0.8em;
   min-width: 0;
   color: var(--muted-foreground);
-}
-
-.sp-voices {
-  display: flex;
-  gap: 1em;
-  font-size: 0.85em;
-}
-
-.sp-voices span {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4em;
-}
-
-.sp-voices span::before {
-  content: '';
-  width: 0.6em;
-  height: 0.6em;
-  border-radius: 999px;
-  background: currentColor;
 }
 
 [data-voice='a'] {
@@ -437,136 +369,6 @@
   white-space: nowrap;
 }
 
-.sp-browser-page {
-  padding: 0.8em;
-}
-
-/* The client's own colours: a delivered site looks the same in either theme, like a screenshot. */
-.sp-site {
-  display: grid;
-  gap: 0.7em;
-}
-
-.sp-site-hero {
-  display: grid;
-  justify-items: start;
-  gap: 0.35em;
-  padding: 1em 1.1em;
-  border-radius: 0.5em;
-  background: radial-gradient(70% 120% at 100% 0%, oklch(0.55 0.12 45 / 0.6), transparent 70%), oklch(0.27 0.04 45);
-  color: oklch(0.95 0.025 80);
-}
-
-.sp-site-name {
-  font-family: var(--font-display);
-  font-size: 1.9em;
-  line-height: 1;
-  letter-spacing: -0.02em;
-}
-
-.sp-site-name em {
-  color: oklch(0.78 0.12 65);
-}
-
-.sp-site-tag {
-  font-size: 0.85em;
-  opacity: 0.85;
-}
-
-.sp-site-button {
-  margin-top: 0.3em;
-  padding: 0.25em 0.8em;
-  border-radius: 999px;
-  background: oklch(0.78 0.12 65);
-  color: oklch(0.25 0.04 45);
-  font-size: 0.75em;
-  font-weight: 600;
-}
-
-.sp-site-roasts {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.5em;
-}
-
-.sp-site-roasts li {
-  display: flex;
-  align-items: center;
-  gap: 0.45em;
-  padding: 0.45em 0.55em;
-  border: 1px solid var(--border);
-  border-radius: 0.45em;
-  font-size: 0.8em;
-}
-
-.sp-site-roasts span {
-  width: 1.1em;
-  height: 1.1em;
-  border-radius: 999px;
-  background: oklch(0.55 0.1 50);
-}
-
-.sp-site-roasts [data-roast='1'] span {
-  background: oklch(0.42 0.08 40);
-}
-
-.sp-site-roasts [data-roast='2'] span {
-  background: oklch(0.3 0.05 35);
-}
-
-.sp-dash {
-  display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
-  gap: 0.6em;
-}
-
-.sp-dash-panel {
-  display: grid;
-  align-content: start;
-  gap: 0.5em;
-  padding: 0.6em 0.7em;
-  border: 1px solid var(--border);
-  border-radius: 0.5em;
-}
-
-.sp-dash-label {
-  color: var(--muted-foreground);
-  font-size: 0.72em;
-}
-
-.sp-dash-trend svg {
-  width: 100%;
-  height: 5.4em;
-}
-
-.sp-dash-area {
-  fill: color-mix(in oklch, var(--primary) 16%, transparent);
-}
-
-.sp-dash-line {
-  fill: none;
-  stroke: var(--primary);
-  stroke-width: 1.6;
-  vector-effect: non-scaling-stroke;
-}
-
-.sp-dash-bars {
-  display: grid;
-  gap: 0.22em;
-}
-
-.sp-dash-bars span {
-  height: 0.32em;
-  border-radius: 999px;
-  background: color-mix(in oklch, var(--info-text) 70%, transparent);
-}
-
-.sp-dash-foot {
-  display: flex;
-  grid-column: 1 / -1;
-  gap: 0.4em;
-}
-
 /* Memo, report and translation: a sheet of paper that runs off the bottom of the frame. */
 .sp-paper {
   position: absolute;
@@ -579,120 +381,6 @@
   border-radius: 0.5em;
   background: var(--card);
   box-shadow: 0 1em 2em -1.4em oklch(0.2 0.03 255 / 0.45);
-}
-
-.sp-paper-title {
-  font-family: var(--font-display);
-  font-size: 1.45em;
-  font-weight: 450;
-  line-height: 1.1;
-  letter-spacing: -0.015em;
-}
-
-.sp-paper-title span {
-  margin-left: 0.3em;
-  color: var(--muted-foreground);
-  font-family: var(--font-mono);
-  font-size: 0.5em;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
-.sp-lines {
-  display: grid;
-  gap: 0.45em;
-}
-
-.sp-lines span,
-.sp-memo-cell span {
-  display: block;
-  height: 0.42em;
-  border-radius: 999px;
-  background: color-mix(in oklch, var(--muted-foreground) 24%, transparent);
-}
-
-.sp-memo-table {
-  display: grid;
-  grid-template-columns: minmax(0, 1.4fr) repeat(2, minmax(0, 1fr));
-  column-gap: 1em;
-}
-
-.sp-memo-head {
-  padding-bottom: 0.4em;
-  border-bottom: 1px solid var(--border);
-  color: var(--muted-foreground);
-  font-family: var(--font-mono);
-  font-size: 0.68em;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.sp-memo-cell {
-  padding-block: 0.42em;
-  border-bottom: 1px solid color-mix(in oklch, var(--border) 60%, transparent);
-}
-
-.sp-memo-cell[data-first] span {
-  background: color-mix(in oklch, var(--foreground) 40%, transparent);
-}
-
-.sp-sources {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35em;
-  color: var(--primary);
-  font-family: var(--font-mono);
-  font-size: 0.72em;
-}
-
-.sp-sources span:last-child {
-  margin-left: auto;
-  color: var(--muted-foreground);
-}
-
-.sp-onchain-bars {
-  display: flex;
-  align-items: end;
-  gap: 0.3em;
-  height: 4.2em;
-  padding-bottom: 0.2em;
-  border-bottom: 1px solid var(--border);
-}
-
-.sp-onchain-bars span {
-  flex: 1;
-  border-radius: 0.2em 0.2em 0 0;
-  background: color-mix(in oklch, var(--primary) 55%, transparent);
-}
-
-.sp-onchain-bars span:last-child {
-  background: var(--primary);
-}
-
-.sp-command {
-  justify-self: start;
-  max-width: 100%;
-  overflow: hidden;
-  padding: 0.3em 0.6em;
-  border-radius: 0.35em;
-  background: var(--terminal-bg);
-  color: var(--terminal-fg);
-  font-family: var(--font-mono);
-  font-size: 0.72em;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.sp-command span {
-  color: var(--terminal-accent);
-}
-
-.sp-translation {
-  inset-inline: 1.3em;
-}
-
-.sp-translation .sp-command {
-  font-size: 0.6em;
 }
 
 .sp-tabs {
@@ -712,25 +400,6 @@
   margin-bottom: -1px;
   border-bottom: 2px solid var(--primary);
   color: var(--foreground);
-}
-
-.sp-columns {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1.2em;
-}
-
-.sp-columns > div {
-  display: grid;
-  align-content: start;
-  gap: 0.6em;
-  min-width: 0;
-}
-
-.sp-column-title {
-  font-family: var(--font-display);
-  font-size: 1.2em;
-  line-height: 1.1;
 }
 
 /* Icons: the sheet on a transparency checkerboard. */
@@ -755,6 +424,71 @@
   display: grid;
   grid-template-columns: repeat(5, 2.7em);
   gap: 0.35em;
+}
+
+/* Video: the delivery's own poster under a paused player. */
+.sp-player {
+  padding: 0;
+  background: var(--terminal-bg);
+}
+
+.sp-player .sp-shot {
+  position: absolute;
+  inset: 0;
+}
+
+.sp-player::after {
+  content: '';
+  position: absolute;
+  inset: 52% 0 0;
+  background: linear-gradient(transparent, oklch(0 0 0 / 0.7));
+}
+
+.sp-player .sp-play {
+  z-index: 1;
+  top: 44%;
+  left: 50%;
+  background: oklch(0 0 0 / 0.35);
+  color: oklch(1 0 0);
+}
+
+.sp-player .sp-controls {
+  position: absolute;
+  inset: auto 1.2em 0.9em;
+  z-index: 1;
+  width: auto;
+  color: oklch(1 0 0);
+}
+
+/* Podcast: the episode's own cover. */
+.sp-cover {
+  padding: 0;
+  overflow: hidden;
+  background: var(--muted);
+}
+
+/* Site and dashboard: the captured page fills the window below its address bar. */
+.sp-browser .sp-shot,
+.sp-paper-shot .sp-shot {
+  height: auto;
+}
+
+/* Memo, report and translation: the captured top of the document on its sheet. */
+.sp-paper-shot {
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.sp-paper-shot .sp-tabs {
+  padding: 0.55em 1em 0;
+}
+
+/* Icons: the pack's own pixels, doubled without smoothing. */
+.sp-icon {
+  width: 2em;
+  height: 2em;
+  image-rendering: pixelated;
 }
 
 /* The agents strip. */
