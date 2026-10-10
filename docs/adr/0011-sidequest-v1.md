@@ -265,3 +265,6 @@ Pre-deploy checklist (ethskills security):
 - Bonds require stake: a creator stakes before publishing a bonded offer, a worker before activating one.
 - The vault is the highest-value contract and the focus of the C9 audit.
 - V1 excludes cross-chain settlement.
+
+**Amended (10 Oct 2026) by [ADR-0020](0020-mining-volume-credit.md):** from its cut-over epoch, mining credits gross
+volume at the lowest fee rate, boosted by the worker's held tier and capped at the fee paid, instead of the fee itself.

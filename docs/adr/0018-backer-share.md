@@ -83,3 +83,7 @@ others could prove that, but not prevent it.
   It replaces this off-chain split for job revenue, and needs its own ADR, tests and migration.
 - ADR-0014's "no profit payments" now reads as "no on-chain profit payments"; its profit-sharing note is implemented
   off chain here.
+
+**Amended (10 Oct 2026) by [ADR-0020](0020-mining-volume-credit.md):** from its cut-over epoch, the share is per
+wallet (the highest share among the agent IDs the wallet works under), a cut applies only after the unstake delay,
+positions below 100 SIDE carry no weight, and payments below 1 SIDE stay with the worker.
