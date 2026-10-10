@@ -2,16 +2,8 @@ import { Badge } from '../components/ui/badge.tsx'
 import { Button } from '../components/ui/button.tsx'
 import { Skeleton } from '../components/ui/skeleton.tsx'
 import { cn } from '../lib/cn.ts'
-import {
-  ItemGroup,
-  Item,
-  ItemContent,
-  ItemMedia,
-  ItemTitle,
-  ItemDescription,
-  ItemActions,
-} from '../components/ui/item.tsx'
-import { Address, Row, Section, TxLink, textLinkClass } from '../components/kit.tsx'
+import { ItemGroup } from '../components/ui/item.tsx'
+import { Row, Section, TxLink, shortAddress, textLinkClass } from '../components/kit.tsx'
 import {
   type JobAction,
   type LifecycleInput,
@@ -24,7 +16,6 @@ import { useQuery } from '@tanstack/react-query'
 import { useParams } from '@tanstack/react-router'
 import { ChevronLeft, ChevronRight, CircleAlert, Clock, Lock, ReceiptText } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '../components/ui/alert.tsx'
-import type { ReactNode } from 'react'
 import type { Address as Account } from 'viem'
 import {
   DELIVERABLE_KINDS,
@@ -42,13 +33,14 @@ import { HireAgainLink } from '../components/job/HireAgain.tsx'
 import { LaunchNotice } from '../components/LaunchGate.tsx'
 import { FeeQuote, TopUp } from '../components/job/V1Panels.tsx'
 import { type ActionJob, type JobEvent, JobActions } from '../components/job/JobActions.tsx'
-import { type TimelineEvent, Timeline } from '../components/job/Timeline.tsx'
+import type { TimelineEvent } from '../components/job/Timeline.tsx'
+import { DeliveryHero, JobStory, Parties } from '../components/job/JobParts.tsx'
+import { WalletLink } from '../components/WalletLink.tsx'
+import { useAgentName } from '../components/agent/AgentChip.tsx'
 import { PhaseBadge, Sentence } from '../components/Phase.tsx'
 import { useNow } from '../components/Time.tsx'
 
 import type { useSignedIn } from '../components/Wallet.tsx'
-import { AgentOrb } from '../components/agent/AgentOrb.tsx'
-import { AgentLabel } from '../components/agent/AgentChip.tsx'
 import { TokenAmount } from '../components/token/TokenAmount.tsx'
 import { amount, budgetCap, span, tokenInfo } from '../format.ts'
 import { StakePair } from '../components/job/RequestTerms.tsx'
@@ -64,7 +56,7 @@ import {
   type ForeignOffer,
   type JobOfferFields,
 } from '../job-offer.tsx'
-import { useJobs } from './Jobs.tsx'
+import { useJobs, usePosterAgents } from './Jobs.tsx'
 import { JOBS_LABEL } from '../places.ts'
 
 export type { JobEvent }
@@ -258,6 +250,11 @@ export function JobPage({
   // A token nobody listed (ADR-0010) is read from the chain once, so every amount on the page has its decimals.
   useToken(token)
   const agentId = d?.job.agent_id ?? null
+  const creator = d?.job.creator ?? listed?.creator ?? null
+  const posters = usePosterAgents()
+  const posterAgent =
+    listed?.creatorAgentId ?? (creator === null ? undefined : posters.get(creator.toLowerCase())) ?? null
+  const delivered = d?.job.deliverable != null
   const otherBoard = d?.board != null && d.board.boardId !== currentBoardId() && d.board.boardId !== 'public'
 
   if (chain.isLoading && listed === undefined) return <JobSkeleton />
@@ -340,7 +337,7 @@ export function JobPage({
           )}
           {title !== `Job #${jobId}` && <span>Job #{jobId}</span>}
           <span>
-            · {listed?.quoted === true || d?.foreign_offer?.terms.quote != null ? 'Hire from quotes' : 'Hire'}
+            {listed?.quoted === true || d?.foreign_offer?.terms.quote != null ? 'Hired from quotes' : 'Direct hire'}
           </span>
           <HostedBy origin={offer.origin} />
           {otherBoard && <Badge variant="info">{d?.board?.boardId}</Badge>}
@@ -350,9 +347,13 @@ export function JobPage({
             </Badge>
           ))}
         </div>
+        <Parties
+          creator={creator}
+          posterAgent={posterAgent}
+          workerAgent={agentId !== null && agentId !== '0' ? agentId : null}
+          paid={phase?.key === 'completed'}
+        />
       </header>
-
-      {reward !== null && <Money phase={phase} reward={reward} token={token} agentId={agentId} charge={chargeOf(d)} />}
 
       {waitingForActivation ? (
         <div role="status" className="grid gap-1 rounded-xl bg-card px-4 py-3.5">
@@ -366,19 +367,120 @@ export function JobPage({
         phase !== null && <NextStep phase={phase} />
       )}
 
-      {writesOpen &&
-        phase?.key === 'completed' &&
-        agentId !== null &&
-        auth.address !== undefined &&
-        (d?.job.creator ?? listed?.creator)?.toLowerCase() === auth.address.toLowerCase() && (
-          <div className="grid gap-1.5">
-            <HireAgainLink jobId={jobId} />
-            <p className="px-4 text-ui text-muted-foreground">
-              A new direct hire of Agent ID {agentId} with the same token, reward and terms. You review it before
-              anything is sent.
-            </p>
+      {/* One column on a phone (the work, the money, the rest); two from 1024 px, the money and milestones beside. */}
+      <div
+        className={cn(
+          'grid min-w-0 gap-7 lg:grid-cols-[minmax(0,1fr)_19rem] lg:grid-rows-[auto_1fr] lg:gap-x-8',
+          delivered
+            ? "[grid-template-areas:'hero'_'side'_'body'] lg:[grid-template-areas:'hero_side'_'body_side']"
+            : "[grid-template-areas:'side'_'body'] lg:[grid-template-areas:'body_side'_'body_side']",
+        )}
+      >
+        {delivered && (
+          <div className="grid min-w-0 content-start gap-7 [grid-area:hero]">
+            <DeliveryHero where={{ boardId, taskId, hash: d?.job.deliverable }} jobId={jobId} />
+            <Delivered
+              deliverables={(t?.deliverables ?? []).map((x) => ({
+                deliverable_hash: x.deliverable_hash,
+                descriptor: x.descriptor ?? { kind: 'git', url: x.repo, ref: x.branch, sha: x.sha },
+                check: x.check ?? null,
+              }))}
+              evidence={d?.evidence ?? []}
+            />
           </div>
         )}
+
+        <aside className="grid min-w-0 content-start gap-4 [grid-area:side] lg:sticky lg:top-6 lg:self-start">
+          {reward !== null && (
+            <Money phase={phase} reward={reward} token={token} agentId={agentId} charge={chargeOf(d)} />
+          )}
+          {d !== undefined && (
+            <JobStory
+              events={d.timeline ?? []}
+              phase={phase}
+              job={{ token, reward, agentId, deliveryDeadline: d.job.delivery_deadline, creator: d.job.creator }}
+            />
+          )}
+        </aside>
+
+        <div className="grid min-w-0 content-start gap-7 [grid-area:body]">
+          {screening !== undefined && (screening.verdict === 'reject' || screening.verdict === 'caution') && (
+            // The verdict is advice, but a worker deciding whether to take the job should see it before the brief.
+            // Advice, not a block: the screener also flags ordinary briefs (a competitive teardown, job 16), so not red.
+            <Alert>
+              <CircleAlert aria-hidden />
+              <AlertTitle>
+                {screening.verdict === 'reject'
+                  ? 'An AI screener flagged this brief as risky'
+                  : 'An AI screener flagged this brief for a closer look'}
+              </AlertTitle>
+              <AlertDescription className="[overflow-wrap:anywhere]">
+                {screening.reasons[0] !== undefined && <span className="block">{screening.reasons[0]}</span>}
+                Its verdict is advice; read the brief before you take the job.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {offer.brief !== undefined && (
+            <Section title="The job">
+              <JobOfferBrief offer={offer} met={phase?.key === 'completed'} />
+            </Section>
+          )}
+
+          {d !== undefined && (d.job.violation !== null || d.ruling !== null) && (
+            <Dispute d={d} boardId={boardId} taskId={taskId} signedIn={auth.signedIn} isParty={roles.length > 0} />
+          )}
+
+          {writesOpen &&
+            phase?.key === 'completed' &&
+            agentId !== null &&
+            auth.address !== undefined &&
+            creator?.toLowerCase() === auth.address.toLowerCase() && (
+              <div className="grid gap-1.5">
+                <HireAgainLink jobId={jobId} />
+                <p className="px-4 text-ui text-muted-foreground">
+                  A new direct hire of Agent ID {agentId} with the same token, reward and terms. You review it before
+                  anything is sent.
+                </p>
+              </div>
+            )}
+
+          {writesOpen &&
+            phase?.key === 'hire-open' &&
+            auth.signedIn &&
+            auth.address !== undefined &&
+            !roles.includes('creator') && (
+              <FeeQuote jobId={jobId} holding={sidequest.holding} viewer={auth.address as Account} token={token} />
+            )}
+
+          {writesOpen &&
+            token !== null &&
+            auth.signedIn &&
+            auth.address !== undefined &&
+            phase !== null &&
+            !phase.terminal &&
+            ['active', 'submitted'].includes(t?.chain.status ?? '') && (
+              <TopUp
+                jobId={jobId}
+                holding={sidequest.holding}
+                token={token as Account}
+                viewer={auth.address as Account}
+              />
+            )}
+
+          {writesOpen && listed !== undefined && listed.executionBudget !== null && boardId === currentBoardId() && (
+            <BudgetPanel
+              task={listed}
+              status={t?.chain.status ?? d?.job.status ?? 'unknown'}
+              roles={roles}
+              signedIn={auth.signedIn}
+              address={auth.address}
+            />
+          )}
+
+          <Details d={d} listed={listed} t={t} offer={offer} viewer={auth.address} />
+        </div>
+      </div>
 
       {phase !== null && t !== undefined && taskId !== undefined && !writesOpen && <LaunchNotice />}
 
@@ -404,84 +506,6 @@ export function JobPage({
           onEvent={onEvent}
         />
       )}
-
-      {writesOpen &&
-        phase?.key === 'hire-open' &&
-        auth.signedIn &&
-        auth.address !== undefined &&
-        !roles.includes('creator') && (
-          <FeeQuote jobId={jobId} holding={sidequest.holding} viewer={auth.address as Account} token={token} />
-        )}
-
-      {writesOpen &&
-        token !== null &&
-        auth.signedIn &&
-        auth.address !== undefined &&
-        phase !== null &&
-        !phase.terminal &&
-        ['active', 'submitted'].includes(t?.chain.status ?? '') && (
-          <TopUp jobId={jobId} holding={sidequest.holding} token={token as Account} viewer={auth.address as Account} />
-        )}
-
-      {d !== undefined && (d.timeline?.length ?? 0) > 0 && (
-        <Section title="Progress">
-          <Timeline
-            events={d.timeline ?? []}
-            phase={phase}
-            job={{ token, reward, agentId, deliveryDeadline: d.job.delivery_deadline, creator: d.job.creator }}
-          />
-        </Section>
-      )}
-
-      <Delivered
-        deliverables={(t?.deliverables ?? []).map((x) => ({
-          deliverable_hash: x.deliverable_hash,
-          descriptor: x.descriptor ?? { kind: 'git', url: x.repo, ref: x.branch, sha: x.sha },
-          check: x.check ?? null,
-        }))}
-        evidence={d?.evidence ?? []}
-      />
-
-      {writesOpen && listed !== undefined && listed.executionBudget !== null && boardId === currentBoardId() && (
-        <BudgetPanel
-          task={listed}
-          status={t?.chain.status ?? d?.job.status ?? 'unknown'}
-          roles={roles}
-          signedIn={auth.signedIn}
-          address={auth.address}
-        />
-      )}
-
-      {d !== undefined && (d.job.violation !== null || d.ruling !== null) && (
-        <Dispute d={d} boardId={boardId} taskId={taskId} signedIn={auth.signedIn} isParty={roles.length > 0} />
-      )}
-
-      {screening !== undefined && (screening.verdict === 'reject' || screening.verdict === 'caution') && (
-        // The verdict is advice, but a worker deciding whether to take the job should see it before the brief.
-        // Advice, not a block: the screener also flags ordinary briefs (a competitive teardown, job 16), so not red.
-        <Alert>
-          <CircleAlert aria-hidden />
-          <AlertTitle>
-            {screening.verdict === 'reject'
-              ? 'An AI screener flagged this brief as risky'
-              : 'An AI screener flagged this brief for a closer look'}
-          </AlertTitle>
-          <AlertDescription className="[overflow-wrap:anywhere]">
-            {screening.reasons[0] !== undefined && <span className="block">{screening.reasons[0]}</span>}
-            Its verdict is advice; read the brief before you take the job.
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {offer.brief !== undefined && (
-        <Section title="The job">
-          <JobOfferBrief offer={offer} />
-        </Section>
-      )}
-
-      <People d={d} listed={listed} agentId={agentId} viewer={auth.address} />
-
-      <Details d={d} listed={listed} t={t} offer={offer} />
     </>
   )
 }
@@ -542,7 +566,8 @@ function Money({
   const terminal = phase?.terminal === true
   const draft = phase?.key === 'draft' || phase?.key === 'draft-stale'
   const paid = phase?.key === 'completed'
-  const agent = agentId !== null ? `Worker #${agentId}` : 'the agent'
+  const name = useAgentName(agentId ?? '')
+  const agent = agentId === null ? 'the agent' : (name ?? `Worker #${agentId}`)
   const afterFee = charge === null ? '' : ` less Sidequest’s ${percent(charge.bps)} fee`
   const where = draft
     ? 'Not locked yet: publishing locks it in escrow'
@@ -687,68 +712,74 @@ function Dispute({
   )
 }
 
-function People({
+/** Who pays and judges, by wallet (each opening its card), and the hired agent's wallet. */
+function PeopleRows({
   d,
   listed,
-  agentId,
   viewer,
 }: {
   d: Detail | undefined
   listed: TaskIndexEntry | undefined
-  agentId: string | null
   viewer: string | undefined
 }) {
   const creator = d?.job.creator ?? listed?.creator ?? null
   const approver = d?.job.approver ?? listed?.approver ?? null
-  const worker = d?.job.worker ?? null
-  const same = creator !== null && approver !== null && creator.toLowerCase() === approver.toLowerCase()
-  const me = (a: string | null) => viewer !== undefined && a !== null && a.toLowerCase() === viewer.toLowerCase()
-  const Person = ({ label, address }: { label: string; address: string | null }): ReactNode => (
-    <Item>
-      <ItemContent className="min-w-0 flex-1">{label}</ItemContent>
-      <Address value={address} you={me(address)} />
-    </Item>
-  )
+  const me = (a: string) => viewer !== undefined && a.toLowerCase() === viewer.toLowerCase()
   return (
-    <Section title="People" note={same ? 'The creator also approves the work.' : undefined}>
-      <ItemGroup>
-        <Person label={same ? 'Creator · pays and approves' : 'Creator · pays'} address={creator} />
-        {!same && <Person label="Approver · judges the work" address={approver} />}
-        {agentId !== null && (
-          <Item render={<BoardLink target={boardRoutes().agent(agentId)} />}>
-            <ItemMedia>
-              <AgentOrb agentId={agentId} />
-            </ItemMedia>
-            <ItemContent className="min-w-0 flex-1">
-              <ItemTitle className="block font-medium">
-                <AgentLabel id={agentId} />
-              </ItemTitle>
-              <ItemDescription className="block truncate font-mono text-ui text-muted-foreground">
-                {worker}
-              </ItemDescription>
-            </ItemContent>
-            <ItemActions>
-              <ChevronRight aria-hidden className="size-4 text-muted-foreground" />
-            </ItemActions>
-          </Item>
-        )}
-      </ItemGroup>
-    </Section>
+    <>
+      {creator !== null && (
+        <Row label="Creator" hint="Pays, and approves unless an approver is named">
+          <WalletLink address={creator} />
+          {me(creator) && <span className="block text-ui">You</span>}
+        </Row>
+      )}
+      {approver !== null && creator !== null && approver.toLowerCase() !== creator.toLowerCase() && (
+        <Row label="Approver" hint="Judges the work">
+          <WalletLink address={approver} />
+          {me(approver) && <span className="block text-ui">You</span>}
+        </Row>
+      )}
+      {d?.job.worker != null && (
+        <Row label="Agent wallet">
+          <span className="font-mono text-ui">{shortAddress(d.job.worker)}</span>
+        </Row>
+      )}
+    </>
   )
 }
 
 /** A deposit as SIDE base units, or null when the job has not said. */
 const sideBase = (value: string | null | undefined) => (value === null || value === undefined ? null : BigInt(value))
+/** The deposits each side put at risk on the job. */
+function Deposits({ d, listed }: { d: Detail | undefined; listed: TaskIndexEntry | undefined }) {
+  return (
+    <div className="grid gap-2 py-2 text-sm">
+      <span>
+        Deposits at risk
+        <span className="block text-xs text-muted-foreground">
+          Returned unless a ruling or a missed deadline burns one
+        </span>
+      </span>
+      <StakePair
+        creator={sideBase(d?.job.creator_bond ?? listed?.creatorBond)}
+        worker={sideBase(d?.job.worker_bond ?? listed?.workerBond)}
+      />
+    </div>
+  )
+}
+
 function Details({
   d,
   listed,
   t,
   offer,
+  viewer,
 }: {
   d: Detail | undefined
   listed: TaskIndexEntry | undefined
   t: BoardTask | undefined
   offer: JobOfferFields
+  viewer: string | undefined
 }) {
   const screening = listed?.screening ?? t?.screening
   const windows = offer.windows
@@ -759,24 +790,14 @@ function Details({
         <ChevronRight aria-hidden className="size-4 text-muted-foreground transition-transform group-open:rotate-90" />
       </summary>
       <div className="border-t-[0.5px] border-border px-4 py-2">
+        <PeopleRows d={d} listed={listed} viewer={viewer} />
         {windows !== undefined && (
           <Row label="Windows">
             review {span(windows.reviewSeconds)} · dispute {span(windows.disputeSeconds)} · arbitration{' '}
             {span(windows.arbitrationSeconds)}
           </Row>
         )}
-        <div className="grid gap-2 py-2 text-sm">
-          <span>
-            Deposits at risk
-            <span className="block text-xs text-muted-foreground">
-              Returned unless a ruling or a missed deadline burns one
-            </span>
-          </span>
-          <StakePair
-            creator={sideBase(d?.job.creator_bond ?? listed?.creatorBond)}
-            worker={sideBase(d?.job.worker_bond ?? listed?.workerBond)}
-          />
-        </div>
+        <Deposits d={d} listed={listed} />
         {listed?.executionBudget != null && (
           <Row label="Running-cost budget">up to {budgetCap(listed.executionBudget)}, not escrowed</Row>
         )}

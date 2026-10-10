@@ -38,17 +38,29 @@ async function fetchDelivery(url: string): Promise<RowDelivery | null> {
   return (await res.json()) as RowDelivery
 }
 
-/** The delivery of a job the chain shows as delivered; reads only once `enabled` (a row near the viewport, a card). */
-export function useRowDelivery(job: FeedJob | undefined, enabled: boolean) {
-  const chain = job?.item.chain
-  const boardId = chain?.board_id ?? currentBoardId()
-  const taskId = job?.item.task?.taskId
-  const hash = chain?.deliverable ?? undefined
+/** Where a delivery is recorded: the board that froze the offer, the task, and the chain's deliverable hash. */
+export interface DeliveryWhere {
+  boardId: string
+  taskId: string | undefined
+  hash: string | null | undefined
+}
+
+/** A job's delivery, read once `enabled`; the job page and every row and card of the same job share one read. */
+export function useJobDelivery({ boardId, taskId, hash }: DeliveryWhere, enabled = true) {
   return useQuery({
-    queryKey: ['delivery-preview', boardId, taskId, hash],
+    queryKey: ['delivery-preview', boardId, taskId, hash ?? undefined],
     queryFn: () => fetchDelivery(previewUrl(boardApi(boardId).apiBase, taskId ?? '', hash ?? '')),
-    enabled: enabled && taskId !== undefined && hash !== undefined,
+    enabled: enabled && taskId !== undefined && hash != null,
     staleTime: Number.POSITIVE_INFINITY,
     retry: false,
   })
+}
+
+/** The delivery of a job the chain shows as delivered; reads only once `enabled` (a row near the viewport, a card). */
+export function useRowDelivery(job: FeedJob | undefined, enabled: boolean) {
+  const chain = job?.item.chain
+  return useJobDelivery(
+    { boardId: chain?.board_id ?? currentBoardId(), taskId: job?.item.task?.taskId, hash: chain?.deliverable },
+    enabled,
+  )
 }

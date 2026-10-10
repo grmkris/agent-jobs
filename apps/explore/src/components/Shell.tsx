@@ -113,6 +113,10 @@ function Brand() {
   )
 }
 
+/** How wide a page reads: the landing in full; a job or request in two columns from 1024 px; anything else, one. */
+const pageWidth = (pathname: string) =>
+  pathname === '/' ? 'max-w-7xl' : /\/(job|request)\//.test(pathname) ? 'max-w-5xl' : 'max-w-3xl'
+
 export function Shell({ children }: { children: ReactNode }) {
   const auth = useAuth()
   const account = useAutoSignIn(auth)
@@ -206,7 +210,7 @@ export function Shell({ children }: { children: ReactNode }) {
           key={pathname}
           className={cn(
             'mx-auto grid min-w-0 w-full animate-[view-in_0.32s_var(--ease-sheet)] gap-7 pt-5 pr-[max(1rem,var(--safe-right))] pb-[calc(6.5rem+var(--safe-bottom))] pl-[max(1rem,var(--safe-left))] lg:px-10 lg:pt-10 lg:pb-16',
-            pathname === '/' ? 'max-w-7xl' : 'max-w-3xl',
+            pageWidth(pathname),
           )}
         >
           <LaunchBanner />

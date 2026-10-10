@@ -14,7 +14,7 @@ import { BoardLink, boardRoutes } from '../BoardLink.tsx'
 import { AgentOrb } from './AgentOrb.tsx'
 
 /** The agent's name from what is already loaded; the directory's first page is read once (and kept) only if needed. */
-function useAgentName(id: string, given?: string | null): string | null {
+export function useAgentName(id: string, given?: string | null): string | null {
   const client = useQueryClient()
   const managed = useManagedAgents()
   const entry = client.getQueryData<{ agent: DirectoryAgent }>(['directory-agent', id])?.agent

@@ -1,6 +1,7 @@
 /** Display-only frozen terms from another board; they never create a local board task or action authority. */
 import type { JobTag } from '@sidequest/sdk'
 import type { TaskIndexEntry } from './api.ts'
+import { Brief } from './components/job/JobParts.tsx'
 
 export interface ForeignOffer {
   termsHash: string
@@ -66,23 +67,7 @@ export function OfferIdentity({ offer }: { offer: JobOfferFields }) {
 }
 
 /** The job page's frozen brief and acceptance criteria. */
-export function JobOfferBrief({ offer }: { offer: JobOfferFields }) {
+export function JobOfferBrief({ offer, met = false }: { offer: JobOfferFields; met?: boolean }) {
   if (offer.brief === undefined) return null
-  return (
-    <div className="grid min-w-0 gap-3 rounded-xl bg-card px-4 py-3.5 leading-relaxed">
-      <p className="min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere]">{offer.brief}</p>
-      {offer.criteria.length > 0 && (
-        <div>
-          <p className="text-ui text-muted-foreground">Accepted when</p>
-          <ul className="mt-1 list-disc pl-5">
-            {offer.criteria.map((criterion) => (
-              <li key={criterion} className="[overflow-wrap:anywhere]">
-                {criterion}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </div>
-  )
+  return <Brief brief={offer.brief} criteria={offer.criteria} met={met} />
 }
