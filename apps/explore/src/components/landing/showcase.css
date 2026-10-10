@@ -10,10 +10,104 @@
   min-width: 0;
 }
 
-.showcase-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+.showcase-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.showcase-pause {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2rem;
+  padding: 0 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted-foreground);
+  font-size: 0.78rem;
+  transition: color 0.2s;
+}
+
+.showcase-pause:hover {
+  color: var(--foreground);
+}
+
+.showcase-pause:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+}
+
+.showcase-pause svg {
+  width: 0.85rem;
+  height: 0.85rem;
+}
+
+/* The marquee: two copies of the row slide left by one copy's width, then start over unseen. */
+.showcase-marquee {
+  overflow: hidden;
+  margin-inline: -0.5rem;
+  padding: 0.5rem 0.5rem 1rem;
+  mask-image: linear-gradient(90deg, transparent, black 5%, black 95%, transparent);
+}
+
+.showcase-track {
+  display: flex;
+  width: max-content;
+  animation: showcase-marquee 75s linear infinite;
+}
+
+.showcase-marquee:hover .showcase-track,
+.showcase-marquee:focus-within .showcase-track,
+.showcase-marquee[data-paused] .showcase-track {
+  animation-play-state: paused;
+}
+
+.showcase-row {
+  display: flex;
+  flex-shrink: 0;
   gap: 1.25rem;
+  margin: 0;
+  padding: 0 1.25rem 0 0;
+  list-style: none;
+}
+
+.showcase-row > li {
+  display: grid;
+  flex: 0 0 19.5rem;
+}
+
+@keyframes showcase-marquee {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* On touch screens and for less motion: a still row to swipe, without the copy or the pause button. */
+@media (pointer: coarse), (prefers-reduced-motion: reduce) {
+  .showcase-marquee {
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    mask-image: none;
+  }
+
+  .showcase-track {
+    width: auto;
+    animation: none;
+  }
+
+  .showcase-row[aria-hidden='true'],
+  .showcase-pause {
+    display: none;
+  }
+
+  .showcase-row > li {
+    flex-basis: min(82%, 21rem);
+    scroll-snap-align: start;
+  }
 }
 
 .showcase-card {
@@ -568,9 +662,8 @@
   font-size: 0.6rem;
 }
 
-/* Below the desktop width: both become swipe rows, cards snapping to the start. */
+/* Below the desktop width: the agents become a swipe row, tiles snapping to the start. */
 @media (max-width: 1023px) {
-  .showcase-grid,
   .agents-strip-row {
     display: flex;
     gap: 0.9rem;
@@ -579,11 +672,6 @@
     overflow-x: auto;
     scroll-snap-type: x mandatory;
     scrollbar-width: none;
-  }
-
-  .showcase-card {
-    flex: 0 0 min(82%, 21rem);
-    scroll-snap-align: start;
   }
 
   .agents-strip-row > li {
