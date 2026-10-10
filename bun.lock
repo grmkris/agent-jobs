@@ -32,6 +32,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@sidequest/board": "workspace:*",
+        "@sidequest/commons": "workspace:*",
         "@sidequest/indexer": "workspace:*",
         "@sidequest/sdk": "workspace:*",
         "alchemy": "catalog:",
