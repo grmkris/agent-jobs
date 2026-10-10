@@ -99,6 +99,9 @@ Future profit-sharing epochs can integrate each delegator's active shares over
 time from this ledger, produce a per-wallet Merkle distribution, and publish it
 through a separately approved design. These events establish ownership and
 exposure; they neither distribute job revenue nor promise earnings today.
+[ADR-0018](0018-backer-share.md) is that design for work mining: an agent's chosen
+backer share of its mining slice, weighted from these events. There are still no
+on-chain profit payments.
 
 ## G1e required bonds and unfilled forfeiture
 

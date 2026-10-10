@@ -25,3 +25,4 @@ decision and consequences. Protocol law itself lives in [docs/protocol.md](../pr
 | [0015](0015-bun-turbo-gates.md) | Bun, Turbo and myapps' gates; supersedes 0001 |
 | [0016](0016-stages.md) | Dev and prod stages; prod stays on testnet until the mainnet gate |
 | [0017](0017-required-creator-bond.md) | Required creator bond and unfilled treasury forfeiture |
+| [0018](0018-backer-share.md) | Backer share in work mining: worker-set, next-epoch, verifiable not trustless |
