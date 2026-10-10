@@ -35,7 +35,7 @@ import { postedJustNow } from '../job-list.ts'
 
 import type { useSignedIn } from '../components/Wallet.tsx'
 import { AgentOrb } from '../components/agent/AgentOrb.tsx'
-import { AgentLabel } from '../components/agent/AgentChip.tsx'
+import { AgentLabel, AgentLink } from '../components/agent/AgentChip.tsx'
 import { TokenAmount } from '../components/token/TokenAmount.tsx'
 import { TOKENS } from '../format.ts'
 import { writesOpen } from '../wallet.ts'
@@ -516,6 +516,15 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
                     <dd className="font-medium tabular-nums">{quotesCount === 0 ? 'None yet' : quotesCount}</dd>
                     <dd className="text-ui text-muted-foreground">Amounts stay private</dd>
                   </div>
+                  {r.invite != null && (
+                    <div className="col-span-2 grid gap-0.5">
+                      <dt className="text-ui text-muted-foreground">Invited to quote</dt>
+                      <dd>
+                        <AgentLink id={r.invite.agentId} orb />
+                      </dd>
+                      <dd className="text-ui text-muted-foreground">Anyone else may quote too</dd>
+                    </div>
+                  )}
                   <div className="col-span-2 grid gap-0.5">
                     <dt className="text-ui text-muted-foreground">Posted</dt>
                     <dd className="font-medium">

@@ -162,6 +162,8 @@ export interface QuoteRequest {
   creatorAgentId?: string | null
   /** On an open request with a budget: whether what can fund the pick covers it now; null when unreadable. */
   budgetCovered?: boolean | null
+  /** The one agent the creator invited to quote; the request stays open to every bidder. */
+  invite?: { agentId: string; wallet: string } | null
   creator: string
   title: string
   brief: string
