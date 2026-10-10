@@ -23,6 +23,30 @@ describe('store', () => {
 })
 
 describe('additive migration', () => {
+  it('adds quote invite columns without changing earlier requests, and migrates twice safely', () => {
+    const db = new DatabaseSync(':memory:')
+    try {
+      const sql = fromNodeSqlite(db)
+      sql.run(
+        'CREATE TABLE quote_requests (id TEXT PRIMARY KEY, creator TEXT NOT NULL, stack TEXT NOT NULL, request_json TEXT NOT NULL, request_hash TEXT NOT NULL, quote_deadline INTEGER NOT NULL, task_id TEXT, created_at INTEGER NOT NULL)',
+      )
+      sql.run("INSERT INTO quote_requests VALUES ('r1', '0xc', 'main', '{}', '0xh', 20, NULL, 10)")
+      migrate(sql)
+      migrate(sql)
+      expect(sql.all('SELECT id, request_hash, invited_agent, invited_wallet FROM quote_requests')).toEqual([
+        { id: 'r1', request_hash: '0xh', invited_agent: null, invited_wallet: null },
+      ])
+      expect(sql.all<{ name: string; type: string }>('PRAGMA table_info(quote_requests)')).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ name: 'invited_agent', type: 'TEXT' }),
+          expect.objectContaining({ name: 'invited_wallet', type: 'TEXT' }),
+        ]),
+      )
+    } finally {
+      db.close()
+    }
+  })
+
   it('adds a column a table created by an earlier version lacks', () => {
     const sql = fromNodeSqlite(new DatabaseSync(':memory:'))
     sql.run(

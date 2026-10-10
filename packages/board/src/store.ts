@@ -308,6 +308,8 @@ const ADDED_COLUMNS: ReadonlyArray<[table: string, column: string, type: string]
   // ADR-0019: the agent that posted (its ERC-8004 id), when the board resolved one at posting time.
   ['tasks', 'creator_agent_id', 'TEXT'],
   ['quote_requests', 'creator_agent_id', 'TEXT'],
+  ['quote_requests', 'invited_agent', 'TEXT'],
+  ['quote_requests', 'invited_wallet', 'TEXT'],
 ]
 
 /**
@@ -429,6 +431,9 @@ export interface QuoteRequestRow {
   created_at: number
   /** ADR-0019: the posting agent, resolved when the request was made; null for older rows and plain wallets. */
   creator_agent_id?: string | null
+  /** The invited ERC-8004 agent and its resolved wallet, when this request names one. */
+  invited_agent?: string | null
+  invited_wallet?: string | null
 }
 
 export interface QuoteRow {

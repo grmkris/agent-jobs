@@ -211,7 +211,19 @@ interface QuoteRequestRead {
   quotesCount: number
   creatorAgentId?: string | null
   budgetCovered?: boolean | null
+  invite: { agentId: string; wallet: string } | null
   [key: string]: unknown
+}
+
+function isQuoteInvite(value: unknown): value is { agentId: string } {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'agentId' in value &&
+    typeof value.agentId === 'string' &&
+    /^[1-9]\d*$/.test(value.agentId) &&
+    BigInt(value.agentId) < 2n ** 256n
+  )
 }
 
 /** An EIP-712 message for the caller's wallet: `cast wallet sign --data '<json>'`, or `eth_signTypedData_v4`. */
@@ -1694,6 +1706,8 @@ export class Board {
       deliverable?: DeliverableSpec
       /** A public maximum price in one token; the request then accepts only that token and refuses quotes above it. */
       budget?: { token: string; max: string }
+      /** Optional public invite to one agent; the request remains open to every bidder. */
+      invite?: { agentId: string }
       idempotencyKey?: string
       /** ADR-0019: the ERC-8004 agent posting, when the signed-in wallet is that agent's own (not needed when hosted). */
       agentId?: string
@@ -1784,6 +1798,19 @@ export class Board {
       creatorBond: parseUnits(creatorBond, 18),
       workerBond: parseUnits(workerBond, 18),
     })
+    let invited: { worker: Address; agentId: string } | undefined
+    if (input.invite !== undefined) {
+      if (!isQuoteInvite(input.invite))
+        throw new BoardError('invalid', 'invite.agentId must be a nonzero uint256 decimal string')
+      const agentId = input.invite.agentId
+      const worker = await sdk.agentWallet(ctx, BigInt(agentId))
+      if (worker === zeroAddress || [creator, request.approver, request.arbitrator].some((a) => eq(a, worker)))
+        throw new BoardError(
+          'invalid',
+          'the invited agent must have a registered wallet distinct from creator, approver and arbitrator',
+        )
+      invited = { worker, agentId }
+    }
     const requestJson = canonicalJson(request)
     const requestHash = sdk.hashText(requestJson)
     const id = randomId(8)
@@ -1791,7 +1818,7 @@ export class Board {
       const prior = this.#idempotent<QuotePreparation>(creator, 'request_quotes', input.idempotencyKey)
       if (prior !== undefined) return this.#withRequestDeadlines(prior)
       this.#sql.run(
-        'INSERT INTO quote_requests (id, creator, stack, request_json, request_hash, quote_deadline, task_id, created_at, creator_agent_id) VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?)',
+        'INSERT INTO quote_requests (id, creator, stack, request_json, request_hash, quote_deadline, task_id, created_at, creator_agent_id, invited_agent, invited_wallet) VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?)',
         id,
         creator,
         stack,
@@ -1800,6 +1827,8 @@ export class Board {
         input.quoteDeadline,
         now,
         posterAgent,
+        invited?.agentId ?? null,
+        invited?.worker ?? null,
       )
       return this.#withRequestDeadlines(
         this.#remember(creator, 'request_quotes', input.idempotencyKey, {
@@ -1815,12 +1844,24 @@ export class Board {
   /** The deadlines the stored request froze, so a retry reports what was agreed, not what its arguments resolve to now. */
   #withRequestDeadlines(
     prepared: QuotePreparation,
-  ): QuotePreparation & { deliveryDeadline: number; quoteDeadline: number } {
-    const request = JSON.parse(this.#quoteRequest(prepared.requestId).request_json) as {
+  ): QuotePreparation & { deliveryDeadline: number; quoteDeadline: number; invite: QuoteRequestRead['invite'] } {
+    const row = this.#quoteRequest(prepared.requestId)
+    const request = JSON.parse(row.request_json) as {
       deliveryDeadline: number
       quoteDeadline: number
     }
-    return { ...prepared, deliveryDeadline: request.deliveryDeadline, quoteDeadline: request.quoteDeadline }
+    return {
+      ...prepared,
+      deliveryDeadline: request.deliveryDeadline,
+      quoteDeadline: request.quoteDeadline,
+      invite: this.#requestInvite(row),
+    }
+  }
+
+  #requestInvite(row: QuoteRequestRow): QuoteRequestRead['invite'] {
+    return row.invited_agent == null || row.invited_wallet == null
+      ? null
+      : { agentId: row.invited_agent, wallet: row.invited_wallet }
   }
 
   /** A request's budget as named: a token this stack can pay in and a positive maximum in its units. */
@@ -1942,6 +1983,7 @@ export class Board {
       // One quote per bidder (UNIQUE request_id, worker), so this counts bidders.
       quotesCount: counts.get(r.id) ?? 0,
       ...(r.creator_agent_id == null ? {} : { creatorAgentId: r.creator_agent_id }),
+      invite: this.#requestInvite(r),
     }))
   }
 
@@ -2171,7 +2213,14 @@ export class Board {
         quoteHash: q.quote_hash,
       })
     }
-    return { requestId: req.id, requestHash: req.request_hash, creator: req.creator, picked: req.task_id, quotes: out }
+    return {
+      requestId: req.id,
+      requestHash: req.request_hash,
+      creator: req.creator,
+      picked: req.task_id,
+      invite: this.#requestInvite(req),
+      quotes: out,
+    }
   }
 
   /**
