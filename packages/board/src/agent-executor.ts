@@ -278,7 +278,7 @@ export class AgentExecutor {
 
   async #backerShare(input: AgentExecuteInput, operation: AgentOperationRow, agent: AgentRow) {
     const saved = this.agents.step<AgentPreparedCall>(operation.id, 'action')
-    if (saved !== undefined) return { action: saved }
+    if (saved !== undefined) return { action: this.#readyToSend(operation.id, saved) }
     const bps = Number(input.args.bps)
     if (bps !== input.args.bps || Object.keys(input.args).some((key) => key !== 'bps'))
       throw new AgentFailure(
@@ -328,7 +328,14 @@ export class AgentExecutor {
     if (hash === undefined)
       return { approval: this.agents.requestApproval(this.agents.operation(operation.id), 'permission', request) }
     const action = jsonOutput({ ...permissions.use(agent, hash, { bps }), bps, agentId: agent.agent_id })
-    return { action: this.agents.freezeStep(operation.id, 'action', action) }
+    return { action: this.#readyToSend(operation.id, this.agents.freezeStep(operation.id, 'action', action)) }
+  }
+
+  /** A standing redemption skips approval, so it must reach `prepared` itself: the sponsor only sends ready operations. */
+  #readyToSend(operationId: Hex, action: AgentPreparedCall): AgentPreparedCall {
+    if (this.agents.operation(operationId).stage === 'intent')
+      this.agents.saveOperation(operationId, 'prepared', { prepared: action })
+    return action
   }
 
   async #backerSharePermission(

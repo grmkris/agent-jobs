@@ -38,7 +38,13 @@ async function fixture() {
       recordCalls(address, operator.address, entries, chain)
       if (address.toLowerCase() === operator.address.toLowerCase() && entries.length > 0)
         recordSponsorSend(sql, address, key, clock.now)
-      if (operationId !== undefined) sql.run("UPDATE agent_operations SET stage='sending' WHERE id=?", operationId)
+      if (operationId !== undefined) {
+        // The real SponsorDesk.submit refuses an agent operation that is not ready to send (sponsor.ts).
+        const stage = sql.all<{ stage: string }>('SELECT stage FROM agent_operations WHERE id=?', operationId)[0]?.stage
+        if (!['prepared', 'signed', 'approval'].includes(stage ?? ''))
+          throw new Error('agent operation is not ready for this send')
+        sql.run("UPDATE agent_operations SET stage='sending' WHERE id=?", operationId)
+      }
       return {
         operationId: `0x${'ab'.repeat(32)}` as const,
         callsUsed: 1,
