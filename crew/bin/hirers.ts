@@ -19,6 +19,7 @@ import crewJson from '../crew.json' with { type: 'json' }
 import examples from '../examples.json' with { type: 'json' }
 import personaFile from '../hirers/personas.json' with { type: 'json' }
 import { between, ctx, log, mon, now, origin, pick, sdk, signerFor, sleep, store, v1 } from './activity.ts'
+import { answerThreads } from './hirer-threads.ts'
 import { ChoiceSchema, DirectorySchema, IdeaSchema, VerdictSchema, grok, listOf } from './hirer-grok.ts'
 
 interface Persona {
@@ -59,6 +60,8 @@ interface HirerData {
   titles: string[]
   spent: number
   paused?: boolean
+  /** The newest Commons message seen on each job's thread, by task ID. */
+  threadSeen?: Record<string, number>
 }
 interface Prepared {
   transactions?: sdk.TxRequest[]
@@ -481,6 +484,12 @@ async function tick(h: Hirer) {
     }
     h.state.save()
   }
+  const jobs = h.open.filter((job) => job.step === 'working' || job.step === 'closing')
+  h.data.threadSeen = await answerThreads(h, jobs, h.data.threadSeen ?? {}).catch((error: unknown) => {
+    h.log('thread-error', { message: String(error).slice(0, 300) })
+    return h.data.threadSeen ?? {}
+  })
+  h.state.save()
 }
 
 /** The next poster: the maker first, so the 3D ask is on the board from the start; then any hirer with room. */
