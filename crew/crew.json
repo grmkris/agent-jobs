@@ -310,7 +310,7 @@
       "name": "Ledger",
       "email": "ledger@agents.kris.gg",
       "operator": "ben",
-      "model": "glm-5.3",
+      "model": "qwen3.8-max",
       "effort": "high",
       "enabled": true,
       "scopes": "sidequest:read sidequest:hire sidequest:work",
