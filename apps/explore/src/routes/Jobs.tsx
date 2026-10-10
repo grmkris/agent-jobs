@@ -4,15 +4,15 @@ import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '../components/
 import { Alert, AlertDescription } from '../components/ui/alert.tsx'
 import { ItemGroup, Item, ItemTitle, ItemContent, ItemActions } from '../components/ui/item.tsx'
 import { LoadingRows, Segmented, shortAddress } from '../components/kit.tsx'
-import { type Phase, quoteRequestPhase } from '@sidequest/react'
-import { JOB_TAG_LABELS, JOB_TAGS, type JobTag } from '@sidequest/sdk'
+import type { Phase } from '@sidequest/react'
+import { JOB_TAG_LABELS, type JobTag } from '@sidequest/sdk'
 import { useQueries, useQuery } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
-import { BriefcaseBusiness, Check, ChevronRight, Search, Tag as TagIcon, TriangleAlert } from 'lucide-react'
+import { BriefcaseBusiness, Check, ChevronRight, Tag as TagIcon, TriangleAlert } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { type QuoteRequest, type TaskIndexEntry, chainJobs, currentBoardId, fetchDirectory, taskIndex } from '../api.ts'
-import { boardRoutes } from '../components/BoardLink.tsx'
-import { PhaseBadge, phaseOf } from '../components/Phase.tsx'
+import { BoardLink, boardRoutes } from '../components/BoardLink.tsx'
+import { PhaseBadge } from '../components/Phase.tsx'
+import { ReadNotice, SearchBox, TagChips, readTags } from '../components/JobFilters.tsx'
 import { JobsHeader } from '../components/JobsHeader.tsx'
 import { NeedsYou } from '../components/NeedsYou.tsx'
 import { useMinute } from '../components/Time.tsx'
@@ -27,12 +27,13 @@ import { relative } from '../format.ts'
 import {
   type JobListItem,
   type View,
-  listPhase,
+  jobTarget,
   postedAt,
   postedJustNow,
   posterOf,
   rowCountdown,
   rowKey,
+  rowPhase,
   sortRows,
   tagsOf,
   titleOf,
@@ -42,7 +43,6 @@ import { useManagedAgents } from '../managed.ts'
 import { useQuoteRequests } from '../quote-requests.ts'
 import { useToken } from '../useTokens.ts'
 import { HostedBy } from '../job-offer.tsx'
-import { cn } from '../lib/cn.ts'
 
 export type { JobListItem } from '../job-list.ts'
 
@@ -150,21 +150,6 @@ function rowNote(phase: Phase | null, agentId: string | null | undefined): strin
   }
 }
 
-/** The phase of a list row: a quote request's from its public facts, a job's from chain and board records. */
-function rowPhase(item: JobListItem, viewer: string | undefined, now: number): Phase | null {
-  const r = item.request
-  if (r !== undefined) {
-    return listPhase(
-      quoteRequestPhase(
-        { quoteDeadline: r.quoteDeadline, quotes: r.quotesCount ?? 0, picked: r.taskId != null, creator: r.creator },
-        viewer,
-        now,
-      ),
-    )
-  }
-  return phaseOf(item.chain, item.task, viewer, now)
-}
-
 /** The hosted or listed agent behind each poster wallet this viewer can name: its own agents, then the directory. */
 export function usePosterAgents(): Map<string, string> {
   const managed = useManagedAgents()
@@ -181,13 +166,10 @@ export function usePosterAgents(): Map<string, string> {
 function readView(): { view: View; q: string; tags: JobTag[] } {
   const p = new URLSearchParams(window.location.search)
   const v = p.get('view')
-  const tags = (p.get('tags') ?? '')
-    .split(',')
-    .filter((tag): tag is JobTag => (JOB_TAGS as readonly string[]).includes(tag))
   return {
     view: v === 'open' || v === 'progress' || v === 'done' || v === 'mine' ? v : 'all',
     q: p.get('q') ?? '',
-    tags: [...new Set(tags)],
+    tags: readTags(p.get('tags')),
   }
 }
 
@@ -278,16 +260,7 @@ export function JobsPage() {
       )}
 
       <div className="grid min-w-0 grid-cols-1 gap-2 md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)] md:items-center">
-        <label className="flex min-h-8 items-center gap-2 rounded-lg border border-input px-2.5 text-muted-foreground transition-colors duration-(--dur-fast) focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 pointer-coarse:min-h-11">
-          <Search aria-hidden className="size-4 shrink-0" />
-          <input
-            value={q}
-            onChange={(e) => setFilter({ view, q: e.target.value, tags })}
-            placeholder="Search jobs"
-            aria-label="Search jobs"
-            className="min-w-0 flex-1 bg-transparent text-base text-foreground outline-none md:text-sm"
-          />
-        </label>
+        <SearchBox value={q} onChange={(value) => setFilter({ view, q: value, tags })} />
         <Segmented
           label="Which jobs"
           value={view}
@@ -303,57 +276,15 @@ export function JobsPage() {
           )}
         />
       </div>
-      <div role="group" className="flex min-w-0 flex-wrap items-center gap-2" aria-label="Filter by tags">
-        <span className="mr-1 text-xs font-medium text-muted-foreground">Tags</span>
-        {JOB_TAGS.map((tag) => {
-          const on = tags.includes(tag)
-          return (
-            <button
-              key={tag}
-              type="button"
-              aria-pressed={on}
-              onClick={() => setFilter({ view, q, tags: on ? tags.filter((t) => t !== tag) : [...tags, tag] })}
-              className={cn(
-                'min-h-8 rounded-full px-3 text-sm font-medium transition-colors pointer-coarse:min-h-11',
-                on ? 'bg-primary/14 text-primary' : 'bg-muted text-muted-foreground hover:text-foreground',
-              )}
-            >
-              {JOB_TAG_LABELS[tag]}
-            </button>
-          )
-        })}
-        {tags.length > 0 && (
-          <button
-            type="button"
-            className="min-h-8 px-2 text-xs text-muted-foreground underline underline-offset-4"
-            onClick={() => setFilter({ view, q, tags: [] })}
-          >
-            Clear
-          </button>
-        )}
-      </div>
+      <TagChips tags={tags} onChange={(next) => setFilter({ view, q, tags: next })} />
 
-      {(chainError !== null || boardError !== null) && (
-        <div role="status" className="grid gap-2 rounded-xl bg-warning/14 p-4 text-sm text-warning-text">
-          {chainError !== null && (
-            <p>
-              Chain data is unavailable.
-              {chainReady
-                ? ` Showing last-known chain facts from ${new Date(chainUpdatedAt).toLocaleString()}; statuses have not been changed.`
-                : ' Payment statuses and counts cannot be confirmed.'}
-            </p>
-          )}
-          {boardError !== null && (
-            <p>
-              Board details are unavailable. Existing chain facts still determine payment status; some titles or board
-              details may be missing.
-            </p>
-          )}
-          <Button variant="secondary" onClick={() => void refetch()}>
-            Retry
-          </Button>
-        </div>
-      )}
+      <ReadNotice
+        chainError={chainError}
+        boardError={boardError}
+        chainReady={chainReady}
+        chainUpdatedAt={chainUpdatedAt}
+        onRetry={() => void refetch()}
+      />
 
       {chainUnavailable ? (
         <Empty>
@@ -484,30 +415,14 @@ export function JobRow({
     routes.boardId === 'public' && item.chain?.board_id != null && item.chain.board_id !== 'public'
       ? item.chain.board_id
       : null
-  const target =
-    request !== undefined
-      ? routes.request(request.requestId)
-      : item.jobId === null
-        ? { to: '/account', search: { resume: item.task?.taskId ?? '', board: routes.boardId } }
-        : other !== null
-          ? { to: '/b/$boardId/job/$jobId', params: { boardId: other, jobId: item.jobId } }
-          : routes.job(item.jobId)
+  const target = jobTarget(item, routes.boardId)
   const countdown = rowCountdown(phase)
   const posted = postedAt(item)
   const poster = posterOf(item)
   const tags = tagsOf(item)
   const screened = (request === undefined ? item.task?.screening?.verdict : undefined) === 'reject'
   return (
-    <Item
-      className="items-start py-3 active:bg-muted sm:items-center"
-      render={
-        <Link
-          to={target.to as '/'}
-          params={(target.params ?? {}) as never}
-          search={('search' in target ? target.search : undefined) as never}
-        />
-      }
-    >
+    <Item className="items-start py-3 active:bg-muted sm:items-center" render={<BoardLink target={target} />}>
       {request !== undefined ? (
         // Not hired yet: an open ring, where a job shows its worker's orb.
         <span className="grid size-10 shrink-0 place-items-center rounded-full border border-dashed border-muted-foreground/45 text-muted-foreground">

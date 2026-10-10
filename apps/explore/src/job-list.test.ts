@@ -1,7 +1,17 @@
 import { quoteRequestPhase, type Phase } from '@sidequest/react'
 import { describe, expect, it } from 'vitest'
-import type { QuoteRequest } from './api.ts'
-import { type JobListItem, listPhase, postedAt, postedJustNow, rowCountdown, sortRows, viewOf } from './job-list.ts'
+import type { ChainJob, QuoteRequest, TaskIndexEntry } from './api.ts'
+import {
+  type JobListItem,
+  jobTarget,
+  listPhase,
+  postedAt,
+  postedJustNow,
+  rowCountdown,
+  rowPhase,
+  sortRows,
+  viewOf,
+} from './job-list.ts'
 
 const creator = '0x1111111111111111111111111111111111111111'
 const viewer = '0x2222222222222222222222222222222222222222'
@@ -63,5 +73,42 @@ describe('the single Jobs list', () => {
     expect(postedJustNow(1031, 1000)).toBe(true)
     expect(postedJustNow(1000, 1059)).toBe(true)
     expect(postedJustNow(1000, 1060)).toBe(false)
+  })
+
+  it('reads a request row from its public facts and a job row from the chain', () => {
+    const open: QuoteRequest = { ...request('r1', 100), quoteDeadline: 2000, quotesCount: 1, taskId: null }
+    expect(rowPhase({ jobId: null, task: undefined, chain: undefined, request: open }, viewer, 1000)?.key).toBe(
+      'quotes-open',
+    )
+    const closed: QuoteRequest = { ...open, quoteDeadline: 900 }
+    expect(rowPhase({ jobId: null, task: undefined, chain: undefined, request: closed }, viewer, 1000)?.label).toBe(
+      'Closed · no pick',
+    )
+    expect(rowPhase({ jobId: '9', task: undefined, chain: undefined }, viewer, 1000)).toBeNull()
+  })
+
+  it("opens a request's page, a draft's resume, and a tenant board's job on that board", () => {
+    const base = { task: undefined, chain: undefined }
+    expect(jobTarget({ ...base, jobId: null, request: request('r1', 1) }, 'public')).toEqual({
+      to: '/request/$requestId',
+      params: { requestId: 'r1' },
+    })
+    // SAFETY: a draft's link reads only the task's id.
+    const draft = { taskId: 't1' } as TaskIndexEntry
+    expect(jobTarget({ ...base, jobId: null, task: draft }, 'acme')).toEqual({
+      to: '/account',
+      search: { resume: 't1', board: 'acme' },
+    })
+    // SAFETY: a job's link reads only the board its offer was frozen on.
+    const tenant = { board_id: 'acme' } as ChainJob
+    expect(jobTarget({ ...base, jobId: '4', chain: tenant }, 'public')).toEqual({
+      to: '/b/$boardId/job/$jobId',
+      params: { boardId: 'acme', jobId: '4' },
+    })
+    expect(jobTarget({ ...base, jobId: '4', chain: tenant }, 'acme')).toEqual({
+      to: '/b/$boardId/job/$jobId',
+      params: { boardId: 'acme', jobId: '4' },
+    })
+    expect(jobTarget({ ...base, jobId: '5' }, 'public')).toEqual({ to: '/job/$jobId', params: { jobId: '5' } })
   })
 })

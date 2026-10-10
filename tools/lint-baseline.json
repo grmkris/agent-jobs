@@ -870,11 +870,9 @@
   },
   "apps/explore/src/routes/Jobs.tsx": {
     "anti-slop(no-unknown-returns)": 1,
-    "anti-slop(require-safety-comment-for-type-assertion)": 6,
+    "anti-slop(require-safety-comment-for-type-assertion)": 2,
     "complexity(complexity)": 2,
-    "eslint(max-lines)": 1,
     "eslint(max-lines-per-function)": 2,
-    "jsx-a11y(prefer-tag-over-role)": 2,
     "typescript(no-unnecessary-boolean-literal-compare)": 1,
     "typescript(no-unnecessary-type-assertion)": 1,
     "typescript(switch-exhaustiveness-check)": 1

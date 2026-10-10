@@ -3,8 +3,10 @@ import type { JobTag } from '@sidequest/sdk'
  * The single Jobs list: on-chain jobs and quote requests as one set of rows, which filter each belongs to, which
  * deadline its countdown runs to, and the order (open work first, soonest deadline first, then newest).
  */
-import type { Phase } from '@sidequest/react'
+import { type Phase, quoteRequestPhase } from '@sidequest/react'
 import type { ChainJob, QuoteRequest, TaskIndexEntry } from './api.ts'
+import { type LinkTarget, boardRoutes } from './components/BoardLink.tsx'
+import { phaseOf } from './components/Phase.tsx'
 
 export interface JobListItem {
   jobId: string | null
@@ -33,6 +35,33 @@ export function listPhase(phase: Phase): Phase {
   return phase.key === 'quotes-closed' && !phase.roles.includes('creator')
     ? { ...phase, label: 'Closed · no pick' }
     : phase
+}
+
+/** The phase of a row: a quote request's from its public facts, a job's from chain and board records. */
+export function rowPhase(item: JobListItem, viewer: string | undefined, now: number): Phase | null {
+  const r = item.request
+  if (r === undefined) return phaseOf(item.chain, item.task, viewer, now)
+  return listPhase(
+    quoteRequestPhase(
+      { quoteDeadline: r.quoteDeadline, quotes: r.quotesCount ?? 0, picked: r.taskId != null, creator: r.creator },
+      viewer,
+      now,
+    ),
+  )
+}
+
+/**
+ * Where a row opens, seen from the board `boardId`: a request's page, a draft's resume, or the job's page. The public
+ * list also shows jobs frozen on tenant boards; those open on their own board's page, which holds their offer.
+ */
+export function jobTarget(item: JobListItem, boardId: string): LinkTarget {
+  const routes = boardRoutes(boardId)
+  if (item.request !== undefined) return routes.request(item.request.requestId)
+  if (item.jobId === null) return { to: '/account', search: { resume: item.task?.taskId ?? '', board: boardId } }
+  const home = item.chain?.board_id
+  if (boardId === 'public' && home != null && home !== 'public')
+    return { to: '/b/$boardId/job/$jobId', params: { boardId: home, jobId: item.jobId } }
+  return routes.job(item.jobId)
 }
 
 /** The countdown a row shows: what happens at the deadline, and what it reads once passed. */
