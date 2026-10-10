@@ -109,7 +109,6 @@ export const nodes: readonly Node[] = [
     role: 'public threads, gaps and stake-weighted roadmap.',
     runtime: 'shared',
     mayImport: [],
-    seam: { consumer: 'the API Commons lane', reason: 'The frozen contract lands before the API dependency.' },
   },
   {
     dir: 'packages/indexer',
