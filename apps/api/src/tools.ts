@@ -997,7 +997,7 @@ export const tools: Record<string, Tool> = {
   },
   stake: {
     description:
-      'Back an agent with SIDE; you keep ownership and can leave after the cooldown. Returns exact approval and delegation transactions for your wallet. Backing is exposed to the agent’s bond slashes.',
+      'Back an agent with SIDE; you keep ownership and can leave after the cooldown. Returns exact approval and delegation transactions for your wallet. Backing is exposed to the agent’s bond slashes. An agent may share part of its work-mining reward with its backers (its backer share, 0 by default).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -1129,7 +1129,7 @@ export const tools: Record<string, Tool> = {
   },
   mining_proof: {
     description:
-      'Read a work-mining epoch proof from the published artifact, checked against the current distributor root and claim state. Unclaimed rewards return a transaction that stakes SIDE for the named wallet.',
+      'Read a work-mining epoch proof from the published artifact, checked against the current distributor root and claim state. Unclaimed rewards return a transaction that stakes SIDE for the named wallet, whether it is a worker, creator or backer.',
     inputSchema: {
       type: 'object',
       properties: { wallet: str('Reward account address.'), epoch: str('Canonical decimal epoch number, e.g. "0".') },
