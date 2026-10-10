@@ -13,6 +13,7 @@ import {
   writeFilter,
 } from '../activity-feed.ts'
 import { EventRow } from '../components/activity/EventRow.tsx'
+import { AgentFilter } from '../components/agent/AgentCard.tsx'
 import { FilterBar } from '../components/activity/FilterBar.tsx'
 import { RowList } from '../components/activity/StretchedRow.tsx'
 import { type ActivityFeed, useActivityFeed } from '../components/activity/useActivityFeed.ts'
@@ -48,16 +49,14 @@ function useView(): [FeedFilter, (filter: FeedFilter) => void] {
 
 /**
  * Activity, the board's home: everything that happened here, newest first, each job once at its newest step (or every
- * step, on request), with filters over every job. A press opens the job's details in place. Under Mine, what waits on
- * the viewer and their unpublished drafts come first.
+ * step, on request), with filters over every job. A press opens the job's card; an agent's card can narrow the feed
+ * to its work. Under Mine, what waits on the viewer and their unpublished drafts come first.
  */
 export function ActivityPage() {
   const feed = useActivityFeed()
   const [filter, setFilter] = useView()
-  const [open, setOpen] = useState<string | null>(null)
   const { jobs, viewer } = feed
   const counts = useMemo(() => bucketCounts(feed.feed, filter, viewer), [feed.feed, filter, viewer])
-  const toggle = (key: string) => () => setOpen(open === key ? null : key)
   const onAgent = (agent: string) => {
     setFilter({ ...filter, agent })
     window.scrollTo({ top: 0 })
@@ -80,7 +79,9 @@ export function ActivityPage() {
         onRetry={() => void jobs.refetch()}
       />
       {filter.mine && <MineFirst feed={feed} />}
-      <EventFeed feed={feed} filter={filter} open={open} toggle={toggle} onAgent={onAgent} />
+      <AgentFilter value={onAgent}>
+        <EventFeed feed={feed} filter={filter} />
+      </AgentFilter>
       <IndexLine chainReady={jobs.chainReady} index={jobs.index} />
     </>
   )
@@ -89,9 +90,6 @@ export function ActivityPage() {
 interface FeedProps {
   feed: ActivityFeed
   filter: FeedFilter
-  open: string | null
-  toggle: (key: string) => () => void
-  onAgent: (agentId: string) => void
 }
 
 /** What waits on the viewer, and the offers they froze but never published (nothing is escrowed for those). */
@@ -219,7 +217,7 @@ function NewPill({ count, onShow }: { count: number; onShow: () => void }) {
  * The feed: each job once at its newest step (every step when asked), under a heading per day. Older pages load by
  * themselves until the filter has enough to show, then on request.
  */
-function EventFeed({ feed, filter, open, toggle, onAgent }: FeedProps) {
+function EventFeed({ feed, filter }: FeedProps) {
   const { steps } = feed
   const now = useMinute()
   const visible = visibleEvents(feed.events, filter, feed.viewer)
@@ -253,7 +251,6 @@ function EventFeed({ feed, filter, open, toggle, onAgent }: FeedProps) {
                 event={event}
                 layout={filter.everyStep ? 'step' : 'job'}
                 fresh={fresh.has(event.key)}
-                details={{ open: open === event.key, onToggle: toggle(event.key), onAgent }}
               />
             ))}
           </RowList>

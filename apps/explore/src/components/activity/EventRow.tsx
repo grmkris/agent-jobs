@@ -5,8 +5,8 @@ import { jobTarget } from '../../job-list.ts'
 import { posterParty } from '../../activity-feed.ts'
 import { type LiveItem, type Party, liveSentence } from '../../live-activity.ts'
 import { ActivityIcon } from '../ActivityRow.tsx'
-import { AgentPeekLink, AgentPeekOrb } from '../agent/AgentPeek.tsx'
-import { BoardLink, type LinkTarget, boardRoutes } from '../BoardLink.tsx'
+import { AgentCardLink, AgentCardOrb } from '../agent/AgentCard.tsx'
+import { type LinkTarget, boardRoutes } from '../BoardLink.tsx'
 import { Ago } from '../Time.tsx'
 import { RollingCountdown } from '../RollingCountdown.tsx'
 import { DeliveryImage } from '../delivery/DeliveryImage.tsx'
@@ -16,10 +16,8 @@ import { TokenAmount } from '../token/TokenAmount.tsx'
 import { type RowDelivery, useRowDelivery } from '../../delivery-preview.ts'
 import { type Thumb, previewPlan, thumbOf } from '../../delivery-plan.ts'
 import { stage } from '../../wallet.ts'
-import { PeekLink } from '../PeekLink.tsx'
 import { WalletLink, WalletOrb } from '../WalletLink.tsx'
-import { FeedDetails } from './FeedDetails.tsx'
-import { ReceiptCard } from './ReceiptCard.tsx'
+import { JobCard } from './JobCard.tsx'
 import { RowThumb } from './RowMeta.tsx'
 import { useNear } from './useNear.ts'
 import { StretchedRow } from './StretchedRow.tsx'
@@ -45,7 +43,7 @@ function eventTarget(event: FeedEvent): LinkTarget {
   return event.jobId === null ? routes.request(event.requestId ?? '') : routes.job(event.jobId)
 }
 
-/** The sentence around the quoted title, so the title can be its own link. */
+/** The sentence around the quoted title, so the title can stand out. */
 function aroundTitle(text: string, title: string): [string, string] {
   const quoted = `“${title}”`
   const at = text.indexOf(quoted)
@@ -77,7 +75,7 @@ function useEventDelivery(event: FeedEvent) {
 /** A party's mark: an agent's orb with its card, or a wallet's colour mark. */
 function PartyOrb({ party, className }: { party: Party; className: string }) {
   return 'agent' in party ? (
-    <AgentPeekOrb id={party.agent} className={className} />
+    <AgentCardOrb id={party.agent} className={className} />
   ) : (
     <WalletOrb address={party.wallet} className={className} />
   )
@@ -85,7 +83,7 @@ function PartyOrb({ party, className }: { party: Party; className: string }) {
 
 /** A party named in a sentence: an agent's name with its card, or a wallet's short address. */
 function PartyName({ party }: { party: Party }) {
-  return 'agent' in party ? <AgentPeekLink id={party.agent} /> : <WalletLink address={party.wallet} orb={false} />
+  return 'agent' in party ? <AgentCardLink id={party.agent} /> : <WalletLink address={party.wallet} orb={false} />
 }
 
 const partyLabel = (party: Party) => ('agent' in party ? `Agent ${party.agent}` : `Wallet ${party.wallet}`)
@@ -168,16 +166,8 @@ function RequestFacts({ job }: { job: FeedJob }) {
   )
 }
 
-/** The row's sentence: payer and actor named (agents with their cards, wallets by address), the job's title linked. */
-function EventSentence({
-  event,
-  sentence,
-  target,
-}: {
-  event: FeedEvent
-  sentence: ReturnType<typeof liveSentence>
-  target: LinkTarget
-}) {
+/** The row's sentence: payer and actor named (agents with their cards, wallets by address), the job's title set apart. */
+function EventSentence({ event, sentence }: { event: FeedEvent; sentence: ReturnType<typeof liveSentence> }) {
   const { actor, text, payer } = sentence
   const [before, after] = aroundTitle(text, event.title)
   const amount = event.amount === undefined ? null : <TokenAmount value={event.amount} token={event.token} static />
@@ -196,19 +186,7 @@ function EventSentence({
       )}
       {payer !== undefined && amount !== null && <>{amount} </>}
       {before}
-      {event.job === undefined || event.job.item.jobId === null ? (
-        <BoardLink target={target} className="font-medium underline-offset-4 [@media(hover:hover)]:hover:underline">
-          “{event.title}”
-        </BoardLink>
-      ) : (
-        <PeekLink
-          target={target}
-          card={<ReceiptCard job={event.job} />}
-          className="font-medium underline-offset-4 [@media(hover:hover)]:hover:underline"
-        >
-          “{event.title}”
-        </PeekLink>
-      )}
+      <span className="font-medium">“{event.title}”</span>
       {after}
       {payer === undefined && amount !== null && (
         <span className="text-muted-foreground">
@@ -223,26 +201,21 @@ function EventSentence({
 /**
  * One thing that happened, as a sentence: who did it, what, to which job, for how much and how long ago. As a job's
  * row (the feed's usual reading) it also carries the job's track and, once work was delivered, the work itself, large;
- * as one step among every step (`step`) it stays compact. On Activity a press opens the job's details below; on the
- * landing it opens the job.
+ * as one step among every step (`step`) it stays compact. A press opens the job's card; a job this page cannot read
+ * links to its page.
  */
 export function EventRow({
   event,
-  details,
   layout = 'job',
   fresh = false,
 }: {
   event: FeedEvent
-  /** Activity's rows open the job's details in place; without this (the landing) the row links to the job. */
-  details?: { open: boolean; onToggle: () => void; onAgent: (agentId: string) => void }
   layout?: 'job' | 'step'
   /** Just arrived in the feed. */
   fresh?: boolean
 }) {
   const sentence = liveSentence(event, posterParty(event.job))
   const target = eventTarget(event)
-  // Details need the job's record; an event on a job this page cannot read only links.
-  const job = details === undefined ? undefined : event.job
   const actorParty = sentence.actor ? actorOf(event) : null
   const who = actorParty === null ? '' : `${partyLabel(actorParty)} `
   const shown = useEventDelivery(event)
@@ -258,9 +231,9 @@ export function EventRow({
           : `${partyLabel(sentence.payer)} paid ${who}${sentence.text}`
       }
       action={
-        job !== undefined && details !== undefined
-          ? { kind: 'toggle', open: details.open, onToggle: details.onToggle }
-          : { kind: 'link', target }
+        event.job === undefined
+          ? { kind: 'link', target }
+          : { kind: 'card', target, title: event.title, card: <JobCard job={event.job} /> }
       }
       media={<EventMedia event={event} payer={sentence.payer} />}
       aside={<Ago at={event.at} />}
@@ -271,12 +244,9 @@ export function EventRow({
           <RowThumb thumb={shown.thumb} />
         )
       }
-      details={
-        job !== undefined && details !== undefined ? <FeedDetails job={job} onAgent={details.onAgent} /> : undefined
-      }
     >
       <p ref={shown.ref} className="text-sm leading-snug text-pretty">
-        <EventSentence event={event} sentence={sentence} target={target} />
+        <EventSentence event={event} sentence={sentence} />
       </p>
       {big && shown.thumb !== null && <WorkPreview thumb={shown.thumb} status={status} wide={false} />}
       {event.job !== undefined && <RequestFacts job={event.job} />}

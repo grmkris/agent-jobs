@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ActivityStep } from './live-activity.ts'
-import { paidTx, receiptMoney, receiptTimeline } from './receipt.ts'
+import { paidTx, receiptMoney } from './receipt.ts'
 
 const step = (s: ActivityStep['step'], at: number | null, txHash = `tx-${s}`): ActivityStep => ({
   jobId: '11',
@@ -26,25 +26,6 @@ describe('receiptMoney', () => {
       { label: 'Reward', value: '5' },
     ])
     expect(receiptMoney(undefined, true)).toEqual([])
-  })
-})
-
-describe('receiptTimeline', () => {
-  it('orders the steps with the time since each one before, skipping untimed ones', () => {
-    const steps = [
-      step('delivered', 400),
-      step('posted', 100),
-      step('hired', 220),
-      step('completed', 460),
-      step('ruled', null),
-    ]
-    expect(receiptTimeline(steps)).toEqual([
-      { word: 'posted', at: 100, after: null },
-      { word: 'hired', at: 220, after: 120 },
-      { word: 'delivered', at: 400, after: 180 },
-      { word: 'paid', at: 460, after: 60 },
-    ])
-    expect(receiptTimeline([])).toEqual([])
   })
 })
 

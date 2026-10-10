@@ -43,14 +43,21 @@ export function Sheet({
   }
 
   const modal = useRef(false)
+  // Closing plays the panel's exit (down off a phone, a fade on a wider screen); the dialog closes when it ends.
+  const [leaving, setLeaving] = useState(false)
+  const finish = useCallback(() => {
+    setLeaving(false)
+    if (ref.current?.open === true) ref.current.close()
+  }, [])
 
   useEffect(() => {
     const d = ref.current
     if (d === null) return
     if (!open) {
-      if (d.open) d.close()
+      if (d.open) setLeaving(true)
       return
     }
+    setLeaving(false)
     const wantModal = !walletPrompt
     if (d.open && modal.current === wantModal) return
     if (d.open) d.close()
@@ -59,6 +66,13 @@ export function Sheet({
     if (wantModal) d.showModal()
     else d.show()
   }, [open, walletPrompt])
+
+  // If the exit never reports its end (the tab hid, the panel never painted), close anyway.
+  useEffect(() => {
+    if (!leaving) return
+    const t = setTimeout(finish, 400)
+    return () => clearTimeout(t)
+  }, [leaving, finish])
 
   const onPointerDown = (e: React.PointerEvent) => {
     if (window.matchMedia('(min-width: 640px)').matches) return
@@ -103,10 +117,14 @@ export function Sheet({
         // A click on the dialog itself (not its panel) is a click on the backdrop.
         if (e.target === ref.current) dismiss()
       }}
-      className="fixed inset-0 m-0 h-full max-h-none w-full max-w-none bg-transparent p-0 backdrop:bg-overlay sm:open:grid sm:open:place-items-center"
+      data-leaving={leaving ? '' : undefined}
+      className="fixed inset-0 m-0 h-full max-h-none w-full max-w-none bg-transparent p-0 backdrop:bg-overlay backdrop:transition-opacity backdrop:duration-(--dur-slow) data-leaving:backdrop:opacity-0 sm:open:grid sm:open:place-items-center"
     >
       <div
         ref={panel}
+        onAnimationEnd={(e) => {
+          if (leaving && e.target === e.currentTarget) finish()
+        }}
         style={{
           transform: dy === 0 ? undefined : `translateY(${dy}px)`,
           transition: drag.current === null ? undefined : 'none',
@@ -117,6 +135,9 @@ export function Sheet({
           '[&_.bg-card]:bg-muted/50',
           'animate-[sheet-in_0.42s_var(--ease-sheet)] transition-transform duration-300 ease-(--ease-sheet)',
           'sm:relative sm:inset-auto sm:w-[28rem] sm:max-w-[calc(100vw-2rem)] sm:rounded-xl sm:px-5 sm:pt-4 sm:pb-5 sm:animate-[panel-in_0.24s_var(--ease-out-strong)]',
+          // The exit is quicker than the entrance; from wherever a drag left the panel, it carries on down.
+          leaving &&
+            'pointer-events-none animate-[sheet-out_0.26s_var(--ease-sheet)_forwards] sm:animate-[panel-out_0.16s_var(--ease-out-strong)_forwards]',
           className,
         )}
       >

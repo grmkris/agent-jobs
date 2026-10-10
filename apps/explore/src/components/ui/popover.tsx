@@ -1,7 +1,8 @@
 // shadcn base-nova on Base UI, vendored from ~/code/purrable/packages/ui (ported from myapps' base-nova popover, MIT); edit
 // here, there is no upstream sync. `container` portals the popup into an open <dialog> (a Sheet), whose top layer would
 // otherwise cover it. `size="panel"` is a settings panel:
-// as wide as a phone allows, as tall as the space beside its trigger, scrolling inside.
+// as wide as a phone allows, as tall as the space beside its trigger, scrolling inside. `size="card"` is a link's card
+// (CardLink): the same width with no inset, so a picture can run to its edges, opening a little slower from its trigger.
 import * as React from 'react'
 import { Popover as PopoverPrimitive } from '@base-ui/react/popover'
 import { cn } from '../../lib/cn.ts'
@@ -34,7 +35,7 @@ function PopoverContent({
 }: PopoverPrimitive.Popup.Props &
   Pick<PopoverPrimitive.Positioner.Props, 'align' | 'alignOffset' | 'side' | 'sideOffset' | 'anchor'> &
   Pick<PopoverPrimitive.Portal.Props, 'container'> & {
-    readonly size?: 'default' | 'panel'
+    readonly size?: 'default' | 'panel' | 'card'
   }) {
   const padding = React.useMemo(edgePadding, [])
   return (
@@ -52,7 +53,7 @@ function PopoverContent({
           data-slot="popover-content"
           data-size={size}
           className={cn(
-            'z-50 flex w-72 origin-(--transform-origin) flex-col gap-2.5 rounded-lg bg-popover p-2.5 text-sm text-popover-foreground shadow-md ring-1 ring-foreground/10 outline-hidden transition-[transform,opacity] duration-100 data-starting-style:scale-95 data-starting-style:opacity-0 data-ending-style:scale-95 data-ending-style:opacity-0 motion-reduce:transition-opacity motion-reduce:data-starting-style:scale-100 motion-reduce:data-ending-style:scale-100 data-[size=panel]:max-h-[min(32rem,var(--available-height))] data-[size=panel]:w-[min(22rem,calc(100vw-1rem))] data-[size=panel]:overflow-y-auto data-[size=panel]:overscroll-contain data-[size=panel]:rounded-xl data-[size=panel]:p-1.5',
+            'z-50 flex w-72 origin-(--transform-origin) flex-col gap-2.5 rounded-lg bg-popover p-2.5 text-sm text-popover-foreground shadow-md ring-1 ring-foreground/10 outline-hidden transition-[transform,opacity] duration-100 data-starting-style:scale-95 data-starting-style:opacity-0 data-ending-style:scale-95 data-ending-style:opacity-0 motion-reduce:transition-opacity motion-reduce:data-starting-style:scale-100 motion-reduce:data-ending-style:scale-100 data-[size=panel]:max-h-[min(32rem,var(--available-height))] data-[size=panel]:w-[min(22rem,calc(100vw-1rem))] data-[size=panel]:overflow-y-auto data-[size=panel]:overscroll-contain data-[size=panel]:rounded-xl data-[size=panel]:p-1.5 data-[size=card]:max-h-(--available-height) data-[size=card]:w-[min(22rem,calc(100vw-1rem))] data-[size=card]:gap-0 data-[size=card]:overflow-y-auto data-[size=card]:overscroll-contain data-[size=card]:rounded-xl data-[size=card]:p-0 data-[size=card]:duration-(--dur-base) data-[size=card]:ease-(--ease-out-strong) data-[size=card]:data-starting-style:scale-96 data-[size=card]:data-ending-style:scale-96 data-[size=card]:motion-reduce:data-starting-style:scale-100 data-[size=card]:motion-reduce:data-ending-style:scale-100',
             className,
           )}
           {...props}
@@ -66,4 +67,4 @@ function PopoverTitle({ className, ...props }: PopoverPrimitive.Title.Props) {
   return <PopoverPrimitive.Title data-slot="popover-title" className={cn('font-medium', className)} {...props} />
 }
 
-export { Popover, PopoverContent, PopoverTitle, PopoverTrigger, edgePadding }
+export { Popover, PopoverContent, PopoverTitle, PopoverTrigger }

@@ -9,6 +9,7 @@ import {
   draftsOf,
   feedEvents,
   feedJobs,
+  jobCardKind,
   matches,
   newestPerJob,
   posterParty,
@@ -311,5 +312,19 @@ describe('one row per job', () => {
     expect(trackOf(cancelled!).map((s) => s.label)).toEqual(['Posted', 'Hired', 'Closed'])
     const [asked] = build([], [request('r2', 10)])
     expect(trackOf(asked!)).toEqual([])
+  })
+
+  it('opens a delivered job on its work, a hired one on what is due, and a request or listing on its terms', () => {
+    const handedIn = job('11', 'completed')
+    const [delivered] = build([{ ...handedIn, chain: { ...handedIn.chain, deliverable: '0xd0' } }])
+    const [active] = build([job('12', 'active')])
+    const [listed] = build([job('13', 'open')])
+    const [asked] = build([], [request('r3', 10)])
+    expect([delivered, active, listed, asked].map((j) => jobCardKind(j!))).toEqual([
+      'delivered',
+      'underway',
+      'open',
+      'open',
+    ])
   })
 })

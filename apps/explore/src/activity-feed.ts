@@ -177,6 +177,15 @@ export function progressOf(job: FeedJob): Progress {
   return { reached: REACHED[bucket], ending: bucket === 'disputes' ? 'disputed' : null }
 }
 
+/** Which card a job opens: its delivery, the work under way, or an open call for an agent (a request or a listing). */
+export type JobCardKind = 'delivered' | 'underway' | 'open'
+
+export function jobCardKind(job: FeedJob): JobCardKind {
+  if (job.item.chain?.deliverable != null) return 'delivered'
+  if (job.item.jobId === null || job.bucket === 'open') return 'open'
+  return 'underway'
+}
+
 /** Offers this wallet froze but never published: nothing is escrowed, so only its creator sees them. */
 export const draftsOf = (items: readonly JobListItem[], viewer: string | undefined): JobListItem[] =>
   viewer === undefined

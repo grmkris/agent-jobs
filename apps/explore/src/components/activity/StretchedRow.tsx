@@ -1,15 +1,20 @@
-import { ChevronDown } from 'lucide-react'
-import { type ReactNode, useId } from 'react'
+import type { ReactNode } from 'react'
 import { cn } from '../../lib/cn.ts'
 import { BoardLink, type LinkTarget } from '../BoardLink.tsx'
+import { CardLink } from '../CardLink.tsx'
 
-/** What a press on the row does: open its details below it (Activity), or follow a link (the landing). */
-export type RowAction = { kind: 'toggle'; open: boolean; onToggle: () => void } | { kind: 'link'; target: LinkTarget }
+/** What a press on the row does: open its job's card (a modified click goes to the job), or follow a link. */
+export type RowAction =
+  | { kind: 'card'; target: LinkTarget; title: ReactNode; card: ReactNode }
+  | { kind: 'link'; target: LinkTarget }
+
+/** Where a row's text starts (its inset and orb), so a card opened from the row lines up with the sentence. */
+const TEXT_INSET = 64
 
 /**
- * One row of the activity feed. The whole row is one control, a button or a link stretched under the content, so
- * a press anywhere opens it; the links inside (agents, the job's title) sit above it and keep their own targets,
- * cmd-click included. No control is nested in another. Toggled details render after the row, outside its control.
+ * One row of the activity feed. The whole row is one control, a link stretched under the content, so a press anywhere
+ * opens it; the links inside (agents, wallets) sit above it and keep their own targets and cards, cmd-click included.
+ * No control is nested in another. While its card is open the row stays lit.
  */
 export function StretchedRow({
   label,
@@ -18,7 +23,6 @@ export function StretchedRow({
   children,
   aside,
   thumb,
-  details,
   fresh = false,
 }: {
   /** The control's accessible name. */
@@ -29,31 +33,27 @@ export function StretchedRow({
   aside?: ReactNode
   /** A small picture of what the row is about, between its text and its aside. */
   thumb?: ReactNode
-  details?: ReactNode
   /** Just arrived: tinted for a moment, unless the reader prefers less motion. */
   fresh?: boolean
 }) {
-  const id = useId()
-  const open = action.kind === 'toggle' && action.open
   const control =
     'absolute inset-0 rounded-none outline-hidden focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset'
   return (
     <li className="relative before:absolute before:top-0 before:right-0 before:left-16 before:border-t before:border-border/70 first:before:hidden">
       <div
         className={cn(
-          'relative transition-colors duration-(--dur-fast) [@media(hover:hover)]:hover:bg-muted/60',
-          open && 'bg-muted/40',
+          'relative transition-colors duration-(--dur-fast) has-[>a[aria-expanded=true]]:bg-muted/40 [@media(hover:hover)]:hover:bg-muted/60',
           fresh && 'motion-safe:animate-[row-fresh_1.4s_var(--ease-out-strong)]',
         )}
       >
-        {action.kind === 'toggle' ? (
-          <button
-            type="button"
-            aria-expanded={action.open}
-            aria-controls={id}
-            aria-label={label}
-            onClick={action.onToggle}
-            className={cn(control, 'cursor-pointer')}
+        {action.kind === 'card' ? (
+          <CardLink
+            target={action.target}
+            title={action.title}
+            card={action.card}
+            label={label}
+            alignOffset={TEXT_INSET}
+            className={control}
           />
         ) : (
           <BoardLink target={action.target} aria-label={label} className={control} />
@@ -62,22 +62,9 @@ export function StretchedRow({
           <span className="shrink-0">{media}</span>
           <div className="grid min-w-0 flex-1 gap-1">{children}</div>
           {thumb}
-          <span className="flex shrink-0 items-start gap-1.5 text-ui text-muted-foreground">
-            {aside}
-            {action.kind === 'toggle' && (
-              <ChevronDown
-                aria-hidden
-                className={cn('mt-0.5 size-4 transition-transform duration-(--dur-fast)', open && 'rotate-180')}
-              />
-            )}
-          </span>
+          <span className="flex shrink-0 items-start gap-1.5 text-ui text-muted-foreground">{aside}</span>
         </div>
       </div>
-      {action.kind === 'toggle' && (
-        <div id={id} hidden={!open} className="px-4 pt-1 pb-4 sm:pl-16">
-          {open && details}
-        </div>
-      )}
     </li>
   )
 }

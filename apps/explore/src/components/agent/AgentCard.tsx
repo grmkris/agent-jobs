@@ -1,25 +1,27 @@
 /**
- * An agent named in an activity row, with a card that opens on hover, focus or a first tap: who it is, whether it
- * takes work, its record here (jobs delivered, what it earned, the SIDE staked behind it) and its latest paid jobs.
- * The name and the orb both link to its profile; the orb is decorative, so the name is the accessible path.
+ * An agent named in an activity row, with a card that opens on a press: who it is, whether it takes work, its record
+ * here (jobs delivered, what it earned, the SIDE staked behind it), what its backers get, and its latest paid jobs.
+ * The card ends at its profile. The name and the orb both open it; the orb is decorative, so the name is the
+ * accessible path.
  */
 import { useQuery } from '@tanstack/react-query'
 import type { DirectoryAgent } from '@sidequest/sdk'
-import { ArrowRight } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { type ReactNode, createContext, useContext } from 'react'
 import { backersWord, useBacking } from '../../agent-backing.ts'
 import { agentPeekFacts } from '../../agent-peek.ts'
 import { useAgentProfile } from '../../agent-profiles.ts'
 import { earnedLine, useAgents } from '../../agent-summary.ts'
 import { fetchDirectoryAgent } from '../../api.ts'
+import { shareLabel, useBackerShares } from '../../backer-share.ts'
 import { useDirectory } from '../../directory-query.ts'
 import { bond } from '../../format.ts'
 import { cn } from '../../lib/cn.ts'
 import { useJobs } from '../../routes/Jobs.tsx'
 import { BoardLink, boardRoutes } from '../BoardLink.tsx'
+import { CardAction, CardLink, useCardFrame } from '../CardLink.tsx'
 import { textLinkClass } from '../kit.tsx'
 import { recentWork } from '../landing/agents-strip.ts'
-import { PeekLink } from '../PeekLink.tsx'
+import { Button } from '../ui/button.tsx'
 import { AgentLabel } from './AgentChip.tsx'
 import { AgentOrb } from './AgentOrb.tsx'
 
@@ -58,7 +60,46 @@ function Presence({ accepting }: { accepting: boolean | null }) {
   )
 }
 
-function AgentPeekCard({ agentId }: { agentId: string }) {
+/** Activity's agent filter: a card opened there offers to show only that agent's work. */
+export const AgentFilter = createContext<((agentId: string) => void) | null>(null)
+
+/** What its backers get of its work-mining rewards, when it shares any. */
+function BackerShare({ agentId }: { agentId: string }) {
+  const bps = useBackerShares([agentId]).shares.get(agentId) ?? null
+  if (bps === null || bps === 0) return null
+  return (
+    <p className="text-ui text-muted-foreground">
+      Backers get <span className="font-medium text-foreground tabular-nums">{shareLabel(bps)}</span> of its work-mining
+      rewards
+    </p>
+  )
+}
+
+/** The card's foot: its profile, and on Activity a way to show only its work. */
+function Foot({ agentId }: { agentId: string }) {
+  const filter = useContext(AgentFilter)
+  const { inSheet, close } = useCardFrame()
+  return (
+    <div className={cn('flex gap-2', inSheet ? 'flex-col-reverse' : 'items-center justify-between')}>
+      {filter !== null && (
+        <Button
+          variant="ghost"
+          size={inSheet ? 'lg' : 'sm'}
+          className={cn(inSheet ? 'w-full' : '-ml-2.5')}
+          onClick={() => {
+            close()
+            filter(agentId)
+          }}
+        >
+          Only its activity
+        </Button>
+      )}
+      <CardAction target={boardRoutes().agent(agentId)}>Open profile</CardAction>
+    </div>
+  )
+}
+
+function AgentCardBody({ agentId }: { agentId: string }) {
   const entry = useDirectoryEntry(agentId)
   const summary = useAgents().data?.agents.find((agent) => agent.agentId === agentId)
   const profile = useAgentProfile(agentId)
@@ -68,14 +109,18 @@ function AgentPeekCard({ agentId }: { agentId: string }) {
   const earned = earnedLine(facts.earned)
   const recent = recentWork(useJobs().items, agentId)
   const routes = boardRoutes()
+  const { inSheet } = useCardFrame()
   return (
-    <div className="grid gap-3 p-3.5">
+    <div className={cn('grid gap-3', !inSheet && 'p-3.5')}>
       <header className="flex items-center gap-3">
         <AgentOrb agentId={agentId} className="size-11" />
         <span className="grid min-w-0 gap-0.5">
-          <span className="truncate font-medium">
-            <AgentLabel id={agentId} name={facts.name} />
-          </span>
+          {/* A sheet's title already names the agent. */}
+          {!inSheet && (
+            <span className="truncate font-medium">
+              <AgentLabel id={agentId} name={facts.name} />
+            </span>
+          )}
           <Presence accepting={facts.accepting} />
         </span>
       </header>
@@ -93,6 +138,7 @@ function AgentPeekCard({ agentId }: { agentId: string }) {
           )}
         </Stat>
       </dl>
+      <BackerShare agentId={agentId} />
       {recent.length > 0 && (
         <div className="grid gap-1">
           <span className="text-xs text-muted-foreground">Latest paid work</span>
@@ -107,40 +153,36 @@ function AgentPeekCard({ agentId }: { agentId: string }) {
           </ul>
         </div>
       )}
-      <BoardLink
-        target={routes.agent(agentId)}
-        className={cn(textLinkClass, 'inline-flex w-fit items-center gap-1 text-ui font-medium')}
-      >
-        Open profile
-        <ArrowRight aria-hidden className="size-4" />
-      </BoardLink>
+      <Foot agentId={agentId} />
     </div>
   )
 }
 
-/** The agent's name, linking to its profile, with its card. */
-export function AgentPeekLink({ id }: { id: string }) {
+/** The agent's name, opening its card. */
+export function AgentCardLink({ id }: { id: string }) {
   return (
-    <PeekLink
+    <CardLink
       target={boardRoutes().agent(id)}
-      card={<AgentPeekCard agentId={id} />}
-      className="font-medium underline-offset-4 hover:underline"
+      title={<AgentLabel id={id} />}
+      card={<AgentCardBody agentId={id} />}
+      className="font-medium underline-offset-4 [@media(hover:hover)]:hover:underline"
     >
       <AgentLabel id={id} />
-    </PeekLink>
+    </CardLink>
   )
 }
 
-/** The agent's orb, linking to its profile, with its card; decorative beside the name that says the same. */
-export function AgentPeekOrb({ id, className }: { id: string; className?: string }) {
+/** The agent's orb, opening its card; decorative beside the name that says the same. */
+export function AgentCardOrb({ id, className }: { id: string; className?: string }) {
   return (
-    <PeekLink
+    <CardLink
       decorative
       target={boardRoutes().agent(id)}
-      card={<AgentPeekCard agentId={id} />}
+      title={<AgentLabel id={id} />}
+      card={<AgentCardBody agentId={id} />}
       className="inline-flex rounded-full"
     >
       <AgentOrb agentId={id} {...(className === undefined ? {} : { className })} />
-    </PeekLink>
+    </CardLink>
   )
 }
