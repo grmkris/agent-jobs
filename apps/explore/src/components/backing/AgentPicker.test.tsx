@@ -1,15 +1,17 @@
 import { BACKER_SHARE_KEY, encodeBackerShare, identityAbi } from '@sidequest/sdk'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { expect, it, vi } from 'vitest'
+import { afterEach, expect, it, vi } from 'vitest'
 import { WagmiProvider } from 'wagmi'
 import { hashFn, readContractsQueryOptions } from 'wagmi/query'
 import { chain, deployment, wagmiConfig } from '../../wallet.ts'
+import * as profiles from '../../agent-profiles.ts'
 import { AgentPicker } from './AgentPicker.tsx'
 
-vi.mock('../../agent-profiles.ts', () => ({ useAgentAvatar: () => null }))
+afterEach(() => vi.restoreAllMocks())
 
 it('shows Backers get for a positive share and hides zero-share chips', () => {
+  vi.spyOn(profiles, 'useAgentAvatar').mockReturnValue(null)
   const client = new QueryClient({ defaultOptions: { queries: { queryKeyHashFn: hashFn } } })
   const options = readContractsQueryOptions(wagmiConfig, {
     contracts: ['7', '8'].map(
