@@ -106,12 +106,15 @@ class Hirer {
   readonly wallet: sdk.Wallet
   readonly account: PrivateKeyAccount
   readonly state: ReturnType<typeof store<HirerData>>
+  /** The persona's own ERC-8004 agent (crew/bin/personas.ts), named on every post; null until it is registered. */
+  readonly agentId: string | null
   #board = sdk.boardClient(origin)
   #signedIn = false
   balance = 0
   constructor(readonly persona: Persona) {
     ;({ wallet: this.wallet, account: this.account } = signerFor(`hirer_${persona.id}`))
     this.state = store<HirerData>(`hirer-${persona.id}`, { jobs: [], titles: [], spent: 0 })
+    this.agentId = store<{ agentId: string | null }>(`persona-${persona.id}`, { agentId: null }).saved.data.agentId
   }
   get data() {
     return this.state.saved.data
@@ -216,6 +219,7 @@ async function post(h: Hirer, total: number) {
       windows: WINDOWS,
       deliverable: { accepts: examples.defaults.accepts },
       idempotencyKey: `activity-${h.address.slice(2, 10)}-${key}`,
+      ...(h.agentId === null ? {} : { agentId: h.agentId }),
     }),
   )
   h.data.jobs.push({
