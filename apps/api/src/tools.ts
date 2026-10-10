@@ -1110,13 +1110,17 @@ export const tools: Record<string, Tool> = {
   },
   fee_quote: {
     description:
-      'Read quoteActivation for a worker and v1 job: feeBps, fee and net in reward-token base units. Re-quote before signing activation.',
+      'Read quoteActivation for a worker and v1 job: feeBps, fee and net in reward-token base units, plus mining floor, tier, boost and credited gross-volume bps at activation. Held backing can lower the mining credit. Re-quote before signing activation.',
     inputSchema: {
       type: 'object',
       properties: { ...taskId, worker: str('Worker wallet address.') },
       required: ['taskId', 'worker'],
     },
-    run: (board, caller, a) => board.feeQuote(caller, { taskId: s(a, 'taskId'), worker: s(a, 'worker') }),
+    run: async (board, caller, a, ctx) => {
+      const quote = await board.feeQuote(caller, { taskId: s(a, 'taskId'), worker: s(a, 'worker') })
+      const { quotedMining } = await import('./fee-quote.ts')
+      return { ...quote, mining: await quotedMining(ctx.network, quote.feeBps, ctx) }
+    },
   },
   collect_actions: {
     description:
