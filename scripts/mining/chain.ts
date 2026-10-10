@@ -31,8 +31,11 @@ const erc20Abi = parseAbi(['function decimals() view returns (uint8)'])
 export const logClient = (rpc: string): PublicClient =>
   createPublicClient({ transport: http(rpc, { retryCount: 0, timeout: 30_000 }) })
 
+/** General reads retain transport retries; the pager owns retries for the dedicated getLogs transport. */
 export const client = (rpc: string): PublicClient =>
-  createPublicClient({ transport: http(rpc, { retryCount: 3, timeout: 30_000 }) }) as PublicClient
+  createPublicClient({ transport: http(rpc, { retryCount: 3, timeout: 30_000 }) }).extend(() => ({
+    getLogs: logClient(rpc).getLogs,
+  })) as PublicClient
 
 /** Pure contract clock reads: the reserve defines both boundaries, including fast testnet clocks. */
 export async function epochWindowOf(c: PublicClient, reserve: Address, epoch: bigint) {

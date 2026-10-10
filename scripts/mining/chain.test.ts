@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { isRangeError, logClient, pagedLogs, type LogPager } from './chain.ts'
+import { client, isRangeError, logClient, pagedLogs, type LogPager } from './chain.ts'
 import { activatedEvent, metadataSetEvent, readBackerWorkers, stakeVaultEvents } from './backers-chain.ts'
 import {
   BACKER_SHARE_KEY,
@@ -125,6 +125,7 @@ test('a one-block range failure is never retried, and invalid or empty ranges ma
 test('the dedicated log transport disables its own retry loop', () => {
   // No request is made; the dummy URI only lets us inspect the local transport configuration.
   expect(logClient('http://127.0.0.1:1').transport.retryCount).toBe(0)
+  expect(client('http://127.0.0.1:1').transport.retryCount).toBe(3)
 })
 
 const identity = '0x0000000000000000000000000000000000000001'
