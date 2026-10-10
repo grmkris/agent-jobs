@@ -5,7 +5,7 @@
  * this agent's wallet.
  */
 import { useParams } from '@tanstack/react-router'
-import { shareLabel, useBackerShares } from '../../backer-share.ts'
+import { shareLabel, useBackerShareSchedule, type BackerShareSchedule } from '../../backer-share.ts'
 import { ChevronRight } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { Address } from 'viem'
@@ -167,11 +167,22 @@ export function BackingStrip({
 
 function MiningShare() {
   const { agentId } = useParams({ strict: false })
-  const read = useBackerShares(agentId === undefined ? [] : [agentId])
-  const bps = agentId === undefined ? null : (read.shares.get(agentId) ?? null)
+  const read = useBackerShareSchedule(agentId)
+  return <MiningShareCopy schedule={read.isError ? undefined : read.data} />
+}
+
+export function MiningShareCopy({ schedule }: { schedule: BackerShareSchedule | undefined }) {
   let copy = 'This agent’s mining share is unavailable right now'
-  if (bps === 0) copy = "This agent doesn't share mining rewards with backers"
-  if (bps !== null && bps > 0) copy = `Backers get ${shareLabel(bps)} of this agent's work-mining rewards`
+  if (schedule?.current.bps === 0) copy = "This agent doesn't share mining rewards with backers this epoch"
+  if (schedule !== undefined && schedule.current.bps > 0) {
+    copy = `Backers get ${shareLabel(schedule.current.bps)} of this agent's work-mining rewards this epoch`
+  }
+  if (schedule !== undefined) {
+    if (schedule.pendingCut !== null)
+      copy += ` · Cut to ${`${schedule.pendingCut.bps / 100} %`} from epoch ${schedule.pendingCut.appliesFromEpoch} (after the unstake delay)`
+    else if (schedule.next.bps !== schedule.current.bps)
+      copy += ` · ${`${schedule.next.bps / 100} %`} from epoch ${schedule.next.epoch}`
+  }
   return (
     <p className="text-xs text-muted-foreground">
       {copy}.{' '}

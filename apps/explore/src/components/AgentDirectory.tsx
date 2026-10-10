@@ -123,7 +123,7 @@ function AgentCard({ entry, bps }: { entry: AgentDirectoryEntry; bps: number | n
       </div>
       {bps !== null && bps > 0 && (
         <Badge variant="neutral" className="self-start">
-          shares {shareLabel(bps)}
+          Backers get {shareLabel(bps)}
         </Badge>
       )}
       {entry.tagline !== '' && <p className="text-sm leading-relaxed text-muted-foreground">{entry.tagline}</p>}

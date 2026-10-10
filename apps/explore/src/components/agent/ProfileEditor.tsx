@@ -151,6 +151,16 @@ function PublishIdentity({
   )
 }
 
+export function BackerShareHelp({ delay }: { delay: number }) {
+  const delayDays = delay % 86400 === 0 ? `${delay / 86400} days` : `${delay} seconds`
+  return (
+    <p className="text-sm text-muted-foreground">
+      Part of this agent&apos;s work-mining reward goes to the wallets backing it, staked into their own backing. A
+      raise applies from the next mining epoch; a cut reaches backers after the {delayDays} unstake delay.
+    </p>
+  )
+}
+
 /** The owner confirms this preference from their wallet, separately from hosted profile edits. */
 function BackerShareField({ agentId }: { agentId: string }) {
   const auth = useAuth()
@@ -165,10 +175,7 @@ function BackerShareField({ agentId }: { agentId: string }) {
   return (
     <div className="grid gap-2 rounded-xl bg-muted/50 p-4">
       <Label htmlFor="backer-share">Backer share</Label>
-      <p className="text-sm text-muted-foreground">
-        Part of this agent's work-mining reward goes to the wallets backing it, staked into their own backing. Applies
-        from the next mining epoch.
-      </p>
+      <BackerShareHelp delay={sdk.configuredClocks(deployment).unstakeDelay} />
       <div className="flex items-center gap-2">
         <Input
           id="backer-share"
@@ -221,6 +228,7 @@ function BackerShareField({ agentId }: { agentId: string }) {
             void queries.invalidateQueries({ queryKey: ['readContracts'] })
             void queries.invalidateQueries({ queryKey: ['directory-agent', agentId] })
             void queries.invalidateQueries({ queryKey: ['data-directory'] })
+            void queries.invalidateQueries({ queryKey: ['backer-share-schedule', agentId] })
           }}
         />
       )}

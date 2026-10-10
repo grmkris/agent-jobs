@@ -38,7 +38,7 @@ export function AgentPicker({
           <ItemContent className="min-w-0 flex-1 text-left">
             <ItemTitle className="block truncate font-medium">{agent.name}</ItemTitle>
             {agent.agentId !== null && (shares.shares.get(agent.agentId) ?? 0) > 0 && (
-              <Badge variant="neutral">shares {shareLabel(shares.shares.get(agent.agentId) ?? 0)}</Badge>
+              <Badge variant="neutral">Backers get {shareLabel(shares.shares.get(agent.agentId) ?? 0)}</Badge>
             )}
             <span className="block text-ui text-muted-foreground">
               {[agent.yours ? 'Your agent' : null, agent.agentId === null ? null : `Agent ID ${agent.agentId}`]
