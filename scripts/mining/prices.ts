@@ -1,4 +1,5 @@
 import { getAddress, recoverTypedDataAddress, type Address, type Hex } from './viem.ts'
+import { V2_RULE } from './rule.ts'
 
 /**
  * The epoch price list a Safe owner signs (EIP-712). Pinned in README.md; UI U5's signing page builds the same typed
@@ -32,6 +33,31 @@ export interface PriceList {
   epoch: bigint
   tokens: TokenPrice[]
   factoryUsdPrice: bigint
+}
+
+/** V2 permits SIDE only at its reference price and mainnet reward tokens only near their USD peg. */
+export function checkPriceRule(
+  list: PriceList,
+  options: {
+    factory: Address
+    factoryUsdPrice: bigint
+    network: 'monad-mainnet' | 'monad-testnet'
+    usdPegged: readonly Address[]
+  },
+): void {
+  const pegged = new Set(options.usdPegged.map((token) => token.toLowerCase()))
+  for (const token of list.tokens) {
+    if (token.token.toLowerCase() === options.factory.toLowerCase()) {
+      if (token.decimals !== 18 || token.usdPrice !== options.factoryUsdPrice)
+        throw new Error('factory fee token must have 18 decimals and match the SIDE reference price')
+      continue
+    }
+    if (options.network !== 'monad-mainnet') continue
+    if (!pegged.has(token.token.toLowerCase())) throw new Error('mainnet fee token is not configured as USD-pegged')
+    const dollar = 10n ** 18n
+    if (token.usdPrice < dollar - V2_RULE.pegToleranceWei || token.usdPrice > dollar + V2_RULE.pegToleranceWei)
+      throw new Error('mainnet fee token price differs from its USD peg by more than one percent')
+  }
 }
 
 /** The file format: decimal strings for the integers. `domain` is informational; verification rebuilds it. */
