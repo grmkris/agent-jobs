@@ -30,6 +30,8 @@
     // Foundry dependencies and generated outputs are not Sidequest TypeScript sources.
     "contracts/lib/**",
     "tools/oxlint/anti-slop/**",
+    // Vendored agent skills (scripts, assets) are upstream files, not Sidequest sources.
+    ".agents/skills/**",
   ],
   "workspaces": {
     ".": {

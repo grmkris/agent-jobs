@@ -1,4 +1,5 @@
 import { defineConfig } from 'oxlint'
+import { agentIgnorePatterns } from './tools/vendored.ts'
 
 /**
  * Monorepo lint rules, all at error. Repository plugins add what generic rules cannot know:
@@ -22,8 +23,8 @@ export default defineConfig({
     'contracts/cache/**',
     // Vendored from dmmulroy/anti-slop (tools/oxlint/anti-slop/PROVENANCE.md): upstream code, upstream style.
     'tools/oxlint/anti-slop/**',
-    // Vendored from grmkris/personal tools/agents-sync (tools/vendored.ts agentIgnorePatterns): upstream code, upstream style.
-    'scripts/agents-sync.ts',
+    // vendored skills, harness dirs, scripts/agents-sync.ts and generated MCP files (tools/vendored.ts)
+    ...agentIgnorePatterns(),
   ],
   // Type-aware rules run through oxlint-tsgolint, pinned with TypeScript (the root catalog). A bare `oxlint`
   // therefore matches CI. `--type-check` is never used: it picks the wrong tsconfig in workspaces with several.

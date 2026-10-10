@@ -1,0 +1,5 @@
+interface:
+  display_name: 'agent-jobs review'
+  short_description: 'Review a commit range on three axes'
+policy:
+  allow_implicit_invocation: false

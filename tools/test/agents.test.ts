@@ -79,10 +79,13 @@ describe('agents:check', () => {
     ])
   })
 
-  test('an edited vendored SKILL.md marked unchanged fails', () => {
+  test('vendored skills skip the repo-authored checks; agents-sync verifies them', () => {
     const root = fresh()
-    writeFileSync(path.join(root, '.agents/skills/vend/SKILL.md'), `${VENDORED_SKILL}Local edit.\n`)
-    expect(checkAll(root, ['apps/a'])[0]).toContain('differs from upstream (owner/repo@abc)')
+    writeFileSync(
+      path.join(root, '.agents/skills/vend/SKILL.md'),
+      '---\nname: vend\ndescription: Short.\n---\n\nTODO upstream.\n',
+    )
+    expect(checkAll(root, ['apps/a'])).toEqual([])
   })
 
   test('a nested AGENTS.md without its shim, or a workspace without AGENTS.md, fails', () => {

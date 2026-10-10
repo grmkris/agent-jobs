@@ -107,7 +107,7 @@
     "knip": "knip --no-progress",
     "dupes": "jscpd",
     "graph": "bun tools/check-graph.ts",
-    "agents:check": "bun tools/agents-check.ts",
+    "agents:check": "bun scripts/agents-sync.ts --check && bun tools/agents-check.ts",
     "check:files": "bun scripts/check-files.ts",
     "migrations:check": "bun scripts/migrations-lock.ts check",
     "migrations:record": "bun scripts/migrations-lock.ts record",

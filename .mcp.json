@@ -1,12 +1,10 @@
 {
   "mcpServers": {
-    "sidequest": {
-      "type": "http",
-      "url": "https://dev.sidequest.exchange/mcp"
-    },
-    "mytab": {
-      "type": "http",
-      "url": "https://mytab.lol/mcp"
-    }
+    "myplan": { "type": "http", "url": "https://myplan.lol/mcp" },
+    "myinbox": { "type": "http", "url": "https://myinbox.lol/mcp" },
+    "mytab": { "type": "http", "url": "https://mytab.lol/mcp" },
+    "mytmux": { "type": "http", "url": "https://mytmux.lol/mcp" },
+    "mygram": { "type": "http", "url": "https://mygram.lol/mcp" },
+    "cloudflare": { "type": "http", "url": "https://mcp.cloudflare.com/mcp" }
   }
 }

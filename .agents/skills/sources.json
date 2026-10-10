@@ -1,0 +1,351 @@
+{
+  "version": 2,
+  "skills": {
+    "animate": {
+      "repository": "emilkowalski/skills",
+      "commit": "e8a175de22ae1e49370fc144c1f3bb9aeedf988d",
+      "path": "skills/animate",
+      "license": "MIT",
+      "licenses": [
+        "LICENSE"
+      ],
+      "treeSha256": "cad4cbda82810bbd771af0c636015ceab28a89460f619d48332709cc370a57c4",
+      "localTreeSha256": "585419279f9b7cd085f67d961158ab8413be20a57b1c78ced831db3cbe044685",
+      "unchanged": false,
+      "adaptation": "Cross-reference points at find-animation-opportunities (improve-animations is not in the shared set).",
+      "baseCommit": "e8a175de22ae1e49370fc144c1f3bb9aeedf988d"
+    },
+    "animation-vocabulary": {
+      "repository": "emilkowalski/skills",
+      "commit": "e8a175de22ae1e49370fc144c1f3bb9aeedf988d",
+      "path": "skills/animation-vocabulary",
+      "license": "MIT",
+      "licenses": [
+        "LICENSE"
+      ],
+      "treeSha256": "e8f2f403dff9e422b11c420d78bac0ed82c999cf7f56ef75745c9e8c548ec142",
+      "localTreeSha256": "e8f2f403dff9e422b11c420d78bac0ed82c999cf7f56ef75745c9e8c548ec142",
+      "unchanged": true
+    },
+    "apple-design": {
+      "repository": "emilkowalski/skills",
+      "commit": "e8a175de22ae1e49370fc144c1f3bb9aeedf988d",
+      "path": "skills/apple-design",
+      "license": "MIT",
+      "licenses": [
+        "LICENSE"
+      ],
+      "treeSha256": "17d56c00b870b03bfcfe83e603a47f81e01c48937105c5850be5f4a748b213e2",
+      "localTreeSha256": "17d56c00b870b03bfcfe83e603a47f81e01c48937105c5850be5f4a748b213e2",
+      "unchanged": true
+    },
+    "apple-web-app": {
+      "repository": "joe-bell/skills",
+      "commit": "2eb6b5da2ff003abf428255599d002047312b815",
+      "path": "skills/apple-web-app",
+      "license": "MIT",
+      "licenses": [
+        "LICENSE"
+      ],
+      "treeSha256": "614619e9f53f261d4d714ff9853ace03a00f2654955f693c77c4f89a7d9e972c",
+      "localTreeSha256": "614619e9f53f261d4d714ff9853ace03a00f2654955f693c77c4f89a7d9e972c",
+      "unchanged": true
+    },
+    "audit-prep-assistant": {
+      "repository": "trailofbits/skills",
+      "commit": "442fc9d6c89b1e937e6f7a477e7071ea75fcbea4",
+      "path": "plugins/building-secure-contracts/skills/audit-prep-assistant",
+      "license": "CC-BY-SA-4.0",
+      "licenses": [
+        "LICENSE"
+      ],
+      "treeSha256": "4bdd959ba118df41bf32a4eff68b2e92098f44fc5389017fbbe2a86d2b65699a",
+      "localTreeSha256": "4bdd959ba118df41bf32a4eff68b2e92098f44fc5389017fbbe2a86d2b65699a",
+      "unchanged": true
+    },
+    "break-ui": {
+      "repository": "emilkowalski/skills",
+      "commit": "e8a175de22ae1e49370fc144c1f3bb9aeedf988d",
+      "path": "skills/break-ui",
+      "license": "MIT",
+      "licenses": [
+        "LICENSE"
+      ],
+      "treeSha256": "c1c67d8e5bf7431ea78226e4c2558908a0aea7bbfa558736063227bb37d91690",
+      "localTreeSha256": "4f983a943048d604ff1e13cff680e7cbc3940520680e74c67b9d6538cefd3048",
+      "unchanged": false,
+      "adaptation": "Made manual-only (disable-model-invocation: true). agents/openai.yaml added so Codex also treats it as manual-only.",
+      "baseCommit": "e8a175de22ae1e49370fc144c1f3bb9aeedf988d"
+    },
+    "domain-modeling": {
+      "repository": "mattpocock/skills",
+      "commit": "49dd158d1076134a641b33efb035946536778336",
+      "path": "skills/engineering/domain-modeling",
+      "license": "MIT",
+      "licenses": [
+        "LICENSE"
+      ],
+      "treeSha256": "45bcb33893d56d32d760599a706a731e9281e595092740179755608127efdef6",
+      "localTreeSha256": "45bcb33893d56d32d760599a706a731e9281e595092740179755608127efdef6",
+      "unchanged": true
+    },
+    "durable-objects": {
+      "repository": "cloudflare/skills",
+      "commit": "0871daceb347e3c51693fbe9c77555468df7e410",
+      "path": "skills/durable-objects",
+      "license": "Apache-2.0",
+      "licenses": [
+        "LICENSE"
+      ],
+      "treeSha256": "57d6553178ac88801def139889b4932af574dbb3db0f7949f3b8bf45b3d7335d",
+      "localTreeSha256": "57d6553178ac88801def139889b4932af574dbb3db0f7949f3b8bf45b3d7335d",
+      "unchanged": true
+    },
+    "effect-ts": {
+      "repository": "Effect-TS/skills",
+      "commit": "155c50c911f9c99c294ef8a4461981c5bbe6453e",
+      "path": "skills/effect-ts",
+      "license": "MIT",
+      "licenses": [
+        "LICENSE"
+      ],
+      "treeSha256": "c82b34704b6905b2ed8a93484a519eb57c86f51858ed8648046463f07386a1ee",
+      "localTreeSha256": "c82b34704b6905b2ed8a93484a519eb57c86f51858ed8648046463f07386a1ee",
+      "unchanged": true
+    },
+    "ethskills": {
+      "repository": "austintgriffith/ethskills",
+      "commit": "06ea4efa08076ff04f6ca4945ef4a2ca881115b0",
+      "path": ".",
+      "license": "MIT",
+      "licenses": [
+        "LICENSE"
+      ],
+      "treeSha256": "7b84fa642373b0511baa19f19a7d02ec221402279a87e21cdd7b4de4f4271111",
+      "localTreeSha256": "85672bd87f9a919f1ad134dbef007d674051c68041c5a0ada0162d669495c898",
+      "unchanged": false,
+      "adaptation": "Website files removed (html, images, vercel.json, api/); ethskills.com links rewritten to the local SKILL.md tree; LICENSE note added (upstream declares MIT in README/plugin.json but ships no file). Note: OpenZeppelin 5.5+ ERC-4626 maxRedeem/maxWithdraw loop is missing from security/ (upstream issue #171); agent-jobs uses OZ 5.6.1.",
+      "baseCommit": "06ea4efa08076ff04f6ca4945ef4a2ca881115b0"
+    },
+    "find-animation-opportunities": {
+      "repository": "emilkowalski/skills",
+      "commit": "e8a175de22ae1e49370fc144c1f3bb9aeedf988d",
+      "path": "skills/find-animation-opportunities",
+      "license": "MIT",
+      "licenses": [
+        "LICENSE"
+      ],
+      "treeSha256": "d9225e049ebfc4dab5eac71fc2c6994eb1d340475b105808cdbc9ef3a3cec426",
+      "localTreeSha256": "4450c9a13e17417f2a2d8e4dae8b4cf67d8e6bd9fe9e2364bc380d7b0b80abe2",
+      "unchanged": false,
+      "adaptation": "Cross-reference points at review-animations only (improve-animations is not in the shared set).",
+      "baseCommit": "e8a175de22ae1e49370fc144c1f3bb9aeedf988d"
+    },
+    "frontend-design": {
+      "repository": "anthropics/skills",
+      "commit": "dbd4588f9e1033efb41dad4bef2f7947c8993d44",
+      "path": "skills/frontend-design",
+      "license": "Apache-2.0",
+      "licenses": [
+        "LICENSE.txt"
+      ],
+      "treeSha256": "7e9c2af00fd5b3144f49ce6fb1b16037b392ab9c2f049423b0b6114d99381ba2",
+      "localTreeSha256": "7e9c2af00fd5b3144f49ce6fb1b16037b392ab9c2f049423b0b6114d99381ba2",
+      "unchanged": true
+    },
+    "good-css": {
+      "repository": "vojtaholik/good-css",
+      "commit": "b645ab15b9fcd059c0227c21b6a144bb70639f1a",
+      "path": "skills/good-css",
+      "license": "MIT",
+      "licenses": [
+        "LICENSE"
+      ],
+      "treeSha256": "c2a7a6b2a292b775cd700bfe8440ea07df308ae5bd379f8a037cf6d795f7b2d4",
+      "localTreeSha256": "20af66f79b57c1c1319056092bca631d4ff89a42fc7aac755881508b1606ac3a",
+      "unchanged": false,
+      "adaptation": "Description narrowed to CSS implementation; direction and finish deferred to frontend-design and make-interfaces-feel-better.",
+      "baseCommit": "b645ab15b9fcd059c0227c21b6a144bb70639f1a"
+    },
+    "grilling": {
+      "repository": "mattpocock/skills",
+      "commit": "49dd158d1076134a641b33efb035946536778336",
+      "path": "skills/productivity/grilling",
+      "license": "MIT",
+      "licenses": [
+        "LICENSE"
+      ],
+      "treeSha256": "714b8c4d1544298615f0647b237e7ea13c6940c302417c51571ca77ba5161dad",
+      "localTreeSha256": "714b8c4d1544298615f0647b237e7ea13c6940c302417c51571ca77ba5161dad",
+      "unchanged": true
+    },
+    "guidelines-advisor": {
+      "repository": "trailofbits/skills",
+      "commit": "442fc9d6c89b1e937e6f7a477e7071ea75fcbea4",
+      "path": "plugins/building-secure-contracts/skills/guidelines-advisor",
+      "license": "CC-BY-SA-4.0",
+      "licenses": [
+        "LICENSE"
+      ],
+      "treeSha256": "25aa5b66e57952a0e48a46130d2460cdd7b1987eeef514082daf81d17055dd30",
+      "localTreeSha256": "25aa5b66e57952a0e48a46130d2460cdd7b1987eeef514082daf81d17055dd30",
+      "unchanged": true
+    },
+    "make-interfaces-feel-better": {
+      "repository": "jakubkrehel/make-interfaces-feel-better",
+      "commit": "35545ea1512ad59fa463e6b1f95ca9c052981fe6",
+      "path": "skills/make-interfaces-feel-better",
+      "license": "MIT",
+      "licenses": [
+        "LICENSE"
+      ],
+      "treeSha256": "a38394c031e268bf8d7d05ff6f742baf1787395692bedf76f07cef911c472bcb",
+      "localTreeSha256": "3fd67c0f8a5f0d5777331755f0c6d08745e50aa247b09dd34f29438d597f1853",
+      "unchanged": false,
+      "adaptation": "Description narrowed to static polish; motion and visual direction deferred to animate/apple-design and frontend-design (no overlap in the shared set).",
+      "baseCommit": "35545ea1512ad59fa463e6b1f95ca9c052981fe6"
+    },
+    "mobile-native": {
+      "repository": "emilkowalski/skills",
+      "commit": "e8a175de22ae1e49370fc144c1f3bb9aeedf988d",
+      "path": "skills/mobile-native",
+      "license": "MIT",
+      "licenses": [
+        "LICENSE"
+      ],
+      "treeSha256": "e09d6a584beac50f1f52be3c80164e1935ca0694f9e93fcb6893b564c7ce1d44",
+      "localTreeSha256": "1f4c18339885d3a74329fb24a2daec840726a9d30ce473aa548dbc7776bf6710",
+      "unchanged": false,
+      "adaptation": "Description narrowed to general touch/mobile web; Apple and Safari specifics deferred to apple-web-app.",
+      "baseCommit": "e8a175de22ae1e49370fc144c1f3bb9aeedf988d"
+    },
+    "review-animations": {
+      "repository": "emilkowalski/skills",
+      "commit": "e8a175de22ae1e49370fc144c1f3bb9aeedf988d",
+      "path": "skills/review-animations",
+      "license": "MIT",
+      "licenses": [
+        "LICENSE"
+      ],
+      "treeSha256": "42e71687b56e255eb085d668506e12ac0a067c19a6f19088ee45fd6b419c14a3",
+      "localTreeSha256": "4b44ce5f57154df18a336fdd5df169834eb04113d6c5f1ea39a39765b7e6e71b",
+      "unchanged": false,
+      "adaptation": "agents/openai.yaml added so Codex also treats it as manual-only.",
+      "baseCommit": "e8a175de22ae1e49370fc144c1f3bb9aeedf988d"
+    },
+    "secure-workflow-guide": {
+      "repository": "trailofbits/skills",
+      "commit": "442fc9d6c89b1e937e6f7a477e7071ea75fcbea4",
+      "path": "plugins/building-secure-contracts/skills/secure-workflow-guide",
+      "license": "CC-BY-SA-4.0",
+      "licenses": [
+        "LICENSE"
+      ],
+      "treeSha256": "7d88b1ce54c912e18f274b7b4aa8db00b1a1e6f5795f44878985cde841b5e122",
+      "localTreeSha256": "7d88b1ce54c912e18f274b7b4aa8db00b1a1e6f5795f44878985cde841b5e122",
+      "unchanged": true
+    },
+    "shadcn": {
+      "repository": "shadcn-ui/ui",
+      "commit": "2d3f1cd436b18ea12f24130de4df781355925b08",
+      "path": "skills/shadcn",
+      "license": "MIT",
+      "licenses": [
+        "LICENSE.md"
+      ],
+      "treeSha256": "baa5d621c794745ae8295f478cfacdcc1f89e2f49b435f5afc236031b03819ed",
+      "localTreeSha256": "baa5d621c794745ae8295f478cfacdcc1f89e2f49b435f5afc236031b03819ed",
+      "unchanged": true
+    },
+    "thermo-nuclear-code-quality-review": {
+      "repository": "cursor/plugins",
+      "commit": "ccb5507cec1546dc88135c1139c811e6c59115ba",
+      "path": "thermos/skills/thermo-nuclear-code-quality-review",
+      "license": "MIT",
+      "licenses": [
+        "LICENSE"
+      ],
+      "treeSha256": "b92ba8ebcf36f421a22a6af2972325d4e8b56ee397ca7de6734f84806050dbb4",
+      "localTreeSha256": "dce8793eba43c2e18caa103e747f44205d41462c0a9e5eac469dbab277dedd11",
+      "unchanged": false,
+      "adaptation": "agents/openai.yaml added so Codex also treats it as manual-only.",
+      "baseCommit": "ccb5507cec1546dc88135c1139c811e6c59115ba"
+    },
+    "thermo-nuclear-review": {
+      "repository": "cursor/plugins",
+      "commit": "ccb5507cec1546dc88135c1139c811e6c59115ba",
+      "path": "thermos/skills/thermo-nuclear-review",
+      "license": "MIT",
+      "licenses": [
+        "LICENSE"
+      ],
+      "treeSha256": "6555687f1bffa96a3cd813aa7e94707d4aec98465c1184c3d12fbfd034bfc3f0",
+      "localTreeSha256": "6e28f1a80f415ec4c2db5942d1331343f796e48300f3bd64c1c66cac12a0d694",
+      "unchanged": false,
+      "adaptation": "agents/openai.yaml added so Codex also treats it as manual-only.",
+      "baseCommit": "ccb5507cec1546dc88135c1139c811e6c59115ba"
+    },
+    "token-integration-analyzer": {
+      "repository": "trailofbits/skills",
+      "commit": "442fc9d6c89b1e937e6f7a477e7071ea75fcbea4",
+      "path": "plugins/building-secure-contracts/skills/token-integration-analyzer",
+      "license": "CC-BY-SA-4.0",
+      "licenses": [
+        "LICENSE"
+      ],
+      "treeSha256": "41c9dea3a4becebad00df89eae6c68de34d8da96e7d79bad6f4ba73d751806df",
+      "localTreeSha256": "41c9dea3a4becebad00df89eae6c68de34d8da96e7d79bad6f4ba73d751806df",
+      "unchanged": true
+    },
+    "unslop": {
+      "repository": "cursor/plugins",
+      "commit": "ccb5507cec1546dc88135c1139c811e6c59115ba",
+      "path": "pstack/skills/unslop",
+      "license": "MIT",
+      "licenses": [
+        "LICENSE"
+      ],
+      "treeSha256": "8ccc1d0bebf98bb77486238ca07d7dc7fba9b467aef3ad49477aa64cbcef89aa",
+      "localTreeSha256": "a3acfd72b95b3dce0feb5cfde79797526ece9270f46bdcfac1139f8ed74b704e",
+      "unchanged": false,
+      "adaptation": "Description scoped to prose; upstream 'Must always apply' contradicts its manual-only flag (cursor/plugins#308, #367). agents/openai.yaml added so Codex also treats it as manual-only.",
+      "baseCommit": "ccb5507cec1546dc88135c1139c811e6c59115ba"
+    },
+    "web-perf": {
+      "repository": "cloudflare/skills",
+      "commit": "0871daceb347e3c51693fbe9c77555468df7e410",
+      "path": "skills/web-perf",
+      "license": "Apache-2.0",
+      "licenses": [
+        "LICENSE"
+      ],
+      "treeSha256": "01329f2c2d7228566faf13231dfd18f7ff128db318f9e46d1305410c339eeac9",
+      "localTreeSha256": "01329f2c2d7228566faf13231dfd18f7ff128db318f9e46d1305410c339eeac9",
+      "unchanged": true
+    },
+    "workers-best-practices": {
+      "repository": "cloudflare/skills",
+      "commit": "0871daceb347e3c51693fbe9c77555468df7e410",
+      "path": "skills/workers-best-practices",
+      "license": "Apache-2.0",
+      "licenses": [
+        "LICENSE"
+      ],
+      "treeSha256": "d5490ccefce4c472ec34b7d78218e358ed2a5d659a6950f79c084b38c2dc1349",
+      "localTreeSha256": "d5490ccefce4c472ec34b7d78218e358ed2a5d659a6950f79c084b38c2dc1349",
+      "unchanged": true
+    },
+    "wrangler": {
+      "repository": "cloudflare/skills",
+      "commit": "0871daceb347e3c51693fbe9c77555468df7e410",
+      "path": "skills/wrangler",
+      "license": "Apache-2.0",
+      "licenses": [
+        "LICENSE"
+      ],
+      "treeSha256": "1e707db60202e48cdd03b2456b85580b03b713d7a2bc2c459fce8d37e2ea28f2",
+      "localTreeSha256": "1e707db60202e48cdd03b2456b85580b03b713d7a2bc2c459fce8d37e2ea28f2",
+      "unchanged": true
+    }
+  }
+}

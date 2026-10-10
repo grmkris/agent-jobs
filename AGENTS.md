@@ -6,7 +6,7 @@ Start with [README.md](README.md), the [glossary](GLOSSARY.md), [protocol law](d
 
 ## Start here
 
-- Work on `dev`; there is no `main`. Do not push unless Kris asks.
+- Work on `dev`; there is no `main`. Push `dev` when your commits are green.
 - This is a shared checkout. Preserve edits you did not make: never stash, reset, restore, clean, checkout over, or broadly stage them. Stage explicit paths and commit each coherent change as `<area>: <what changed>` with the author trailer required by the assigned lane.
 - Read the workspace instructions linked in the repository map before editing its files.
 

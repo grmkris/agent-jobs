@@ -1,4 +1,5 @@
 import { defineConfig } from 'oxfmt'
+import { agentIgnorePatterns } from './tools/vendored.ts'
 
 export default defineConfig({
   singleQuote: true,
@@ -15,8 +16,8 @@ export default defineConfig({
     'bun.lock',
     // Vendored from dmmulroy/anti-slop in upstream style (tools/oxlint/anti-slop/PROVENANCE.md).
     'tools/oxlint/anti-slop/**',
-    // Vendored from grmkris/personal tools/agents-sync, upstream style (tools/vendored.ts agentIgnorePatterns).
-    'scripts/agents-sync.ts',
+    // vendored skills, harness dirs, scripts/agents-sync.ts and generated MCP files (tools/vendored.ts)
+    ...agentIgnorePatterns(),
     '**/.alchemy/**',
     '**/dist/**',
     '**/.output/**',

@@ -1,0 +1,4 @@
+interface:
+  display_name: 'thermo-nuclear-review'
+policy:
+  allow_implicit_invocation: false

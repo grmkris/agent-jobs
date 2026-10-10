@@ -27,3 +27,13 @@ Other harnesses should read the relevant rule file explicitly.
 Launch Claude from an interactive shell so environment-substituted MCP servers authenticate. Never inspect or print
 credential stores to diagnose a tool. `bun run agents:check` verifies instruction files, shims and agent-facing links.
 [Testing](testing.md) records the current floor evidence and cleanup check boundary.
+
+## Skills and MCP (2026-10-10)
+
+Skills are vendored into `.agents/skills` and pinned in `.agents/skills/sources.json` (v2: upstream commit, SPDX
+license, tree hashes, recorded adaptations); `.claude/skills` holds per-skill links. The set: the shared design,
+review and grilling skills (from grmkris/personal), Cloudflare (cloudflare/skills), effect-ts (Effect-TS/skills),
+domain-modeling, and contracts: ethskills (adapted: local links) plus Trail of Bits building-secure-contracts
+(CC-BY-SA-4.0, unmodified). `.mcp.json`: myplan, myinbox, mytab, mytmux, mygram, cloudflare. Change them with
+`bun scripts/agents-sync.ts skills add|rehash|update`; `bun run agents:check` runs `agents-sync --check` first.
+
