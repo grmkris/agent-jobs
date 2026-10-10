@@ -50,7 +50,7 @@ test('public funding replay rejects expired, out-of-order, future and excessive 
   expect(() => replayLots(0n, [{ epoch: 0n, amount: scheduledLot(0n) + 1n }])).toThrow('live lots')
 })
 
-test('partial funding reruns reproduce leaves/root and fund only emission remainder including leaf dust', () => {
+test('partial funding reruns reproduce leaves/root and leave leaf-rounding dust in the reserve budget', () => {
   const token = `0x${'1'.repeat(40)}` as Address
   const worker = `0x${'2'.repeat(40)}` as Address
   const creator = `0x${'3'.repeat(40)}` as Address
@@ -79,7 +79,9 @@ test('partial funding reruns reproduce leaves/root and fund only emission remain
   expect(original.total).toBe(8n)
   expect(rerun.leaves).toEqual(original.leaves)
   expect(buildTree(leafValues(0n, rerun.leaves))).toEqual(buildTree(leafValues(0n, original.leaves)))
-  expect(fundingRemainder(rerun.emission, 4n)).toBe(5n)
-  expect(fundingRemainder(rerun.emission, 9n)).toBe(0n)
-  expect(() => fundingRemainder(rerun.emission, 10n)).toThrow('beyond')
+  expect(fundingRemainder(rerun.total, 4n)).toBe(4n)
+  expect(fundingRemainder(rerun.total, 8n)).toBe(0n)
+  expect(() => fundingRemainder(rerun.total, 9n)).toThrow('beyond')
+  // Only the leaf sum is consumed: the rounding wei remains usable in the next epoch's lot.
+  expect(replayLots(1n, [{ epoch: 0n, amount: rerun.total }]).usable[0]?.remaining).toBe(scheduledLot(0n) - 8n)
 })

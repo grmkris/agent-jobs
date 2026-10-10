@@ -60,7 +60,47 @@ export interface EpochResult {
   total: bigint
 }
 
+export interface BackerPositionInput {
+  account: Address
+  delegator: Address
+  start: bigint
+  end: bigint
+  weight: bigint
+}
+
+export interface BackerWorkerInput {
+  worker: Address
+  agentId: bigint
+  bps: bigint
+  positions: readonly BackerPositionInput[]
+}
+
 const after = (a: LogPosition, b: LogPosition) => a.block > b.block || (a.block === b.block && a.logIndex > b.logIndex)
+
+const addAmount = (amounts: Map<Address, bigint>, account: Address, amount: bigint) =>
+  amounts.set(account, (amounts.get(account) ?? 0n) + amount)
+
+function applyBackerSplits(
+  amounts: Map<Address, bigint>,
+  workerAmounts: ReadonlyMap<Address, bigint>,
+  workers: readonly BackerWorkerInput[],
+): void {
+  for (const worker of workers) {
+    if (worker.bps <= 0n || worker.bps > 10_000n) continue
+    const allocation = workerAmounts.get(worker.worker) ?? 0n
+    if (allocation === 0n) continue
+    const totalWeight = worker.positions.reduce((sum, position) => sum + position.weight, 0n)
+    if (totalWeight === 0n) continue
+    const backerCut = (allocation * worker.bps) / 10_000n
+    let paid = 0n
+    for (const position of worker.positions) {
+      const amount = (backerCut * position.weight) / totalWeight
+      paid += amount
+      addAmount(amounts, position.delegator, amount)
+    }
+    addAmount(amounts, worker.worker, -paid)
+  }
+}
 
 /**
  * The treasury's `PayoutOwed` for a fee, if its transfer may have been refused. `_settle` emits `FeeCharged`, then pays
@@ -97,6 +137,7 @@ export function computeEpoch(input: {
   withdrawals: readonly OwedWithdrawn[]
   prices: PriceList
   budget: bigint
+  backerWorkers?: readonly BackerWorkerInput[]
 }): EpochResult {
   const price = new Map(input.prices.tokens.map((t) => [t.token, t]))
   const fees: FeeRecord[] = input.fees.map((fee) => {
@@ -130,13 +171,18 @@ export function computeEpoch(input: {
     }
   }
   const amounts = new Map<Address, bigint>()
+  const workerAmounts = new Map<Address, bigint>()
   if (feeUsd > 0n) {
     const workerPool = (emission * WORKER_SHARE_PERCENT) / 100n
     const creatorPool = (emission * CREATOR_SHARE_PERCENT) / 100n
-    for (const [account, usd] of byWorker)
-      amounts.set(account, (amounts.get(account) ?? 0n) + (workerPool * usd) / feeUsd)
+    for (const [account, usd] of byWorker) {
+      const workerAmount = (workerPool * usd) / feeUsd
+      workerAmounts.set(account, workerAmount)
+      amounts.set(account, (amounts.get(account) ?? 0n) + workerAmount)
+    }
     for (const [account, usd] of byCreator)
       amounts.set(account, (amounts.get(account) ?? 0n) + (creatorPool * usd) / feeUsd)
+    applyBackerSplits(amounts, workerAmounts, input.backerWorkers ?? [])
   }
   const leaves = [...amounts]
     .filter(([, amount]) => amount > 0n)

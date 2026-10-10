@@ -79,6 +79,25 @@ bun run mining:epoch <n> [--network monad-testnet|monad-mainnet] --prices <signe
    - An account that was both worker and creator gets one leaf with both parts.
    - Each part is rounded down, and zero leaves are dropped.
    - `total` is the sum of the leaves, so it can sit a few wei under the emission.
+9. **Backer share (opt-in).** A worker can give 0–10000 basis points of its worker mining slice to its backers;
+   unset means 0. The ERC-8004 identity registry stores `sidequest.backerShareBps` as `abi.encode(uint16)`.
+   - The last `MetadataSet` for that agent/key **strictly before `fromBlock`** applies; changes in the epoch take
+     effect next epoch. Exactly 32 bytes are decoded as uint256 and capped at 10000; any other length means 0.
+     The indexed key is filtered by `keccak256(bytes("sidequest.backerShareBps"))`. Metadata history starts at
+     `deployment.sidequest.block`.
+   - Match `FeeCharged` to the same Holding's earlier `Activated(jobId, worker, agentId, ...)`. A missing match
+     means 0. A worker whose counted jobs resolve to different agent IDs (or include a missing match) also gets 0:
+     its combined worker allocation cannot choose one of those identities arbitrarily.
+   - Replay `Delegated`, `UndelegateRequested` (sets the whole queue), `UndelegateCancelled` (clears it),
+     `Withdrawn` (subtracts shares and clears the queue), and `PoolReset` from `deployment.sidequest.block`.
+     `Slashed` and `Forfeited` only change assets. No historical vault or registry `eth_call` is used.
+   - Active shares are shares minus queued shares, after block `fromBlock - 1` and after `toBlock`.
+     Each delegator's weight is `min(start, end)`. A pool reset between those snapshots zeroes the start;
+     joining inside the epoch gets no weight. The worker's own self-backing counts like every other position.
+   - For worker allocation `W`, the backer cut is `floor(W × bps / 10000)`, split pro rata by weight and floored.
+     The worker keeps `W - sum(backer payments)`, absorbing backer rounding. With no weighted backers it keeps
+     all of `W`. Creators are unchanged; worker, creator and backer roles merge into one leaf per account.
+     `EpochDistributor.claim` stakes every leaf into that account's own pool with `delegateFor(account, account, amount)`.
 
 ## Leaves
 
@@ -181,17 +200,25 @@ unless the network is testnet.
 
 Integers are decimal strings, and addresses are lowercase.
 
-- **`inputs`** is the canonical record: `{ chainId, epoch, window, holdings, priceList, budget, fees }`.
+- **`inputs`** is the canonical record:
+  `{ chainId, epoch, window, holdings, priceList, factoryPriceEvidence, budget, fees, topUps }`.
   - `holdings` is sorted.
   - `fees` lists every `FeeCharged` in the window in chain order, with its position (block, logIndex, tx, holding),
     fields, `status` (`counted`, `unpriced` or `owed-to-treasury`) and `usd`.
+  - `factoryPriceEvidence` records official-pool hourly samples, missing reads and the signed fallback price.
+  - `topUps` records the complete contribution history for paid jobs with a bonus fee, in chain order.
+  - When any counted worker has a positive share, `backerShares` lists every counted worker's `agentId`, `worker`,
+    `bps` and `set` (`block`, `logIndex`, `tx`, or null when unset), sorted by worker address. `backerPositions`
+    lists each positive-share worker's `account`, `delegator`, `start`, `end`, `weight`, sorted by account then
+    delegator. With all shares 0, **both keys are omitted** so legacy inputs, `dataHash` and roots remain identical.
 - **`dataHash`** = `keccak256(utf8(JSON.stringify(inputs)))`, over `inputs` exactly as written. Parse the file,
   stringify `inputs`, and hash it to check.
 - **`tree`** is `StandardMerkleTree.dump()`, and **`claims`** carries each account's amount and proof for
   `EpochDistributor.claim(epoch, account, amount, proof)`.
 - **`calls`** are for the Safe, in this order:
   1. `calls.fund`, present only while the epoch still needs funding. It is `MiningReserve.fund(n, amount)`, where
-     `amount` is the remainder (`emission` minus what `n` already has), including any leaf-rounding dust. Its `expect` records `totalFunded()`
+     `amount` is the remainder (`total` minus what `n` already has). Leaf-rounding dust stays in the reserve's
+     unspent budget rather than being funded to the distributor. Its `expect` records `totalFunded()`
      and the epoch's funded amount as this run read them.
   2. `calls.setRoot`: `EpochDistributor.setRoot(n, root, total, dataHash)`.
 

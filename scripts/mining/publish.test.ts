@@ -144,6 +144,34 @@ test('mining publish validates dev and prod, uploads the exact file bytes and re
   }
 })
 
+test('parseEpoch and publication commit the new backer evidence and reject changes to either key', async () => {
+  const f = fake()
+  const inputs = {
+    ...f.file.inputs,
+    backerShares: [
+      { agentId: '1', worker: account, bps: '5000', set: { block: '10', logIndex: 1, tx: `0x${'1'.repeat(64)}` } },
+    ],
+    backerPositions: [{ account, delegator: account2, start: '100', end: '70', weight: '70' }],
+  }
+  const file = { ...f.file, inputs, dataHash: dataHashOf(inputs) }
+  f.live.dataHash = file.dataHash
+  expect(parseEpoch(bytesOf(file), targetOf()).dataHash).toBe(file.dataHash)
+  await publishEpoch(bytesOf(file), targetOf(), configOf(), f.reader, f.store)
+  const put = f.puts[0]
+  if (put === undefined) throw new Error('fixture upload missing')
+  expect(Buffer.from(put.bytes)).toEqual(bytesOf(file))
+  const changedShare = {
+    ...file,
+    inputs: { ...inputs, backerShares: inputs.backerShares.map((share) => ({ ...share, bps: '10000' })) },
+  }
+  expect(() => parseEpoch(bytesOf(changedShare), targetOf())).toThrow('data-hash-mismatch')
+  const changedPosition = {
+    ...file,
+    inputs: { ...inputs, backerPositions: inputs.backerPositions.map((position) => ({ ...position, weight: '71' })) },
+  }
+  expect(() => parseEpoch(bytesOf(changedPosition), targetOf())).toThrow('data-hash-mismatch')
+})
+
 test('wrong stage, config and RPC chain refuse before any upload', async () => {
   const f = fake(),
     bytes = bytesOf(f.file)

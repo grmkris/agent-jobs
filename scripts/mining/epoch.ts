@@ -14,6 +14,8 @@ import {
   topUpLogs,
 } from './chain.ts'
 import { computeEpoch, dataHashOf, leafValues } from './compute.ts'
+import { backerInputs } from './backers.ts'
+import { readBackerWorkers } from './backers-chain.ts'
 import { fundingRemainder } from './lots.ts'
 import { verifiedPriceList, type PriceListFile } from './prices.ts'
 import { officialPoolOf, sampleOfficialPool } from './pool-chain.ts'
@@ -136,8 +138,26 @@ async function main() {
   const topUps = await topUpLogs(c, logs.fees, d.deployBlock < h.block ? d.deployBlock : h.block, toBlock, page)
   const budget = await budgetOf(c, h.miningReserve, epoch, h.block, head.number, page)
 
-  const r = computeEpoch({ ...logs, topUps, prices, budget: budget.available })
-  const toFund = fundingRemainder(r.emission, budget.fundedThis)
+  const baseResult = computeEpoch({ ...logs, topUps, prices, budget: budget.available })
+  const backerWorkers = await readBackerWorkers({
+    c,
+    identity: d.identity,
+    vault: h.vault,
+    holdings: uniqueHoldings,
+    fees: baseResult.fees.filter((fee) => fee.status === 'counted').map((fee) => fee.fee),
+    deploymentBlock: h.block,
+    fromBlock,
+    toBlock,
+    page,
+  })
+  const r = computeEpoch({
+    ...logs,
+    topUps,
+    prices,
+    budget: budget.available,
+    backerWorkers,
+  })
+  const toFund = fundingRemainder(r.total, budget.fundedThis)
   const window = { start: s(start), end: s(end), fromBlock: s(fromBlock), toBlock: s(toBlock), toBlockHash }
   const priceList = {
     message: {
@@ -148,7 +168,7 @@ async function main() {
     signer,
     signature,
   }
-  const inputs = {
+  const baseInputs = {
     chainId,
     epoch: s(epoch),
     window,
@@ -206,6 +226,8 @@ async function main() {
       tx: topUp.tx.toLowerCase(),
     })),
   }
+  const additions = backerInputs(backerWorkers)
+  const inputs = additions === undefined ? baseInputs : { ...baseInputs, ...additions }
   const dataHash = dataHashOf(inputs)
 
   let root: Hex | null = null
@@ -275,7 +297,7 @@ async function main() {
     console.log(`  Safe call ${name}: to ${getAddress(call.to)} data ${call.data}`)
   if (calls.fund !== undefined) {
     console.log(
-      `  fund adds ${r.emission - budget.fundedThis}: send it only while MiningReserve.totalFunded() is ${budget.totalFunded} (epoch ${epoch} has ${budget.fundedThis}); if it moved, run this again`,
+      `  fund adds ${toFund}: send it only while MiningReserve.totalFunded() is ${budget.totalFunded} (epoch ${epoch} has ${budget.fundedThis}); if it moved, run this again`,
     )
   }
   console.log(`wrote ${path}`)

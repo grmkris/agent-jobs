@@ -79,8 +79,8 @@ export function replayLots(epoch: bigint, funding: readonly EpochFunding[]) {
 }
 
 /** Excess funding is an inconsistent input, never silently accepted or funded a second time. */
-export function fundingRemainder(emission: bigint, fundedThis: bigint): bigint {
-  if (emission < 0n || fundedThis < 0n || fundedThis > emission)
-    throw new Error('epoch already funded beyond its computed emission')
-  return emission - fundedThis
+export function fundingRemainder(total: bigint, fundedThis: bigint): bigint {
+  if (total < 0n || fundedThis < 0n || fundedThis > total)
+    throw new Error('epoch already funded beyond its computed leaf total')
+  return total - fundedThis
 }

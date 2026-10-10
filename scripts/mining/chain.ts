@@ -54,7 +54,7 @@ export async function firstBlockAtOrAfter(c: PublicClient, t: bigint, lo: bigint
 }
 
 /** eth_getLogs over [from, to] in pages; a page the RPC refuses is halved and retried, and grows back after. */
-async function pagedLogs<T>(
+export async function pagedLogs<T>(
   from: bigint,
   to: bigint,
   pageSize: bigint,
