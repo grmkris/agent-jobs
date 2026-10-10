@@ -8,6 +8,7 @@ import { type ReactNode, useEffect } from 'react'
 import { type Address, formatEther, parseEther } from 'viem'
 import type { BackableAgent } from '../../backing-agents.ts'
 import { deployment } from '../../wallet.ts'
+import { DELEGATION_RISK, factoryValue } from '../DelegationPositions.tsx'
 import { Sheet } from '../Sheet.tsx'
 import { Alert, AlertDescription } from '../ui/alert.tsx'
 import { Button } from '../ui/button.tsx'
@@ -74,6 +75,39 @@ export function BackingSheets({
         <AgentPicker agents={agents} onPick={onPick} />
       </Sheet>
     </>
+  )
+}
+
+/**
+ * An agent page's backing form in a sheet: the SIDE in the wallet, the risks, then the form. Once the form is sent the
+ * sheet closes into the confirm step on the page, as Account's does.
+ */
+export function AgentFormSheet({
+  open,
+  onClose,
+  title,
+  busy,
+  wallet,
+  form,
+}: {
+  open: boolean
+  onClose: () => void
+  title: string
+  busy: boolean
+  /** SIDE in the signed-in wallet, when read. */
+  wallet: bigint | undefined
+  form: ReactNode
+}) {
+  return (
+    <Sheet open={open} onClose={onClose} title={title} walletPrompt={busy}>
+      {wallet !== undefined && (
+        <p className="text-sm text-muted-foreground">
+          In your wallet: <span className="tabular-nums font-semibold text-foreground">{factoryValue(wallet)}</span>
+        </p>
+      )}
+      <p className="text-xs leading-relaxed text-muted-foreground">{DELEGATION_RISK}</p>
+      {form}
+    </Sheet>
   )
 }
 

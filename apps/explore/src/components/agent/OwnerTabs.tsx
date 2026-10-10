@@ -30,14 +30,12 @@ export function OwnerTabs({
   overview,
   posted,
   taken,
-  overviewRequest = 0,
   onBack,
 }: {
   managed: ManagedAgent
   overview: ReactNode
   posted: readonly RecordJob[] | undefined
   taken: readonly RecordJob[] | undefined
-  overviewRequest?: number
   onBack: () => void
 }) {
   const [tab, setTab] = useState(() => ownerTab(window.location.search))
@@ -89,12 +87,6 @@ export function OwnerTabs({
     go(next)
     if (card !== undefined) setScrollTo(card)
   }
-  useEffect(() => {
-    if (overviewRequest === 0) return
-    setTab('overview')
-    setFocus(null)
-    setScrollTo('profile-backing')
-  }, [overviewRequest])
   return (
     <Tabs value={tab} onValueChange={(value) => go(value as OwnerTab)} className="gap-7">
       <TabsList

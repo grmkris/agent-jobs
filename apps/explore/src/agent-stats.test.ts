@@ -1,5 +1,18 @@
 import { describe, expect, it } from 'vitest'
-import { firstSide, isNew, moneyLines, needsYou, sinceDay, success, tierProgress } from './agent-stats.ts'
+import type { FeedEvent, FeedJob } from './activity-feed.ts'
+import type { ChainJob } from './api.ts'
+import type { JobListItem } from './job-list.ts'
+import {
+  agentEvents,
+  isNew,
+  moneyLines,
+  needsYou,
+  offFeedJobs,
+  sinceDay,
+  success,
+  tierProgress,
+} from './agent-stats.ts'
+import type { AgentRecord, RecordJob } from './routes/Agent.tsx'
 import { registerTokens } from './format.ts'
 
 const six = '0x00000000000000000000000000000000000000a6'
@@ -8,6 +21,35 @@ registerTokens([
   { address: six, symbol: 'SIX', decimals: 6 },
   { address: eighteen, symbol: 'EIGHTEEN', decimals: 18 },
 ])
+
+const AGENT_WALLET = '0x00000000000000000000000000000000000000aa'
+
+/** A feed job with only what agentEvents reads: the agents on it and the chain parties `involves` checks. */
+function feedJob(jobId: string, worker: string | null, poster: string | null, creator = '0x01'): FeedJob {
+  // SAFETY: `involves` reads the chain's creator, approver and worker only.
+  const chain = { creator, approver: creator, worker: null } as ChainJob
+  // SAFETY: agentEvents and `involves` read the job id and the chain row only.
+  const item = { jobId, chain } as JobListItem
+  return {
+    key: jobId,
+    item,
+    phase: null,
+    bucket: null,
+    posterAgent: poster,
+    workerAgent: worker,
+    requested: null,
+    steps: [],
+    latestAt: null,
+    stepped: false,
+  }
+}
+
+function event(key: string, jobId: string | null, job: FeedJob | undefined): FeedEvent {
+  return { key, kind: 'completed', at: 0, jobId, requestId: jobId === null ? key : null, title: '', agentId: null, job }
+}
+
+// SAFETY: offFeedJobs reads the job id alone.
+const recordJob = (job_id: string) => ({ job_id }) as RecordJob
 
 describe('agent profile numbers', () => {
   it('counts success over settled jobs only, and shows a rate from the third', () => {
@@ -29,10 +71,26 @@ describe('agent profile numbers', () => {
     expect(moneyLines(undefined)).toEqual({ lines: [], all: [], more: 0 })
   })
 
-  it('opens the job list on the side with more jobs', () => {
-    expect(firstSide(0, 2)).toBe('posted')
-    expect(firstSide(3, 2)).toBe('took')
-    expect(firstSide(1, 1)).toBe('took')
+  it('lists the jobs an agent took or posted once each, and keeps steps of jobs the page cannot read', () => {
+    const events = [
+      event('a2', '7', feedJob('7', '42', null)),
+      event('a1', '7', feedJob('7', '42', null)),
+      event('b', '8', feedJob('8', '9', '42')),
+      event('c', '9', feedJob('9', '9', null, AGENT_WALLET)),
+      event('d', '10', feedJob('10', '9', null)),
+      event('e', '11', undefined),
+    ]
+    expect(agentEvents(events, '42', [AGENT_WALLET]).map((e) => e.key)).toEqual(['a2', 'b', 'c', 'e'])
+  })
+
+  it('keeps the record jobs no listed event stands for, taken and posted once each, newest first', () => {
+    // SAFETY: offFeedJobs reads the jobs it took and posted, and their ids alone.
+    const record = {
+      jobs: [recordJob('3'), recordJob('12'), recordJob('5')],
+      posted: [recordJob('5'), recordJob('20')],
+    } as AgentRecord
+    const shown = [event('x', '12', undefined), event('y', null, undefined)]
+    expect(offFeedJobs(record, shown).map((x) => x.job_id)).toEqual(['20', '5', '3'])
   })
 
   it('measures fee-tier progress from the current threshold to the next', () => {

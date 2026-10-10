@@ -1,12 +1,11 @@
 /**
- * The SIDE behind an agent, for anyone: total backing, how many back it and the worker fee it pays, with how far it
- * is from the next (lower) fee tier, and "Back this agent". Details unfold in place — the split between active,
- * reserved, available and leaving, the top backers and the viewer's own position — while the action stays scoped to
- * this agent's wallet.
+ * The SIDE behind an agent, for anyone, in one row: total backing, how many back it, the worker fee it pays and the
+ * share of its mining its backers get, with how far it is from the next (lower) fee tier. Details unfold in place — the
+ * split between active, reserved, available and leaving, the top backers, the viewer's own position and the risks.
+ * Backing it is the page header's action.
  */
 import { useParams } from '@tanstack/react-router'
 import { shareLabel, useBackerShareSchedule, type BackerShareSchedule } from '../../backer-share.ts'
-import { ChevronRight } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { Address } from 'viem'
 import { tierProgress } from '../../agent-stats.ts'
@@ -18,14 +17,14 @@ import { DELEGATION_RISK } from '../DelegationPositions.tsx'
 import { Address as AddressText, LoadingRows, Section } from '../kit.tsx'
 import { Countdown, useNow } from '../Time.tsx'
 import { TokenAmount } from '../token/TokenAmount.tsx'
-import { Button } from '../ui/button.tsx'
+import { Disclosure } from '../ui/disclosure.tsx'
 import { Meter } from '../ui/meter.tsx'
 
 function Figure({ value, label }: { value: ReactNode; label: string }) {
   return (
-    <div className="grid min-w-0 gap-0.5">
-      <span className="tabular-nums text-lg leading-tight font-semibold tracking-tight">{value}</span>
-      <span className="text-xs text-muted-foreground">{label}</span>
+    <div className="grid min-w-0 content-start gap-0.5">
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd className="tabular-nums text-base leading-tight font-semibold tracking-tight">{value}</dd>
     </div>
   )
 }
@@ -39,15 +38,7 @@ function Line({ label, children }: { label: ReactNode; children: ReactNode }) {
   )
 }
 
-export function BackingStrip({
-  wallet,
-  viewer,
-  onBack,
-}: {
-  wallet: Address
-  viewer: Address | undefined
-  onBack: () => void
-}) {
+export function BackingStrip({ wallet, viewer }: { wallet: Address; viewer: Address | undefined }) {
   const read = useIndexedBacking(wallet, viewer)
   const now = useNow()
   if (!deployed) return null
@@ -62,20 +53,13 @@ export function BackingStrip({
           This agent&apos;s backing can&apos;t be read right now; it retries.
         </p>
       ) : (
-        <div className="grid gap-3 rounded-xl bg-card p-4 ring-1 ring-foreground/10">
-          <div className="flex flex-wrap items-end gap-x-8 gap-y-3">
-            <Figure value={<TokenAmount value={snapshot.backing.assets} token={factory} />} label="total backing" />
-            <Figure
-              value={<TokenAmount value={snapshot.backing.reserved} token={factory} />}
-              label="currently bonded"
-            />
-            <Figure value={snapshot.delegatorCount} label={snapshot.delegatorCount === 1 ? 'backer' : 'backers'} />
-            <Figure value={percent(snapshot.backing.tier.feeBps)} label="worker fee" />
-            <Button variant="secondary" onClick={onBack} className="ml-auto max-sm:w-full">
-              Back this agent
-            </Button>
-          </div>
-          <MiningShare />
+        <div className="grid gap-3 rounded-xl bg-card px-4 py-3 ring-1 ring-foreground/10">
+          <dl className="flex flex-wrap gap-x-8 gap-y-3">
+            <Figure value={<TokenAmount value={snapshot.backing.assets} token={factory} />} label="Total backing" />
+            <Figure value={snapshot.delegatorCount} label={snapshot.delegatorCount === 1 ? 'Backer' : 'Backers'} />
+            <Figure value={percent(snapshot.backing.tier.feeBps)} label="Worker fee" />
+            <BackerShareFigure />
+          </dl>
           {snapshot.backing.tier.nextThreshold === null ? (
             <p className="text-xs text-muted-foreground">It pays the lowest fee.</p>
           ) : (
@@ -90,15 +74,9 @@ export function BackingStrip({
               </span>
             </Meter>
           )}
-          <details className="group/details -mx-1">
-            <summary className="inline-flex min-h-8 cursor-pointer list-none items-center gap-1 rounded-md px-1 text-sm font-medium select-none pointer-coarse:min-h-11 [&::-webkit-details-marker]:hidden">
-              <ChevronRight
-                aria-hidden
-                className="size-4 text-muted-foreground transition-transform duration-(--dur-fast) group-open/details:rotate-90"
-              />
-              Details
-            </summary>
-            <div className="grid gap-4 px-1 pt-2">
+          <Disclosure summary="Details" className="-mx-1">
+            <div className="grid gap-4 px-1 pt-2 pb-1">
+              <MiningShare />
               <div>
                 <Line label="Active">
                   <TokenAmount value={snapshot.backing.active} token={factory} />
@@ -158,10 +136,35 @@ export function BackingStrip({
               )}
               <p className="text-xs leading-relaxed text-muted-foreground">{DELEGATION_RISK}</p>
             </div>
-          </details>
+          </Disclosure>
         </div>
       )}
     </Section>
+  )
+}
+
+/** The share of its work-mining reward its backers get this epoch, and the change ahead, if any. */
+function BackerShareFigure() {
+  const { agentId } = useParams({ strict: false })
+  const read = useBackerShareSchedule(agentId)
+  const schedule = read.isError ? undefined : read.data
+  if (schedule === undefined) return null
+  const change =
+    schedule.pendingCut !== null
+      ? schedule.pendingCut.bps
+      : schedule.next.bps !== schedule.current.bps
+        ? schedule.next.bps
+        : null
+  return (
+    <div className="grid min-w-0 content-start gap-0.5">
+      <dt className="text-xs text-muted-foreground">Backers get</dt>
+      <dd className="tabular-nums text-base leading-tight font-semibold tracking-tight">
+        {shareLabel(schedule.current.bps)}
+        {change !== null && (
+          <span className="ml-1.5 text-xs font-normal text-muted-foreground">then {shareLabel(change)}</span>
+        )}
+      </dd>
+    </div>
   )
 }
 

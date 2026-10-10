@@ -1,6 +1,5 @@
-import { Button } from './ui/button.tsx'
 import { Alert, AlertDescription } from './ui/alert.tsx'
-import { LoadingRows, Section } from './kit.tsx'
+import { LoadingRows } from './kit.tsx'
 import * as sdk from '@sidequest/sdk'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 
@@ -11,12 +10,15 @@ import { type ManagedAgent, agentEndpoint } from '../api.ts'
 import { DelegationForm, exactFactory } from './DelegationForm.tsx'
 import { DELEGATION_RISK, DelegationPositions, factoryValue, walletAgentsKey } from './DelegationPositions.tsx'
 import { HoldingControls } from './HoldingControls.tsx'
-import { useToast } from './Sheet.tsx'
-import { BackingSheets, GasWarning, PositionsUnavailable, useReveal } from './backing/AccountBacking.tsx'
+import {
+  AgentFormSheet,
+  BackingSheets,
+  GasWarning,
+  PositionsUnavailable,
+  useReveal,
+} from './backing/AccountBacking.tsx'
 import { BackingOverview } from './backing/BackingOverview.tsx'
-import { TxSteps } from './TxSteps.tsx'
-import { emptyJournal, readTxJournalDurable, txJournalKey, writeTxJournalDurable } from './txJournal.ts'
-import { withWalletStepLock } from './txOperation.ts'
+import { emptyJournal, txJournalKey, writeTxJournalDurable } from './txJournal.ts'
 
 import { useDelegations, useIndexedBacking } from '../delegation-query.ts'
 import { useDirectory } from '../directory-query.ts'
@@ -24,14 +26,12 @@ import { type SidequestContracts, sidequest } from '../sidequest.ts'
 import { stakeContext } from '../stake-context.ts'
 import { factoryAmount } from '../stake.ts'
 import { friendlyError } from '../txErrors.ts'
-import { vaultOperationGuards } from '../vault-proof.ts'
 import { positionLabel } from '../position-label.ts'
 import { backableAgents } from '../backing-agents.ts'
 import { chain, deployment, writesOpen } from '../wallet.ts'
 import {
   InterruptedVaultPreparation,
   type VaultIntent as Operation,
-  clearOwnedIntentDurable,
   readVaultIntent,
   readVaultIntentDurable,
   withVaultPermitPreparation,
@@ -40,13 +40,23 @@ import {
   withVaultIntentLock,
 } from '../vault-lock.ts'
 import { VaultPreparationRecovery } from './VaultPreparationRecovery.tsx'
+import { ConfirmPosition } from './backing/ConfirmPosition.tsx'
+
+/** An agent's backing form in a sheet the page opens: the page keeps only the confirm step once a form is sent. */
+export interface BackingSheet {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}
 
 export function BackingManager({
   owner,
   scope = { kind: 'account' },
+  sheet,
 }: {
   owner: Address
   scope?: { kind: 'account' } | { kind: 'agent'; account: Address; agentId?: string }
+  /** Agent scope only: the form opens in this sheet instead of inline. */
+  sheet?: BackingSheet
 }) {
   return (
     <Stake
@@ -55,6 +65,7 @@ export function BackingManager({
       owner={owner}
       initialAccount={scope.kind === 'agent' ? scope.account : undefined}
       scope={scope}
+      sheet={scope.kind === 'agent' ? sheet : undefined}
     />
   )
 }
@@ -64,13 +75,14 @@ function Stake({
   owner,
   initialAccount,
   scope,
+  sheet: agentSheet,
 }: {
   contracts: SidequestContracts
   owner: Address
   initialAccount: Address | undefined
   scope: { kind: 'account' } | { kind: 'agent'; account: Address; agentId?: string }
+  sheet: BackingSheet | undefined
 }) {
-  const toast = useToast()
   const queryClient = useQueryClient()
   const reads = useDelegations(contracts, owner)
   const mon = useBalance({ address: owner, chainId: chain.id, query: { refetchInterval: 15_000 } })
@@ -308,8 +320,13 @@ function Stake({
     ).catch(reportFailure)
   }
 
-  // On Account the form sheet closes into the confirm step (and a saved one is restored on load): bring it into view.
-  useReveal('backing-confirm', scope.kind === 'account' ? operation?.id : undefined)
+  // A form sheet closes into the confirm step (and a saved one is restored on load): bring it into view.
+  const sheeted = scope.kind === 'account' || agentSheet !== undefined
+  useReveal('backing-confirm', sheeted ? operation?.id : undefined)
+  const closeAgentSheet = agentSheet?.onOpenChange
+  useEffect(() => {
+    if (operation !== null) closeAgentSheet?.(false)
+  }, [operation, closeAgentSheet])
 
   // The backing form with its gas warning: inline on an agent's page, in a sheet on Account.
   const formBlock = (
@@ -330,28 +347,28 @@ function Stake({
         onMode={setMode}
         onText={setText}
         onSubmit={() => void submit()}
-        framed={scope.kind === 'agent'}
+        framed={scope.kind === 'agent' && agentSheet === undefined}
       />
     </>
   )
 
   return (
     <>
-      {scope.kind === 'account' ? (
-        reads.data !== undefined && (
-          <BackingOverview
-            positions={reads.data.positions}
-            wallet={reads.data.wallet}
-            owner={owner}
-            cooldown={reads.data.cooldown}
-            disabled={disabled}
-            onBackWallet={() => openForm(owner)}
-            onBackAgent={() => setSheet('pick')}
-          />
-        )
-      ) : (
-        <p className="rounded-xl bg-warning/14 p-4 text-sm leading-relaxed text-warning-text">{DELEGATION_RISK}</p>
-      )}
+      {scope.kind === 'account'
+        ? reads.data !== undefined && (
+            <BackingOverview
+              positions={reads.data.positions}
+              wallet={reads.data.wallet}
+              owner={owner}
+              cooldown={reads.data.cooldown}
+              disabled={disabled}
+              onBackWallet={() => openForm(owner)}
+              onBackAgent={() => setSheet('pick')}
+            />
+          )
+        : agentSheet === undefined && (
+            <p className="rounded-xl bg-warning/14 p-4 text-sm leading-relaxed text-warning-text">{DELEGATION_RISK}</p>
+          )}
 
       {initial.error !== null && (
         <Alert variant="destructive">
@@ -379,7 +396,8 @@ function Stake({
       {scope.kind === 'account' && reads.isPending ? (
         <LoadingRows rows={3} />
       ) : (
-        reads.data !== undefined && (
+        reads.data !== undefined &&
+        agentSheet === undefined && (
           <>
             {scope.kind === 'agent' && (
               <p className="px-4 text-sm text-muted-foreground">
@@ -409,76 +427,31 @@ function Stake({
       )}
 
       {operation !== null ? (
-        <Section id="backing-confirm" title="Confirm your position action">
-          <p className="px-4 text-sm text-muted-foreground">
-            Backing wallet: {nameOf(operation.account)}. Withdrawals return to your signed-in wallet.
-          </p>
-          <TxSteps
-            key={operation.id}
-            taskId={`delegation:${operation.id}`}
-            txs={operation.txs}
-            owner={owner}
-            reportToBoard={false}
-            requireJournal
-            retainRecord
-            verifyReceipt
-            allowSponsorship={false}
-            onSafeToRestartChange={setSafeToDismiss}
-            {...vaultOperationGuards(stakeContext(contracts), localStorage, key, operation, owner)}
-            onDone={() => {
-              void withVaultIntentLock(navigator.locks, key, async () => {
-                if (!(await clearOwnedIntentDurable(localStorage, key, operation.id)))
-                  throw new Error('A newer position action is saved in another tab; keep it for reconciliation.')
-                setOperation(null)
-                void queryClient.invalidateQueries({ queryKey: ['delegations'] })
-                void queryClient.invalidateQueries({ queryKey: ['backing'] })
-                void queryClient.invalidateQueries({ queryKey: ['indexed-backing'] })
-                toast(
-                  operation.kind === 'delegate'
-                    ? 'Backed. You own the position.'
-                    : operation.kind === 'leave'
-                      ? 'Leaving started. Your position stays at risk.'
-                      : operation.kind === 'cancel'
-                        ? 'Leaving cancelled. Your backing is active again.'
-                        : operation.kind === 'withdraw'
-                          ? 'Withdrawn to your wallet.'
-                          : 'Holding permission updated.',
-                )
-              }).catch((failure) => setError(friendlyError(failure)))
-            }}
-          />
-          {error !== null && (
-            <Alert variant="destructive">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-          {safeToDismiss && (
-            <Button
-              variant="link"
-              onClick={() => {
-                const journalKey = txJournalKey(`delegation:${operation.id}`, operation.txs)
-                void withWalletStepLock(navigator.locks, journalKey, async () => {
-                  const journal = (await readTxJournalDurable(localStorage, journalKey, true))!
-                  if (
-                    journal.pending !== null ||
-                    journal.hashes.some((hash) => hash !== null) ||
-                    journal.sponsor != null
-                  )
-                    throw new Error('This action started in another tab. Reconcile it before preparing another.')
-                  await withVaultIntentLock(navigator.locks, key, async () => {
-                    if (!(await clearOwnedIntentDurable(localStorage, key, operation.id)))
-                      throw new Error('A newer position action is saved in another tab; keep it for reconciliation.')
-                    setOperation(null)
-                  })
-                }).catch((failure) => setError(friendlyError(failure)))
-              }}
-            >
-              Not now
-            </Button>
-          )}
-        </Section>
+        <ConfirmPosition
+          operation={operation}
+          name={nameOf(operation.account)}
+          owner={owner}
+          contracts={contracts}
+          intentKey={key}
+          error={error}
+          safeToDismiss={safeToDismiss}
+          onSafeToDismissChange={setSafeToDismiss}
+          onCleared={() => setOperation(null)}
+          onError={setError}
+        />
       ) : (
-        scope.kind === 'agent' && formBlock
+        scope.kind === 'agent' && agentSheet === undefined && formBlock
+      )}
+
+      {agentSheet !== undefined && (
+        <AgentFormSheet
+          open={agentSheet.open && operation === null}
+          onClose={() => agentSheet.onOpenChange(false)}
+          title={mode === 'leave' ? `Leave ${nameOf(account)}` : `Back ${nameOf(account)}`}
+          busy={busy}
+          wallet={reads.data?.wallet}
+          form={formBlock}
+        />
       )}
 
       {scope.kind === 'account' && (

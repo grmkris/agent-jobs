@@ -201,8 +201,8 @@ function EventSentence({ event, sentence }: { event: FeedEvent; sentence: Return
 /**
  * One thing that happened, as a sentence: who did it, what, to which job, for how much and how long ago. As a job's
  * row (the feed's usual reading) it also carries the job's track and, once work was delivered, the work itself, large;
- * as one step among every step (`step`) it stays compact. A press opens the job's card; a job this page cannot read
- * links to its page.
+ * as a `compact` job row (a profile's list) the track and a small picture of the work; as one step among every step
+ * (`step`) the sentence alone. A press opens the job's card; a job this page cannot read links to its page.
  */
 export function EventRow({
   event,
@@ -210,7 +210,7 @@ export function EventRow({
   fresh = false,
 }: {
   event: FeedEvent
-  layout?: 'job' | 'step'
+  layout?: 'job' | 'compact' | 'step'
   /** Just arrived in the feed. */
   fresh?: boolean
 }) {
@@ -221,7 +221,7 @@ export function EventRow({
   const shown = useEventDelivery(event)
   const status = UNACCEPTED[event.kind]
   const big = layout === 'job' && shown.thumb !== null
-  const track = layout === 'job' && event.job !== undefined ? trackOf(event.job) : []
+  const track = layout !== 'step' && event.job !== undefined ? trackOf(event.job) : []
   return (
     <StretchedRow
       fresh={fresh}

@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Link, useParams } from '@tanstack/react-router'
 import { BaseError, ContractFunctionRevertedError, maxUint256, zeroAddress } from 'viem'
 import { useReadContracts } from 'wagmi'
@@ -14,9 +14,9 @@ import { ProfileHeader } from '../components/agent/ProfileHeader.tsx'
 import { DirectorySection } from '../components/DirectoryCards.tsx'
 import { HireAgainLink, lastPaidJob } from '../components/job/HireAgain.tsx'
 import { PageTitle } from '../components/kit.tsx'
-import { SetupChecklist } from '../components/agent/SetupChecklist.tsx'
 import { BackingManager } from '../components/BackingManager.tsx'
 import { PrivyLogin } from '../components/Privy.tsx'
+import { Sheet } from '../components/Sheet.tsx'
 import { useNow } from '../components/Time.tsx'
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '../components/ui/empty.tsx'
 import { Skeleton } from '../components/ui/skeleton.tsx'
@@ -263,33 +263,14 @@ function Profile({ id }: { id: string }) {
   const wallet = (identity.wallet ?? record.data?.currentWallet ?? record.data?.wallets[0]) as `0x${string}` | undefined
   const { address } = useAuth()
   const now = useNow()
-  const [backingOpen, setBackingOpen] = useState(false)
-  const [overviewRequest, setOverviewRequest] = useState(0)
-  const openBacking = () => {
-    setBackingOpen(true)
-    setOverviewRequest((request) => request + 1)
-  }
+  // "Back this agent" (the header's, and Manage's) opens the backing form in a sheet, for the owner and everyone else.
+  const [backing, setBacking] = useState(false)
+  const openBacking = () => setBacking(true)
   const again = lastPaidJob(record.data?.jobs ?? [], address, id)
   // The signed-in operator's own agent gets its owner tabs; everyone else, the public profile alone.
   const managed = useOwnedAgent(id)
-  useEffect(() => {
-    if (managed !== undefined || overviewRequest === 0) return
-    const frame = requestAnimationFrame(() =>
-      document.getElementById('profile-backing')?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
-    )
-    return () => cancelAnimationFrame(frame)
-  }, [managed, overviewRequest])
   const overview = (
     <>
-      {managed !== undefined && address !== undefined && (
-        <SetupChecklist
-          agent={managed}
-          operator={address}
-          wallet={wallet}
-          backingOpen={backingOpen}
-          onBackingOpenChange={setBackingOpen}
-        />
-      )}
       {again !== undefined && (
         <div className="grid gap-1.5">
           <HireAgainLink jobId={again.job_id} />
@@ -328,25 +309,11 @@ function Profile({ id }: { id: string }) {
       ) : (
         <>
           <HeroStats record={record.data!} now={now} owner={managed !== undefined} />
-          <AgentJobs record={record.data!} />
+          {wallet !== undefined && <AgentJobs record={record.data!} agentId={id} wallet={wallet} />}
         </>
       )}
-      {wallet !== undefined && identity.exists !== false && (
-        <BackingStrip wallet={wallet} viewer={address} onBack={openBacking} />
-      )}
+      {wallet !== undefined && identity.exists !== false && <BackingStrip wallet={wallet} viewer={address} />}
       {directory.data?.agent !== undefined && <DirectorySection agent={directory.data.agent} />}
-      {managed === undefined && backingOpen && wallet !== undefined && (
-        <section id="profile-backing" aria-label="Back this agent" className="grid scroll-mt-24 gap-4">
-          {address === undefined ? (
-            <>
-              <p className="text-sm text-muted-foreground">Sign in to back this agent.</p>
-              <PrivyLogin />
-            </>
-          ) : (
-            <BackingManager owner={address} scope={{ kind: 'agent', account: wallet, agentId: id }} />
-          )}
-        </section>
-      )}
       {managed === undefined && identity.exists !== false && (
         <Link
           to="/connect"
@@ -376,10 +343,45 @@ function Profile({ id }: { id: string }) {
           overview={overview}
           posted={record.data?.posted}
           taken={record.data?.jobs}
-          overviewRequest={overviewRequest}
           onBack={openBacking}
         />
       )}
+      {wallet !== undefined && identity.exists !== false && (
+        <BackSheet id={id} wallet={wallet} viewer={address} open={backing} onOpenChange={setBacking} />
+      )}
     </>
+  )
+}
+
+/**
+ * Backing this agent, in a sheet: the form for a signed-in viewer (its confirm step stays on the page once sent), a
+ * sign-in for anyone else.
+ */
+function BackSheet({
+  id,
+  wallet,
+  viewer,
+  open,
+  onOpenChange,
+}: {
+  id: string
+  wallet: `0x${string}`
+  viewer: `0x${string}` | undefined
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}) {
+  if (viewer === undefined)
+    return (
+      <Sheet open={open} onClose={() => onOpenChange(false)} title="Back this agent">
+        <p className="text-sm text-muted-foreground">Sign in to back this agent with SIDE.</p>
+        <PrivyLogin />
+      </Sheet>
+    )
+  return (
+    <BackingManager
+      owner={viewer}
+      scope={{ kind: 'agent', account: wallet, agentId: id }}
+      sheet={{ open, onOpenChange }}
+    />
   )
 }

@@ -1,9 +1,10 @@
 /**
  * The numbers an agent's profile shows, derived from its record (`/data/agents/<id>`) and its backing: pure functions,
- * so the rules (what counts as settled, which side of the job list opens first, how far the next fee tier is) are
+ * so the rules (what counts as settled, which jobs the profile lists, how far the next fee tier is) are
  * tested apart from the page.
  */
-import type { MoneyTotals } from './routes/Agent.tsx'
+import { type FeedEvent, involves, newestPerJob } from './activity-feed.ts'
+import type { AgentRecord, MoneyTotals, RecordJob } from './routes/Agent.tsx'
 import { tokenMeta } from './format.ts'
 
 /** Below this many settled jobs a percentage says more than the record does: show "2 of 2 paid" instead. */
@@ -42,8 +43,27 @@ export function moneyLines(
   return { lines: all.slice(0, shown), all, more: Math.max(0, all.length - shown) }
 }
 
-/** Which side of the job list opens first: the one with more jobs, "took" on a tie. */
-export const firstSide = (took: number, posted: number): 'took' | 'posted' => (posted > took ? 'posted' : 'took')
+/**
+ * The feed's events that are this agent's, each job once at its newest step. The steps were read for its wallet, so a
+ * step whose job this page has no record of is its own; a job the page does know is its when the agent took or posted
+ * it, or any of its wallets took part.
+ */
+export function agentEvents(events: readonly FeedEvent[], agentId: string, wallets: readonly string[]): FeedEvent[] {
+  return newestPerJob(
+    events.filter((e) => {
+      const job = e.job
+      if (job === undefined) return true
+      return job.workerAgent === agentId || job.posterAgent === agentId || wallets.some((w) => involves(job, w))
+    }),
+  )
+}
+
+/** The record's jobs (taken and posted, once each, newest first) that no event in the list stands for. */
+export function offFeedJobs(record: AgentRecord, shown: readonly FeedEvent[]): RecordJob[] {
+  const listed = new Set(shown.flatMap((e) => (e.jobId === null ? [] : [e.jobId])))
+  const byId = new Map([...(record.posted ?? []), ...record.jobs].map((j) => [j.job_id, j]))
+  return [...byId.values()].filter((j) => !listed.has(j.job_id)).toSorted((a, b) => Number(b.job_id) - Number(a.job_id))
+}
 
 /** How far active backing has come from the current fee tier's threshold to the next one; 1 at the lowest fee. */
 export function tierProgress(active: bigint, tier: { threshold: bigint; nextThreshold: bigint | null }): number {
